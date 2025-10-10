@@ -28,9 +28,27 @@ Your direct chat interaction or incident is tracked as a thread in SRE Agent. In
 2. Look for the Welcome Thread that appears after agent creation. It starts with:
 >“Hi, I’m your Azure SRE Partner!” 
 3. This thread includes environment analysis and a snapshot of managed resources. 
-4. You can also find thread IDs in the Activities or Threads view of the agent. 
+4. You can also find thread IDs in the Activities or Incidents view of the agent. 
 5. The Thread ID looks like this:
 >50f7521d-dfee-487e-9188-5abdc8adde91 
+
+**Get thread ID for threads under "Activities" view <br />**
+<img width="722" height="126" alt="Screenshot 2025-10-09 at 3 22 07 PM" src="https://github.com/user-attachments/assets/62f6ea4b-3494-4f67-a85e-d16611f35da7" /> <br />
+
+
+
+**Get thread ID for threads under Incident Management view <br />** 
+step 1: <br />
+<img width="670" height="108" alt="Screenshot 2025-10-09 at 3 21 51 PM" src="https://github.com/user-attachments/assets/18794670-499b-4c74-aedd-0541621d78e6" /> <br />
+
+
+
+
+step2: <br />
+<img width="747" height="108" alt="Screenshot 2025-10-09 at 3 21 37 PM" src="https://github.com/user-attachments/assets/09dbaf67-49f5-4346-b5eb-6624f4c5b803" /> <br />
+
+
+
 
 
 ## 📝 Issue Template
