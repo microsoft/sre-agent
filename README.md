@@ -1,13 +1,14 @@
-# 🚀 Read First: Welcome to the Azure SRE Agent GitHub Repository!
-We’re excited to launch this space for collaboration around the SRE Agent a key tool in our mission to improve service reliability and operational excellence. 
+# 🚀 Welcome to the Azure SRE Agent GitHub Repository!
+We’re excited to launch this space for collaboration around the [SRE Agent](https://learn.microsoft.com/en-us/azure/sre-agent/overview), a key tool in our mission to improve service reliability and operational excellence. 
 
-## This repository is designed to be a community-driven hub where users can:
-
+## This repository is a community-driven hub where you can:
 * 🐛 Report bugs encountered while using the SRE Agent 
 * 💡 Request features that would improve usability or functionality
 * ❓ Share challenges or feedback related to using the product 
 * 🤝 Engage with the team and community to help shape the future of the SRE Agent 
-* ⚠️ Please note: This repo is not intended for integration-related issues. For those, please use the appropriate internal or partner support channels. 
+
+> [!NOTE]
+> This repo is not intended for integration-related issues. For those, please use the appropriate internal or partner support channels. 
 
 ## 🧼 Hygiene Guidelines for Creating Issues
 
