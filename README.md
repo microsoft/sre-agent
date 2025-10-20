@@ -20,18 +20,9 @@ To help us keep things organized and productive, please follow these simple rule
 
 ## 🧭 How to Find the Thread ID in SRE Agent
 
-Your direct chat interaction or incident is tracked as a thread in SRE Agent. Including the Thread ID in your GitHub issue helps us investigate quickly and accurately. 
+Your direct chat interaction or incident is tracked as a thread in SRE Agent. Including the Thread ID in your GitHub issue helps us investigate quickly and accurately. A thread ID is a hex string like `50f7521d-dfee-487e-9188-5abdc8adde91`.
 
-### 🔍 Steps to Locate the Thread ID:
-
-1. Go to the Azure Portal and open your SRE Agent resource.
-2. Look for the Welcome Thread that appears after agent creation. It starts with:
->“Hi, I’m your Azure SRE Partner!” 
-3. This thread includes environment analysis and a snapshot of managed resources. 
-4. You can also find thread IDs in the Activities or Incidents view of the agent. 
-5. The Thread ID looks like this:
->50f7521d-dfee-487e-9188-5abdc8adde91 
-
+### 🔍 How to Locate the Thread ID:
 **Get thread ID for threads under "Activities" view <br />**
 <img width="722" height="126" alt="Screenshot 2025-10-09 at 3 22 07 PM" src="https://github.com/user-attachments/assets/62f6ea4b-3494-4f67-a85e-d16611f35da7" /> <br />
 
