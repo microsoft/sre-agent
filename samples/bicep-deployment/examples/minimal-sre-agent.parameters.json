@@ -1,0 +1,38 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "agentName": {
+      "value": "my-sre-agent"
+    },
+    "subscriptionId": {
+      "value": "your-subscription-id-here"
+    },
+    "deploymentResourceGroupName": {
+      "value": "rg-sre-agent"
+    },
+    "location": {
+      "value": "eastus2"
+    },
+    "existingManagedIdentityId": {
+      "value": ""
+    },
+    "accessLevel": {
+      "value": "High"
+    },
+    "targetResourceGroups": {
+      "value": [
+        "rg-production-web",
+        "rg-production-data",
+        "rg-staging-web"
+      ]
+    },
+    "targetSubscriptions": {
+      "value": [
+        "subscription-id-1",
+        "subscription-id-1", 
+        "subscription-id-2"
+      ]
+    }
+  }
+}
