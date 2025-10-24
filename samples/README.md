@@ -43,4 +43,4 @@ We welcome community contributions! If you have samples, templates, or tools tha
 
 ## Support
 
-For issues specific to these samples, please open a GitHub issue in this repository. For SRE Agent product support, please use the appropriate Azure support channels.
+For issues specific to these samples or SREAgent, please open a GitHub issue in this repository. 
