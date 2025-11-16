@@ -49,13 +49,26 @@ When creating a new issue, please use the following format:
 **Issue Description** 
 Briefly describe the problem or request. 
 
+**Agent Name** 
+name of Agent
+
+**Subscription ID**
+subscription in which agent is deployed 
+
+**Region**
+Region where agent is deployed 
+
+**Resource group** 
+For Agent deployment related issues, provide the resource group in which it was created
+
 **Thread ID** 
 Paste the thread ID from the SRE Agent portal (e.g., 50f7521d-dfee-487e-9188-5abdc8adde91) 
 
 **Steps to Reproduce** 
 1. Describe the action you took 
-2. Mention the resource or service involved 
-3. Describe what you expected vs. what happened 
+2. Mention the resource or Azure service (if involved)
+3. Describe what you expected vs. what happened
+4. include  error messages experienced by you in Incident or chat threads or ARM deployment error details or HTTP status codes
 
 **Expected Behavior** 
 What should happen? 
