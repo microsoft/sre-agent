@@ -1,46 +1,45 @@
 # SRE Agent Samples
 
-This directory contains community-contributed samples and deployment templates for the Azure SRE Agent.
+This directory contains end-to-end samples to help you get started with Azure SRE Agent.
+
+## Folder Structure
+
+```
+samples/
+├── bicep-deployment/          # Infrastructure as Code templates for deploying SRE Agents
+│   ├── bicep/
+│   ├── examples/
+│   └── scripts/
+└── incident-automation/       # End-to-end incident automation guide with Octopets sample app
+    ├── 00-configure-sre-agent.md
+    ├── 01-octopets-memleak-sample.md
+    ├── sample-apps/
+    │   └── octopets-setup.md
+    ├── subagents/
+    │   └── pd-azure-resource-error-handler.yaml
+    └── images/
+```
 
 ## Available Samples
 
-### [Bicep Deployment](./bicep-deployment/)
+### 1. Bicep Deployment
+Infrastructure as Code templates for deploying Azure SRE Agents with advanced configuration options.
 
-A comprehensive Bicep-based Infrastructure as Code (IaC) solution for deploying Azure SRE Agents with advanced configuration options.
+[View Deployment Guide →](./bicep-deployment/deployment-guide.md)
 
-**Features:**
-- 🎯 **Subscription Targeting**: Deploy SRE Agents to specific Azure subscriptions
-- 🏗️ **Custom Resource Groups**: Deploy to any resource group with flexible naming
-- 🔐 **Multi-Resource Group Access**: Grant SRE Agent permissions across multiple resource groups
-- 🌐 **Cross-Subscription Support**: Target resource groups across different subscriptions
-- 🤖 **Interactive Deployment**: User-friendly deployment scripts with CLI and config file support
-- 📋 **Role Assignment Management**: Automated permission setup with high/low access levels
+### 2. Incident Automation
+Complete guide for setting up automated incident response with Azure SRE Agent, including a sample Octopets application to test incident detection, diagnosis, and mitigation.
 
-**What's Included:**
-- Complete Bicep templates for SRE Agent deployment
-- Role assignment templates for security configuration
-- Interactive deployment scripts with CLI interface
-- Configuration examples and parameter files
-- Comprehensive documentation and troubleshooting guides
-
-**Quick Start:**
-```bash
-cd bicep-deployment
-chmod +x scripts/deploy.sh
-./scripts/deploy.sh
-```
+**Get Started:**
+1. Deploy the sample app: [octopets-setup.md](./incident-automation/sample-apps/octopets-setup.md)
+2. Configure SRE Agent: [00-configure-sre-agent.md](./incident-automation/00-configure-sre-agent.md)
+3. Test incident automation: [01-octopets-memleak-sample.md](./incident-automation/01-octopets-memleak-sample.md)
+4. Review subagent example: [pd-azure-resource-error-handler.yaml](./incident-automation/subagents/pd-azure-resource-error-handler.yaml)
 
 ## Contributing
 
-We welcome community contributions! If you have samples, templates, or tools that would help others deploy and manage SRE Agents, please feel free to contribute.
-
-### Guidelines for New Samples
-- Include comprehensive documentation
-- Provide example configurations
-- Follow Azure best practices
-- Include proper error handling
-- Test thoroughly before submitting
+We welcome community contributions! If you have samples that would help others use SRE Agent, please feel free to contribute.
 
 ## Support
 
-For issues specific to these samples or SREAgent, please open a GitHub issue in this repository. 
+For issues specific to these samples, please open a GitHub issue in this repository. 
