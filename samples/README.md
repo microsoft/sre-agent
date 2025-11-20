@@ -10,13 +10,17 @@ samples/
 │   ├── bicep/
 │   ├── examples/
 │   └── scripts/
-└── incident-automation/       # End-to-end incident automation guide with Octopets sample app
-    ├── 00-configure-sre-agent.md
-    ├── 01-octopets-memleak-sample.md
+└── automation/                # Automation samples with configuration guides and sample apps
+    ├── configuration/
+    │   └── 00-configure-sre-agent.md
+    ├── samples/
+    │   ├── 01-incident-automation-sample.md
+    │   └── 02-scheduled-health-check-sample.md
     ├── sample-apps/
     │   └── octopets-setup.md
     ├── subagents/
-    │   └── pd-azure-resource-error-handler.yaml
+    │   ├── pd-azure-resource-error-handler.yaml
+    │   └── health-check-agent.yaml
     └── images/
 ```
 

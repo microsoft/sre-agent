@@ -1,31 +1,36 @@
 # Sample: Octopets Memory Leak with PagerDuty
 
-This sample demonstrates how to trigger and test incident automation by injecting a memory leak error into the Octopets application and sending a PagerDuty incident.
+This sample demonstrates end-to-end incident automation by injecting a memory leak error into the Octopets application. You'll see how SRE Agent automatically diagnoses the incident from Pager Duty, identifies root cause, sends Outlook updates, and creates a GitHub issue with comprehensive root cause analysis.
 
 ## Prerequisites
 
 Before starting this sample:
-1. Complete the [Octopets Setup Guide](./sample-apps/octopets-setup.md) to deploy the application
-2. Complete the [Configure SRE Agent Guide](./00-configure-sre-agent.md) to configure SRE Agent with incident platform, Outlook, and GitHub connectors
+1. Complete the [Octopets Setup Guide](../sample-apps/octopets-setup.md) to deploy the application
+2. Complete the [Configure SRE Agent Guide](../configuration/00-configure-sre-agent.md) to configure SRE Agent with incident platform, Outlook, and GitHub connectors
 
 ## Overview
 
 This sample shows how to:
-1. Configure the subagent with the PDazureresourceerrorhandler YAML template
-2. Test the subagent in Playground
+1. Configure the SRE Agent subagent to handle incidents with the PDazureresourceerrorhandler YAML template
+2. Test the subagent in SRE Agent Sub Agent Playground
 3. Inject a memory leak error in the running Octopets application
 4. Send a PagerDuty incident to trigger automation
-5. Monitor the SRE Agent as it diagnoses, mitigates, and documents the issue
+5. Watch the SRE Agent automatically:
+   - Diagnose the issue using Azure metrics and logs
+   - Identify root cause in the application code
+   - Send Outlook notifications with updates
+   - Create a GitHub issue with detailed root cause analysis and recommendations
 
 ## Step 1: Configure Subagent with YAML Template
 
 1. In your SRE Agent, go to **Subagent Builder**
-2. Find the **PDazureresourceerrorhandler** subagent you created
+2. Find the subagent associated with your incident trigger (the subagent you created in the previous guide, e.g., **PDazureresourceerrorhandler**)
 3. Click **Edit**
 4. Select the **YAML** tab
-5. Replace the default YAML content with the content from [pd-azure-resource-error-handler.yaml](./subagents/pd-azure-resource-error-handler.yaml)
+5. Replace the default YAML content with the content from [pd-azure-resource-error-handler.yaml](../subagents/pd-azure-resource-error-handler.yaml)
+6. **Important:** In the YAML content, find the line `send an email update to <insert your email>` and replace `<insert your email>` with your actual email address (e.g., `ops-team@yourcompany.com`)
 
-![Edit Subagent with YAML](./images/editsubagentwithyaml.png)
+![Edit Subagent with YAML](../images/editsubagentwithyaml.png)
 
 6. Click **Save**
 
@@ -35,7 +40,7 @@ Before injecting errors, test that the subagent works correctly:
 
 1. Open the subagent in **Playground**
 
-![Testing Subagent - Step 1](./images/testingsubagent-step1.png)
+![Testing Subagent - Step 2](../images/testingsubagent-step2.png)
 
 2. Click **2 Window View** to split the interface
 3. Try out the test prompt:
@@ -46,7 +51,8 @@ container app octopetsapi in your <RG> with subscription ID:<subscriptionID> is 
 
 Replace `<RG>` with your resource group name and `<subscriptionID>` with your subscription ID.
 
-![Testing Subagent - Step 2](./images/testingsubagent-step2.png)
+
+![Testing Subagent - Step 1](../images/testingsubagent-step1.png)
 
 4. **Monitor the subagent** response to verify it can access Azure resources and analyze issues
 
@@ -103,7 +109,7 @@ Assigned To: [Select your service]
 ### 4.2 What Happens Next
 
 If your SRE Agent is properly configured:
-- **Azure Portal**: SRE Agent → Incident History tab
+- **Azure Portal**: SRE Agent → Incident Management tab -> incidents, find the incident you just sent from Pager Duty
 - **Email** (if Outlook connector configured): Notifications at each stage
 - **GitHub**: New issue created with analysis
 
