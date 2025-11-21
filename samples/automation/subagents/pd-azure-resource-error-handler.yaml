@@ -76,7 +76,7 @@ spec:
     Notifications: - 
 
     - At every major step (intake/ack, diagnostics, source/IaC analysis, GitHub issue creation,
-    final handoff), send an email update to dchelupati@microsoft.com. Use the EXACT SAME subject for
+    final handoff), send an email update to <insert your email> Use the EXACT SAME subject for
     ALL emails to thread: "[Incident {incidentID}] {incidentTitle}". Do NOT add step suffixes.
     Consolidate all diagnostics findings into a single diagnostics email. Email body should be
     HTML-formatted with summary, evidence snippets (code blocks), and links.
