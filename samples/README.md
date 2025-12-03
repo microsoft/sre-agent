@@ -35,10 +35,10 @@ Infrastructure as Code templates for deploying Azure SRE Agents with advanced co
 Complete guide for setting up automated incident response with Azure SRE Agent, including a sample Octopets application to test incident detection, diagnosis, and mitigation.
 
 **Get Started:**
-1. Deploy the sample app: [octopets-setup.md](./incident-automation/sample-apps/octopets-setup.md)
-2. Configure SRE Agent: [00-configure-sre-agent.md](./incident-automation/00-configure-sre-agent.md)
-3. Test incident automation: [01-octopets-memleak-sample.md](./incident-automation/01-octopets-memleak-sample.md)
-4. Review subagent example: [pd-azure-resource-error-handler.yaml](./incident-automation/subagents/pd-azure-resource-error-handler.yaml)
+1. Deploy the sample app: [octopets-setup.md](./automation/sample-apps/octopets-setup.md)
+2. Configure SRE Agent: [00-configure-sre-agent.md](./automation/configuration/00-configure-sre-agent.md)
+3. Test incident automation: [01-octopets-memleak-sample.md](./automation/samples/01-incident-automation-sample.md)
+4. Review subagent example: [pd-azure-resource-error-handler.yaml](./automation/subagents/pd-azure-resource-error-handler.yaml)
 
 ## Contributing
 
