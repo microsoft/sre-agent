@@ -1,5 +1,15 @@
 # Fix it before they feel it - higher reliability with proactive mitigation
 
+## 📺 Watch the Demo
+
+This demo was presented at **.NET Day 2025**:
+
+[![Watch on YouTube](https://img.shields.io/badge/YouTube-Watch%20Demo-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=Kx_6SB-mhgg)
+
+🎬 **[Fix it before they feel it - .NET Day 2025](https://www.youtube.com/watch?v=Kx_6SB-mhgg)**
+
+---
+
 What if your infrastructure could detect performance issues and fix them automatically—before your users even notice? This demo brings that vision to life using **Azure SRE Agent**, an AI-powered autonomous agent that monitors, detects, and remediates production issues in real-time.
 
 ## 🎯 What You'll See
@@ -126,7 +136,8 @@ graph LR
     style APP fill:#0078d4,color:#fff
     style INSIGHTS fill:#68217a,color:#fff
     style ALERTS fill:#d13438,color:#fff
-```n
+```
+
 ## Prerequisites
 
 - Azure subscription with Contributor access
