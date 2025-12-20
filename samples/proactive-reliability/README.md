@@ -126,9 +126,7 @@ graph LR
     style APP fill:#0078d4,color:#fff
     style INSIGHTS fill:#68217a,color:#fff
     style ALERTS fill:#d13438,color:#fff
-```
-```
-
+```n
 ## Prerequisites
 
 - Azure subscription with Contributor access
