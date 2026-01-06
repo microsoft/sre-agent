@@ -1,0 +1,74 @@
+// =============================================================================
+// VM Low Disk Space Detection Query
+// =============================================================================
+// Detects low disk space (< 20% free) across all VMs in the last 72 hours.
+// =============================================================================
+
+// Summary: Find low disk space events (< 20% free)
+Perf
+| where TimeGenerated > ago(72h)
+| where ObjectName == "Logical Disk" or ObjectName == "LogicalDisk"
+| where CounterName == "% Free Space"
+| where InstanceName != "_Total" and InstanceName != "HarddiskVolume1"
+| where CounterValue < 20
+| summarize 
+    LowSpaceEvents = count(),
+    MinFreeSpacePercent = min(CounterValue),
+    FirstEvent = min(TimeGenerated),
+    LastEvent = max(TimeGenerated)
+    by Computer, InstanceName
+| project 
+    VMName = Computer,
+    DiskInstance = InstanceName,
+    LowSpaceEvents,
+    MinFreeSpacePercent = round(MinFreeSpacePercent, 1),
+    FirstEvent,
+    LastEvent
+| order by MinFreeSpacePercent asc
+
+// =============================================================================
+// Current Disk Space Status: Latest reading per disk
+// =============================================================================
+
+Perf
+| where TimeGenerated > ago(1h)
+| where ObjectName == "Logical Disk" or ObjectName == "LogicalDisk"
+| where CounterName == "% Free Space"
+| where InstanceName != "_Total" and InstanceName != "HarddiskVolume1"
+| summarize arg_max(TimeGenerated, CounterValue) by Computer, InstanceName
+| project 
+    VMName = Computer,
+    DiskInstance = InstanceName,
+    FreeSpacePercent = round(CounterValue, 1),
+    LastUpdated = TimeGenerated
+| order by FreeSpacePercent asc
+
+// =============================================================================
+// Free Space in MB: Absolute values
+// =============================================================================
+
+Perf
+| where TimeGenerated > ago(1h)
+| where ObjectName == "Logical Disk" or ObjectName == "LogicalDisk"
+| where CounterName == "Free Megabytes"
+| where InstanceName != "_Total"
+| summarize arg_max(TimeGenerated, CounterValue) by Computer, InstanceName
+| project 
+    VMName = Computer,
+    DiskInstance = InstanceName,
+    FreeMB = round(CounterValue, 0),
+    FreeGB = round(CounterValue / 1024, 2),
+    LastUpdated = TimeGenerated
+| order by FreeMB asc
+
+// =============================================================================
+// Disk Space Trend: Visualize free space over time
+// =============================================================================
+
+Perf
+| where TimeGenerated > ago(24h)
+| where ObjectName == "Logical Disk" or ObjectName == "LogicalDisk"
+| where CounterName == "% Free Space"
+| where InstanceName != "_Total" and InstanceName != "HarddiskVolume1"
+| summarize AvgFreeSpace = avg(CounterValue) by bin(TimeGenerated, 15m), Computer, InstanceName
+| render timechart

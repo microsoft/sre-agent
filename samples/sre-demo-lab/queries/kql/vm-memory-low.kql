@@ -1,0 +1,68 @@
+// =============================================================================
+// VM Memory Pressure Detection Query
+// =============================================================================
+// Detects low available memory (< 500MB) across all VMs in the last 72 hours.
+// Also calculates memory usage percentage where possible.
+// =============================================================================
+
+// Summary: Find memory pressure events (< 500MB available)
+Perf
+| where TimeGenerated > ago(72h)
+| where CounterName == "Available MBytes Memory" or CounterName == "Available MBytes"
+| where CounterValue < 500
+| summarize 
+    LowMemoryEvents = count(),
+    MinAvailableMB = min(CounterValue),
+    FirstEvent = min(TimeGenerated),
+    LastEvent = max(TimeGenerated)
+    by Computer
+| project 
+    VMName = Computer,
+    LowMemoryEvents,
+    MinAvailableMB = round(MinAvailableMB, 0),
+    FirstEvent,
+    LastEvent
+| order by MinAvailableMB asc
+
+// =============================================================================
+// Detailed Timeline: Show individual low memory events
+// =============================================================================
+
+Perf
+| where TimeGenerated > ago(72h)
+| where CounterName == "Available MBytes Memory" or CounterName == "Available MBytes"
+| where CounterValue < 500
+| project 
+    TimeGenerated,
+    VMName = Computer,
+    AvailableMemoryMB = round(CounterValue, 0)
+| order by TimeGenerated desc
+| take 100
+
+// =============================================================================
+// Memory Usage Percentage (if collected)
+// =============================================================================
+
+Perf
+| where TimeGenerated > ago(72h)
+| where CounterName == "% Used Memory"
+| where CounterValue > 80
+| summarize 
+    HighUsageEvents = count(),
+    MaxUsagePercent = max(CounterValue)
+    by Computer
+| project 
+    VMName = Computer,
+    HighUsageEvents,
+    MaxUsagePercent = round(MaxUsagePercent, 1)
+| order by MaxUsagePercent desc
+
+// =============================================================================
+// Memory Trend Chart: Visualize available memory over time
+// =============================================================================
+
+Perf
+| where TimeGenerated > ago(24h)
+| where CounterName == "Available MBytes Memory" or CounterName == "Available MBytes"
+| summarize AvgAvailableMB = avg(CounterValue) by bin(TimeGenerated, 5m), Computer
+| render timechart

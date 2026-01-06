@@ -1,0 +1,64 @@
+// =============================================================================
+// VM Disk IOPS Spike Detection Query
+// =============================================================================
+// Detects disk I/O spikes (transfers/sec > 500) across all VMs in the last 72 hours.
+// =============================================================================
+
+// Summary: Find disk IOPS spikes > 500 transfers/sec
+Perf
+| where TimeGenerated > ago(72h)
+| where CounterName == "Disk Transfers/sec"
+| where CounterValue > 500
+| summarize 
+    SpikeCount = count(),
+    PeakIOPS = max(CounterValue),
+    FirstSpike = min(TimeGenerated),
+    LastSpike = max(TimeGenerated)
+    by Computer, InstanceName
+| project 
+    VMName = Computer,
+    DiskInstance = InstanceName,
+    SpikeCount,
+    PeakIOPS = round(PeakIOPS, 0),
+    FirstSpike,
+    LastSpike
+| order by PeakIOPS desc
+
+// =============================================================================
+// Detailed Timeline: Show individual IOPS spike events
+// =============================================================================
+
+Perf
+| where TimeGenerated > ago(72h)
+| where CounterName == "Disk Transfers/sec"
+| where CounterValue > 500
+| project 
+    TimeGenerated,
+    VMName = Computer,
+    DiskInstance = InstanceName,
+    IOPS = round(CounterValue, 0)
+| order by TimeGenerated desc
+| take 100
+
+// =============================================================================
+// Read/Write Breakdown: See read vs write operations
+// =============================================================================
+
+Perf
+| where TimeGenerated > ago(24h)
+| where CounterName in ("Disk Reads/sec", "Disk Writes/sec")
+| summarize AvgValue = avg(CounterValue) by bin(TimeGenerated, 5m), Computer, CounterName
+| render timechart
+
+// =============================================================================
+// Throughput Analysis: Bytes/sec for bandwidth issues
+// =============================================================================
+
+Perf
+| where TimeGenerated > ago(24h)
+| where CounterName in ("Disk Read Bytes/sec", "Disk Write Bytes/sec")
+| summarize 
+    AvgReadMBps = avg(iff(CounterName == "Disk Read Bytes/sec", CounterValue / 1048576, 0.0)),
+    AvgWriteMBps = avg(iff(CounterName == "Disk Write Bytes/sec", CounterValue / 1048576, 0.0))
+    by bin(TimeGenerated, 5m), Computer
+| render timechart

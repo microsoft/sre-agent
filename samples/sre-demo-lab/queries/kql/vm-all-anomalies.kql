@@ -1,0 +1,103 @@
+// =============================================================================
+// Comprehensive VM Abnormality Detection Query
+// =============================================================================
+// Single query to detect all VM anomalies across CPU, memory, disk IOPS, 
+// and disk space for SRE Agent troubleshooting.
+// 
+// Use Case: AI checks abnormality for all VMs in a resource group
+// Time Range: Last 72 hours
+// Outputs: VM Name, Metric Name, Spike Date/Time, Peak Value
+// =============================================================================
+
+// COMBINED ABNORMALITY REPORT
+// This query produces a unified view of all VM issues
+
+let cpuThreshold = 90;
+let memoryThresholdMB = 500;
+let diskIOPSThreshold = 500;
+let diskSpaceThreshold = 20;
+let timeRange = 72h;
+
+// CPU Spikes
+let cpuSpikes = Perf
+| where TimeGenerated > ago(timeRange)
+| where ObjectName == "Processor" and CounterName == "% Processor Time" and InstanceName == "_Total"
+| where CounterValue > cpuThreshold
+| summarize 
+    SpikeTime = max(TimeGenerated),
+    PeakValue = max(CounterValue)
+    by Computer
+| extend 
+    MetricName = "CPU Spike",
+    Details = strcat(round(PeakValue, 1), "% (threshold: ", cpuThreshold, "%)");
+
+// Memory Pressure
+let memoryIssues = Perf
+| where TimeGenerated > ago(timeRange)
+| where CounterName == "Available MBytes Memory" or CounterName == "Available MBytes"
+| where CounterValue < memoryThresholdMB
+| summarize 
+    SpikeTime = max(TimeGenerated),
+    PeakValue = min(CounterValue)
+    by Computer
+| extend 
+    MetricName = "Low Memory",
+    Details = strcat(round(PeakValue, 0), "MB available (threshold: ", memoryThresholdMB, "MB)");
+
+// Disk IOPS Spikes
+let diskIOPS = Perf
+| where TimeGenerated > ago(timeRange)
+| where CounterName == "Disk Transfers/sec"
+| where CounterValue > diskIOPSThreshold
+| summarize 
+    SpikeTime = max(TimeGenerated),
+    PeakValue = max(CounterValue)
+    by Computer
+| extend 
+    MetricName = "Disk IOPS Spike",
+    Details = strcat(round(PeakValue, 0), " transfers/sec (threshold: ", diskIOPSThreshold, ")");
+
+// Low Disk Space
+let diskSpace = Perf
+| where TimeGenerated > ago(timeRange)
+| where (ObjectName == "Logical Disk" or ObjectName == "LogicalDisk") and CounterName == "% Free Space"
+| where InstanceName != "_Total" and InstanceName != "HarddiskVolume1"
+| where CounterValue < diskSpaceThreshold
+| summarize 
+    SpikeTime = max(TimeGenerated),
+    PeakValue = min(CounterValue)
+    by Computer
+| extend 
+    MetricName = "Low Disk Space",
+    Details = strcat(round(PeakValue, 1), "% free (threshold: ", diskSpaceThreshold, "%)");
+
+// Combine all results
+union cpuSpikes, memoryIssues, diskIOPS, diskSpace
+| project 
+    VMName = Computer,
+    MetricName,
+    SpikeDateTime = SpikeTime,
+    Details
+| order by VMName asc, SpikeDateTime desc
+
+// =============================================================================
+// VMs WITH NO ISSUES DETECTED
+// =============================================================================
+
+// Run this to identify healthy VMs (no spikes found)
+let allVMs = Perf
+| where TimeGenerated > ago(72h)
+| distinct Computer;
+
+let issueVMs = Perf
+| where TimeGenerated > ago(72h)
+| where 
+    (ObjectName == "Processor" and CounterName == "% Processor Time" and CounterValue > 90)
+    or (CounterName in ("Available MBytes Memory", "Available MBytes") and CounterValue < 500)
+    or (CounterName == "Disk Transfers/sec" and CounterValue > 500)
+    or ((ObjectName == "Logical Disk" or ObjectName == "LogicalDisk") and CounterName == "% Free Space" and CounterValue < 20)
+| distinct Computer;
+
+allVMs
+| join kind=leftanti issueVMs on Computer
+| project VMName = Computer, Status = "No issues detected in last 72 hours"

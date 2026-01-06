@@ -1,0 +1,50 @@
+// =============================================================================
+// VM CPU Spike Detection Query
+// =============================================================================
+// Detects CPU spikes above 90% across all VMs in the last 72 hours.
+// Groups results by VM, showing spike time and peak value.
+// =============================================================================
+
+// Summary: Find all CPU spikes > 90% in the last 72 hours
+Perf
+| where TimeGenerated > ago(72h)
+| where ObjectName == "Processor" and CounterName == "% Processor Time" and InstanceName == "_Total"
+| where CounterValue > 90
+| summarize 
+    SpikeCount = count(),
+    PeakCPU = max(CounterValue),
+    FirstSpike = min(TimeGenerated),
+    LastSpike = max(TimeGenerated)
+    by Computer
+| project 
+    VMName = Computer,
+    SpikeCount,
+    PeakCPU = round(PeakCPU, 1),
+    FirstSpike,
+    LastSpike
+| order by PeakCPU desc
+
+// =============================================================================
+// Detailed Timeline: Show individual CPU spike events
+// =============================================================================
+
+Perf
+| where TimeGenerated > ago(72h)
+| where ObjectName == "Processor" and CounterName == "% Processor Time" and InstanceName == "_Total"
+| where CounterValue > 90
+| project 
+    TimeGenerated,
+    VMName = Computer,
+    CPUPercent = round(CounterValue, 1)
+| order by TimeGenerated desc
+| take 100
+
+// =============================================================================
+// CPU Trend Chart: Visualize CPU usage over time
+// =============================================================================
+
+Perf
+| where TimeGenerated > ago(24h)
+| where ObjectName == "Processor" and CounterName == "% Processor Time" and InstanceName == "_Total"
+| summarize AvgCPU = avg(CounterValue) by bin(TimeGenerated, 5m), Computer
+| render timechart
