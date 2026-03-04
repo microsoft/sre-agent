@@ -1,0 +1,17 @@
+# Azure Developer CLI (azd) template for SRE Agent Lab
+# Run: azd up
+name: sre-agent-lab
+metadata:
+  template: sre-agent-lab@1.0.0
+
+infra:
+  provider: bicep
+  path: infra
+
+# No services block — container image is built in the cloud via ACR Tasks
+# in the post-provision hook. No Docker Desktop needed on the lab machine.
+
+hooks:
+  postprovision:
+    shell: sh
+    run: bash ./scripts/post-provision.sh
