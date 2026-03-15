@@ -239,7 +239,12 @@ Break the app and watch the agent investigate:
 # Windows: "C:\Program Files\Git\bin\bash.exe" scripts/break-app.sh
 ```
 
-Wait 5-8 minutes for Azure Monitor alerts to fire. Then open [sre.azure.com](https://sre.azure.com) → **Activities → Incidents** to watch the agent:
+While waiting for alerts (5-8 minutes), open the **Grubify frontend** in your browser:
+- Try adding an item to your cart
+- Notice the app is **slow, unresponsive, or returning errors**
+- This confirms the app is broken — compare to how it worked before!
+
+Then open [sre.azure.com](https://sre.azure.com) → **Activities → Incidents** to watch the agent:
 1. Detect the Azure Monitor alert
 2. Query Log Analytics for error patterns
 3. Reference the HTTP errors runbook
