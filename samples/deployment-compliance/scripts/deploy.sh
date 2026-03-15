@@ -22,6 +22,7 @@ az containerapp update \
   --name "$CONTAINER_APP" \
   --resource-group "$RESOURCE_GROUP" \
   --image "$FULL_IMAGE" \
+  --tags "deployed-by=pipeline" "commit-sha=${TAG}" "deploy-timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --output none
 
 FQDN=$(az containerapp show \
