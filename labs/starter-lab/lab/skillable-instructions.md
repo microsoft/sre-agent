@@ -179,7 +179,7 @@ In this section you will clone the lab repository and deploy all Azure resources
 
 > [!Hint] If you did **not** enter GitHub details, skip the commands above. The core lab works without GitHub.
 
-1. [] Deploy everything with a single command:
+1. [] Deploy infrastructure with azd:
 
     ```
     azd up
@@ -189,9 +189,17 @@ In this section you will clone the lab repository and deploy all Azure resources
     - **Subscription**: Your lab subscription
     - **Location**: ++eastus2++
 
-> [!Alert] Deployment takes approximately **8-12 minutes**. The command provisions Azure resources via Bicep, deploys the Grubify app, then runs a post-provision script that configures the SRE Agent with knowledge base, subagents, and response plans.
+> [!Alert] Infrastructure deployment takes approximately **5-8 minutes**. This provisions Azure resources via Bicep (SRE Agent, Container Apps, Log Analytics, etc.).
 
-> [!Knowledge] **Windows lab note:** If the post-provision script fails with `'bash' is not recognized` or `Python was not found`, run these commands in a **CMD** window:
+1. [] After `azd up` completes, run the post-provision script to configure the SRE Agent:
+
+    ```
+    bash scripts/post-provision.sh
+    ```
+
+    This script uploads the knowledge base, creates subagents, sets up Azure Monitor, configures GitHub OAuth, and adds the code repository.
+
+> [!Knowledge] **Windows lab note:** If `bash` is not recognized, run:
 >
 > ```
 > set PATH=%PATH%;C:\Users\LabUser\AppData\Local\Programs\Python\Python312

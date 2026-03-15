@@ -68,7 +68,7 @@ cd sre-agent/labs/starter-lab
 az login
 azd auth login
 
-# 3. Create environment and deploy
+# 3. Create environment and deploy infrastructure
 azd env new sre-lab
 
 # 4. (Optional) Set your GitHub username so the agent uses YOUR fork of grubify
@@ -76,6 +76,9 @@ azd env set GITHUB_USER <your-github-username>
 
 azd up
 # Select your subscription and eastus2 as the region
+
+# 5. Configure the SRE Agent (knowledge base, subagents, connectors)
+bash scripts/post-provision.sh
 ```
 
 ### Windows
@@ -89,7 +92,7 @@ REM 2. Sign in to Azure
 az login
 azd auth login
 
-REM 3. Create environment and deploy
+REM 3. Create environment and deploy infrastructure
 azd env new sre-lab
 
 REM 4. (Optional) Set your GitHub username so the agent uses YOUR fork of grubify
@@ -97,7 +100,7 @@ azd env set GITHUB_USER <your-github-username>
 
 azd up
 
-REM If post-provision fails with 'bash not found' or 'Python not found':
+REM 5. Configure the SRE Agent (knowledge base, subagents, connectors)
 set PATH=%PATH%;C:\Users\%USERNAME%\AppData\Local\Programs\Python\Python312
 "C:\Program Files\Git\bin\bash.exe" scripts/post-provision.sh
 ```
