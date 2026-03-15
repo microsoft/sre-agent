@@ -333,7 +333,7 @@ rm -f /tmp/filter-resp.txt /tmp/filter-body.json
 
 # Delete default quickstart handler
 curl -s -o /dev/null -X DELETE \
-  "${AGENT_ENDPOINT}/api/v1/incidentPlayground/filters/quickstart_handler" \
+  "${AGENT_ENDPOINT}/api/v1/incidentPlayground/filters/quickstart_response_plan" \
   -H "Authorization: Bearer ${TOKEN}" 2>/dev/null || true
 
 # ---- Create scheduled task for periodic compliance scans ----
@@ -386,41 +386,27 @@ rm -f /tmp/task-body.json
 # ---- Step 8: GitHub connector + code repo ----
 echo -e "\n${YELLOW}[8/8] Configuring GitHub connector and code repository...${NC}"
 
-# Check if GitHub OAuth connector already exists via data plane
+# Create GitHub OAuth connector via data plane API (PUT is idempotent)
 TOKEN=$(get_agent_token)
-GITHUB_EXISTS=$(curl -s "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
-  -H "Authorization: Bearer ${TOKEN}" 2>/dev/null | python3 -c "
-import sys,json
-try:
-    d=json.load(sys.stdin)
-    print('yes' if d.get('name')=='github' else 'no')
-except: print('no')
-" 2>/dev/null)
-
-if [ "$GITHUB_EXISTS" = "yes" ]; then
-  echo -e "${GREEN}  ✓ GitHub OAuth connector already exists. Skipping creation.${NC}"
+GITHUB_RESULT=$(curl -s -o /dev/null -w "%{http_code}" \
+  -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"github","type":"AgentConnector","properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}')
+if [ "$GITHUB_RESULT" = "200" ] || [ "$GITHUB_RESULT" = "201" ]; then
+  echo -e "${GREEN}  ✓ GitHub OAuth connector created (data plane).${NC}"
 else
-  # Create via data plane API
-  GITHUB_RESULT=$(curl -s -o /dev/null -w "%{http_code}" \
-    -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
-    -H "Authorization: Bearer ${TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d '{"name":"github","type":"AgentConnector","properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}')
-  if [ "$GITHUB_RESULT" = "200" ] || [ "$GITHUB_RESULT" = "201" ]; then
-    echo -e "${GREEN}  ✓ GitHub OAuth connector created (data plane).${NC}"
-  else
-    echo -e "${YELLOW}  GitHub connector returned HTTP ${GITHUB_RESULT}. May need manual setup.${NC}"
-  fi
-
-  # Also create at ARM level so it's visible in the portal Full Setup page
-  echo "   Creating GitHub connector at ARM level..."
-  az rest --method PUT \
-    --url "https://management.azure.com${AGENT_RESOURCE_ID}/DataConnectors/github?api-version=${API_VERSION}" \
-    --body '{"properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}' \
-    --output none 2>/dev/null \
-    && echo -e "${GREEN}  ✓ GitHub connector created at ARM level.${NC}" \
-    || echo -e "${YELLOW}  ⚠️  ARM-level connector creation failed (non-critical — data plane connector is active).${NC}"
+  echo -e "${YELLOW}  GitHub connector returned HTTP ${GITHUB_RESULT}. May need manual setup.${NC}"
 fi
+
+# Also create at ARM level so it's visible in the portal Full Setup page
+echo "   Creating GitHub connector at ARM level..."
+az rest --method PUT \
+  --url "https://management.azure.com${AGENT_RESOURCE_ID}/DataConnectors/github?api-version=${API_VERSION}" \
+  --body '{"properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}' \
+  --output none 2>/dev/null \
+  && echo -e "${GREEN}  ✓ GitHub connector created at ARM level.${NC}" \
+  || echo -e "${YELLOW}  ⚠️  ARM-level connector creation failed (non-critical — data plane connector is active).${NC}"
 
 # Get the OAuth login URL
 TOKEN=$(get_agent_token)
