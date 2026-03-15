@@ -296,11 +296,35 @@ Before diving into specific scenarios, explore what `azd up` configured for you.
     curl https://@lab.Variable(grubifyUrl)/api/restaurants
     ```
 
-    You should see a JSON response with weather data.
+    You should see a JSON response with restaurant data.
 
 ---
 
-### Step 6: Chat with Your Agent
+### Step 6: Team Onboarding
+
+1. [] In the Full Setup page, click **"Done and go to agent"** to open the agent chat.
+
+1. [] The agent opens a **Team onboarding** thread automatically. It will explore your connected context (code repo, Azure resources, knowledge files) and interview you about your team.
+
+1. [] Try these prompts in the onboarding thread:
+
+    ```
+    What do you know about the Grubify app architecture?
+    ```
+
+    ```
+    Summarize the HTTP errors runbook
+    ```
+
+    ```
+    What Azure resources are in my resource group?
+    ```
+
+> [!Knowledge] The agent saves your team information to persistent memory and references it in every future investigation. Ask *"What should I do next?"* for personalized recommendations based on what's connected.
+
+---
+
+### Step 7: Chat with Your Agent
 
 Before we break things, try a few prompts to see the agent in action.
 
