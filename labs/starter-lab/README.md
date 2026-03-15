@@ -92,6 +92,19 @@ set PATH=%PATH%;C:\Users\%USERNAME%\AppData\Local\Programs\Python\Python312
 
 Deployment takes ~8-12 minutes.
 
+### Verify Setup
+
+After deployment completes, open your agent at [sre.azure.com](https://sre.azure.com) and click **Full setup**. You should see green checkmarks on:
+
+| Card | Expected Status |
+|------|----------------|
+| **Code** | ✅ 1 repository |
+| **Incidents** | ✅ Connected to Azure Monitor |
+| **Azure resources** | ✅ 1 resource group added |
+| **Knowledge files** | ✅ 1 file |
+
+> **Checkpoint:** If any card is missing a checkmark, re-run the post-provision script: `bash scripts/post-provision.sh --retry`
+
 ## What Gets Deployed
 
 ### Azure Infrastructure (via Bicep)
