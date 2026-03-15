@@ -1,0 +1,46 @@
+# ============================================================
+# Scheduled Task: Periodic Deployment Compliance Scan
+# Runs every 30 minutes, queries Activity Logs via Kusto MCP,
+# and reports any non-compliant Container App deployments.
+# ============================================================
+
+api_version: azuresre.ai/v1
+kind: ScheduledTask
+metadata:
+  name: compliance-scan
+spec:
+  name: compliance-scan
+  description: >
+    Periodic deployment compliance scan. Queries Azure Activity Logs
+    via Kusto MCP to detect Container App deployments made outside
+    approved CI/CD pipelines (e.g., via Azure Portal or manual CLI).
+  cron: "*/30 * * * *"    # Every 30 minutes
+  agent_prompt: |
+    Run a deployment compliance check for the last 30 minutes.
+
+    Use the deployment-compliance-check skill to:
+
+    1. Query the AzureActivity table via Kusto MCP using Template 1
+       (set {timeRange} to 30m, {resourceGroup} to the target resource group)
+
+    2. For any deployments found, classify them using the caller + claims.appid
+       decision tree from the compliance_detection.md file
+
+    3. If ALL deployments are compliant (CallerType == ServicePrincipal):
+       - Report: "Compliance scan clean. No non-compliant deployments in the last 30 minutes."
+
+    4. If ANY deployment is non-compliant:
+       - Generate a compliance report using the format in SKILL.md
+       - List each non-compliant deployment with: time, caller, source type, resource
+       - Recommend revert actions but DO NOT execute them automatically
+       - The deployment-compliance-approval hook must be activated on this thread
+         before any revert action can proceed
+
+    5. If no deployments were found:
+       - Report: "No Container App deployments detected in the last 30 minutes."
+
+    Always include the scan timestamp and time range in your report.
+  # agent: compliance-checker    # Uncomment to route to a specific custom agent
+  # notification_channel: teams  # Uncomment to send results to Teams
+  # duration_hours: null         # Run indefinitely
+  # max_executions: null         # No execution limit
