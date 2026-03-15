@@ -211,6 +211,27 @@ After all steps complete, open your agent at [sre.azure.com](https://sre.azure.c
 
 > **Checkpoint:** If any card is missing a checkmark, re-run the setup script: `bash scripts/post-deploy.sh`
 
+Once verified, click **"Done and go to agent"** to open the agent chat and start the team onboarding conversation.
+
+### Team Onboarding
+
+The agent opens a **"Team onboarding"** thread automatically. It will:
+
+1. **Explore your connected context** — reads the code repository, Azure resources, and knowledge files you connected during setup
+2. **Interview you about your team** — ask about your team structure, on-call rotation, services you own, and escalation paths
+
+Since the agent already has context from setup, try asking it questions:
+
+> *"What do you know about the compliance demo architecture?"*
+>
+> *"Summarize the deployment compliance skill"*
+>
+> *"What Azure resources are in my resource group?"*
+
+The agent saves your team information to persistent memory and references it in every future investigation.
+
+> **Tip:** Ask *"What should I do next?"* for personalized recommendations based on what's connected.
+
 ## Demo Steps
 
 ### Demo 1: Verify Agent Can Query Activity Logs
