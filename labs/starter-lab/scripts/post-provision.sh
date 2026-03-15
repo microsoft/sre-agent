@@ -376,7 +376,7 @@ done
 
 # Always delete the default quickstart handler (auto-created by Azure Monitor platform)
 TOKEN=$(get_token)
-curl -s -o /dev/null -X DELETE "${AGENT_ENDPOINT}/api/v1/incidentPlayground/filters/quickstart_handler" \
+curl -s -o /dev/null -X DELETE "${AGENT_ENDPOINT}/api/v1/incidentPlayground/filters/quickstart_response_plan" \
   -H "Authorization: Bearer ${TOKEN}" 2>/dev/null || true
 
 echo ""
