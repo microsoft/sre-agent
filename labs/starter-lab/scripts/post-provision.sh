@@ -330,10 +330,7 @@ SUBSCRIPTION_ID=$(az account show --query id -o tsv 2>/dev/null)
 AGENT_RESOURCE_ID="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.App/agents/${AGENT_NAME}"
 API_VERSION="2025-05-01-preview"
 
-if check_response_plan_exists; then
-  echo "   ✅ Azure Monitor + response plan already configured — skipping"
-else
-  # Enable Azure Monitor as the incident platform (ARM PATCH)
+# Enable Azure Monitor as the incident platform (ARM PATCH)
   if az rest --method PATCH \
     --url "https://management.azure.com${AGENT_RESOURCE_ID}?api-version=${API_VERSION}" \
     --body '{"properties":{"incidentManagementConfiguration":{"type":"AzMonitor","connectionName":"azmonitor"}}}' \
@@ -376,7 +373,6 @@ done
     echo "   ⚠️  Response plan failed after 3 attempts (set up in portal or run: ./scripts/post-provision.sh --retry)"
   fi
   rm -f ${TEMP_DIR}/response-plan-resp.txt
-fi
 
 # Always delete the default quickstart handler (auto-created by Azure Monitor platform)
 TOKEN=$(get_token)
@@ -391,28 +387,15 @@ echo "🔗 Step 4/5: GitHub integration..."
 # Create GitHub OAuth connector via data plane API (no PAT needed)
 echo "   Creating GitHub OAuth connector..."
 TOKEN=$(get_token)
-GITHUB_EXISTS=$(curl -s "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
-  -H "Authorization: Bearer ${TOKEN}" 2>/dev/null | $PYTHON -c "
-import sys,json
-try:
-    d=json.load(sys.stdin)
-    print('yes' if d.get('name')=='github' else 'no')
-except: print('no')
-" 2>/dev/null)
-
-if [ "$GITHUB_EXISTS" = "yes" ]; then
-  echo "   ✅ GitHub OAuth connector already exists"
+RESULT=$(curl -s -o /dev/null -w "%{http_code}" \
+  -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"github","type":"AgentConnector","properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}')
+if [ "$RESULT" = "200" ] || [ "$RESULT" = "201" ]; then
+  echo "   ✅ GitHub OAuth connector created"
 else
-  RESULT=$(curl -s -o /dev/null -w "%{http_code}" \
-    -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
-    -H "Authorization: Bearer ${TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d '{"name":"github","type":"AgentConnector","properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}')
-  if [ "$RESULT" = "200" ] || [ "$RESULT" = "201" ]; then
-    echo "   ✅ GitHub OAuth connector created"
-  else
-    echo "   ⚠️  GitHub connector returned HTTP ${RESULT}"
-  fi
+  echo "   ⚠️  GitHub connector returned HTTP ${RESULT}"
 fi
 
 # Get OAuth login URL for user to authorize
