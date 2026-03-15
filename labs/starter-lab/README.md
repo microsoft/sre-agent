@@ -33,9 +33,15 @@ Deploy an Azure SRE Agent connected to a sample application with a single `azd u
   az provider register -n Microsoft.App --wait
   ```
 
-### Optional
+### Optional (GitHub Integration)
 
 - GitHub account (for code search and issue triage scenarios — uses OAuth sign-in, no PAT needed)
+- **Fork the Grubify repo** into your own account before deploying:
+  ```bash
+  gh auth login
+  gh repo fork dm-chelupati/grubify --clone=false
+  ```
+  Or fork manually at: https://github.com/dm-chelupati/grubify/fork
 
 ## Quick Start
 
@@ -64,6 +70,10 @@ azd auth login
 
 # 3. Create environment and deploy
 azd env new sre-lab
+
+# 4. (Optional) Set your GitHub username so the agent uses YOUR fork of grubify
+azd env set GITHUB_USER <your-github-username>
+
 azd up
 # Select your subscription and eastus2 as the region
 ```
@@ -81,6 +91,10 @@ azd auth login
 
 REM 3. Create environment and deploy
 azd env new sre-lab
+
+REM 4. (Optional) Set your GitHub username so the agent uses YOUR fork of grubify
+azd env set GITHUB_USER <your-github-username>
+
 azd up
 
 REM If post-provision fails with 'bash not found' or 'Python not found':

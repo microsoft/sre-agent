@@ -36,15 +36,7 @@ If you want to use GitHub:
 
 **GitHub Username:** @lab.TextBox(githubUser)
 
-3. **Create a token for the SRE Agent** — Click this link (it pre-fills the settings):
-
-    [Create token with repo scope](https://github.com/settings/tokens/new?scopes=repo&description=SRE+Agent+Lab)
-
-    Click **Generate token** at the bottom and paste it below:
-
-*> GitHub: Sign in via the OAuth URL printed after deployment.
-
-> [!Alert] GitHub OAuth uses browser sign-in — no tokens to manage. The agent accesses your repos through the OAuth connection.
+> [!Alert] GitHub OAuth uses browser sign-in — no tokens to manage. After deployment, sign in via the OAuth URL printed by the setup script. The agent accesses your forked repo through the OAuth connection.
 
 ===
 
