@@ -198,6 +198,19 @@ The script ends with a verification report:
 
 Open the OAuth URL printed by the script in your browser and click "Authorize."
 
+### Verify Setup
+
+After all steps complete, open your agent at [sre.azure.com](https://sre.azure.com) and click **Full setup**. You should see green checkmarks on:
+
+| Card | Expected Status |
+|------|----------------|
+| **Code** | ✅ 1 repository |
+| **Incidents** | ✅ Connected to Azure Monitor |
+| **Azure resources** | ✅ 1 resource group added |
+| **Knowledge files** | ✅ 1 file |
+
+> **Checkpoint:** If any card is missing a checkmark, re-run the setup script: `bash scripts/post-deploy.sh`
+
 ## Demo Steps
 
 ### Demo 1: Verify Agent Can Query Activity Logs
