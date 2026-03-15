@@ -379,7 +379,7 @@ Escalate immediately if:
 
 After completing investigation, send an email summary to the incident stakeholders.
 
-**Send to:** dchelupati@microsoft.com
+**Send to:** sre-team@contoso.com
 
 ### Email Structure
 
