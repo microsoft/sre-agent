@@ -342,7 +342,7 @@ API_VERSION="2025-05-01-preview"
 
   # Wait for Azure Monitor platform to initialize before creating filters
   echo "   Waiting for Azure Monitor to initialize..."
-  sleep 10
+  sleep 30
 
   # Delete any existing filters (previous runs)
   TOKEN=$(get_token)
@@ -351,7 +351,7 @@ API_VERSION="2025-05-01-preview"
 
 # Create response plan with retry (Azure Monitor needs time to be ready)
 FILTER_CREATED=false
-for attempt in 1 2 3; do
+for attempt in 1 2 3 4 5; do
   TOKEN=$(get_token)
   HTTP_CODE=$(curl -s -o ${TEMP_DIR}/response-plan-resp.txt -w "%{http_code}" \
     -X PUT "${AGENT_ENDPOINT}/api/v1/incidentPlayground/filters/grubify-http-errors" \
@@ -364,13 +364,13 @@ for attempt in 1 2 3; do
     FILTER_CREATED=true
     break
   else
-    echo "   ⏳ Attempt $attempt/3: HTTP ${HTTP_CODE}, retrying in 10s..."
-    sleep 10
+    echo "   ⏳ Attempt $attempt/5: HTTP ${HTTP_CODE}, retrying in 15s..."
+    sleep 15
   fi
 done
 
   if [ "$FILTER_CREATED" = "false" ]; then
-    echo "   ⚠️  Response plan failed after 3 attempts (set up in portal or run: ./scripts/post-provision.sh --retry)"
+    echo "   ⚠️  Response plan failed after 5 attempts (set up in portal or run: ./scripts/post-provision.sh --retry)"
   fi
   rm -f ${TEMP_DIR}/response-plan-resp.txt
 
