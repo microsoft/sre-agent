@@ -407,10 +407,19 @@ else
     -H "Content-Type: application/json" \
     -d '{"name":"github","type":"AgentConnector","properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}')
   if [ "$GITHUB_RESULT" = "200" ] || [ "$GITHUB_RESULT" = "201" ]; then
-    echo -e "${GREEN}  ✓ GitHub OAuth connector created.${NC}"
+    echo -e "${GREEN}  ✓ GitHub OAuth connector created (data plane).${NC}"
   else
     echo -e "${YELLOW}  GitHub connector returned HTTP ${GITHUB_RESULT}. May need manual setup.${NC}"
   fi
+
+  # Also create at ARM level so it's visible in the portal Full Setup page
+  echo "   Creating GitHub connector at ARM level..."
+  az rest --method PUT \
+    --url "https://management.azure.com${AGENT_RESOURCE_ID}/DataConnectors/github?api-version=${API_VERSION}" \
+    --body '{"properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}' \
+    --output none 2>/dev/null \
+    && echo -e "${GREEN}  ✓ GitHub connector created at ARM level.${NC}" \
+    || echo -e "${YELLOW}  ⚠️  ARM-level connector creation failed (non-critical — data plane connector is active).${NC}"
 fi
 
 # Get the OAuth login URL
@@ -449,7 +458,7 @@ REPO_RESULT=$(curl -s -o /tmp/repo-resp.txt -w "%{http_code}" \
   -X PUT "${AGENT_ENDPOINT}/api/v2/repos/${REPO_NAME}" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
-  -d "{\"name\":\"${REPO_NAME}\",\"type\":\"CodeRepo\",\"properties\":{\"url\":\"${REPO_URL}\"}}")
+  -d "{\"name\":\"${REPO_NAME}\",\"type\":\"CodeRepo\",\"properties\":{\"url\":\"${REPO_URL}\",\"authConnectorName\":\"github\"}}")
 
 if [ "$REPO_RESULT" = "200" ] || [ "$REPO_RESULT" = "201" ]; then
   echo -e "${GREEN}  ✓ Repository '${REPO_OWNER}/${REPO_NAME}' connected to agent.${NC}"
