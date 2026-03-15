@@ -164,8 +164,8 @@ In this section you will clone the lab repository and deploy all Azure resources
 1. [] Clone the lab repo and navigate into it:
 
     ```
-    git clone https://github.com/dm-chelupati/sre-agent-lab.git
-    cd sre-agent-lab
+    git clone https://github.com/microsoft/sre-agent.git --branch labs/starter-lab
+    cd sre-agent/labs/starter-lab
     ```
 
 ---
@@ -702,6 +702,6 @@ All of this was set up with a single `azd up` command.
 - [Azure SRE Agent Documentation](https://sre.azure.com/docs)
 - [Azure SRE Agent Portal](https://sre.azure.com)
 - [Grubify Sample App](https://github.com/dm-chelupati/grubify)
-- [Lab Source Code](https://github.com/dm-chelupati/sre-agent-lab)
+- [Lab Source Code](https://github.com/microsoft/sre-agent/tree/labs/starter-lab/labs/starter-lab)
 
 **Thank you for completing this lab, @lab.User.FirstName!**

@@ -54,10 +54,9 @@ bash scripts/prereqs.sh
 ### macOS / Linux
 
 ```bash
-# 1. Clone the repo
-git clone https://github.com/dm-chelupati/sre-agent-lab.git
-cd sre-agent-lab
-git submodule update --init --recursive
+# 1. Clone the repo (labs/starter-lab branch)
+git clone https://github.com/microsoft/sre-agent.git --branch labs/starter-lab
+cd sre-agent/labs/starter-lab
 
 # 2. Sign in to Azure
 az login
@@ -72,10 +71,9 @@ azd up
 ### Windows
 
 ```cmd
-REM 1. Clone the repo (in CMD or PowerShell)
-git clone https://github.com/dm-chelupati/sre-agent-lab.git
-cd sre-agent-lab
-git submodule update --init --recursive
+REM 1. Clone the repo (labs/starter-lab branch)
+git clone https://github.com/microsoft/sre-agent.git --branch labs/starter-lab
+cd sre-agent\labs\starter-lab
 
 REM 2. Sign in to Azure
 az login
