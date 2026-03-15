@@ -92,19 +92,6 @@ set PATH=%PATH%;C:\Users\%USERNAME%\AppData\Local\Programs\Python\Python312
 
 Deployment takes ~8-12 minutes.
 
-### Verify Setup
-
-After deployment completes, open your agent at [sre.azure.com](https://sre.azure.com) and click **Full setup**. You should see green checkmarks on:
-
-| Card | Expected Status |
-|------|----------------|
-| **Code** | ✅ 1 repository |
-| **Incidents** | ✅ Connected to Azure Monitor |
-| **Azure resources** | ✅ 1 resource group added |
-| **Knowledge files** | ✅ 1 file |
-
-> **Checkpoint:** If any card is missing a checkmark, re-run the post-provision script: `bash scripts/post-provision.sh --retry`
-
 ## What Gets Deployed
 
 ### Azure Infrastructure (via Bicep)
@@ -174,6 +161,40 @@ for /f "tokens=*" %a in ('azd env get-value FRONTEND_APP_NAME') do set FE=%a
 az containerapp update --name %APP% --resource-group rg-sre-lab --image %ACR%.azurecr.io/grubify-api:latest
 az containerapp update --name %FE% --resource-group rg-sre-lab --image %ACR%.azurecr.io/grubify-frontend:latest
 ```
+
+## Verify Setup
+
+After deployment completes, open your agent at [sre.azure.com](https://sre.azure.com) and click **Full setup**. You should see green checkmarks on:
+
+| Card | Expected Status |
+|------|----------------|
+| **Code** | ✅ 1 repository |
+| **Incidents** | ✅ Connected to Azure Monitor |
+| **Azure resources** | ✅ 1 resource group added |
+| **Knowledge files** | ✅ 1 file |
+
+> **Checkpoint:** If any card is missing a checkmark, re-run the post-provision script: `bash scripts/post-provision.sh --retry`
+
+Once verified, click **"Done and go to agent"** to open the agent chat and start the team onboarding conversation.
+
+### Team Onboarding
+
+The agent opens a **"Team onboarding"** thread automatically. It will:
+
+1. **Explore your connected context** — reads the code repository, Azure resources, and knowledge files you connected during setup
+2. **Interview you about your team** — ask about your team structure, on-call rotation, services you own, and escalation paths
+
+Since the agent already has context from setup, try asking it questions:
+
+> *"What do you know about the Grubify app architecture?"*
+>
+> *"Summarize the HTTP errors runbook"*
+>
+> *"What Azure resources are in my resource group?"*
+
+The agent saves your team information to persistent memory and references it in every future investigation.
+
+> **Tip:** Ask *"What should I do next?"* for personalized recommendations based on what's connected.
 
 ## Lab Scenarios
 
