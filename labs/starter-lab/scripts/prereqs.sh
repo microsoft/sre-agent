@@ -76,27 +76,29 @@ fi
 
 echo ""
 
-# Check Azure login
+# Check Azure login (informational — login happens after prereqs)
 echo "Checking Azure auth:"
 if az account show &>/dev/null 2>&1; then
   sub=$(az account show --query name -o tsv 2>/dev/null)
   echo "  ✅ Logged in: $sub"
 else
-  echo "  ❌ Not logged in to Azure"
-  echo "     Run: az login"
-  MISSING=$((MISSING + 1))
+  echo "  ℹ️  Not logged in yet — run 'az login' before 'azd up'"
 fi
 
-# Check resource provider
+# Check resource provider (requires login)
 echo ""
 echo "Checking resource provider:"
-APP_STATE=$(az provider show -n Microsoft.App --query "registrationState" -o tsv 2>/dev/null)
-if [ "$APP_STATE" = "Registered" ]; then
-  echo "  ✅ Microsoft.App: Registered"
+if az account show &>/dev/null 2>&1; then
+  APP_STATE=$(az provider show -n Microsoft.App --query "registrationState" -o tsv 2>/dev/null)
+  if [ "$APP_STATE" = "Registered" ]; then
+    echo "  ✅ Microsoft.App: Registered"
+  else
+    echo "  ℹ️  Microsoft.App: ${APP_STATE:-not checked}"
+    echo "     Run after login: az provider register -n Microsoft.App --wait"
+  fi
 else
-  echo "  ⚠️  Microsoft.App: $APP_STATE"
-  echo "     Run: az provider register -n Microsoft.App --wait"
-  MISSING=$((MISSING + 1))
+  echo "  ℹ️  Skipped (login required) — run after 'az login':"
+  echo "     az provider register -n Microsoft.App --wait"
 fi
 
 echo ""
