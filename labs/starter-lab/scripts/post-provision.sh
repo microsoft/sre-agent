@@ -417,17 +417,6 @@ ARM_RESULT=$(az rest --method PUT \
   -o none 2>&1 || true)
 echo "   ✅ GitHub OAuth connector (ARM)"
 
-# Add code repo with authConnectorName linking to the GitHub OAuth connector
-echo "   Adding ${GITHUB_REPO} code repository..."
-TOKEN=$(get_token)
-REPO_NAME=$(echo "$GITHUB_REPO" | cut -d'/' -f2)
-curl -s -o /dev/null -w "" \
-  -X PUT "${AGENT_ENDPOINT}/api/v2/repos/${REPO_NAME}" \
-  -H "Authorization: Bearer ${TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d "{\"name\":\"${REPO_NAME}\",\"type\":\"CodeRepo\",\"properties\":{\"url\":\"https://github.com/${GITHUB_REPO}\",\"authConnectorName\":\"github\"}}"
-echo "   ✅ Code repo: ${GITHUB_REPO}"
-
 # Upload triage runbook
 TOKEN=$(get_token)
 curl -s -o /dev/null \
@@ -488,7 +477,20 @@ if [ -n "$OAUTH_URL" ]; then
   echo "   │  ${OAUTH_URL}"
   echo "   │  Open this URL in your browser and click 'Authorize'    │"
   echo "   └──────────────────────────────────────────────────────────┘"
+  echo ""
+  read -p "   Press Enter after you have authorized in the browser..." _unused
 fi
+
+# Add code repo AFTER OAuth so the token is active
+echo "   Adding ${GITHUB_REPO} code repository..."
+TOKEN=$(get_token)
+REPO_NAME=$(echo "$GITHUB_REPO" | cut -d'/' -f2)
+curl -s -o /dev/null -w "" \
+  -X PUT "${AGENT_ENDPOINT}/api/v2/repos/${REPO_NAME}" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"${REPO_NAME}\",\"type\":\"CodeRepo\",\"properties\":{\"url\":\"https://github.com/${GITHUB_REPO}\",\"authConnectorName\":\"github\"}}"
+echo "   ✅ Code repo: ${GITHUB_REPO}"
 echo ""
 
 # ── Verification: Show what was set up ────────────────────────────────────────
