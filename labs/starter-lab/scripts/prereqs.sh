@@ -50,15 +50,28 @@ echo "Checking tools:"
 check_tool "Azure CLI" "az" "brew install azure-cli" "winget install Microsoft.AzureCLI"
 check_tool "Azure Developer CLI" "azd" "brew install azd" "winget install Microsoft.Azd"
 check_tool "Git" "git" "brew install git" "winget install Git.Git"
-check_tool "Python" "python3" "brew install python3" "winget install Python.Python.3.12"
 
-# Python fallback for Windows (python instead of python3)
-if ! command -v python3 &>/dev/null && command -v python &>/dev/null; then
+# Python: check python3 first, fall back to python (Windows uses 'python' not 'python3')
+if command -v python3 &>/dev/null; then
+  version=$(python3 --version 2>&1 | head -1)
+  echo "  ✅ Python: $version"
+elif command -v python &>/dev/null; then
   version=$(python --version 2>&1)
   if echo "$version" | grep -q "Python 3"; then
-    echo "  ✅ Python (via 'python'): $version"
-    MISSING=$((MISSING - 1))
+    echo "  ✅ Python: $version"
+  else
+    echo "  ❌ Python: Found $version but need Python 3.10+"
+    echo "     Install: winget install Python.Python.3.12"
+    MISSING=$((MISSING + 1))
   fi
+else
+  echo "  ❌ Python: NOT FOUND"
+  if [ "$OS" = "mac" ]; then
+    echo "     Install: brew install python3"
+  else
+    echo "     Install: winget install Python.Python.3.12"
+  fi
+  MISSING=$((MISSING + 1))
 fi
 
 echo ""
