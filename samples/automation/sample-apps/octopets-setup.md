@@ -105,7 +105,7 @@ git push myrepo main
 Now that your Octopets application is deployed and configured:
 
 1. Follow the [Configure SRE Agent Guide](../00-configure-sre-agent.md) to set up Azure SRE Agent with incident platform, Outlook, and GitHub connectors
-2. Then proceed to the [Octopets Memory Leak Sample](../01-octopets-memleak-sample.md) to test incident automation
+2. Then proceed to the [Octopets Memory Leak Sample](../samples/01-incident-automation-sample.md) to test incident automation
 
 ## Resources
 
