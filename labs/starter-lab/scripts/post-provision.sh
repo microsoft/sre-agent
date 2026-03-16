@@ -253,7 +253,7 @@ create_subagent() {
   local json_body
   json_body=$($PYTHON "$SCRIPT_DIR/yaml-to-api-json.py" "$yaml_file" "-" 2>&1)
 
-  if [ -z "$json_body" ] || echo "$json_body" | grep -qi "error\|traceback\|No module"; then
+  if [ -z "$json_body" ] || echo "$json_body" | grep -q "^Traceback\|ModuleNotFoundError\|ImportError\|SyntaxError"; then
     echo "   ⚠️  ${agent_name}: Python conversion failed"
     echo "   $json_body" | head -3
     return
