@@ -22,10 +22,9 @@ else
   exit 1
 fi
 
-# Temp directory — works on both Linux (/tmp) and Windows (TEMP/TMPDIR)
-TEMP_DIR="${TMPDIR:-${TEMP:-/tmp}}"
-# On Windows Git Bash, TEMP may have backslashes — convert to forward slashes
-TEMP_DIR="${TEMP_DIR//\\//}"
+# Temp directory — use script's own directory to avoid Windows path issues with curl
+TEMP_DIR="${SCRIPT_DIR}/.tmp"
+mkdir -p "$TEMP_DIR"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -627,3 +626,6 @@ echo "     5. Settings → Incident platform (Azure Monitor)"
 echo ""
 echo "  Then run: ./scripts/break-app.sh"
 echo "============================================="
+
+# Cleanup temp directory
+rm -rf "$TEMP_DIR"
