@@ -52,13 +52,16 @@ check_tool "Azure Developer CLI" "azd" "brew install azd" "winget install Micros
 check_tool "Git" "git" "brew install git" "winget install Git.Git"
 
 # Python: check python3 first, fall back to python (Windows uses 'python' not 'python3')
+PYTHON_CMD=""
 if command -v python3 &>/dev/null; then
   version=$(python3 --version 2>&1 | head -1)
   echo "  ✅ Python: $version"
+  PYTHON_CMD=python3
 elif command -v python &>/dev/null; then
   version=$(python --version 2>&1)
   if echo "$version" | grep -q "Python 3"; then
     echo "  ✅ Python: $version"
+    PYTHON_CMD=python
   else
     echo "  ❌ Python: Found $version but need Python 3.10+"
     echo "     Install: winget install Python.Python.3.12"
@@ -72,6 +75,16 @@ else
     echo "     Install: winget install Python.Python.3.12"
   fi
   MISSING=$((MISSING + 1))
+fi
+
+# Check pyyaml module (needed by post-provision script)
+if [ -n "$PYTHON_CMD" ]; then
+  if $PYTHON_CMD -c "import yaml" 2>/dev/null; then
+    echo "  ✅ PyYAML: installed"
+  else
+    echo "  ⚠️  PyYAML: not installed — installing..."
+    $PYTHON_CMD -m pip install pyyaml --quiet 2>/dev/null && echo "  ✅ PyYAML: installed" || echo "  ❌ PyYAML: failed — run: pip install pyyaml"
+  fi
 fi
 
 echo ""
