@@ -1,0 +1,8 @@
+# GitHub OAuth Connector
+# No PAT needed — uses OAuth browser flow for authorization
+api_version: azuresre.ai/v1
+kind: DataConnector
+spec:
+  name: github
+  type: GitHubOAuth
+  dataSource: github-oauth

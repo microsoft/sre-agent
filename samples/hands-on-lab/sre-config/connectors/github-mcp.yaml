@@ -1,0 +1,11 @@
+# GitHub MCP Connector
+# The PLACEHOLDER_GITHUB_PAT token is replaced by the post-provision script
+api_version: azuresre.ai/v1
+kind: DataConnector
+spec:
+  name: github-mcp
+  type: Mcp
+  endpoint: https://api.githubcopilot.com/mcp/
+  auth:
+    type: BearerToken
+    token: PLACEHOLDER_GITHUB_PAT

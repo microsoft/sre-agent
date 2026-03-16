@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: deployment-compliance-demo
+metadata:
+  template: deployment-compliance-demo@1.0.0
+
+# Infrastructure provisioned via Bicep (infra/main.bicep)
+# azd up provisions: Resource Group, ACR, Container App Environment,
+# Container App (placeholder image), SQL Server + DB, Log Analytics,
+# Activity Log Alert, SRE Agent (Microsoft.App/agents), and role assignments.
+# The Container App workload is deployed separately via GitHub Actions.

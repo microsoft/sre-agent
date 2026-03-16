@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 580" font-family="Segoe UI, -apple-system, sans-serif">
+  <defs>
+    <filter id="s" x="-2%" y="-4%" width="104%" height="112%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+
+  <rect width="820" height="580" fill="#fff"/>
+
+  <!-- Title -->
+  <text x="410" y="30" text-anchor="middle" font-size="15" font-weight="700" fill="#1B1B1B">Deployment Compliance Monitoring</text>
+  <text x="410" y="46" text-anchor="middle" font-size="10" fill="#6B7280">Detect non-compliant Container App deployments with Azure SRE Agent</text>
+
+  <!-- ═══════════ SRE Agent ═══════════ -->
+  <g filter="url(#s)">
+    <rect x="260" y="60" width="300" height="44" rx="8" fill="#0078D4"/>
+    <text x="410" y="84" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">Azure SRE Agent</text>
+    <text x="410" y="97" text-anchor="middle" font-size="9" fill="#B3D7FF">Autonomous compliance enforcement</text>
+  </g>
+
+  <!-- ═══════════ CONTEXT ═══════════ -->
+  <text x="30" y="134" font-size="9" font-weight="600" fill="#9CA3AF" letter-spacing="1">CONTEXT</text>
+  <rect x="30" y="142" width="760" height="56" rx="6" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1"/>
+
+  <rect x="42" y="152" width="234" height="36" rx="5" fill="#fff" stroke="#8661C5" stroke-width="1" filter="url(#s)"/>
+  <text x="159" y="174" text-anchor="middle" font-size="10" font-weight="600" fill="#5C2D91">Compliance Skill + Policy</text>
+
+  <rect x="288" y="152" width="166" height="36" rx="5" fill="#fff" stroke="#8661C5" stroke-width="1" filter="url(#s)"/>
+  <text x="371" y="174" text-anchor="middle" font-size="10" font-weight="600" fill="#5C2D91">Code Repository</text>
+
+  <rect x="466" y="152" width="160" height="36" rx="5" fill="#fff" stroke="#8661C5" stroke-width="1" filter="url(#s)"/>
+  <text x="546" y="174" text-anchor="middle" font-size="10" font-weight="600" fill="#5C2D91">Approval Hook</text>
+
+  <rect x="638" y="152" width="140" height="36" rx="5" fill="#fff" stroke="#8661C5" stroke-width="1" filter="url(#s)"/>
+  <text x="708" y="174" text-anchor="middle" font-size="10" font-weight="600" fill="#5C2D91">RBAC Permissions</text>
+
+  <line x1="410" y1="104" x2="410" y2="142" stroke="#8661C5" stroke-width="1"/>
+
+  <!-- ═══════════ AUTOMATION ═══════════ -->
+  <text x="30" y="228" font-size="9" font-weight="600" fill="#9CA3AF" letter-spacing="1">AUTOMATION</text>
+  <rect x="30" y="236" width="760" height="56" rx="6" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1"/>
+
+  <rect x="42" y="246" width="370" height="36" rx="5" fill="#fff" stroke="#107C10" stroke-width="1" filter="url(#s)"/>
+  <text x="227" y="268" text-anchor="middle" font-size="10" font-weight="600" fill="#107C10">Activity Log Alert → Response Plan → Agent</text>
+
+  <rect x="424" y="246" width="354" height="36" rx="5" fill="#fff" stroke="#107C10" stroke-width="1" filter="url(#s)"/>
+  <text x="601" y="268" text-anchor="middle" font-size="10" font-weight="600" fill="#107C10">Scheduled Task (compliance scan every 30m)</text>
+
+  <line x1="410" y1="198" x2="410" y2="236" stroke="#107C10" stroke-width="1"/>
+
+  <!-- ═══════════ MONITORED APP ═══════════ -->
+  <text x="30" y="324" font-size="9" font-weight="600" fill="#9CA3AF" letter-spacing="1">MONITORED APP</text>
+  <rect x="30" y="332" width="760" height="50" rx="6" fill="#F0F7FF" stroke="#0078D4" stroke-width="1"/>
+
+  <rect x="46" y="344" width="200" height="28" rx="5" fill="#fff" stroke="#0078D4" stroke-width="1" filter="url(#s)"/>
+  <text x="146" y="362" text-anchor="middle" font-size="10" font-weight="600" fill="#0078D4">Container App (Express.js)</text>
+
+  <text x="258" y="362" font-size="11" fill="#9CA3AF">→</text>
+
+  <rect x="272" y="344" width="160" height="28" rx="5" fill="#fff" stroke="#0078D4" stroke-width="1" filter="url(#s)"/>
+  <text x="352" y="362" text-anchor="middle" font-size="10" font-weight="600" fill="#0078D4">Container Registry</text>
+
+  <text x="444" y="362" font-size="11" fill="#9CA3AF">→</text>
+
+  <rect x="458" y="344" width="160" height="28" rx="5" fill="#fff" stroke="#FF8C00" stroke-width="1" filter="url(#s)"/>
+  <text x="538" y="362" text-anchor="middle" font-size="10" font-weight="600" fill="#E65100">Activity Log (LAW)</text>
+
+  <text x="630" y="362" font-size="11" fill="#9CA3AF">→</text>
+
+  <rect x="644" y="344" width="134" height="28" rx="5" fill="#fff" stroke="#FF8C00" stroke-width="1" filter="url(#s)"/>
+  <text x="711" y="362" text-anchor="middle" font-size="10" font-weight="600" fill="#E65100">Alert Rule</text>
+
+  <!-- telemetry arrow -->
+  <path d="M 711 344 L 711 310 L 800 310 L 800 82 L 560 82" stroke="#FF8C00" stroke-width="1" fill="none" stroke-dasharray="4,3"/>
+  <polygon points="560,82 567,78 567,86" fill="#FF8C00"/>
+  <text x="804" y="200" font-size="7" fill="#E65100" transform="rotate(90,804,200)">alert fires</text>
+
+  <line x1="410" y1="292" x2="410" y2="332" stroke="#0078D4" stroke-width="1"/>
+
+  <!-- ═══════════ COMPLIANCE FLOW ═══════════ -->
+  <text x="30" y="416" font-size="9" font-weight="600" fill="#9CA3AF" letter-spacing="1">COMPLIANCE FLOW</text>
+
+  <rect x="30" y="424" width="760" height="56" rx="6" fill="#F8F9FA" stroke="#E5E7EB" stroke-width="1"/>
+
+  <rect x="44" y="436" width="120" height="32" rx="14" fill="#FEE2E2" stroke="#EF4444" stroke-width="1"/>
+  <text x="104" y="456" text-anchor="middle" font-size="9" font-weight="600" fill="#DC2626">Deployment</text>
+
+  <text x="172" y="455" font-size="11" fill="#9CA3AF">→</text>
+
+  <rect x="182" y="436" width="120" height="32" rx="14" fill="#FFF3E0" stroke="#FF8C00" stroke-width="1"/>
+  <text x="242" y="456" text-anchor="middle" font-size="9" font-weight="600" fill="#E65100">Query LAW</text>
+
+  <text x="310" y="455" font-size="11" fill="#9CA3AF">→</text>
+
+  <rect x="320" y="436" width="130" height="32" rx="14" fill="#E8F1FB" stroke="#0078D4" stroke-width="1"/>
+  <text x="385" y="456" text-anchor="middle" font-size="9" font-weight="600" fill="#0078D4">Classify caller</text>
+
+  <text x="458" y="455" font-size="11" fill="#9CA3AF">→</text>
+
+  <rect x="468" y="436" width="100" height="32" rx="14" fill="#E8F1FB" stroke="#0078D4" stroke-width="1"/>
+  <text x="518" y="456" text-anchor="middle" font-size="9" font-weight="600" fill="#0078D4">Report</text>
+
+  <text x="576" y="455" font-size="11" fill="#9CA3AF">→</text>
+
+  <rect x="586" y="436" width="100" height="32" rx="14" fill="#EDEAFC" stroke="#5C2D91" stroke-width="1"/>
+  <text x="636" y="456" text-anchor="middle" font-size="9" font-weight="600" fill="#5C2D91">Approve?</text>
+
+  <text x="694" y="455" font-size="11" fill="#9CA3AF">→</text>
+
+  <rect x="704" y="436" width="76" height="32" rx="14" fill="#E8F5E8" stroke="#107C10" stroke-width="1"/>
+  <text x="742" y="456" text-anchor="middle" font-size="9" font-weight="600" fill="#107C10">Revert</text>
+
+  <!-- ═══════════ GETTING STARTED ═══════════ -->
+  <text x="30" y="516" font-size="9" font-weight="600" fill="#9CA3AF" letter-spacing="1">GETTING STARTED</text>
+
+  <rect x="60" y="529" width="150" height="38" rx="18" fill="#0078D4" filter="url(#s)"/>
+  <text x="135" y="546" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">❶  azd provision</text>
+  <text x="135" y="558" text-anchor="middle" font-size="7" fill="#B3D7FF">Deploy infrastructure</text>
+
+  <text x="222" y="550" font-size="12" fill="#CBD5E1">→</text>
+
+  <rect x="236" y="529" width="150" height="38" rx="18" fill="#0078D4" filter="url(#s)"/>
+  <text x="311" y="546" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">❷  post-deploy.sh</text>
+  <text x="311" y="558" text-anchor="middle" font-size="7" fill="#B3D7FF">Configure agent</text>
+
+  <text x="398" y="550" font-size="12" fill="#CBD5E1">→</text>
+
+  <rect x="412" y="529" width="160" height="38" rx="18" fill="#0078D4" filter="url(#s)"/>
+  <text x="492" y="546" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">❸  Open Agent</text>
+  <text x="492" y="558" text-anchor="middle" font-size="7" fill="#B3D7FF">in SRE Portal</text>
+
+  <text x="584" y="550" font-size="12" fill="#CBD5E1">→</text>
+
+  <rect x="598" y="529" width="170" height="38" rx="18" fill="#EF4444" filter="url(#s)"/>
+  <text x="683" y="546" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">❹  Make a Portal change</text>
+  <text x="683" y="558" text-anchor="middle" font-size="7" fill="#FECACA">Trigger non-compliant alert</text>
+</svg>

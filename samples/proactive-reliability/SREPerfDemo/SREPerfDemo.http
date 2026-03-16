@@ -1,0 +1,6 @@
+@SREPerfDemo_HostAddress = http://localhost:5269
+
+GET {{SREPerfDemo_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,22 @@
+# ============================================================
+# Incident Filter: Container App Deployment Alert
+# Routes Azure Monitor alerts for Container App deployments
+# to the SRE Agent for compliance classification.
+# ============================================================
+
+api_version: azuresre.ai/v2
+kind: IncidentFilter
+metadata:
+  name: containerapp-deployment-alert
+spec:
+  incidentPlatform: AzMonitor
+  titleContains: "containerapp-deployment"
+  agentMode: Review    # Agent proposes actions, user approves
+  # handlingAgent: compliance-checker  # Uncomment to route to specific agent
+  maxAutomatedInvestigationAttempts: 3
+  deepInvestigationEnabled: false
+  isEnabled: true
+  azMonitorFilterSettings:
+    targetResourceType: Microsoft.App/containerApps
+    # targetResource: /subscriptions/.../resourceGroups/.../providers/Microsoft.App/containerApps/ca-api-...
+    # Uncomment and set targetResource to scope to a specific Container App

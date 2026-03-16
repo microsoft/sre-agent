@@ -1,0 +1,57 @@
+# .NET build artifacts
+bin/
+obj/
+publish/
+publish-*/
+*.dll
+*.exe
+*.pdb
+*.zip
+
+# Local config
+.claude/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+bld/
+
+# NuGet
+*.nupkg
+*.nuget.props
+*.nuget.targets
+.nuget/
+packages/
+
+# Azure
+publish/
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Logs
+*.log
+logs/
+
+# IDE
+.idea/
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
