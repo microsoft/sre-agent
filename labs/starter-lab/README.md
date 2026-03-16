@@ -33,9 +33,15 @@ Deploy an Azure SRE Agent connected to a sample application with a single `azd u
   az provider register -n Microsoft.App --wait
   ```
 
-### Optional
+### Optional (GitHub Integration)
 
 - GitHub account (for code search and issue triage scenarios — uses OAuth sign-in, no PAT needed)
+- **Fork the Grubify repo** into your own account before deploying:
+  ```bash
+  gh auth login
+  gh repo fork dm-chelupati/grubify --clone=false
+  ```
+  Or fork manually at: https://github.com/dm-chelupati/grubify/fork
 
 ## Quick Start
 
@@ -54,38 +60,47 @@ bash scripts/prereqs.sh
 ### macOS / Linux
 
 ```bash
-# 1. Clone the repo
-git clone https://github.com/dm-chelupati/sre-agent-lab.git
-cd sre-agent-lab
-git submodule update --init --recursive
+# 1. Clone the repo (labs/starter-lab branch)
+git clone https://github.com/microsoft/sre-agent.git --branch labs/starter-lab
+cd sre-agent/labs/starter-lab
 
 # 2. Sign in to Azure
 az login
 azd auth login
 
-# 3. Create environment and deploy
+# 3. Create environment and deploy infrastructure
 azd env new sre-lab
+
+# 4. (Optional) Set your GitHub username so the agent uses YOUR fork of grubify
+azd env set GITHUB_USER <your-github-username>
+
 azd up
 # Select your subscription and eastus2 as the region
+
+# 5. Configure the SRE Agent (knowledge base, subagents, connectors)
+bash scripts/post-provision.sh
 ```
 
 ### Windows
 
 ```cmd
-REM 1. Clone the repo (in CMD or PowerShell)
-git clone https://github.com/dm-chelupati/sre-agent-lab.git
-cd sre-agent-lab
-git submodule update --init --recursive
+REM 1. Clone the repo (labs/starter-lab branch)
+git clone https://github.com/microsoft/sre-agent.git --branch labs/starter-lab
+cd sre-agent\labs\starter-lab
 
 REM 2. Sign in to Azure
 az login
 azd auth login
 
-REM 3. Create environment and deploy
+REM 3. Create environment and deploy infrastructure
 azd env new sre-lab
+
+REM 4. (Optional) Set your GitHub username so the agent uses YOUR fork of grubify
+azd env set GITHUB_USER <your-github-username>
+
 azd up
 
-REM If post-provision fails with 'bash not found' or 'Python not found':
+REM 5. Configure the SRE Agent (knowledge base, subagents, connectors)
 set PATH=%PATH%;C:\Users\%USERNAME%\AppData\Local\Programs\Python\Python312
 "C:\Program Files\Git\bin\bash.exe" scripts/post-provision.sh
 ```
@@ -198,6 +213,23 @@ The agent saves your team information to persistent memory and references it in 
 
 ## Lab Scenarios
 
+### Exploring the Agent (No GitHub required)
+
+After the team onboarding thread, start a **new chat** for each prompt:
+
+**Check deployed resources:**
+```
+How many container apps are deployed for the Grubify application?
+List them with their endpoints.
+```
+
+**Search knowledge base:**
+```
+Using the grubify-architecture document in the knowledge base,
+what are the API routes for the Grubify backend API?
+Give me a curl command to try one of them.
+```
+
 ### Scenario 1: IT Operations (No GitHub required)
 
 Break the app and watch the agent investigate:
@@ -207,29 +239,45 @@ Break the app and watch the agent investigate:
 # Windows: "C:\Program Files\Git\bin\bash.exe" scripts/break-app.sh
 ```
 
-Then open [sre.azure.com](https://sre.azure.com) → Incidents to watch the agent:
+While waiting for alerts (5-8 minutes), open the **Grubify frontend** in your browser:
+- Try adding an item to your cart
+- Notice the app is **slow, unresponsive, or returning errors**
+- This confirms the app is broken — compare to how it worked before!
+
+Then open [sre.azure.com](https://sre.azure.com) → **Activities → Incidents** to watch the agent:
 1. Detect the Azure Monitor alert
 2. Query Log Analytics for error patterns
 3. Reference the HTTP errors runbook
 4. Apply remediation (restart/scale)
 5. Summarize with root cause and evidence
 
+After the agent investigates, ask it to mitigate in the incident thread:
+```
+Can you mitigate this issue?
+```
+
 ### Scenario 2: Developer (Requires GitHub)
 
-Ask the agent to search source code for root causes:
-- File:line references to problematic code
-- Correlation of production errors to code changes
-- Suggested fixes with before/after examples
+Start a **new chat**, type `/agent` and select **code-analyzer**, then send:
+
+```
+The Grubify API is not responding — specifically the "Add to Cart" 
+is failing. Can you investigate, find the root cause in the source 
+code and create a GitHub issue with your detailed findings?
+```
+
+Compare the GitHub issue created by code-analyzer (with file:line references and fix suggestions) vs the incident-handler's log-only analysis from Scenario 1.
+
+Then ask the agent to fix it:
+```
+Can you mitigate the Grubify cart API memory leak issue?
+```
 
 ### Scenario 3: Workflow Automation (Requires GitHub)
 
-Create sample support issues and let the agent triage them:
+Go to **Builder → Scheduled tasks** → find **triage-grubify-issues** → click **Run task now**.
 
-```bash
-./scripts/create-sample-issues.sh <owner/repo>
-```
-
-The agent classifies issues (Documentation, Bug, Feature Request), applies labels, and posts triage comments following the runbook.
+The agent triages open `[Customer Issue]` issues in your grubify fork — classifies them (Bug, Performance, Feature Request, Question), adds labels, and posts a structured triage comment.
 
 ## Adding GitHub Later
 

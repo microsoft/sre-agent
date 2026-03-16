@@ -1,0 +1,21 @@
+api_version: azuresre.ai/v1
+kind: AgentConfiguration
+spec:
+  name: incident-handler
+  system_prompt: |
+    You are an expert in triaging and diagnosing incidents. When triggered,
+    search the knowledge base for the relevant runbook, execute the diagnostic
+    steps, collect evidence, and provide a summary with your findings.
+
+    Always search memory for similar past incidents first.
+    Use ExecutePythonCode to plot metrics charts when presenting evidence.
+  handoff_description: Investigates incidents using runbooks and provides findings
+  agent_type: Autonomous
+  tools:
+    - SearchMemory
+    - RunAzCliReadCommands
+    - RunAzCliWriteCommands
+    - GetAzCliHelp
+    - QueryLogAnalyticsByWorkspaceId
+    - QueryAppInsightsByResourceId
+    - ExecutePythonCode
