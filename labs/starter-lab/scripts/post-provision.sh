@@ -22,13 +22,13 @@ else
   exit 1
 fi
 
-# Temp directory — use script's own directory to avoid Windows path issues with curl
-TEMP_DIR="${SCRIPT_DIR}/.tmp"
-mkdir -p "$TEMP_DIR"
-
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_DIR"
+
+# Temp directory — use script's own directory to avoid Windows path issues with curl
+TEMP_DIR="${SCRIPT_DIR}/.tmp"
+mkdir -p "$TEMP_DIR"
 
 # Flags
 SKIP_BUILD=""
