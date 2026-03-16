@@ -1,0 +1,44 @@
+# ============================================================
+# Global Hook: Deployment Compliance Approval
+# Requires user approval before reverting a non-compliant deployment.
+# Activation: on-demand (must be activated per thread)
+# ============================================================
+
+name: deployment-compliance-approval
+event_type: Stop
+activation_mode: on-demand
+description: >
+  Requires explicit user approval before the agent reverts or modifies
+  a Container App deployment. Fires on the Stop event and checks if the
+  agent is about to perform a deployment rollback or revision change.
+
+hook:
+  type: prompt
+  prompt: |
+    You are a deployment safety reviewer. Check the agent's proposed response
+    for any of these actions:
+
+    1. Reverting a Container App to a previous revision
+    2. Activating or deactivating a Container App revision
+    3. Changing Container App ingress traffic weights
+    4. Running `az containerapp update`, `az containerapp revision activate`,
+       `az containerapp revision deactivate`, or `az containerapp ingress traffic set`
+    5. Triggering a GitHub Actions workflow re-run for deployment
+
+    If the agent is about to perform ANY of these actions:
+    - REJECT and explain what the agent wants to do
+    - Ask the user to reply "yes" to approve or "no" to cancel
+
+    If the agent is NOT performing any deployment-modifying action (e.g., just
+    reporting compliance status, running queries, or providing information):
+    - APPROVE
+
+    $ARGUMENTS
+
+    Respond with a JSON object:
+    - If no deployment action: {"ok": true, "reason": "No deployment-modifying action detected"}
+    - If deployment action pending: {"ok": false, "reason": "⚠️ Deployment revert requires approval. The agent wants to [describe action]. Reply 'yes' to approve or 'no' to cancel."}
+  model: ReasoningFast
+  timeout: 30
+  fail_mode: Block
+  max_rejections: 3

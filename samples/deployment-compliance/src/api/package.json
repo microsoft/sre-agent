@@ -1,0 +1,13 @@
+{
+  "name": "compliance-demo-api",
+  "version": "1.0.0",
+  "description": "Sample backend API for deployment compliance demo — Container App + SQL",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}
