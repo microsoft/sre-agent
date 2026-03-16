@@ -249,23 +249,28 @@ create_subagent() {
   local token
   token=$(get_token)
 
-  # Convert YAML spec to API JSON using helper script
-  $PYTHON "$SCRIPT_DIR/yaml-to-api-json.py" "$yaml_file" "${TEMP_DIR}/${agent_name}-body.json" > /dev/null 2>&1
+  # Convert YAML spec to API JSON using helper script, pipe directly to curl
+  local json_body
+  json_body=$($PYTHON "$SCRIPT_DIR/yaml-to-api-json.py" "$yaml_file" "-" 2>&1)
+
+  if [ -z "$json_body" ] || echo "$json_body" | grep -qi "error\|traceback\|No module"; then
+    echo "   ⚠️  ${agent_name}: Python conversion failed"
+    echo "   $json_body" | head -3
+    return
+  fi
 
   local http_code
-  http_code=$(curl -s -o ${TEMP_DIR}/${agent_name}-resp.txt -w "%{http_code}" \
+  http_code=$(echo "$json_body" | curl -s -o /dev/null -w "%{http_code}" \
     -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/agents/${agent_name}" \
     -H "Authorization: Bearer ${token}" \
     -H "Content-Type: application/json" \
-    --data-binary @"${TEMP_DIR}/${agent_name}-body.json")
+    -d @-)
 
   if [ "$http_code" = "200" ] || [ "$http_code" = "201" ] || [ "$http_code" = "202" ] || [ "$http_code" = "204" ]; then
     echo "   ✅ Created: ${agent_name}"
   else
     echo "   ⚠️  ${agent_name} returned HTTP ${http_code}"
-    cat "${TEMP_DIR}/${agent_name}-resp.txt" 2>/dev/null | head -3
   fi
-  rm -f "${TEMP_DIR}/${agent_name}-body.json" "${TEMP_DIR}/${agent_name}-resp.txt"
 }
 
 # ── Helper: Check if something exists (for --retry mode) ─────────────────────
@@ -449,18 +454,17 @@ except: pass
     fi
   done
 
-$PYTHON -c "
+TASK_BODY=$($PYTHON -c "
 import json, os
 repo = os.environ.get('GITHUB_REPO', 'dm-chelupati/grubify')
-body = {'name':'triage-grubify-issues','description':f'Triage customer issues in {repo} every 12 hours','cronExpression':'0 */12 * * *','agentPrompt':f'Use the issue-triager subagent to list all open issues in {repo} that have [Customer Issue] in the title and have not been triaged yet. For each untriaged customer issue, classify it, add labels, and post a triage comment following the triage runbook in the knowledge base.','agent':'issue-triager'}
-with open('${TEMP_DIR}/scheduled-task-body.json', 'w') as f: json.dump(body, f)
-"
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+body = {'name':'triage-grubify-issues','description':'Triage customer issues in '+repo+' every 12 hours','cronExpression':'0 */12 * * *','agentPrompt':'Use the issue-triager subagent to list all open issues in '+repo+' that have [Customer Issue] in the title and have not been triaged yet. For each untriaged customer issue, classify it, add labels, and post a triage comment following the triage runbook in the knowledge base.','agent':'issue-triager'}
+print(json.dumps(body))
+")
+HTTP_CODE=$(echo "$TASK_BODY" | curl -s -o /dev/null -w "%{http_code}" \
   -X POST "${AGENT_ENDPOINT}/api/v1/scheduledtasks" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
-  --data-binary @${TEMP_DIR}/scheduled-task-body.json)
-rm -f ${TEMP_DIR}/scheduled-task-body.json
+  -d @-)
 if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "202" ]; then
   echo "   ✅ Scheduled task: triage-grubify-issues (every 12h → issue-triager)"
 else
