@@ -26,3 +26,11 @@ spec:
     - QueryLogAnalyticsByWorkspaceId
     - QueryAppInsightsByResourceId
     - ExecutePythonCode
+    - CreateGithubIssue
+    - CreateGithubIssueComment
+    - FetchGithubIssue
+    - FetchGithubIssues
+    - FetchGithubIssueComments
+    - UpdateGithubIssue
+    - FindConnectedGitHubRepo
+    - GetIaCForGitHub

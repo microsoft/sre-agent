@@ -33,3 +33,10 @@ spec:
   agent_type: Autonomous
   tools:
     - SearchMemory
+    - CreateGithubIssue
+    - CreateGithubIssueComment
+    - FetchGithubIssue
+    - FetchGithubIssues
+    - FetchGithubIssueComments
+    - UpdateGithubIssue
+    - FindConnectedGitHubRepo
