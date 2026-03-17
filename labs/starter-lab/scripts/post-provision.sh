@@ -22,14 +22,13 @@ else
   exit 1
 fi
 
-# Temp directory — works on both Linux (/tmp) and Windows (TEMP/TMPDIR)
-TEMP_DIR="${TMPDIR:-${TEMP:-/tmp}}"
-# On Windows Git Bash, TEMP may have backslashes — convert to forward slashes
-TEMP_DIR="${TEMP_DIR//\\//}"
-
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_DIR"
+
+# Temp directory — use script's own directory to avoid Windows path issues with curl
+TEMP_DIR="${SCRIPT_DIR}/.tmp"
+mkdir -p "$TEMP_DIR"
 
 # Flags
 SKIP_BUILD=""
@@ -250,23 +249,28 @@ create_subagent() {
   local token
   token=$(get_token)
 
-  # Convert YAML spec to API JSON using helper script
-  $PYTHON "$SCRIPT_DIR/yaml-to-api-json.py" "$yaml_file" "${TEMP_DIR}/${agent_name}-body.json" > /dev/null 2>&1
+  # Convert YAML spec to API JSON using helper script, pipe directly to curl
+  local json_body
+  json_body=$($PYTHON "$SCRIPT_DIR/yaml-to-api-json.py" "$yaml_file" "-" 2>&1)
+
+  if [ -z "$json_body" ] || echo "$json_body" | grep -q "^Traceback\|ModuleNotFoundError\|ImportError\|SyntaxError"; then
+    echo "   ⚠️  ${agent_name}: Python conversion failed"
+    echo "   $json_body" | head -3
+    return
+  fi
 
   local http_code
-  http_code=$(curl -s -o ${TEMP_DIR}/${agent_name}-resp.txt -w "%{http_code}" \
+  http_code=$(echo "$json_body" | curl -s -o /dev/null -w "%{http_code}" \
     -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/agents/${agent_name}" \
     -H "Authorization: Bearer ${token}" \
     -H "Content-Type: application/json" \
-    --data-binary @"${TEMP_DIR}/${agent_name}-body.json")
+    -d @-)
 
   if [ "$http_code" = "200" ] || [ "$http_code" = "201" ] || [ "$http_code" = "202" ] || [ "$http_code" = "204" ]; then
     echo "   ✅ Created: ${agent_name}"
   else
     echo "   ⚠️  ${agent_name} returned HTTP ${http_code}"
-    cat "${TEMP_DIR}/${agent_name}-resp.txt" 2>/dev/null | head -3
   fi
-  rm -f "${TEMP_DIR}/${agent_name}-body.json" "${TEMP_DIR}/${agent_name}-resp.txt"
 }
 
 # ── Helper: Check if something exists (for --retry mode) ─────────────────────
@@ -333,9 +337,9 @@ API_VERSION="2025-05-01-preview"
 # Enable Azure Monitor as the incident platform (ARM PATCH)
   if az rest --method PATCH \
     --url "https://management.azure.com${AGENT_RESOURCE_ID}?api-version=${API_VERSION}" \
-    --body '{"properties":{"incidentManagementConfiguration":{"type":"AzMonitor","connectionName":"azmonitor"}}}' \
+    --body '{"properties":{"incidentManagementConfiguration":{"type":"AzMonitor","connectionName":"azmonitor"},"experimentalSettings":{"EnableWorkspaceTools":true,"EnableDevOpsTools":true,"EnablePythonTools":true}}}' \
     --output none 2>&1; then
-    echo "   ✅ Azure Monitor enabled"
+    echo "   ✅ Azure Monitor enabled + DevOps & Python tools enabled"
   else
     echo "   ⚠️  Could not enable Azure Monitor"
   fi
@@ -418,17 +422,6 @@ ARM_RESULT=$(az rest --method PUT \
   -o none 2>&1 || true)
 echo "   ✅ GitHub OAuth connector (ARM)"
 
-# Add code repo with authConnectorName linking to the GitHub OAuth connector
-echo "   Adding ${GITHUB_REPO} code repository..."
-TOKEN=$(get_token)
-REPO_NAME=$(echo "$GITHUB_REPO" | cut -d'/' -f2)
-curl -s -o /dev/null -w "" \
-  -X PUT "${AGENT_ENDPOINT}/api/v2/repos/${REPO_NAME}" \
-  -H "Authorization: Bearer ${TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d "{\"name\":\"${REPO_NAME}\",\"type\":\"CodeRepo\",\"properties\":{\"url\":\"https://github.com/${GITHUB_REPO}\",\"authConnectorName\":\"github\"}}"
-echo "   ✅ Code repo: ${GITHUB_REPO}"
-
 # Upload triage runbook
 TOKEN=$(get_token)
 curl -s -o /dev/null \
@@ -461,18 +454,17 @@ except: pass
     fi
   done
 
-$PYTHON -c "
+TASK_BODY=$($PYTHON -c "
 import json, os
 repo = os.environ.get('GITHUB_REPO', 'dm-chelupati/grubify')
-body = {'name':'triage-grubify-issues','description':f'Triage customer issues in {repo} every 12 hours','cronExpression':'0 */12 * * *','agentPrompt':f'Use the issue-triager subagent to list all open issues in {repo} that have [Customer Issue] in the title and have not been triaged yet. For each untriaged customer issue, classify it, add labels, and post a triage comment following the triage runbook in the knowledge base.','agent':'issue-triager'}
-with open('${TEMP_DIR}/scheduled-task-body.json', 'w') as f: json.dump(body, f)
-"
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+body = {'name':'triage-grubify-issues','description':'Triage customer issues in '+repo+' every 12 hours','cronExpression':'0 */12 * * *','agentPrompt':'Use the issue-triager subagent to list all open issues in '+repo+' that have [Customer Issue] in the title and have not been triaged yet. For each untriaged customer issue, classify it, add labels, and post a triage comment following the triage runbook in the knowledge base.','agent':'issue-triager'}
+print(json.dumps(body))
+")
+HTTP_CODE=$(echo "$TASK_BODY" | curl -s -o /dev/null -w "%{http_code}" \
   -X POST "${AGENT_ENDPOINT}/api/v1/scheduledtasks" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
-  --data-binary @${TEMP_DIR}/scheduled-task-body.json)
-rm -f ${TEMP_DIR}/scheduled-task-body.json
+  -d @-)
 if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "202" ]; then
   echo "   ✅ Scheduled task: triage-grubify-issues (every 12h → issue-triager)"
 else
@@ -489,7 +481,20 @@ if [ -n "$OAUTH_URL" ]; then
   echo "   │  ${OAUTH_URL}"
   echo "   │  Open this URL in your browser and click 'Authorize'    │"
   echo "   └──────────────────────────────────────────────────────────┘"
+  echo ""
+  read -p "   Press Enter after you have authorized in the browser..." _unused
 fi
+
+# Add code repo AFTER OAuth so the token is active
+echo "   Adding ${GITHUB_REPO} code repository..."
+TOKEN=$(get_token)
+REPO_NAME=$(echo "$GITHUB_REPO" | cut -d'/' -f2)
+curl -s -o /dev/null -w "" \
+  -X PUT "${AGENT_ENDPOINT}/api/v2/repos/${REPO_NAME}" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"${REPO_NAME}\",\"type\":\"CodeRepo\",\"properties\":{\"url\":\"https://github.com/${GITHUB_REPO}\",\"authConnectorName\":\"github\"}}"
+echo "   ✅ Code repo: ${GITHUB_REPO}"
 echo ""
 
 # ── Verification: Show what was set up ────────────────────────────────────────
@@ -627,3 +632,6 @@ echo "     5. Settings → Incident platform (Azure Monitor)"
 echo ""
 echo "  Then run: ./scripts/break-app.sh"
 echo "============================================="
+
+# Cleanup temp directory
+rm -rf "$TEMP_DIR"

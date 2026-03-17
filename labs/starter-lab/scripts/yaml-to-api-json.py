@@ -40,7 +40,9 @@ api_body = {
     }
 }
 
-with open(output_file, "w") as f:
-    json.dump(api_body, f)
-
-print(f"Wrote {output_file} ({len(json.dumps(api_body))} bytes)")
+if output_file == "-":
+    print(json.dumps(api_body))
+else:
+    with open(output_file, "w") as f:
+        json.dump(api_body, f)
+    print(f"Wrote {output_file} ({len(json.dumps(api_body))} bytes)")
