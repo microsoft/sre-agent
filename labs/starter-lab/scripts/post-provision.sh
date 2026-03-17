@@ -357,11 +357,11 @@ API_VERSION="2025-05-01-preview"
 FILTER_CREATED=false
 for attempt in 1 2 3 4 5; do
   TOKEN=$(get_token)
-  HTTP_CODE=$(curl -s -o ${TEMP_DIR}/response-plan-resp.txt -w "%{http_code}" \
+  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
     -X PUT "${AGENT_ENDPOINT}/api/v1/incidentPlayground/filters/grubify-http-errors" \
     -H "Authorization: Bearer ${TOKEN}" \
     -H "Content-Type: application/json" \
-    --data-binary '{"id":"grubify-http-errors","name":"Grubify HTTP Errors","priorities":["Sev0","Sev1","Sev2","Sev3","Sev4"],"titleContains":"","handlingAgent":"incident-handler","agentMode":"autonomous","maxAttempts":3}')
+    -d '{"id":"grubify-http-errors","name":"Grubify HTTP Errors","priorities":["Sev0","Sev1","Sev2","Sev3","Sev4"],"titleContains":"","handlingAgent":"incident-handler","agentMode":"autonomous","maxAttempts":3}')
 
   if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "202" ] || [ "$HTTP_CODE" = "409" ]; then
     echo "   ✅ Response plan → incident-handler"
@@ -376,7 +376,6 @@ done
   if [ "$FILTER_CREATED" = "false" ]; then
     echo "   ⚠️  Response plan failed after 5 attempts (set up in portal or run: ./scripts/post-provision.sh --retry)"
   fi
-  rm -f ${TEMP_DIR}/response-plan-resp.txt
 
 # Always delete the default quickstart handler (auto-created by Azure Monitor platform)
 TOKEN=$(get_token)

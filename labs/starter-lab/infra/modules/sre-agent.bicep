@@ -50,7 +50,7 @@ resource sreAgent 'Microsoft.App/agents@2025-05-01-preview' = {
     actionConfiguration: {
       mode: 'autonomous'
       identity: identityId
-      accessLevel: 'Low'
+      accessLevel: 'Medium'
     }
     mcpServers: []
     logConfiguration: {
@@ -78,3 +78,4 @@ output agentName string = sreAgent.name
 output agentId string = sreAgent.id
 output agentEndpoint string = sreAgent.properties.agentEndpoint
 output agentPortalUrl string = 'https://sre.azure.com'
+output systemIdentityPrincipalId string = sreAgent.identity.principalId

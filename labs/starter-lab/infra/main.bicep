@@ -39,6 +39,14 @@ module subscriptionRbac 'modules/subscription-rbac.bicep' = {
   }
 }
 
+// Also assign RBAC to the agent's system-assigned identity (used for Azure Monitor alerts)
+module subscriptionRbacSystem 'modules/subscription-rbac.bicep' = {
+  name: 'subscription-rbac-system'
+  params: {
+    principalId: resources.outputs.systemIdentityPrincipalId
+  }
+}
+
 // Outputs consumed by azd and post-provision script
 output AZURE_RESOURCE_GROUP string = rg.name
 output AZURE_LOCATION string = location
