@@ -337,9 +337,9 @@ API_VERSION="2025-05-01-preview"
 # Enable Azure Monitor as the incident platform (ARM PATCH)
   if az rest --method PATCH \
     --url "https://management.azure.com${AGENT_RESOURCE_ID}?api-version=${API_VERSION}" \
-    --body '{"properties":{"incidentManagementConfiguration":{"type":"AzMonitor","connectionName":"azmonitor"}}}' \
+    --body '{"properties":{"incidentManagementConfiguration":{"type":"AzMonitor","connectionName":"azmonitor"},"experimentalSettings":{"EnableWorkspaceTools":true,"EnableDevOpsTools":true,"EnablePythonTools":true}}}' \
     --output none 2>&1; then
-    echo "   ✅ Azure Monitor enabled"
+    echo "   ✅ Azure Monitor enabled + DevOps & Python tools enabled"
   else
     echo "   ⚠️  Could not enable Azure Monitor"
   fi
