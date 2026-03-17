@@ -243,7 +243,6 @@ Before diving into specific scenarios, explore what `azd up` configured for you.
 1. [] Find your agent in the list and click on it.
 
 > [!Knowledge] The SRE Agent was created via Bicep as a `Microsoft.App/agents` resource with:
-> - **Autonomous mode** — the agent takes actions without waiting for approval
 > - **Azure Monitor integration** — alerts from your resource group flow to the agent automatically
 > - **Managed Identity** — with Reader, Monitoring Reader, and Log Analytics Reader roles on the resource group
 
@@ -647,7 +646,7 @@ This sends another burst of requests to the cart API, triggering new 500 errors 
 
 | Persona | What the Agent Did | Key Capabilities |
 |:--------|:-------------------|:-----------------|
-| **IT Operations** | Detected alert → investigated logs + KB → remediated → summarized | Azure Monitor, Knowledge base, Search memory, Autonomous mode |
+| **IT Operations** | Detected alert → investigated logs + KB → remediated → summarized | Azure Monitor, Knowledge base, Search memory |
 | **Developer** | Searched source code → correlated logs to code → suggested fixes | GitHub OAuth, Code search, file:line references |
 | **Workflow Automation** | Triaged issues → classified → labeled → commented | GitHub OAuth tools, Runbook-driven automation |
 
@@ -681,7 +680,6 @@ Everything below was configured automatically when you ran `azd up`:
 > - **[Connectors](https://sre.azure.com/docs/concepts/connectors)**: External tool integrations (GitHub, Datadog, etc.) using the Model Context Protocol
 > - **[Response Plans](https://sre.azure.com/docs/capabilities/incident-response)**: Rules that match incoming alerts to subagents based on severity and title patterns
 > - **[Scheduled Tasks](https://sre.azure.com/docs/capabilities/scheduled-tasks)**: Cron-based automation that runs a subagent on a schedule (e.g., triage issues every 12 hours)
-> - **[Autonomous Mode](https://sre.azure.com/docs/concepts/subagents)**: The agent takes actions without requiring human approval
 
 ---
 
