@@ -34,3 +34,7 @@ spec:
     - UpdateGithubIssue
     - FindConnectedGitHubRepo
     - GetIaCForGitHub
+    - PlotAreaChartWithCorrelation
+    - PlotHeatmap
+    - PlotPieChart
+    - PlotScatter
