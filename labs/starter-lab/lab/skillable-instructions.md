@@ -689,9 +689,13 @@ All of this was set up with a single `azd up` command.
 
 ## Resources
 
-- [Azure SRE Agent Documentation](https://sre.azure.com/docs)
-- [Azure SRE Agent Portal](https://sre.azure.com)
-- [Grubify Sample App](https://github.com/dm-chelupati/grubify)
-- [Lab Source Code](https://github.com/microsoft/sre-agent/tree/labs/starter-lab/labs/starter-lab)
+| Resource | Link |
+|:---------|:-----|
+| **SRE Agent Portal** | [sre.azure.com](https://sre.azure.com) |
+| **Documentation** | [sre.azure.com/docs](https://sre.azure.com/docs) |
+| **Blog** | [aka.ms/sreagent/blog](https://aka.ms/sreagent/blog) |
+| **Labs** | [aka.ms/sreagent/lab](https://aka.ms/sreagent/lab) |
+| **Pricing** | [aka.ms/sreagent/pricing](https://aka.ms/sreagent/pricing) |
+| **Support** | [aka.ms/sreagent/github](https://aka.ms/sreagent/github) |
 
 **Thank you for completing this lab, @lab.User.FirstName!**
