@@ -91,10 +91,18 @@ GITHUB_USER=$(azd env get-value GITHUB_USER 2>/dev/null || echo "")
 if echo "$GITHUB_USER" | grep -q "ERROR\|not found"; then
   GITHUB_USER=""
 fi
-# Build the repo name from username (defaults to dm-chelupati if not set)
-export GITHUB_REPO="${GITHUB_USER:+${GITHUB_USER}/grubify}"
-GITHUB_REPO="${GITHUB_REPO:-dm-chelupati/grubify}"
-export GITHUB_REPO
+# Block using dm-chelupati repo — users must set their own GITHUB_USER
+if [ "$GITHUB_USER" = "dm-chelupati" ]; then
+  echo "⚠️  GITHUB_USER is set to dm-chelupati — please use your own GitHub account."
+  echo "   Run: azd env set GITHUB_USER <your-github-username>"
+  GITHUB_USER=""
+fi
+# Build the repo name from username
+if [ -n "$GITHUB_USER" ]; then
+  export GITHUB_REPO="${GITHUB_USER}/grubify"
+else
+  export GITHUB_REPO=""
+fi
 
 if [ -z "$AGENT_ENDPOINT" ] || [ -z "$AGENT_NAME" ]; then
   echo "❌ ERROR: Could not read agent details from azd environment."
@@ -386,6 +394,7 @@ curl -s -o /dev/null -X DELETE "${AGENT_ENDPOINT}/api/v1/incidentPlayground/filt
 echo ""
 
 # ── Step 4: GitHub integration ───────────────────────────────────────────────
+if [ -n "$GITHUB_REPO" ]; then
 echo "🔗 Step 4/5: GitHub integration..."
 
 # Create GitHub OAuth connector via data plane API (no PAT needed)
@@ -496,6 +505,15 @@ curl -s -o /dev/null -w "" \
   -d "{\"name\":\"${REPO_NAME}\",\"type\":\"CodeRepo\",\"properties\":{\"url\":\"https://github.com/${GITHUB_REPO}\",\"authConnectorName\":\"github\"}}"
 echo "   ✅ Code repo: ${GITHUB_REPO}"
 echo ""
+
+else
+  echo "🔗 Step 4/5: GitHub integration... ⏭️  Skipped"
+  echo "   No GITHUB_USER set. To enable GitHub integration:"
+  echo "   1. Fork https://github.com/dm-chelupati/grubify"
+  echo "   2. Run: azd env set GITHUB_USER <your-github-username>"
+  echo "   3. Re-run: bash scripts/post-provision.sh --retry"
+  echo ""
+fi
 
 # ── Verification: Show what was set up ────────────────────────────────────────
 echo ""

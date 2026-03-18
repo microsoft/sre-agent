@@ -60,8 +60,8 @@ bash scripts/prereqs.sh
 ### macOS / Linux
 
 ```bash
-# 1. Clone the repo (labs/starter-lab branch)
-git clone https://github.com/microsoft/sre-agent.git --branch labs/starter-lab
+# 1. Clone the repo
+git clone https://github.com/microsoft/sre-agent.git
 cd sre-agent/labs/starter-lab
 
 # 2. Sign in to Azure
@@ -84,8 +84,8 @@ bash scripts/post-provision.sh
 ### Windows
 
 ```cmd
-REM 1. Clone the repo (labs/starter-lab branch)
-git clone https://github.com/microsoft/sre-agent.git --branch labs/starter-lab
+REM 1. Clone the repo
+git clone https://github.com/microsoft/sre-agent.git
 cd sre-agent\labs\starter-lab
 
 REM 2. Sign in to Azure
