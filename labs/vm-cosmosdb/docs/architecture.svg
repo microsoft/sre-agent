@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 580" font-family="Segoe UI, -apple-system, sans-serif">
+  <defs>
+    <filter id="s" x="-2%" y="-4%" width="104%" height="112%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.08"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#0078d4"/></marker>
+    <marker id="arrowGreen" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#008272"/></marker>
+  </defs>
+  <rect width="920" height="580" rx="12" fill="#f8f9fa"/>
+  <text x="460" y="30" text-anchor="middle" font-size="17" font-weight="600" fill="#1a1a1a">Lab 1: VM + Cosmos DB — E-Commerce App with Break Scenarios</text>
+  <rect x="15" y="48" width="890" height="515" rx="10" fill="none" stroke="#0078d4" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="30" y="66" font-size="11" fill="#0078d4" font-weight="600">Azure Resource Group</text>
+
+  <!-- VM -->
+  <rect x="30" y="82" width="240" height="145" rx="8" fill="#fff" stroke="#5c2d91" stroke-width="1.5" filter="url(#s)"/>
+  <text x="150" y="104" text-anchor="middle" font-size="12" font-weight="700" fill="#5c2d91">vm-sap-app-01</text>
+  <text x="150" y="122" text-anchor="middle" font-size="9" fill="#666">Ubuntu 22.04 · Standard_B2s · Managed Identity</text>
+  <rect x="42" y="132" width="216" height="20" rx="4" fill="#f3e8ff" stroke="#5c2d91" stroke-width="0.8"/>
+  <text x="150" y="146" text-anchor="middle" font-size="9" fill="#5c2d91">Node.js + Express — E-Commerce API</text>
+  <rect x="42" y="156" width="216" height="20" rx="4" fill="#f3e8ff" stroke="#5c2d91" stroke-width="0.8"/>
+  <text x="150" y="170" text-anchor="middle" font-size="9" fill="#5c2d91">Frontend: Products + Orders + Health</text>
+  <rect x="42" y="180" width="216" height="20" rx="4" fill="#f3e8ff" stroke="#5c2d91" stroke-width="0.8"/>
+  <text x="150" y="194" text-anchor="middle" font-size="9" fill="#5c2d91">@azure/identity → Cosmos DB (no keys)</text>
+
+  <!-- Cosmos DB -->
+  <rect x="30" y="248" width="240" height="90" rx="8" fill="#fff" stroke="#0078d4" stroke-width="1.5" filter="url(#s)"/>
+  <text x="150" y="272" text-anchor="middle" font-size="12" font-weight="700" fill="#0078d4">Cosmos DB (NoSQL)</text>
+  <text x="150" y="290" text-anchor="middle" font-size="9" fill="#666">ecommerce DB · Serverless · RBAC auth</text>
+  <text x="150" y="306" text-anchor="middle" font-size="9" fill="#666">products + orders containers</text>
+  <text x="150" y="322" text-anchor="middle" font-size="9" fill="#666">Public network access: Enabled</text>
+  <line x1="150" y1="227" x2="150" y2="246" stroke="#0078d4" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+
+  <!-- Monitor -->
+  <rect x="310" y="82" width="230" height="90" rx="8" fill="#fff" stroke="#008272" stroke-width="1.5" filter="url(#s)"/>
+  <text x="425" y="104" text-anchor="middle" font-size="12" font-weight="700" fill="#008272">Azure Monitor</text>
+  <text x="425" y="122" text-anchor="middle" font-size="9" fill="#666">CPU > 85% · Memory > 90%</text>
+  <text x="425" y="137" text-anchor="middle" font-size="9" fill="#666">Activity Log diagnostics</text>
+  <text x="425" y="152" text-anchor="middle" font-size="9" fill="#666">Log Analytics Workspace</text>
+  <line x1="270" y1="120" x2="308" y2="120" stroke="#008272" stroke-width="1.2" marker-end="url(#arrowGreen)"/>
+
+  <!-- GitHub -->
+  <rect x="310" y="192" width="230" height="50" rx="8" fill="#fff" stroke="#333" stroke-width="1.5" filter="url(#s)"/>
+  <text x="425" y="214" text-anchor="middle" font-size="11" font-weight="700" fill="#333">GitHub: Source Code Repository</text>
+  <text x="425" y="230" text-anchor="middle" font-size="9" fill="#666">Source code for root cause analysis</text>
+
+  <!-- SRE Agent -->
+  <rect x="580" y="82" width="310" height="230" rx="10" fill="#e8f4fd" stroke="#0078d4" stroke-width="1.5" filter="url(#s)"/>
+  <text x="735" y="104" text-anchor="middle" font-size="13" font-weight="700" fill="#0078d4">Azure SRE Agent</text>
+  <rect x="594" y="116" width="282" height="22" rx="5" fill="#fff" stroke="#0078d4" stroke-width="1"/>
+  <text x="735" y="131" text-anchor="middle" font-size="9" fill="#333">📚 vm-performance-diagnostics.md</text>
+  <rect x="594" y="144" width="282" height="22" rx="5" fill="#fff" stroke="#0078d4" stroke-width="1"/>
+  <text x="735" y="159" text-anchor="middle" font-size="9" fill="#333">📚 compliance-drift-detection.md</text>
+  <rect x="594" y="172" width="282" height="22" rx="5" fill="#fff" stroke="#107c10" stroke-width="1"/>
+  <text x="735" y="187" text-anchor="middle" font-size="9" fill="#333">🔧 SearchMemory · AzCli · KQL · PlotChart</text>
+  <rect x="594" y="200" width="282" height="22" rx="5" fill="#fff" stroke="#107c10" stroke-width="1"/>
+  <text x="735" y="215" text-anchor="middle" font-size="9" fill="#333">🔧 CreateGithubIssue · FindConnectedRepo</text>
+  <rect x="594" y="228" width="282" height="22" rx="5" fill="#fff" stroke="#008272" stroke-width="1"/>
+  <text x="735" y="243" text-anchor="middle" font-size="9" fill="#333">🚨 Response Plan → Azure Monitor alerts</text>
+  <rect x="594" y="256" width="282" height="22" rx="5" fill="#fff" stroke="#5c2d91" stroke-width="1"/>
+  <text x="735" y="271" text-anchor="middle" font-size="9" fill="#333">🔐 Managed Identity · GitHub OAuth</text>
+  <rect x="594" y="284" width="282" height="22" rx="5" fill="#fff" stroke="#333" stroke-width="1"/>
+  <text x="735" y="299" text-anchor="middle" font-size="9" fill="#333">📂 Code: Source repo (GitHub OAuth)</text>
+  <line x1="540" y1="120" x2="578" y2="120" stroke="#0078d4" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+  <text x="558" y="113" font-size="8" fill="#0078d4">alerts</text>
+
+  <!-- Break Scenarios -->
+  <rect x="310" y="270" width="230" height="155" rx="8" fill="#fff3e0" stroke="#d83b01" stroke-width="1.5" filter="url(#s)"/>
+  <text x="425" y="292" text-anchor="middle" font-size="12" font-weight="700" fill="#d83b01">Break Scenarios</text>
+  <rect x="322" y="302" width="206" height="35" rx="5" fill="#fff" stroke="#d83b01" stroke-width="0.8"/>
+  <text x="330" y="317" font-size="9" font-weight="600" fill="#d83b01">🔥 break-db.sh block</text>
+  <text x="330" y="330" font-size="8" fill="#666">Disable Cosmos public access → app 500s</text>
+  <rect x="322" y="343" width="206" height="35" rx="5" fill="#fff" stroke="#d83b01" stroke-width="0.8"/>
+  <text x="330" y="358" font-size="9" font-weight="600" fill="#d83b01">🔥 break-vm.sh cpu</text>
+  <text x="330" y="371" font-size="8" fill="#666">CPU stress on VM → alert fires</text>
+  <rect x="322" y="384" width="206" height="30" rx="5" fill="#d4edda" stroke="#107c10" stroke-width="0.8"/>
+  <text x="330" y="403" font-size="9" font-weight="600" fill="#107c10">✅ break-db.sh restore</text>
+
+  <!-- Demo Flow -->
+  <rect x="580" y="340" width="310" height="145" rx="8" fill="#e8f5e9" stroke="#107c10" stroke-width="1" filter="url(#s)"/>
+  <text x="735" y="360" text-anchor="middle" font-size="11" font-weight="700" fill="#107c10">Demo Flow</text>
+  <text x="594" y="378" font-size="9" fill="#333">1. azd up → deploys VM + Cosmos + Agent</text>
+  <text x="594" y="394" font-size="9" fill="#333">2. bash scripts/install-app.sh → installs app</text>
+  <text x="594" y="410" font-size="9" fill="#333">3. bash scripts/post-deploy.sh → configures agent</text>
+  <text x="594" y="426" font-size="9" fill="#333">4. Browse http://VM_IP → E-Commerce Portal</text>
+  <text x="594" y="442" font-size="9" fill="#333">5. bash scripts/break-db.sh block → break DB</text>
+  <text x="594" y="458" font-size="9" fill="#333">6. Chat: "Our ecommerce app seems down"</text>
+  <text x="594" y="474" font-size="9" fill="#333">7. Agent diagnoses + remediates + creates PR</text>
+
+  <!-- Identity + NSG -->
+  <rect x="30" y="360" width="115" height="42" rx="6" fill="#fff" stroke="#107c10" stroke-width="1" filter="url(#s)"/>
+  <text x="87" y="380" text-anchor="middle" font-size="9" font-weight="600" fill="#107c10">Managed Identity</text>
+  <text x="87" y="393" text-anchor="middle" font-size="8" fill="#666">RBAC → Cosmos</text>
+  <rect x="155" y="360" width="115" height="42" rx="6" fill="#fff" stroke="#d83b01" stroke-width="1" filter="url(#s)"/>
+  <text x="212" y="380" text-anchor="middle" font-size="9" font-weight="600" fill="#d83b01">NSG</text>
+  <text x="212" y="393" text-anchor="middle" font-size="8" fill="#666">Port 80 open</text>
+
+  <!-- Auto-shutdown -->
+  <rect x="30" y="420" width="240" height="28" rx="6" fill="#fff" stroke="#666" stroke-width="1"/>
+  <text x="150" y="438" text-anchor="middle" font-size="9" fill="#666">⏰ Auto-shutdown: 7 PM UTC daily</text>
+</svg>
