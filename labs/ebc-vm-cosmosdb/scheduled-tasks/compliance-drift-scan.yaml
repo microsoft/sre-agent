@@ -1,0 +1,24 @@
+# ============================================================
+# Scheduled Task: Compliance Drift Scan
+# Runs every 30 minutes to detect configuration drift
+# ============================================================
+
+name: compliance-drift-scan
+schedule: "*/30 * * * *"
+description: >
+  Automated compliance drift detection scan. Checks all resources
+  in the managed resource group against organizational policies:
+  required tags, NSG security rules, VM diagnostics, and storage
+  account security settings.
+
+message: |
+  Run a compliance drift scan on all resources in this resource group.
+  
+  Check the following policies:
+  1. Required tags: environment, cost-center, deployed-by, compliance-required
+  2. NSG rules: no SSH/RDP open to 0.0.0.0/0
+  3. VM diagnostics: boot diagnostics enabled, Azure Monitor Agent installed
+  4. Storage security: HTTPS only, no public blob access, TLS 1.2+
+  
+  Generate a compliance report with all violations and recommended remediations.
+  Do NOT auto-remediate — only report findings.
