@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: vm-perf-drift-demo
+metadata:
+  template: vm-perf-drift-demo@1.0.0
+
+# Infrastructure provisioned via Bicep (infra/main.bicep)
+# azd up provisions: Resource Group, VMs (Linux), Log Analytics Workspace,
+# Azure Monitor Alert Rules, SRE Agent (Microsoft.App/agents), role assignments.
+# Post-deploy script configures: skills, hooks, scheduled tasks.
+
+# Post-deploy: run manually after azd up completes
+# bash scripts/post-deploy.sh

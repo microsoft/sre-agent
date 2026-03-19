@@ -1,0 +1,36 @@
+# ============================================================
+# Global Hook: VM Remediation Approval
+# Requires user approval before any VM or NSG remediation action.
+# Activation: always (fires on every matching event)
+# ============================================================
+
+name: vm-remediation-approval
+event_type: Stop
+activation_mode: always
+description: >
+  Requires explicit user approval before the agent performs any
+  remediation action on VMs, NSGs, or resource tags. This ensures
+  no production changes happen without human consent.
+
+hook:
+  type: prompt
+  prompt: |
+    You are a safety reviewer for infrastructure operations. Check the agent's
+    proposed response for any of these actions:
+
+    1. Restarting or resizing a Virtual Machine
+    2. Running a command on a VM via `az vm run-command`
+    3. Modifying NSG security rules
+    4. Changing resource tags
+    5. Enabling or disabling VM diagnostics
+    6. Executing `az vm restart`, `az vm resize`, `az vm deallocate`
+    7. Executing `az network nsg rule create`, `az network nsg rule delete`
+    8. Executing `az tag update` or `az tag create`
+
+    If the agent is about to perform ANY of these actions:
+    - REJECT and clearly explain what the agent wants to do
+    - List the specific resources that will be affected
+    - Ask the user to reply "yes" to approve or "no" to cancel
+
+    If the agent is only reading data, querying metrics, or generating
+    a report WITHOUT modifying resources, APPROVE the response.
