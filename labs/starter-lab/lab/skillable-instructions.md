@@ -226,7 +226,7 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
 
 # Scenario 1: Break the App (No GitHub Required)
 
-**Goal:** Break the Grubify app → Azure Monitor fires an alert → SRE Agent investigates autonomously using logs and knowledge base.
+**Goal:** Break the Grubify app, then ask the SRE Agent to investigate using logs and knowledge base.
 
 1. [] Run the break script:
 
@@ -234,20 +234,25 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
     "C:\Program Files\Git\bin\bash.exe" scripts/break-app.sh
     ```
 
-1. [] While waiting (~5-8 min for alerts), open the **Grubify frontend** in your browser:
+1. [] Open the **Grubify frontend** in your browser:
     - Try adding an item to cart — it's **slow or returning errors**
     - The app is broken!
 
-1. [] Go to **sre.azure.com → Activities → Incidents**. A new incident should appear.
+1. [] Start a **new chat** → type `/agent` → select **incident-handler**.
 
-1. [] Click the incident — watch the agent:
+1. [] Ask the agent to investigate:
+
+    ```
+    The Grubify cart API is failing with errors. Can you investigate using the http-500-errors runbook and check the logs?
+    ```
+
+1. [] Watch the agent:
     - [] Search memory for similar incidents
     - [] Query Log Analytics (KQL) for error patterns
     - [] Reference the HTTP errors runbook
     - [] Identify the `/api/cart` memory leak
-    - [] Apply remediation
 
-1. [] After the agent investigates, ask in the incident thread:
+1. [] Ask the agent to fix it:
 
     ```
     Can you mitigate this issue?
@@ -258,6 +263,8 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
     ```
     curl http://@lab.Variable(grubifyUrl)/api/restaurants
     ```
+
+> [!Knowledge] **Bonus — Automated Alert:** After 5-8 minutes, check **Activities → Incidents** — Azure Monitor may have fired an alert that the agent picked up and investigated automatically. This shows the autonomous flow without needing to ask in chat.
 
 ===
 
