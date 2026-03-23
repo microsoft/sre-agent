@@ -10,7 +10,7 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
 | **Azure Portal** | @lab.CloudPortal.SignInLink |
 | **Username** | ++@lab.CloudPortalCredential(User1).Username++ |
 | **Password** | ++@lab.CloudPortalCredential(User1).Password++ |
-| **TAP Password** | ++@lab.CloudPortalCredential(User1).TenantAccessPass++ |
+| **TAP Password** | See **Resources** tab → TAP value |
 | **Subscription ID** | ++@lab.CloudSubscription.Id++ |
 
 ---
