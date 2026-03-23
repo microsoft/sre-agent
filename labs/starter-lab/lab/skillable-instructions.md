@@ -163,11 +163,55 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
 
 1. [] Click **Full Setup** — verify green checkmarks on Code, Incidents, Azure resources.
 
+1. [] Click **"Done and go to agent"** to open the agent chat.
+
+---
+
+## Team Onboarding
+
+The agent opens a **Team onboarding** thread. Try these prompts:
+
+1. [] Ask about the app architecture:
+
+    ```
+    What do you know about the Grubify app architecture?
+    ```
+
+1. [] Ask about the runbook:
+
+    ```
+    Summarize the HTTP errors runbook
+    ```
+
+1. [] Ask about Azure resources:
+
+    ```
+    What Azure resources are in my resource group?
+    ```
+
+1. [] Ask for next steps:
+
+    ```
+    What should I do next?
+    ```
+
+> [!Knowledge] The agent saves your team information to memory and references it in future investigations.
+
+---
+
+## Test the App
+
 1. [] Open the Grubify app: `http://@lab.Variable(grubifyUrl)`
     - Browse restaurants, add an item to cart — **it should work fine**.
     - Remember this for when we break it!
 
-1. [] Start a **new chat** in the agent portal. Try:
+---
+
+## Chat Prompts
+
+Start a **new chat** (click **+ New Chat**) for each prompt:
+
+1. [] Ask about deployed resources:
 
     ```
     How many container apps are deployed for the Grubify application? List them with their endpoints.
