@@ -1,15 +1,16 @@
 # Azure SRE Agent Hands-On Lab
 
-Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app, and watch it diagnose and fix the issue — all in under 60 minutes.
+Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app, and watch it diagnose and fix the issue - all in under 60 minutes.
 
 > [!Knowledge] **Full documentation, architecture diagram, and detailed walkthrough:**
 > [Lab README on GitHub](https://github.com/microsoft/sre-agent/tree/main/labs/starter-lab#readme)
 
 | Resource | Value |
 |:---------|:------|
-| **Azure Portal** | @lab.CloudPortal.SignInLink |
+| **Azure Portal** | ++https://portal.azure.com++ |
 | **Username** | ++@lab.CloudPortalCredential(User1).Username++ |
 | **Password** | ++@lab.CloudPortalCredential(User1).Password++ |
+| **TAP Password** | ++@lab.CloudPortalCredential(User1).AccessToken++ |
 | **Subscription ID** | ++@lab.CloudSubscription.Id++ |
 
 ---
@@ -22,7 +23,7 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
     winget install Python.Python.3.12 --accept-source-agreements --accept-package-agreements
     ```
 
-1. [] **Disable Windows Store Python aliases** — Open **Settings → Apps → Advanced app settings → App execution aliases** → turn OFF `python.exe` and `python3.exe`
+1. [] **Disable Windows Store Python aliases** - Open **Settings → Apps → Advanced app settings → App execution aliases** → turn OFF `python.exe` and `python3.exe`
 
 1. [] **Close and reopen** your CMD window (so Python is in PATH).
 
@@ -39,7 +40,7 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
     Open a browser **inside the VM**, go to ++https://microsoft.com/devicelogin++, enter the code.
     - Enter the **Username** above
     - When prompted for password, use the **Password** above
-    - If prompted for a second factor, get the **TAP** from the **Resources** tab
+    - If prompted for a second factor or TAP, use the **TAP Password** above
 
 1. [] Set the subscription:
 
@@ -59,7 +60,7 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
     azd auth login --use-device-code
     ```
 
-    Same process — open browser, enter code, sign in.
+    Same process - open browser, enter code, sign in.
 
 ---
 
@@ -160,7 +161,7 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
 
 1. [] Open <[sre.azure.com](https://sre.azure.com)> and sign in. Find your agent.
 
-1. [] Click **Full Setup** — verify green checkmarks on Code, Incidents, Azure resources.
+1. [] Click **Full Setup** - verify green checkmarks on Code, Incidents, Azure resources.
 
 1. [] Click **"Done and go to agent"** to open the agent chat.
 
@@ -201,7 +202,7 @@ The agent opens a **Team onboarding** thread. Try these prompts:
 ## Test the App
 
 1. [] Open the Grubify app: `http://@lab.Variable(grubifyUrl)`
-    - Browse restaurants, add an item to cart — **it should work fine**.
+    - Browse restaurants, add an item to cart - **it should work fine**.
     - Remember this for when we break it!
 
 ---
@@ -226,7 +227,7 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
 
 # Scenario 1: Break the App (No GitHub Required)
 
-**Goal:** Break the Grubify app, then ask the SRE Agent to investigate using logs and knowledge base.
+**Goal:** Break the Grubify app, then use the SRE Agent to investigate and remediate.
 
 1. [] Run the break script:
 
@@ -235,16 +236,16 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
     ```
 
 1. [] Open the **Grubify frontend** in your browser:
-    - Try adding an item to cart — it's **slow or returning errors**
+    - Try adding an item to cart - it's **slow or returning errors**
     - The app is broken!
 
-1. [] Start a **new chat** → type `/agent` → select **incident-handler**.
-
-1. [] Ask the agent to investigate:
+1. [] **Option A — Chat (immediate):** Start a **new chat** → type `/agent` → select **incident-handler**:
 
     ```
     The Grubify cart API is failing with errors. Can you investigate using the http-500-errors runbook and check the logs?
     ```
+
+1. [] **Option B — Alert (wait 5-8 min):** Go to **sre.azure.com → Activities → Incidents**. A new incident should appear when Azure Monitor fires the alert. Click to watch the agent investigate automatically.
 
 1. [] Watch the agent:
     - [] Search memory for similar incidents
@@ -264,8 +265,6 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
     curl http://@lab.Variable(grubifyUrl)/api/restaurants
     ```
 
-> [!Knowledge] **Bonus — Automated Alert:** After 5-8 minutes, check **Activities → Incidents** — Azure Monitor may have fired an alert that the agent picked up and investigated automatically. This shows the autonomous flow without needing to ask in chat.
-
 ===
 
 # Scenario 2: Source Code Analysis (Requires GitHub)
@@ -279,7 +278,7 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
 1. [] Send:
 
     ```
-    The Grubify API is not responding — specifically the "Add to Cart" is failing. Can you investigate, find the root cause in the source code and create a GitHub issue with your detailed findings?
+    The Grubify API is not responding - specifically the "Add to Cart" is failing. Can you investigate, find the root cause in the source code and create a GitHub issue with your detailed findings?
     ```
 
 1. [] Compare the two GitHub issues at `github.com/@lab.Variable(githubUser)/grubify/issues`:
@@ -292,7 +291,7 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
 
 1. [] Go to **Builder → Scheduled tasks** → find **triage-grubify-issues** → **Run task now**.
 
-1. [] Check `github.com/@lab.Variable(githubUser)/grubify/issues` — each `[Customer Issue]` should have a triage comment with classification and labels.
+1. [] Check `github.com/@lab.Variable(githubUser)/grubify/issues` - each `[Customer Issue]` should have a triage comment with classification and labels.
 
 ===
 
@@ -302,7 +301,7 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
 
 | Persona | What the Agent Did |
 |:--------|:-------------------|
-| **IT Operations** | Detected alert → investigated logs + KB → remediated |
+| **IT Operations** | Investigated logs + KB → identified root cause → remediated |
 | **Developer** | Searched source code → file:line references → created detailed issue |
 | **Workflow Automation** | Triaged issues → classified → labeled → commented |
 
