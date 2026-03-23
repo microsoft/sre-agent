@@ -203,7 +203,7 @@ The agent opens a **Team onboarding** thread. Try these prompts:
 
 ## Test the App
 
-1. [] Open the Grubify app: `http://@lab.Variable(grubifyUrl)`
+1. [] Open the Grubify app in your browser: `@lab.Variable(grubifyUrl)`
     - Browse restaurants, add an item to cart - **it should work fine**.
     - Remember this for when we break it!
 
@@ -273,13 +273,13 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
     Can you mitigate this issue?
     ```
 
-1. [] Verify the app recovered:
+1. [] Verify the app recovered — open in your browser:
 
     ```
-    curl http://@lab.Variable(grubifyUrl)/api/restaurants
+    @lab.Variable(grubifyUrl)/api/restaurants
     ```
 
-    The app should return JSON data again.
+    You should see JSON data. Or refresh the Grubify frontend and try adding to cart again.
 
 ---
 
