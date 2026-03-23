@@ -234,12 +234,12 @@ In this section you will clone the lab repository and deploy all Azure resources
 1. [] After `azd up` completes, run the post-provision script to configure the SRE Agent:
 
     ```
-    bash scripts/post-provision.sh
+    "C:\Program Files\Git\bin\bash.exe" scripts/post-provision.sh
     ```
 
     This script uploads the knowledge base, creates subagents, sets up Azure Monitor, configures GitHub OAuth, and adds the code repository.
 
-> [!Knowledge] **Windows lab note:** If `bash` is not recognized, run:
+> [!Knowledge] **Windows lab note:** If the script fails with Python errors, run:
 >
 > ```
 > set PATH=%PATH%;C:\Users\LabUser\AppData\Local\Programs\Python\Python312
@@ -329,8 +329,7 @@ Before diving into specific scenarios, explore what `azd up` configured for you.
 > [!Hint] If you didn't set up GitHub OAuth and want to add it now, run:
 >
 > ```
-> ./scripts/setup-github.sh
-> ./scripts/setup-github.sh
+> "C:\Program Files\Git\bin\bash.exe" scripts/setup-github.sh
 > ```
 
 ---
@@ -456,7 +455,7 @@ Before we break things, try a few prompts to see the agent in action.
 1. [] Run the fault injection script:
 
     ```
-    ./scripts/break-app.sh
+    "C:\Program Files\Git\bin\bash.exe" scripts/break-app.sh
     ```
 
     This script:
@@ -540,7 +539,7 @@ Before we break things, try a few prompts to see the agent in action.
 > [!Alert] Run the break script again to generate fresh error traffic for the Developer persona scenario in Part 4.
 
 ```
-./scripts/break-app.sh
+"C:\Program Files\Git\bin\bash.exe" scripts/break-app.sh
 ```
 
 This sends another burst of requests to the cart API, triggering new 500 errors and memory pressure that the code-analyzer subagent will investigate.
@@ -549,7 +548,7 @@ This sends another burst of requests to the cart API, triggering new 500 errors 
 
 # Part 4: Developer Persona — Deep Root Cause with Source Code
 
-> [!Alert] **This section requires GitHub OAuth.** If you did not set up GitHub during setup, skip to **Part 6: Review & Cleanup**. You can also add GitHub now by running: `./scripts/setup-github.sh`
+> [!Alert] **This section requires GitHub OAuth.** If you did not set up GitHub during setup, skip to **Part 6: Review & Cleanup**. You can also add GitHub now by running: `"C:\Program Files\Git\bin\bash.exe" scripts/setup-github.sh`
 
 **Scenario:** The incident-handler subagent (Part 3) created a GitHub issue using only log analysis. Now use the **code-analyzer** subagent to create a RICHER issue that includes source code references. Compare the two issues to see the value of connecting source code.
 
