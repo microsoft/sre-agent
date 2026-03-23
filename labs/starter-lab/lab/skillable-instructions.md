@@ -104,9 +104,9 @@ In this section you will clone the lab repository and deploy all Azure resources
 > 2. **Disable Windows Store Python aliases** — Open **Settings → Apps → Advanced app settings → App execution aliases** → turn OFF `python.exe` and `python3.exe`
 > 3. **Sign in to Azure CLI** (needed for provider registration):
 >    ```
->    az login
+>    az login --use-device-code
 >    ```
->    > [!Alert] The `az login` command opens a browser window. If it opens **outside** the lab VM, copy the URL and paste it into the browser **inside** the VM. Use the lab credentials shown above — **Username** and **Password** (not TAP).
+>    Open the browser **inside the VM**, go to the URL shown, and enter the code. Sign in with the lab **Username** and **Password** from above.
 > 4. **Register the resource provider:**
 >    ```
 >    az provider register -n Microsoft.App --wait
@@ -154,10 +154,10 @@ In this section you will clone the lab repository and deploy all Azure resources
 1. [] Sign in to Azure CLI:
 
     ```
-    az login
+    az login --use-device-code
     ```
 
-    > [!Alert] If the browser window opens **outside** the lab VM, copy the URL and paste it into a browser **inside** the VM. Use the **Username** and **Password** from the Lab Environment table above (not the TAP password).
+    Open a browser **inside the VM**, go to ++https://microsoft.com/devicelogin++, and enter the code shown. Sign in with the lab **Username** and **Password** (not TAP).
 
 1. [] Set the subscription:
 
@@ -168,10 +168,10 @@ In this section you will clone the lab repository and deploy all Azure resources
 1. [] Sign in to Azure Developer CLI:
 
     ```
-    azd auth login
+    azd auth login --use-device-code
     ```
 
-    Follow the browser prompts if asked.
+    Open the same browser, go to the URL shown, and enter the code.
 
 ---
 
