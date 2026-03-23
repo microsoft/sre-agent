@@ -280,24 +280,6 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
 
 ---
 
-## Optional: Issue Triage (Requires GitHub)
-
-1. [] First, create sample customer issues on your fork:
-
-    ```
-    "C:\Program Files\Git\bin\bash.exe" scripts/create-sample-issues.sh @lab.Variable(githubUser)/grubify
-    ```
-
-    This creates 5 simulated customer issues like "App crashes when adding items to cart" and "Can't place an order."
-
-1. [] Go to `github.com/@lab.Variable(githubUser)/grubify/issues` — verify the `[Customer Issue]` issues were created.
-
-1. [] Go to **Builder → Scheduled tasks** → find **triage-grubify-issues** → **Run task now**.
-
-1. [] Check the issues again — each `[Customer Issue]` should now have a triage comment with classification and labels.
-
----
-
 ## Check for Automated Alert
 
 > [!Knowledge] By now (~10-15 min after running break-app.sh in Step 1), Azure Monitor may have fired an alert automatically.
@@ -309,6 +291,30 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
 1. [] If you connected GitHub, the agent may have also **created a GitHub issue** automatically with its findings. Check `github.com/@lab.Variable(githubUser)/grubify/issues` for an issue created by the agent.
 
 > [!Knowledge] This is the same investigation you did manually in Step 2, but triggered automatically by Azure Monitor. In production, this means incidents get investigated 24/7 without anyone needing to be online.
+
+===
+
+# Scenario 2: Issue Triage (Optional — Requires GitHub)
+
+> [!Alert] Skip this if you didn't set up GitHub. Jump to **Review & Cleanup**.
+
+**Goal:** The SRE Agent triages customer-reported issues — classifies them, adds labels, and posts a structured comment.
+
+1. [] If sample issues weren't created during setup, create them now:
+
+    ```
+    "C:\Program Files\Git\bin\bash.exe" scripts/create-sample-issues.sh @lab.Variable(githubUser)/grubify
+    ```
+
+    This creates 5 simulated customer issues like "App crashes when adding items to cart" and "Can't place an order."
+
+1. [] Go to `github.com/@lab.Variable(githubUser)/grubify/issues` — verify the `[Customer Issue]` issues exist.
+
+1. [] Go to **Builder → Scheduled tasks** → find **triage-grubify-issues** → **Run task now**.
+
+1. [] Watch the agent triage each issue — it classifies them (Bug, Performance, Feature Request, Question), adds labels, and posts a comment.
+
+1. [] Check the issues again — each `[Customer Issue]` should now have a triage comment with classification and labels.
 
 ===
 
