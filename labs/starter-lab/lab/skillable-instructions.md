@@ -23,16 +23,21 @@ Welcome, @lab.User.FirstName! In this lab you will deploy an **Azure SRE Agent**
 
 If you want to use GitHub:
 
-1. **Fork the Grubify repo** — Open a **Git Bash** terminal and run:
+1. **Sign in to GitHub CLI** — Open a **Git Bash** terminal and run:
 
     ```
     gh auth login
-    gh repo fork dm-chelupati/grubify --clone=false
     ```
 
     Follow the browser prompts to sign in. Select **HTTPS** when asked.
 
-2. Enter your GitHub username below:
+2. **Fork the Grubify repo:**
+
+    ```
+    gh repo fork dm-chelupati/grubify --clone=false
+    ```
+
+3. Enter your GitHub username below:
 
 **GitHub Username:** @lab.TextBox(githubUser)
 
@@ -97,15 +102,26 @@ In this section you will clone the lab repository and deploy all Azure resources
 >    winget install Python.Python.3.12 --accept-source-agreements --accept-package-agreements
 >    ```
 > 2. **Disable Windows Store Python aliases** — Open **Settings → Apps → Advanced app settings → App execution aliases** → turn OFF `python.exe` and `python3.exe`
-> 3. **Register the resource provider:**
+> 3. **Sign in to Azure CLI** (needed for provider registration):
+>    ```
+>    az login
+>    ```
+>    > [!Alert] The `az login` command opens a browser window. If it opens **outside** the lab VM, copy the URL and paste it into the browser **inside** the VM. Use the lab credentials shown above — **Username** and **Password** (not TAP).
+> 4. **Register the resource provider:**
 >    ```
 >    az provider register -n Microsoft.App --wait
 >    ```
-> 4. **Verify** (open a NEW CMD window):
+> 5. **Verify** (open a NEW CMD window):
 >    ```
 >    python --version
+>    ```
+>    ```
 >    git --version
+>    ```
+>    ```
 >    az --version
+>    ```
+>    ```
 >    azd version
 >    ```
 
@@ -133,7 +149,7 @@ In this section you will clone the lab repository and deploy all Azure resources
 
 ### Step 1: Sign in to Azure
 
-1. [] Open a **Git Bash** terminal on the lab VM (search for "Git Bash" in the Start menu, or open VS Code and select Git Bash as the terminal).
+1. [] Open a **CMD** window on the lab VM.
 
 1. [] Sign in to Azure CLI:
 
@@ -141,7 +157,7 @@ In this section you will clone the lab repository and deploy all Azure resources
     az login
     ```
 
-    Follow the browser prompts using the lab credentials shown above.
+    > [!Alert] If the browser window opens **outside** the lab VM, copy the URL and paste it into a browser **inside** the VM. Use the **Username** and **Password** from the Lab Environment table above (not the TAP password).
 
 1. [] Set the subscription:
 
@@ -149,16 +165,37 @@ In this section you will clone the lab repository and deploy all Azure resources
     az account set --subscription "@lab.CloudSubscription.Id"
     ```
 
+1. [] Sign in to Azure Developer CLI:
+
+    ```
+    azd auth login
+    ```
+
+    Follow the browser prompts if asked.
+
 ---
 
 ### Step 2: Clone the lab repository
 
-1. [] Clone the lab repo and navigate into it:
+1. [] Clone the lab repo:
 
     ```
     git clone https://github.com/microsoft/sre-agent.git
+    ```
+
+1. [] Navigate into the lab directory:
+
+    ```
     cd sre-agent\labs\starter-lab
     ```
+
+1. [] Run the prerequisites check:
+
+    ```
+    "C:\Program Files\Git\bin\bash.exe" scripts/prereqs.sh
+    ```
+
+    > [!Hint] If any tool shows ❌, install it before continuing. Python and pyyaml are the most common issues.
 
 ---
 
@@ -170,24 +207,27 @@ In this section you will clone the lab repository and deploy all Azure resources
     azd env new sre-lab
     ```
 
-1. [] *(Only if you entered GitHub details above)* Set GitHub variables:
+1. [] *(Only if you entered GitHub details above)* Set your GitHub username:
 
     ```
-    # GitHub: sign in via OAuth URL after deployment (no PAT needed)
     azd env set GITHUB_USER "@lab.Variable(githubUser)"
     ```
 
-> [!Hint] If you did **not** enter GitHub details, skip the commands above. The core lab works without GitHub.
+> [!Hint] If you did **not** enter GitHub details, skip the command above. The core lab works without GitHub.
 
-1. [] Deploy infrastructure with azd:
+1. [] Set the region:
+
+    ```
+    azd env set AZURE_LOCATION eastus2
+    ```
+
+1. [] Deploy infrastructure:
 
     ```
     azd up
     ```
 
-1. [] When prompted, select:
-    - **Subscription**: Your lab subscription
-    - **Location**: ++eastus2++
+1. [] When prompted, select your lab subscription.
 
 > [!Alert] Infrastructure deployment takes approximately **5-8 minutes**. This provisions Azure resources via Bicep (SRE Agent, Container Apps, Log Analytics, etc.).
 
