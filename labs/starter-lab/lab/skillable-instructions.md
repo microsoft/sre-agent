@@ -282,9 +282,19 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
 
 ## Optional: Issue Triage (Requires GitHub)
 
+1. [] First, create sample customer issues on your fork:
+
+    ```
+    "C:\Program Files\Git\bin\bash.exe" scripts/create-sample-issues.sh @lab.Variable(githubUser)/grubify
+    ```
+
+    This creates 5 simulated customer issues like "App crashes when adding items to cart" and "Can't place an order."
+
+1. [] Go to `github.com/@lab.Variable(githubUser)/grubify/issues` — verify the `[Customer Issue]` issues were created.
+
 1. [] Go to **Builder → Scheduled tasks** → find **triage-grubify-issues** → **Run task now**.
 
-1. [] Check `github.com/@lab.Variable(githubUser)/grubify/issues` - each `[Customer Issue]` should have a triage comment with classification and labels.
+1. [] Check the issues again — each `[Customer Issue]` should now have a triage comment with classification and labels.
 
 ---
 
