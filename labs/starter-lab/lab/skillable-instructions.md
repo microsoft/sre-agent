@@ -257,6 +257,11 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
 
     > [!Knowledge] If you didn't connect GitHub, the agent will still investigate logs + knowledge base and identify the root cause — it just won't create a GitHub issue. If you did connect GitHub, the agent will also search source code for file:line references and create an issue with the fix suggestion.
 
+> [!Hint] If the agent fails to create a GitHub issue or PR, nudge it with:
+> ```
+> Use the GitHub API to create the issue if the direct tool isn't working
+> ```
+
 ## Step 3: Remediate
 
 1. [] Ask the agent to fix it:
