@@ -10,7 +10,6 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
 | **Azure Portal** | @lab.CloudPortal.SignInLink |
 | **Username** | ++@lab.CloudPortalCredential(User1).Username++ |
 | **Password** | ++@lab.CloudPortalCredential(User1).Password++ |
-| **TAP Password** | See **Resources** tab → TAP value |
 | **Subscription ID** | ++@lab.CloudSubscription.Id++ |
 
 ---
@@ -40,7 +39,7 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
     Open a browser **inside the VM**, go to ++https://microsoft.com/devicelogin++, enter the code.
     - Enter the **Username** above
     - When prompted for password, use the **Password** above
-    - If prompted for a second factor or TAP, use the **TAP Password** above
+    - If prompted for a second factor, get the **TAP** from the **Resources** tab
 
 1. [] Set the subscription:
 
