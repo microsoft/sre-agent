@@ -239,13 +239,11 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
     - Try adding an item to cart - it's **slow or returning errors**
     - The app is broken!
 
-1. [] **Option A — Chat (immediate):** Start a **new chat** → type `/agent` → select **incident-handler**:
+1. [] Start a **new chat** → type `/agent` → select **incident-handler**:
 
     ```
     The Grubify cart API is failing with errors. Can you investigate using the http-500-errors runbook and check the logs?
     ```
-
-1. [] **Option B — Alert (wait 5-8 min):** Go to **sre.azure.com → Activities → Incidents**. A new incident should appear when Azure Monitor fires the alert. Click to watch the agent investigate automatically.
 
 1. [] Watch the agent:
     - [] Search memory for similar incidents
@@ -270,6 +268,11 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
 # Scenario 2: Source Code Analysis (Requires GitHub)
 
 > [!Alert] Skip this if you didn't set up GitHub. Jump to **Review & Cleanup**.
+
+> [!Knowledge] **GitHub Issues Permissions:** If the agent can't create issues on your forked repo, check these settings:
+> 1. Go to `github.com/@lab.Variable(githubUser)/grubify` → **Settings** → **General**
+> 2. Scroll to **Features** → make sure **Issues** is checked (enabled)
+> 3. If the agent gets a 403 error, go to **Settings → Collaborators** and verify the OAuth app has access
 
 1. [] Run `"C:\Program Files\Git\bin\bash.exe" scripts/break-app.sh` again for fresh errors.
 
