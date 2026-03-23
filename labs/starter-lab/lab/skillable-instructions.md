@@ -123,7 +123,7 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
 
 ## Optional: GitHub Integration
 
-> [!Note] The core lab (Scenario 1) works **without GitHub**. GitHub unlocks bonus scenarios (source code analysis + issue triage).
+> [!Note] The core lab works **without GitHub**. Connecting GitHub adds **source code root cause analysis** — the agent finds the exact file:line causing the issue and creates a GitHub issue with a fix suggestion.
 
 1. [] Sign in to GitHub CLI:
 
@@ -154,6 +154,8 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
     ```
 
     When the OAuth URL appears, open it in a browser and click **Authorize**.
+
+> [!Knowledge] **GitHub Issues:** Make sure Issues are enabled on your fork — go to `github.com/@lab.Variable(githubUser)/grubify` → **Settings** → **General** → **Features** → check **Issues**.
 
 ===
 
@@ -225,9 +227,11 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
 
 ===
 
-# Scenario 1: Break the App (No GitHub Required)
+# Break & Investigate
 
-**Goal:** Break the Grubify app, then use the SRE Agent to investigate and remediate.
+**Goal:** Break the Grubify app and ask the SRE Agent to investigate and remediate.
+
+## Step 1: Break the App
 
 1. [] Run the break script:
 
@@ -239,17 +243,29 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
     - Try adding an item to cart - it's **slow or returning errors**
     - The app is broken!
 
-1. [] Start a **new chat** → type `/agent` → select **incident-handler**:
+## Step 2: Investigate
+
+1. [] Start a **new chat** in the SRE Agent portal.
+
+1. [] **Without GitHub** — use the incident-handler (IT Persona):
 
     ```
     The Grubify cart API is failing with errors. Can you investigate using the http-500-errors runbook and check the logs?
     ```
 
-1. [] Watch the agent:
-    - [] Search memory for similar incidents
-    - [] Query Log Analytics (KQL) for error patterns
-    - [] Reference the HTTP errors runbook
-    - [] Identify the `/api/cart` memory leak
+    The agent will analyze logs, query metrics, reference the runbook, and identify the memory leak — all from log evidence.
+
+1. [] **With GitHub** — use the code-analyzer (Developer + IT Persona):
+
+    ```
+    The Grubify API is not responding - specifically the "Add to Cart" is failing. Can you investigate, find the root cause in the source code and create a GitHub issue with your detailed findings?
+    ```
+
+    The agent does everything above PLUS searches the source code, finds the exact file:line causing the leak, and creates a GitHub issue with the fix suggestion.
+
+> [!Knowledge] Both agents use the same logs and knowledge base. The difference is that **code-analyzer** also searches source code — giving you "why it happened and how to fix it" instead of just "what happened."
+
+## Step 3: Remediate
 
 1. [] Ask the agent to fix it:
 
@@ -263,38 +279,21 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
     curl http://@lab.Variable(grubifyUrl)/api/restaurants
     ```
 
-===
-
-# Scenario 2: Source Code Analysis (Requires GitHub)
-
-> [!Alert] Skip this if you didn't set up GitHub. Jump to **Review & Cleanup**.
-
-> [!Knowledge] **GitHub Issues Permissions:** If the agent can't create issues on your forked repo, check these settings:
-> 1. Go to `github.com/@lab.Variable(githubUser)/grubify` → **Settings** → **General**
-> 2. Scroll to **Features** → make sure **Issues** is checked (enabled)
-> 3. If the agent gets a 403 error, go to **Settings → Collaborators** and verify the OAuth app has access
-
-1. [] Run `"C:\Program Files\Git\bin\bash.exe" scripts/break-app.sh` again for fresh errors.
-
-1. [] Start a **new chat** → type `/agent` → select **code-analyzer**.
-
-1. [] Send:
-
-    ```
-    The Grubify API is not responding - specifically the "Add to Cart" is failing. Can you investigate, find the root cause in the source code and create a GitHub issue with your detailed findings?
-    ```
-
-1. [] Compare the two GitHub issues at `github.com/@lab.Variable(githubUser)/grubify/issues`:
-    - **incident-handler** issue: log evidence only
-    - **code-analyzer** issue: logs + source code file:line references + fix suggestion
+    The app should return JSON data again.
 
 ---
 
-# Scenario 3: Issue Triage (Requires GitHub)
+## Optional: Issue Triage (Requires GitHub)
 
 1. [] Go to **Builder → Scheduled tasks** → find **triage-grubify-issues** → **Run task now**.
 
 1. [] Check `github.com/@lab.Variable(githubUser)/grubify/issues` - each `[Customer Issue]` should have a triage comment with classification and labels.
+
+---
+
+## Check for Automated Alert
+
+> [!Knowledge] By now (~10-15 min after running break-app.sh), Azure Monitor may have fired an alert automatically. Check **Activities → Incidents** in the SRE Agent portal — if an incident appears, click it to see how the agent investigated **autonomously** without you asking. This is the fully automated incident response flow.
 
 ===
 
@@ -305,8 +304,8 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
 | Persona | What the Agent Did |
 |:--------|:-------------------|
 | **IT Operations** | Investigated logs + KB → identified root cause → remediated |
-| **Developer** | Searched source code → file:line references → created detailed issue |
-| **Workflow Automation** | Triaged issues → classified → labeled → commented |
+| **Developer** | Same + source code search → file:line references → GitHub issue |
+| **Workflow Automation** | Triaged customer issues → classified → labeled → commented |
 
 ## Cleanup
 
