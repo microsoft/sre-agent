@@ -290,7 +290,15 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
 
 ## Check for Automated Alert
 
-> [!Knowledge] By now (~10-15 min after running break-app.sh), Azure Monitor may have fired an alert automatically. Check **Activities → Incidents** in the SRE Agent portal — if an incident appears, click it to see how the agent investigated **autonomously** without you asking. This is the fully automated incident response flow.
+> [!Knowledge] By now (~10-15 min after running break-app.sh in Step 1), Azure Monitor may have fired an alert automatically.
+
+1. [] Go to **sre.azure.com → Activities → Incidents**.
+
+1. [] If an incident appears, click it to see how the agent investigated **autonomously** — without you asking in chat. This is the fully automated incident response flow.
+
+1. [] If you connected GitHub, the agent may have also **created a GitHub issue** automatically with its findings. Check `github.com/@lab.Variable(githubUser)/grubify/issues` for an issue created by the agent.
+
+> [!Knowledge] This is the same investigation you did manually in Step 2, but triggered automatically by Azure Monitor. In production, this means incidents get investigated 24/7 without anyone needing to be online.
 
 ===
 
