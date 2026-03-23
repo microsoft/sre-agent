@@ -247,23 +247,15 @@ Start a **new chat** (click **+ New Chat**) for each prompt:
 
 1. [] Start a **new chat** in the SRE Agent portal.
 
-1. [] **Without GitHub** — use the incident-handler (IT Persona):
+1. [] Type `/` in the chat box to see available custom agents. Select either **incident-handler** or **code-analyzer** (both work the same way).
+
+1. [] Send this prompt:
 
     ```
-    The Grubify cart API is failing with errors. Can you investigate using the http-500-errors runbook and check the logs?
+    The Grubify API is not responding - specifically the "Add to Cart" is failing. Can you investigate, find the root cause, and create a GitHub issue with your detailed findings?
     ```
 
-    The agent will analyze logs, query metrics, reference the runbook, and identify the memory leak — all from log evidence.
-
-1. [] **With GitHub** — use the code-analyzer (Developer + IT Persona):
-
-    ```
-    The Grubify API is not responding - specifically the "Add to Cart" is failing. Can you investigate, find the root cause in the source code and create a GitHub issue with your detailed findings?
-    ```
-
-    The agent does everything above PLUS searches the source code, finds the exact file:line causing the leak, and creates a GitHub issue with the fix suggestion.
-
-> [!Knowledge] Both agents use the same logs and knowledge base. The difference is that **code-analyzer** also searches source code — giving you "why it happened and how to fix it" instead of just "what happened."
+    > [!Knowledge] If you didn't connect GitHub, the agent will still investigate logs + knowledge base and identify the root cause — it just won't create a GitHub issue. If you did connect GitHub, the agent will also search source code for file:line references and create an issue with the fix suggestion.
 
 ## Step 3: Remediate
 
