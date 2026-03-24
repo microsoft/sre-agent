@@ -15,7 +15,7 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
 
 ---
 
-## Step 1: Install Prerequisites
+## Step 1: Install Python
 
 1. [] Install Python 3:
 
@@ -29,42 +29,7 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
 
 ---
 
-## Step 2: Sign In to Azure
-
-1. [] Sign in to Azure CLI:
-
-    ```
-    az login --use-device-code
-    ```
-
-    Open a browser **inside the VM**, go to ++https://microsoft.com/devicelogin++, enter the code.
-    - Enter the **Username** above
-    - When prompted for password, use the **Password** above
-    - If prompted for a second factor or TAP, use the **TAP Password** above
-
-1. [] Set the subscription:
-
-    ```
-    az account set --subscription "@lab.CloudSubscription.Id"
-    ```
-
-1. [] Register the resource provider:
-
-    ```
-    az provider register -n Microsoft.App --wait
-    ```
-
-1. [] Sign in to Azure Developer CLI:
-
-    ```
-    azd auth login --use-device-code
-    ```
-
-    Same process - open browser, enter code, sign in.
-
----
-
-## Step 3: Deploy
+## Step 2: Clone and Run Setup
 
 1. [] Clone the repo:
 
@@ -78,60 +43,42 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
     cd sre-agent\labs\starter-lab
     ```
 
-1. [] Run prerequisites check:
+1. [] Run the setup script — it handles everything (login, deploy, configure):
 
     ```
-    "C:\Program Files\Git\bin\bash.exe" scripts/prereqs.sh
+    "C:\Program Files\Git\bin\bash.exe" scripts/setup.sh "@lab.CloudSubscription.Id"
     ```
 
-1. [] Create environment and set location:
-
-    ```
-    azd env new sre-lab
-    ```
-
-    ```
-    azd env set AZURE_LOCATION eastus2
-    ```
-
-1. [] Deploy infrastructure (~5-8 min):
-
-    ```
-    azd up
-    ```
-
-    Select your subscription when prompted.
-
-1. [] Configure the SRE Agent:
-
-    ```
-    "C:\Program Files\Git\bin\bash.exe" scripts/post-provision.sh
-    ```
-
-    This uploads knowledge base, creates subagents, and configures Azure Monitor.
+    The script will:
+    - ✅ Check prerequisites
+    - ✅ Sign in to Azure (use **device code** — open browser inside VM, enter code, sign in with **Username**, **Password**, and **TAP Password** from above)
+    - ✅ Sign in to Azure Developer CLI
+    - ✅ Register resource providers
+    - ✅ Ask for GitHub username (optional — press Enter to skip)
+    - ✅ Deploy infrastructure (~5-8 min)
+    - ✅ Configure SRE Agent (knowledge base, subagents, Azure Monitor)
 
 1. [] Copy the **Grubify App URL** from the output:
 
     **Grubify URL:** @lab.TextBox(grubifyUrl)
 
-> [!Alert] If `post-provision.sh` fails on the response plan, wait 30 seconds and run:
+> [!Alert] If the setup fails partway, you can re-run specific parts:
 > ```
+> azd up
 > "C:\Program Files\Git\bin\bash.exe" scripts/post-provision.sh --retry
 > ```
 
 ---
 
-## Optional: GitHub Integration
+## Optional: GitHub (if you skipped during setup)
 
-> [!Note] The core lab works **without GitHub**. Connecting GitHub adds **source code root cause analysis** — the agent finds the exact file:line causing the issue and creates a GitHub issue with a fix suggestion.
+> [!Note] If you entered a GitHub username during setup, GitHub is already configured. Skip this section.
 
 1. [] Sign in to GitHub CLI:
 
     ```
     gh auth login
     ```
-
-    Select **HTTPS** when asked. Follow the browser prompts.
 
 1. [] Fork the Grubify repo:
 
@@ -141,13 +88,11 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
 
 1. [] Enter your GitHub username: **@lab.TextBox(githubUser)**
 
-1. [] Set it in azd:
+1. [] Set it and re-run:
 
     ```
     azd env set GITHUB_USER "@lab.Variable(githubUser)"
     ```
-
-1. [] Re-run the setup to configure GitHub:
 
     ```
     "C:\Program Files\Git\bin\bash.exe" scripts/post-provision.sh --retry
