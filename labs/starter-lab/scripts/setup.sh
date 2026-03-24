@@ -138,6 +138,9 @@ echo -e "${YELLOW}[4/6] Deploying infrastructure (~5-8 min)...${NC}"
 echo -e "  This creates: SRE Agent, Grubify app, monitoring, alerts"
 echo ""
 
+# Refresh azd auth in case token expired during GitHub prompt
+azd auth login --check-status &>/dev/null 2>&1 || azd auth login --use-device-code
+
 azd up
 if [ $? -ne 0 ]; then
   echo -e "${RED}  Deployment failed. Check errors above and re-run: azd up${NC}"
