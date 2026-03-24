@@ -5,6 +5,13 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
 > [!Knowledge] **Full documentation, architecture diagram, and detailed walkthrough:**
 > [Lab README on GitHub](https://github.com/microsoft/sre-agent/tree/main/labs/starter-lab#readme)
 
+## Log in to the Lab VM
+
+1. [] Get the VM credentials from the **Resources** tab (on the right side of this page).
+1. [] Use the **Username** and **Password** from Resources to log in to the VM.
+
+## Lab Credentials
+
 | Resource | Value |
 |:---------|:------|
 | **Azure Portal** | ++https://portal.azure.com++ |
