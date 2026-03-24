@@ -73,19 +73,15 @@ echo ""
 # ── Step 2: Azure Login ──────────────────────────────────────────────────────
 echo -e "${YELLOW}[2/6] Signing in to Azure...${NC}"
 
-if az account show &>/dev/null 2>&1; then
-  ACCOUNT=$(az account show --query "{sub:name, user:user.name}" -o tsv 2>/dev/null)
-  echo -e "  ${GREEN}✓${NC} Already signed in: $ACCOUNT"
-else
-  echo -e "  Running ${YELLOW}az login --use-device-code${NC}"
-  echo -e "  Open a browser inside the VM, go to ${YELLOW}https://microsoft.com/devicelogin${NC}"
-  echo -e "  Enter the code shown below, then sign in with your lab credentials."
-  echo ""
-  az login --use-device-code
-  if [ $? -ne 0 ]; then
-    echo -e "${RED}  Azure login failed. Try again.${NC}"
-    exit 1
-  fi
+# Always force fresh login to avoid stale/wrong sessions
+echo -e "  Running ${YELLOW}az login --use-device-code${NC}"
+echo -e "  Open a browser inside the VM, go to ${YELLOW}https://microsoft.com/devicelogin${NC}"
+echo -e "  Enter the code shown below, then sign in with your lab credentials."
+echo ""
+az login --use-device-code
+if [ $? -ne 0 ]; then
+  echo -e "${RED}  Azure login failed. Try again.${NC}"
+  exit 1
 fi
 
 # Set subscription if provided
