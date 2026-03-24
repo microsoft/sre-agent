@@ -15,21 +15,7 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
 
 ---
 
-## Step 1: Install Python
-
-1. [] Install Python 3:
-
-    ```
-    winget install Python.Python.3.12 --accept-source-agreements --accept-package-agreements
-    ```
-
-1. [] **Disable Windows Store Python aliases** - Open **Settings → Apps → Advanced app settings → App execution aliases** → turn OFF `python.exe` and `python3.exe`
-
-1. [] **Close and reopen** your CMD window (so Python is in PATH).
-
----
-
-## Step 2: Clone and Run Setup
+## Step 1: Clone and Run Setup
 
 1. [] Clone the repo:
 
