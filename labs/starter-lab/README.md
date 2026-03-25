@@ -88,19 +88,23 @@ REM 1. Clone the repo
 git clone https://github.com/microsoft/sre-agent.git
 cd sre-agent\labs\starter-lab
 
-REM 2. Sign in to Azure
-az login
-azd auth login
+REM 2. Check prerequisites
+"C:\Program Files\Git\bin\bash.exe" scripts/prereqs.sh
 
-REM 3. Create environment and deploy infrastructure
+REM 3. Sign in to Azure (use device code — opens browser inside VM)
+az login --use-device-code
+azd auth login --use-device-code
+
+REM 4. Create environment and deploy infrastructure
 azd env new sre-lab
+azd env set AZURE_LOCATION eastus2
 
-REM 4. (Optional) Set your GitHub username so the agent uses YOUR fork of grubify
+REM 5. (Optional) Set your GitHub username so the agent uses YOUR fork of grubify
 azd env set GITHUB_USER <your-github-username>
 
 azd up
 
-REM 5. Configure the SRE Agent (knowledge base, subagents, connectors)
+REM 6. Configure the SRE Agent (knowledge base, subagents, connectors)
 set PATH=%PATH%;C:\Users\%USERNAME%\AppData\Local\Programs\Python\Python312
 "C:\Program Files\Git\bin\bash.exe" scripts/post-provision.sh
 ```

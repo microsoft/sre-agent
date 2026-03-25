@@ -506,6 +506,14 @@ curl -s -o /dev/null -w "" \
 echo "   ✅ Code repo: ${GITHUB_REPO}"
 echo ""
 
+# Create sample customer issues on the user's fork
+echo "   Creating sample customer issues..."
+if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+  bash "$SCRIPT_DIR/create-sample-issues.sh" "$GITHUB_REPO" 2>/dev/null || echo "   ⚠️  Could not create sample issues (gh auth may need 'repo' scope)"
+else
+  echo "   ⚠️  gh CLI not authenticated — run 'gh auth login' then 'bash scripts/create-sample-issues.sh ${GITHUB_REPO}'"
+fi
+
 else
   echo "🔗 Step 4/5: GitHub integration... ⏭️  Skipped"
   echo "   No GITHUB_USER set. To enable GitHub integration:"

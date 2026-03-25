@@ -3,46 +3,34 @@
 # Create Sample Customer Issues for Grubify App
 #
 # Creates 5 realistic customer-reported issues with [Customer Issue] prefix.
-# These simulate real user complaints — the issue-triager will classify,
-# label, and comment on them.
-#
-# Requires: GITHUB_PAT (or GITHUB_PAT_VALUE) with 'repo' scope
+# Uses gh CLI (no PAT needed — uses your gh auth login session).
 #
 # Usage:
-#   export GITHUB_PAT=<your-github-pat>
-#   ./scripts/create-sample-issues.sh [owner/repo]
+#   ./scripts/create-sample-issues.sh <owner/repo>
 # =============================================================================
 set -uo pipefail
 
 REPO="${1:-${GITHUB_REPO:-}}"
-PAT="${GITHUB_PAT:-${GITHUB_PAT_VALUE:-}}"
 
 if [ -z "$REPO" ]; then
   echo "Usage: $0 <owner/repo>"
-  echo "  or: export GITHUB_REPO=owner/repo && $0"
+  echo "  Example: $0 myuser/grubify"
   exit 1
 fi
 
-if [ -z "$PAT" ]; then
-  echo "Error: GITHUB_PAT not set"
+# Check gh is authenticated
+if ! gh auth status &>/dev/null; then
+  echo "Error: Not logged in to GitHub CLI. Run: gh auth login"
   exit 1
 fi
-
-API="https://api.github.com/repos/${REPO}/issues"
-AUTH="Authorization: token ${PAT}"
 
 create_issue() {
   local title="$1"
   local body="$2"
-  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-    -X POST "$API" \
-    -H "$AUTH" \
-    -H "Content-Type: application/json" \
-    -d "{\"title\": \"$title\", \"body\": \"$body\"}")
-  if [ "$HTTP_CODE" = "201" ]; then
+  if gh issue create --repo "$REPO" --title "$title" --body "$body" &>/dev/null; then
     echo "   ✅ $title"
   else
-    echo "   ⚠️  HTTP $HTTP_CODE: $title"
+    echo "   ⚠️  Failed: $title"
   fi
 }
 
