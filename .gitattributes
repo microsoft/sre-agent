@@ -1,0 +1,11 @@
+# Force LF line endings for shell scripts (prevents CRLF issues on Windows)
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Keep these as-is
+*.md text
+*.yaml text
+*.yml text
+*.json text
+*.bicep text
+*.bicepparam text
