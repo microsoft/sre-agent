@@ -1,129 +1,132 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 600" font-family="Segoe UI, -apple-system, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 680" font-family="Segoe UI, -apple-system, sans-serif">
   <defs>
     <filter id="s" x="-2%" y="-4%" width="104%" height="112%">
       <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.08"/>
     </filter>
+    <marker id="ab" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#0078d4"/></marker>
+    <marker id="ag" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#008272"/></marker>
   </defs>
+  <rect width="960" height="680" rx="12" fill="#f8f9fa"/>
+  <text x="480" y="28" text-anchor="middle" font-size="17" font-weight="600" fill="#1a1a1a">Azure SRE Agent — Starter Lab Architecture</text>
 
-  <rect width="820" height="600" fill="#fff"/>
+  <!-- Resource Group -->
+  <rect x="15" y="42" width="930" height="295" rx="10" fill="none" stroke="#0078d4" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="30" y="60" font-size="11" fill="#0078d4" font-weight="600">Azure Resource Group (rg-sre-lab)</text>
 
-  <!-- Title -->
-  <text x="410" y="30" text-anchor="middle" font-size="15" font-weight="700" fill="#1B1B1B">Starter Lab Architecture</text>
+  <!-- Grubify App -->
+  <rect x="30" y="72" width="200" height="120" rx="8" fill="#fff" stroke="#5c2d91" stroke-width="1.5" filter="url(#s)"/>
+  <text x="130" y="94" text-anchor="middle" font-size="12" font-weight="700" fill="#5c2d91">Grubify App</text>
+  <rect x="42" y="102" width="176" height="18" rx="3" fill="#f3e8ff" stroke="#5c2d91" stroke-width="0.7"/>
+  <text x="130" y="115" text-anchor="middle" font-size="9" fill="#5c2d91">API (Container Apps)</text>
+  <rect x="42" y="124" width="176" height="18" rx="3" fill="#f3e8ff" stroke="#5c2d91" stroke-width="0.7"/>
+  <text x="130" y="137" text-anchor="middle" font-size="9" fill="#5c2d91">Frontend (Container Apps)</text>
+  <rect x="42" y="146" width="176" height="18" rx="3" fill="#f3e8ff" stroke="#5c2d91" stroke-width="0.7"/>
+  <text x="130" y="159" text-anchor="middle" font-size="9" fill="#5c2d91">Cart API (memory leak target)</text>
 
-  <!-- ═══════════ SRE Agent ═══════════ -->
-  <g filter="url(#s)">
-    <rect x="260" y="48" width="300" height="44" rx="8" fill="#0078D4"/>
-    <text x="410" y="72" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">Azure SRE Agent</text>
-    <text x="410" y="85" text-anchor="middle" font-size="9" fill="#B3D7FF">sre.azure.com</text>
-  </g>
+  <!-- Monitoring -->
+  <rect x="270" y="72" width="200" height="75" rx="8" fill="#fff" stroke="#008272" stroke-width="1.5" filter="url(#s)"/>
+  <text x="370" y="94" text-anchor="middle" font-size="12" font-weight="700" fill="#008272">Azure Monitor</text>
+  <text x="370" y="112" text-anchor="middle" font-size="9" fill="#666">HTTP 5xx alert → auto-flow</text>
+  <text x="370" y="126" text-anchor="middle" font-size="9" fill="#666">Log Analytics + App Insights</text>
+  <line x1="230" y1="110" x2="268" y2="110" stroke="#008272" stroke-width="1.2" marker-end="url(#ag)"/>
 
-  <!-- ═══════════ CONTEXT ═══════════ -->
-  <text x="30" y="122" font-size="9" font-weight="600" fill="#9CA3AF" letter-spacing="1">CONTEXT</text>
-  <rect x="30" y="130" width="760" height="56" rx="6" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1"/>
+  <!-- SRE Agent -->
+  <rect x="510" y="72" width="420" height="250" rx="10" fill="#e8f4fd" stroke="#0078d4" stroke-width="1.5" filter="url(#s)"/>
+  <text x="720" y="94" text-anchor="middle" font-size="14" font-weight="700" fill="#0078d4">Azure SRE Agent</text>
 
-  <rect x="42" y="140" width="170" height="36" rx="5" fill="#fff" stroke="#8661C5" stroke-width="1" filter="url(#s)"/>
-  <text x="127" y="162" text-anchor="middle" font-size="10" font-weight="600" fill="#5C2D91">Knowledge Base</text>
+  <rect x="524" y="106" width="195" height="20" rx="4" fill="#fff" stroke="#0078d4" stroke-width="0.8"/>
+  <text x="621" y="120" text-anchor="middle" font-size="9" fill="#333">📚 http-500-errors.md</text>
+  <rect x="724" y="106" width="195" height="20" rx="4" fill="#fff" stroke="#0078d4" stroke-width="0.8"/>
+  <text x="821" y="120" text-anchor="middle" font-size="9" fill="#333">📚 grubify-architecture.md</text>
 
-  <rect x="224" y="140" width="170" height="36" rx="5" fill="#fff" stroke="#8661C5" stroke-width="1" filter="url(#s)"/>
-  <text x="309" y="162" text-anchor="middle" font-size="10" font-weight="600" fill="#5C2D91">Code Repository</text>
+  <rect x="524" y="132" width="195" height="20" rx="4" fill="#fff" stroke="#107c10" stroke-width="0.8"/>
+  <text x="621" y="146" text-anchor="middle" font-size="9" fill="#333">🤖 incident-handler</text>
+  <rect x="724" y="132" width="195" height="20" rx="4" fill="#fff" stroke="#107c10" stroke-width="0.8"/>
+  <text x="821" y="146" text-anchor="middle" font-size="9" fill="#333">🤖 code-analyzer</text>
 
-  <rect x="406" y="140" width="190" height="36" rx="5" fill="#fff" stroke="#8661C5" stroke-width="1" filter="url(#s)"/>
-  <text x="501" y="162" text-anchor="middle" font-size="10" font-weight="600" fill="#5C2D91">Azure Observability</text>
+  <rect x="524" y="158" width="195" height="20" rx="4" fill="#fff" stroke="#107c10" stroke-width="0.8"/>
+  <text x="621" y="172" text-anchor="middle" font-size="9" fill="#333">🤖 issue-triager</text>
+  <rect x="724" y="158" width="195" height="20" rx="4" fill="#fff" stroke="#008272" stroke-width="0.8"/>
+  <text x="821" y="172" text-anchor="middle" font-size="9" fill="#333">⏰ triage (every 12h)</text>
 
-  <rect x="608" y="140" width="170" height="36" rx="5" fill="#fff" stroke="#8661C5" stroke-width="1" filter="url(#s)"/>
-  <text x="693" y="162" text-anchor="middle" font-size="10" font-weight="600" fill="#5C2D91">RBAC Permissions</text>
+  <rect x="524" y="184" width="395" height="20" rx="4" fill="#fff" stroke="#107c10" stroke-width="0.8"/>
+  <text x="721" y="198" text-anchor="middle" font-size="9" fill="#333">🔧 SearchMemory · AzCli · KQL · PlotChart · GitHub tools</text>
 
-  <!-- connector -->
-  <line x1="410" y1="92" x2="410" y2="130" stroke="#8661C5" stroke-width="1"/>
+  <rect x="524" y="210" width="195" height="20" rx="4" fill="#fff" stroke="#008272" stroke-width="0.8"/>
+  <text x="621" y="224" text-anchor="middle" font-size="9" fill="#333">🚨 Response Plan → Monitor</text>
+  <rect x="724" y="210" width="195" height="20" rx="4" fill="#fff" stroke="#333" stroke-width="0.8"/>
+  <text x="821" y="224" text-anchor="middle" font-size="9" fill="#333">📂 GitHub: grubify (optional)</text>
 
-  <!-- ═══════════ AUTOMATION ═══════════ -->
-  <text x="30" y="216" font-size="9" font-weight="600" fill="#9CA3AF" letter-spacing="1">AUTOMATION</text>
-  <rect x="30" y="224" width="760" height="56" rx="6" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1"/>
+  <rect x="524" y="236" width="395" height="20" rx="4" fill="#fff" stroke="#5c2d91" stroke-width="0.8"/>
+  <text x="721" y="250" text-anchor="middle" font-size="9" fill="#333">🔐 Managed Identity · GitHub OAuth · DevOps + Python tools</text>
 
-  <rect x="42" y="234" width="380" height="36" rx="5" fill="#fff" stroke="#107C10" stroke-width="1" filter="url(#s)"/>
-  <text x="232" y="256" text-anchor="middle" font-size="10" font-weight="600" fill="#107C10">Azure Monitor Alerts → Response Plan → Agent</text>
+  <!-- Arrow: Monitor to Agent -->
+  <line x1="470" y1="110" x2="508" y2="110" stroke="#0078d4" stroke-width="1.5" marker-end="url(#ab)"/>
+  <text x="488" y="103" font-size="8" fill="#0078d4">alerts</text>
 
-  <rect x="434" y="234" width="344" height="36" rx="5" fill="#fff" stroke="#107C10" stroke-width="1" filter="url(#s)"/>
-  <text x="606" y="256" text-anchor="middle" font-size="10" font-weight="600" fill="#107C10">Scheduled Task (triage issues every 12h)</text>
+  <!-- Identity + RBAC -->
+  <rect x="30" y="210" width="200" height="40" rx="6" fill="#fff" stroke="#107c10" stroke-width="1" filter="url(#s)"/>
+  <text x="130" y="230" text-anchor="middle" font-size="9" font-weight="600" fill="#107c10">Managed Identity</text>
+  <text x="130" y="242" text-anchor="middle" font-size="8" fill="#666">Reader · Monitoring · Log Analytics</text>
 
-  <line x1="410" y1="186" x2="410" y2="224" stroke="#107C10" stroke-width="1"/>
+  <rect x="270" y="210" width="200" height="40" rx="6" fill="#fff" stroke="#d83b01" stroke-width="1" filter="url(#s)"/>
+  <text x="370" y="230" text-anchor="middle" font-size="9" font-weight="600" fill="#d83b01">ACR + Alert Rules</text>
+  <text x="370" y="242" text-anchor="middle" font-size="8" fill="#666">Container images · HTTP 5xx</text>
 
-  <!-- ═══════════ SAMPLE APP ═══════════ -->
-  <text x="30" y="312" font-size="9" font-weight="600" fill="#9CA3AF" letter-spacing="1">SAMPLE APP</text>
-  <rect x="30" y="320" width="760" height="50" rx="6" fill="#F0F7FF" stroke="#0078D4" stroke-width="1"/>
+  <!-- ===== SCENARIOS ===== -->
+  <text x="480" y="360" text-anchor="middle" font-size="16" font-weight="700" fill="#1a1a1a">Lab Scenarios</text>
 
-  <rect x="46" y="332" width="180" height="28" rx="5" fill="#fff" stroke="#0078D4" stroke-width="1" filter="url(#s)"/>
-  <text x="136" y="350" text-anchor="middle" font-size="10" font-weight="600" fill="#0078D4">Grubify Frontend</text>
+  <!-- Scenario 1: IT Ops -->
+  <rect x="15" y="375" width="300" height="145" rx="8" fill="#e8f4fd" stroke="#0078d4" stroke-width="1.5" filter="url(#s)"/>
+  <text x="165" y="397" text-anchor="middle" font-size="12" font-weight="700" fill="#0078d4">Scenario 1: IT Operations</text>
+  <text x="165" y="415" text-anchor="middle" font-size="10" fill="#666">No GitHub required</text>
+  <text x="30" y="435" font-size="9" fill="#333">1. break-app.sh → memory leak → 500 errors</text>
+  <text x="30" y="450" font-size="9" fill="#333">2. Agent: logs + KQL + runbook → root cause</text>
+  <text x="30" y="465" font-size="9" fill="#333">3. Agent: restart app → verify recovery</text>
+  <rect x="30" y="478" width="270" height="18" rx="3" fill="#d4edda" stroke="#107c10" stroke-width="0.7"/>
+  <text x="165" y="491" text-anchor="middle" font-size="9" font-weight="600" fill="#107c10">IT Persona — Log Analysis + Remediation</text>
+  <text x="30" y="513" font-size="8" fill="#666">+ Azure Monitor alert → autonomous investigation</text>
 
-  <text x="238" y="350" font-size="11" fill="#9CA3AF">→</text>
+  <!-- Scenario 2: Developer -->
+  <rect x="330" y="375" width="300" height="145" rx="8" fill="#e8f5e9" stroke="#107c10" stroke-width="1.5" filter="url(#s)"/>
+  <text x="480" y="397" text-anchor="middle" font-size="12" font-weight="700" fill="#107c10">Scenario 2: Developer</text>
+  <text x="480" y="415" text-anchor="middle" font-size="10" fill="#666">With GitHub — same break</text>
+  <text x="345" y="435" font-size="9" fill="#333">1. Same break + same investigation</text>
+  <text x="345" y="450" font-size="9" fill="#333">2. + Source code search → file:line refs</text>
+  <text x="345" y="465" font-size="9" fill="#333">3. + GitHub issue with fix suggestion</text>
+  <rect x="345" y="478" width="270" height="18" rx="3" fill="#d4edda" stroke="#107c10" stroke-width="0.7"/>
+  <text x="480" y="491" text-anchor="middle" font-size="9" font-weight="600" fill="#107c10">Dev + IT Persona — Code RCA + Issue</text>
+  <text x="345" y="513" font-size="8" fill="#666">+ Agent may create PR with fix</text>
 
-  <rect x="252" y="332" width="180" height="28" rx="5" fill="#fff" stroke="#0078D4" stroke-width="1" filter="url(#s)"/>
-  <text x="342" y="350" text-anchor="middle" font-size="10" font-weight="600" fill="#0078D4">Grubify API (.NET)</text>
+  <!-- Scenario 3: Workflow -->
+  <rect x="645" y="375" width="300" height="145" rx="8" fill="#fff3e0" stroke="#d83b01" stroke-width="1.5" filter="url(#s)"/>
+  <text x="795" y="397" text-anchor="middle" font-size="12" font-weight="700" fill="#d83b01">Scenario 3: Automation</text>
+  <text x="795" y="415" text-anchor="middle" font-size="10" fill="#666">With GitHub — scheduled task</text>
+  <text x="660" y="435" font-size="9" fill="#333">1. Customer issues on GitHub fork</text>
+  <text x="660" y="450" font-size="9" fill="#333">2. Scheduled task triages issues</text>
+  <text x="660" y="465" font-size="9" fill="#333">3. Labels + classification + comments</text>
+  <rect x="660" y="478" width="270" height="18" rx="3" fill="#fff3e0" stroke="#d83b01" stroke-width="0.7"/>
+  <text x="795" y="491" text-anchor="middle" font-size="9" font-weight="600" fill="#d83b01">Any Persona — Workflow Automation</text>
+  <text x="660" y="513" font-size="8" fill="#666">Bug · Performance · Feature · Question</text>
 
-  <text x="444" y="350" font-size="11" fill="#9CA3AF">→</text>
+  <!-- Setup flow -->
+  <rect x="15" y="540" width="930" height="130" rx="8" fill="#f0f0f0" stroke="#666" stroke-width="1" filter="url(#s)"/>
+  <text x="480" y="562" text-anchor="middle" font-size="13" font-weight="700" fill="#333">Setup (~10 min) → Explore (~5 min) → Break &amp; Investigate (~10 min) → Triage (~5 min)</text>
 
-  <rect x="458" y="332" width="320" height="28" rx="5" fill="#fff" stroke="#FF8C00" stroke-width="1" filter="url(#s)"/>
-  <text x="618" y="350" text-anchor="middle" font-size="10" font-weight="600" fill="#E65100">App Insights + Log Analytics + Alerts</text>
+  <text x="30" y="585" font-size="10" fill="#333">1. git clone microsoft/sre-agent</text>
+  <text x="30" y="602" font-size="10" fill="#333">2. cd labs/starter-lab</text>
+  <text x="30" y="619" font-size="10" fill="#333">3. bash scripts/setup.sh</text>
+  <text x="30" y="636" font-size="10" fill="#333">4. Open sre.azure.com → explore</text>
 
-  <!-- telemetry arrow -->
-  <path d="M 618 332 L 618 310 L 800 310 L 800 80 L 560 80" stroke="#FF8C00" stroke-width="1" fill="none" stroke-dasharray="4,3"/>
-  <polygon points="560,80 567,76 567,84" fill="#FF8C00"/>
-  <text x="802" y="200" font-size="7" fill="#E65100" transform="rotate(90,802,200)">telemetry</text>
+  <text x="350" y="585" font-size="10" fill="#333">5. break-app.sh → app broken</text>
+  <text x="350" y="602" font-size="10" fill="#333">6. /agent → investigate prompt</text>
+  <text x="350" y="619" font-size="10" fill="#333">7. Agent diagnoses + remediates</text>
+  <text x="350" y="636" font-size="10" fill="#333">8. Check automated alert</text>
 
-  <line x1="410" y1="280" x2="410" y2="320" stroke="#0078D4" stroke-width="1"/>
+  <text x="670" y="585" font-size="10" fill="#333">9. create-sample-issues.sh</text>
+  <text x="670" y="602" font-size="10" fill="#333">10. Run triage scheduled task</text>
+  <text x="670" y="619" font-size="10" fill="#333">11. Check labels + comments</text>
+  <text x="670" y="636" font-size="10" fill="#333">12. azd down --purge</text>
 
-  <!-- ═══════════ LAB SCENARIOS ═══════════ -->
-  <text x="30" y="402" font-size="9" font-weight="600" fill="#9CA3AF" letter-spacing="1">LAB SCENARIOS</text>
-
-  <g filter="url(#s)">
-    <rect x="30" y="412" width="240" height="72" rx="6" fill="#fff" stroke="#EF4444" stroke-width="1.5"/>
-    <rect x="30" y="412" width="240" height="22" rx="6" fill="#FEE2E2"/>
-    <rect x="30" y="428" width="240" height="6" fill="#FEE2E2"/>
-    <text x="150" y="428" text-anchor="middle" font-size="10" font-weight="700" fill="#DC2626">1 · IT Operations</text>
-    <text x="150" y="451" text-anchor="middle" font-size="9" fill="#374151">Break app → alert → investigate → fix</text>
-    <text x="150" y="475" text-anchor="middle" font-size="8" fill="#9CA3AF">No GitHub required</text>
-  </g>
-
-  <g filter="url(#s)">
-    <rect x="290" y="412" width="240" height="72" rx="6" fill="#fff" stroke="#0078D4" stroke-width="1.5"/>
-    <rect x="290" y="412" width="240" height="22" rx="6" fill="#E8F1FB"/>
-    <rect x="290" y="428" width="240" height="6" fill="#E8F1FB"/>
-    <text x="410" y="428" text-anchor="middle" font-size="10" font-weight="700" fill="#0078D4">2 · Developer</text>
-    <text x="410" y="451" text-anchor="middle" font-size="9" fill="#374151">Source code search · root cause</text>
-    <text x="410" y="475" text-anchor="middle" font-size="8" fill="#9CA3AF">Requires GitHub</text>
-  </g>
-
-  <g filter="url(#s)">
-    <rect x="550" y="412" width="240" height="72" rx="6" fill="#fff" stroke="#107C10" stroke-width="1.5"/>
-    <rect x="550" y="412" width="240" height="22" rx="6" fill="#E8F5E8"/>
-    <rect x="550" y="428" width="240" height="6" fill="#E8F5E8"/>
-    <text x="670" y="428" text-anchor="middle" font-size="10" font-weight="700" fill="#107C10">3 · Workflow Automation</text>
-    <text x="670" y="451" text-anchor="middle" font-size="9" fill="#374151">Auto-triage issues on schedule</text>
-    <text x="670" y="475" text-anchor="middle" font-size="8" fill="#9CA3AF">Requires GitHub</text>
-  </g>
-
-  <!-- ═══════════ GETTING STARTED ═══════════ -->
-  <text x="30" y="520" font-size="9" font-weight="600" fill="#9CA3AF" letter-spacing="1">GETTING STARTED</text>
-
-  <rect x="80" y="533" width="130" height="40" rx="18" fill="#0078D4" filter="url(#s)"/>
-  <text x="145" y="550" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">❶  azd up</text>
-  <text x="145" y="563" text-anchor="middle" font-size="7" fill="#B3D7FF">Deploy infra + app</text>
-
-  <text x="222" y="555" font-size="12" fill="#CBD5E1">→</text>
-
-  <rect x="236" y="533" width="160" height="40" rx="18" fill="#0078D4" filter="url(#s)"/>
-  <text x="316" y="550" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">❷  Open Agent</text>
-  <text x="316" y="563" text-anchor="middle" font-size="7" fill="#B3D7FF">in SRE Portal</text>
-
-  <text x="408" y="555" font-size="12" fill="#CBD5E1">→</text>
-
-  <rect x="422" y="533" width="130" height="40" rx="18" fill="#107C10" filter="url(#s)"/>
-  <text x="487" y="550" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">❸  Onboard Team</text>
-  <text x="487" y="563" text-anchor="middle" font-size="7" fill="#B8E6B8">Team onboarding chat</text>
-
-  <text x="564" y="555" font-size="12" fill="#CBD5E1">→</text>
-
-  <rect x="578" y="533" width="160" height="40" rx="18" fill="#EF4444" filter="url(#s)"/>
-  <text x="658" y="550" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">❹  Break it!</text>
-  <text x="658" y="563" text-anchor="middle" font-size="7" fill="#FECACA">Run lab scenarios</text>
+  <text x="480" y="665" text-anchor="middle" font-size="11" font-weight="600" fill="#0078d4">Total: ~40 minutes</text>
 </svg>
