@@ -1,0 +1,30 @@
+name: Notify SRE Agent on New Issue
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  notify-sre-agent:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: read
+    steps:
+      - name: Trigger SRE Agent
+        env:
+          WEBHOOK_URL: ${{ secrets.SRE_AGENT_WEBHOOK_URL }}
+        run: |
+          curl -s -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "issueNumber": ${{ github.event.issue.number }},
+              "title": ${{ toJson(github.event.issue.title) }},
+              "body": ${{ toJson(github.event.issue.body) }},
+              "url": "${{ github.event.issue.html_url }}",
+              "author": "${{ github.event.issue.user.login }}",
+              "labels": ${{ toJson(github.event.issue.labels.*.name) }},
+              "createdAt": "${{ github.event.issue.created_at }}",
+              "repo": "${{ github.repository }}"
+            }' \
+            --max-time 30 \
+            -w "\nHTTP Status: %{http_code}\n"
