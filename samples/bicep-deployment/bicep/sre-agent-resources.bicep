@@ -177,7 +177,7 @@ resource sreAgentNew 'Microsoft.App/agents@2025-05-01-preview' = if (shouldCreat
   properties: {
     knowledgeGraphConfiguration: {
       identity: userAssignedIdentity.id
-      managedResources: []
+      managedResources: [for (targetRG, index) in targetResourceGroups: '/subscriptions/${length(targetSubscriptions) > index ? targetSubscriptions[index] : subscriptionId}/resourceGroups/${targetRG}']
     }
     actionConfiguration: {
       accessLevel: accessLevel
@@ -211,7 +211,7 @@ resource sreAgentExisting 'Microsoft.App/agents@2025-05-01-preview' = if (!shoul
   properties: {
     knowledgeGraphConfiguration: {
       identity: existingManagedIdentityId
-      managedResources: []
+      managedResources: [for (targetRG, index) in targetResourceGroups: '/subscriptions/${length(targetSubscriptions) > index ? targetSubscriptions[index] : subscriptionId}/resourceGroups/${targetRG}']
     }
     actionConfiguration: {
       accessLevel: accessLevel
