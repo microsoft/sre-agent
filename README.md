@@ -7,7 +7,7 @@ Deploy an Azure SRE Agent connected to a sample application with a single `azd u
 ## Architecture
 
 <p align="center">
-  <img src="docs/architecture.svg" alt="Lab Architecture" width="960"/>
+  <img src="labs/starter-lab/docs/architecture.svg" alt="Lab Architecture" width="960"/>
 </p>
 
 ## Prerequisites
