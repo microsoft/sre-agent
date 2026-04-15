@@ -26,7 +26,13 @@ if [ -z "$GITHUB_PAT" ]; then
   echo "  export GITHUB_PAT=ghp_xxxxxxxxxxxx"
   echo "  ./scripts/setup-github.sh"
   echo ""
-  echo "PAT needs 'repo' scope (Classic) or Contents:Read + Issues:Read/Write (Fine-grained)."
+  echo ""
+  echo "Recommended: Use a fine-grained PAT scoped to your grubify fork only:"
+  echo "  1. Go to: https://github.com/settings/personal-access-tokens/new"
+  echo "  2. Repository access → 'Only select repositories' → your grubify fork"
+  echo "  3. Permissions: Contents:Read, Issues:Read+Write, Metadata:Read"
+  echo ""
+  echo "Alternative: Classic PAT with 'repo' scope (grants access to all repos)."
   exit 1
 fi
 

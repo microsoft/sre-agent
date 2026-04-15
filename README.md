@@ -35,7 +35,7 @@ Deploy an Azure SRE Agent connected to a sample application with a single `azd u
 
 ### Optional
 
-- GitHub account (for code search and issue triage scenarios — uses OAuth sign-in, no PAT needed)
+- GitHub account (for code search and issue triage scenarios — uses OAuth sign-in, or a [fine-grained PAT](https://github.com/settings/personal-access-tokens/new) scoped to your fork with `Contents:Read`, `Issues:Read+Write`, `Metadata:Read` for least-privilege access)
 
 ## Quick Start
 
@@ -239,6 +239,14 @@ After initial setup, add GitHub by signing in via the OAuth URL:
 ./scripts/setup-github.sh   # macOS/Linux
 # Windows: "C:\Program Files\Git\bin\bash.exe" scripts/setup-github.sh
 ```
+
+> **Security tip:** The OAuth flow requests broad repo access. For least-privilege,
+> use a [fine-grained PAT](https://github.com/settings/personal-access-tokens/new)
+> scoped to your grubify fork only with permissions: `Contents:Read`, `Issues:Read+Write`, `Metadata:Read`.
+> ```bash
+> export GITHUB_PAT=github_pat_xxxx
+> ./scripts/setup-github.sh
+> ```
 
 ## Cleanup
 
