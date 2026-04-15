@@ -57,6 +57,5 @@ output agentName string = sreAgentResourcesDeployment.outputs.agentName
 output agentId string = sreAgentResourcesDeployment.outputs.agentId
 output agentPortalUrl string = sreAgentResourcesDeployment.outputs.agentPortalUrl
 output userAssignedIdentityId string = sreAgentResourcesDeployment.outputs.userAssignedIdentityId
-output applicationInsightsConnectionString string = sreAgentResourcesDeployment.outputs.applicationInsightsConnectionString
 output logAnalyticsWorkspaceId string = sreAgentResourcesDeployment.outputs.logAnalyticsWorkspaceId
 output createdNewManagedIdentity bool = sreAgentResourcesDeployment.outputs.createdNewManagedIdentity
