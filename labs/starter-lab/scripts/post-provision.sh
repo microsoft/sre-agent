@@ -518,6 +518,7 @@ else
   echo "🔗 Step 4/5: GitHub integration... ⏭️  Skipped"
   echo "   No GITHUB_USER set. To enable GitHub integration:"
   echo "   1. Fork https://github.com/dm-chelupati/grubify"
+  echo "      (Enable Issues: Settings → Features → Issues ✅)"
   echo "   2. Run: azd env set GITHUB_USER <your-github-username>"
   echo "   3. Re-run: bash scripts/post-provision.sh --retry"
   echo ""

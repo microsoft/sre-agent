@@ -257,6 +257,7 @@ azd down --purge
 | `Microsoft.App not registered` | Run: `az provider register -n Microsoft.App --wait` |
 | Grubify shows default page after deploy | Run manual deploy commands (see Post-Deployment section above) |
 | Post-provision 405 on response plan | Wait 30s and run: `./scripts/post-provision.sh --retry` |
+| Agent can't create issues on forked repo | Forks have Issues disabled by default. Enable: repo Settings → Features → Issues ✅, or run `gh api -X PATCH repos/OWNER/REPO -f has_issues=true` |
 
 ## Regions
 
