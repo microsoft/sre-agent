@@ -24,6 +24,14 @@ if ! gh auth status &>/dev/null; then
   exit 1
 fi
 
+# Ensure Issues are enabled on the repo (forks have Issues disabled by default)
+if ! gh api "repos/${REPO}" --jq '.has_issues' 2>/dev/null | grep -q true; then
+  echo "   Enabling Issues on ${REPO} (disabled by default on forks)..."
+  gh api -X PATCH "repos/${REPO}" -f has_issues=true > /dev/null 2>&1 \
+    && echo "   ✅ Issues enabled on ${REPO}" \
+    || echo "   ⚠️  Could not enable Issues — enable manually at https://github.com/${REPO}/settings"
+fi
+
 create_issue() {
   local title="$1"
   local body="$2"

@@ -177,7 +177,7 @@ resource sreAgentNew 'Microsoft.App/agents@2025-05-01-preview' = if (shouldCreat
   properties: {
     knowledgeGraphConfiguration: {
       identity: userAssignedIdentity.id
-      managedResources: []
+      managedResources: [for (targetRG, index) in targetResourceGroups: '/subscriptions/${length(targetSubscriptions) > index ? targetSubscriptions[index] : subscriptionId}/resourceGroups/${targetRG}']
     }
     actionConfiguration: {
       accessLevel: accessLevel
@@ -211,7 +211,7 @@ resource sreAgentExisting 'Microsoft.App/agents@2025-05-01-preview' = if (!shoul
   properties: {
     knowledgeGraphConfiguration: {
       identity: existingManagedIdentityId
-      managedResources: []
+      managedResources: [for (targetRG, index) in targetResourceGroups: '/subscriptions/${length(targetSubscriptions) > index ? targetSubscriptions[index] : subscriptionId}/resourceGroups/${targetRG}']
     }
     actionConfiguration: {
       accessLevel: accessLevel
@@ -261,6 +261,5 @@ output agentName string = shouldCreateManagedIdentity ? sreAgentNew.name : sreAg
 output agentId string = shouldCreateManagedIdentity ? sreAgentNew.id : sreAgentExisting.id
 output agentPortalUrl string = 'https://ms.portal.azure.com/#view/Microsoft_Azure_PaasServerless/AgentFrameBlade.ReactView/id/${replace(shouldCreateManagedIdentity ? sreAgentNew.id : sreAgentExisting.id, '/', '%2F')}'
 output userAssignedIdentityId string = shouldCreateManagedIdentity ? userAssignedIdentity.id : existingManagedIdentityId
-output applicationInsightsConnectionString string = applicationInsights.properties.ConnectionString
 output logAnalyticsWorkspaceId string = logAnalyticsWorkspace.id
 output createdNewManagedIdentity bool = shouldCreateManagedIdentity

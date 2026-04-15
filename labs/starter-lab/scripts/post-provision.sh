@@ -491,6 +491,14 @@ if [ -n "$OAUTH_URL" ]; then
   echo "   │  Open this URL in your browser and click 'Authorize'    │"
   echo "   └──────────────────────────────────────────────────────────┘"
   echo ""
+  echo "   ⚠️  Security note: The OAuth flow requests broad repo access."
+  echo "   For least-privilege, you can use a fine-grained PAT instead:"
+  echo "     1. Go to: github.com/settings/personal-access-tokens/new"
+  echo "     2. Scope to your grubify fork only (${GITHUB_REPO})"
+  echo "     3. Set: Contents:Read, Issues:Read+Write, Metadata:Read"
+  echo "     4. Run: ./scripts/setup-github.sh  (with GITHUB_PAT set)"
+  echo "   See: https://github.com/microsoft/sre-agent/issues/113"
+  echo ""
   read -p "   Press Enter after you have authorized in the browser..." _unused
 fi
 
@@ -518,6 +526,7 @@ else
   echo "🔗 Step 4/5: GitHub integration... ⏭️  Skipped"
   echo "   No GITHUB_USER set. To enable GitHub integration:"
   echo "   1. Fork https://github.com/dm-chelupati/grubify"
+  echo "      (Enable Issues: Settings → Features → Issues ✅)"
   echo "   2. Run: azd env set GITHUB_USER <your-github-username>"
   echo "   3. Re-run: bash scripts/post-provision.sh --retry"
   echo ""

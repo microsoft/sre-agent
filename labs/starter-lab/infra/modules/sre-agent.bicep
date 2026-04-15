@@ -14,6 +14,7 @@ param identityPrincipalId string
 param appInsightsAppId string
 
 @description('Application Insights Connection String')
+@secure()
 param appInsightsConnectionString string
 
 @description('Application Insights resource ID')
