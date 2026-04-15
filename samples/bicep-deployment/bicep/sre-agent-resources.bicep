@@ -261,6 +261,5 @@ output agentName string = shouldCreateManagedIdentity ? sreAgentNew.name : sreAg
 output agentId string = shouldCreateManagedIdentity ? sreAgentNew.id : sreAgentExisting.id
 output agentPortalUrl string = 'https://ms.portal.azure.com/#view/Microsoft_Azure_PaasServerless/AgentFrameBlade.ReactView/id/${replace(shouldCreateManagedIdentity ? sreAgentNew.id : sreAgentExisting.id, '/', '%2F')}'
 output userAssignedIdentityId string = shouldCreateManagedIdentity ? userAssignedIdentity.id : existingManagedIdentityId
-output applicationInsightsConnectionString string = applicationInsights.properties.ConnectionString
 output logAnalyticsWorkspaceId string = logAnalyticsWorkspace.id
 output createdNewManagedIdentity bool = shouldCreateManagedIdentity

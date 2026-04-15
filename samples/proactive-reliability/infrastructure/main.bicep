@@ -187,6 +187,6 @@ output appServiceName string = appService.name
 output appServiceUrl string = 'https://${appService.properties.defaultHostName}'
 output stagingUrl string = 'https://${appServiceName}-staging.azurewebsites.net'
 output applicationInsightsName string = applicationInsights.name
-output applicationInsightsConnectionString string = applicationInsights.properties.ConnectionString
-output applicationInsightsInstrumentationKey string = applicationInsights.properties.InstrumentationKey
+// Connection string and instrumentation key are not output to avoid
+// exposing credential-like values in ARM deployment logs (see #86)
 output resourceGroupName string = resourceGroup().name
