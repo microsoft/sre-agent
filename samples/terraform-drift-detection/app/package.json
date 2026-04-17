@@ -1,0 +1,12 @@
+{
+  "name": "sre-agent-iac-demo-app",
+  "version": "1.0.0",
+  "description": "Simple demo web app for SRE Agent IaC + HTTP Triggers blog",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
