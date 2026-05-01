@@ -1,0 +1,8 @@
+node_modules/
+.env
+.azure/
+*.log
+*.png
+!docs/images/*.png
+.playwright-mcp/
+sre-config/knowledge-base/.upload-hashes.json
