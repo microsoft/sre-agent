@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: zava-api
+spec:
+  selector:
+    app: zava-api
+  ports:
+    - port: 3001
+      targetPort: 3001
+  type: ClusterIP

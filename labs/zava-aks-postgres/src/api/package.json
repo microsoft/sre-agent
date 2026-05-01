@@ -1,0 +1,24 @@
+{
+  "name": "zava-api",
+  "version": "1.0.0",
+  "description": "Zava Athletic Demo - API Service (business logic + PostgreSQL)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node db/seed.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.13.0",
+    "@azure/identity": "^4.13.1",
+    "@azure/monitor-opentelemetry": "^1.16.0",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/api-logs": "^0.208.0",
+    "@opentelemetry/resources": "^2.2.0",
+    "@opentelemetry/semantic-conventions": "^1.38.0",
+    "cors": "^2.8.5"
+  },
+  "overrides": {
+    "path-to-regexp": "^0.1.13"
+  }
+}

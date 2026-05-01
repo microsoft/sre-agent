@@ -1,0 +1,40 @@
+# Azure Developer CLI (azd) template for SRE Agent Demo
+# Deploys: AKS + PostgreSQL + SRE Agent + App Insights + Monitoring
+# Run: azd up
+name: zava-aks-postgres
+metadata:
+  template: zava-aks-postgres@1.0.0
+
+infra:
+  provider: bicep
+  path: infra
+
+hooks:
+  preprovision:
+    windows:
+      shell: pwsh
+      run: scripts/check-environment.ps1
+      interactive: true
+    posix:
+      shell: sh
+      run: |
+        if ! command -v pwsh >/dev/null 2>&1; then
+          echo ""
+          echo "ERROR: pwsh (PowerShell 7.4+) is required but was not found on PATH."
+          echo ""
+          echo "This demo currently requires Windows PowerShell 7.4+ (or WSL with pwsh installed)."
+          echo "Post-provision automation runs in pwsh. See README for cross-platform plans."
+          echo ""
+          exit 1
+        fi
+        pwsh -NoProfile -File scripts/check-environment.ps1
+      interactive: true
+  postprovision:
+    windows:
+      shell: pwsh
+      run: scripts/post-provision.ps1
+      interactive: true
+    posix:
+      shell: sh
+      run: pwsh -NoProfile -File scripts/post-provision.ps1
+      interactive: true

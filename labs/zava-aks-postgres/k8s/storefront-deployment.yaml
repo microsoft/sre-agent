@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zava-storefront
+  labels:
+    app: zava-storefront
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: zava-storefront
+  template:
+    metadata:
+      labels:
+        app: zava-storefront
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: storefront
+          image: "${ACR_NAME}.azurecr.io/zava-storefront:latest"
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: zava-config
+          env:
+            - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: zava-secrets
+                  key: APPLICATIONINSIGHTS_CONNECTION_STRING
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /livez
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
