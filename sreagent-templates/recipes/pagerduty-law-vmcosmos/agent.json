@@ -54,8 +54,7 @@
       "ask": "AI model provider",
       "options": [
         "Anthropic",
-        "GitHubCopilot",
-        "MicrosoftFoundry"
+        "Azure OpenAI"
       ],
       "default": "Anthropic"
     },

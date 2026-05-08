@@ -57,7 +57,7 @@ Azure Monitor agent with Log Analytics and App Insights for investigating alerts
 |---|---|---|
 | existingUamiId | `/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/<name>` | Use an existing User-Assigned Managed Identity instead of creating a new one. Portal → Managed Identities → Properties → Resource ID |
 | existingAgentAppInsightsId | `/subscriptions/<sub>/resourceGroups/<rg>/providers/microsoft.insights/components/<name>` | Use an existing Application Insights for agent telemetry instead of creating a new one. Portal → App Insights → Properties → Resource ID |
-| modelProvider | `Anthropic`, `GitHubCopilot`, `MicrosoftFoundry` | Default LLM provider. Default: `Anthropic` |
+| modelProvider | `Anthropic`, `Azure OpenAI` | Default: `Anthropic` |
 
 ## What You Get
 

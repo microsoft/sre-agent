@@ -525,7 +525,7 @@ if [[ "$IM_TYPE" != "None" && "$IM_TYPE" != "null" && -n "$IM_TYPE" ]]; then
   INCIDENT_PLATFORMS=$(jq -nc --arg t "$IM_TYPE" '[{name: ($t | ascii_downcase), spec: {platformType: $t}}]')
 fi
 # Also check data-plane indexing configs for additional settings
-for platform_type in azmonitor pagerduty servicenow icm; do
+for platform_type in azmonitor pagerduty servicenow; do
   result=$(dp_get "/api/v2/incidents/indexing/${platform_type}/configuration" 2>/dev/null)
   if [[ "$result" != "null" && -n "$result" ]]; then
     entry=$(echo "$result" | jq -c --arg t "$platform_type" '{name: $t, spec: (.spec // .properties // .)}' 2>/dev/null || echo "")

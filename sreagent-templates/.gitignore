@@ -1,0 +1,20 @@
+# Terraform artifacts
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate*
+terraform/terraform.tfvars.json
+terraform/tf.plan
+terraform/*.plan
+
+# Secrets
+connectors.secrets.env
+
+# macOS
+.DS_Store
+
+# Deploy logs
+*.log
+
+# Assembled output (temp files)
+.parameters.json
+.extras.json
