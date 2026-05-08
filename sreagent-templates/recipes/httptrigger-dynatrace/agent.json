@@ -1,6 +1,6 @@
 {
   "_scenario": "httptrigger-dynatrace",
-  "_description": "Dynatrace-powered incident response: OTEL traces/metrics/logs → Dynatrace alerts → webhook → agent investigates → creates GitHub issues.",
+  "_description": "Dynatrace MCP connector for investigating application errors with skills and subagents.",
   "_prerequisites": [
     "Dynatrace environment with OTEL ingest configured",
     "Dynatrace API token with entities.read, events.read, metrics.read scopes",
@@ -82,7 +82,7 @@
   "monthlyAgentUnitLimit": 10000,
   "tags": {},
   "toggles": {
-    "enableWebhookBridge": true,
+    "enableWebhookBridge": false,
     "webhookBridgeTriggerUrl": ""
   },
   "existingUamiId": "{{existingUamiId}}",

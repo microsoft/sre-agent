@@ -1,6 +1,6 @@
 # httptrigger-dynatrace
 
-HTTP-triggered agent with Dynatrace MCP connector for investigating application errors via webhook bridge.
+Dynatrace MCP connector for investigating application errors with skills and subagents.
 
 ## Quick Start
 
@@ -59,18 +59,16 @@ HTTP-triggered agent with Dynatrace MCP connector for investigating application 
 
 ## What You Get
 
-- **Platform**: HTTP Trigger (webhook bridge, NOT an incident platform)
-- **Connectors**: Dynatrace (MCP, bearer token)
+- **Connectors**: Dynatrace (MCP, bearer token), Log Analytics (optional)
 - **Skills**: investigate-app-errors
 - **Subagents**: dynatrace-investigator
-- **HTTP Trigger**: dynatrace-alert — auto-deploys a Logic App as webhook bridge
 - **Hooks**: deny-prod-deletes
 - **Repo**: github-repo (placeholder)
 
 ## After Deploy
 
-1. Copy the webhook bridge URL printed at the end of `deploy.sh`
-2. In Dynatrace → Settings → Workflows → create a workflow that POSTs problem notifications to the bridge URL
+1. In Dynatrace → Settings → Workflows → configure alerting to trigger investigations
+2. Grant the agent UAMI appropriate RBAC on target resource groups
 
 ## Clone
 

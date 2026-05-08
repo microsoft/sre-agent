@@ -85,7 +85,7 @@ module targetRbac 'role-assignments-target.bicep' = [for (rg, i) in targetResour
 // ── Monitoring Reader on deployment RG ──
 
 resource monitoringReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, effectivePrincipalId, '43d0d8ad-25c7-4714-9337-8ba259a9fe05')
+  name: guid(resourceGroup().id, effectiveIdentityId, '43d0d8ad-25c7-4714-9337-8ba259a9fe05')
   properties: {
     roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', '43d0d8ad-25c7-4714-9337-8ba259a9fe05')
     principalId: effectivePrincipalId
@@ -164,7 +164,7 @@ resource adminRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 // ── SRE Agent Administrator for UAMI (needed for Logic App webhook bridge to call HTTP triggers) ──
 
 resource uamiAdminRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(sreAgent.id, effectivePrincipalId, 'e79298df-d852-4c6d-84f9-5d13249d1e55')
+  name: guid(sreAgent.id, effectiveIdentityId, 'e79298df-d852-4c6d-84f9-5d13249d1e55')
   scope: sreAgent
   properties: {
     roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', 'e79298df-d852-4c6d-84f9-5d13249d1e55')

@@ -1,7 +1,0 @@
-name: dynatrace-alert
-spec:
-  description: Receives Dynatrace webhook alerts and triggers investigation.
-  prompt: A Dynatrace alert has been received. Investigate the issue using the dynatrace-investigator
-    subagent.
-  handlingAgent: dynatrace-investigator
-  agentMode: Review

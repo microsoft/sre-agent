@@ -105,6 +105,12 @@ validate_bicep_dryrun() {
   log "── deploy.sh --dry-run (Bicep) ──"
   ./bin/deploy.sh "$OUT" --dry-run > /tmp/dryrun-bicep.log 2>&1
   if [[ $? -eq 0 ]]; then pass "deploy.sh --dry-run"; else fail "deploy.sh --dry-run (exit $?)"; fi
+
+  # Compile Bicep to catch syntax/type errors (BCP*)
+  if command -v az &>/dev/null; then
+    az bicep build --file bicep/main.bicep --stdout > /dev/null 2>/tmp/dryrun-bicep-build.log
+    if [[ $? -eq 0 ]]; then pass "az bicep build"; else fail "az bicep build (see /tmp/dryrun-bicep-build.log)"; fi
+  fi
 }
 
 # ── Validate Terraform dry-run ──
@@ -130,6 +136,15 @@ validate_tf_dryrun() {
     fi
   else
     fail "terraform.tfvars.json not found"
+  fi
+
+  # Validate TF syntax
+  if command -v terraform &>/dev/null; then
+    pushd terraform > /dev/null
+    terraform init -backend=false -input=false > /dev/null 2>&1
+    terraform validate -no-color > /tmp/dryrun-tf-validate.log 2>&1
+    if [[ $? -eq 0 ]]; then pass "terraform validate"; else fail "terraform validate (see /tmp/dryrun-tf-validate.log)"; fi
+    popd > /dev/null
   fi
 }
 
