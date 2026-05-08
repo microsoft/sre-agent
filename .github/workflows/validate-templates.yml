@@ -17,6 +17,8 @@ on:
       - 'sreagent-templates/recipes/**'
       - 'sreagent-templates/bicep/**'
       - 'sreagent-templates/bin/**'
+      - 'sreagent-templates/terraform/**'
+      - 'sreagent-templates/tests/**'
 
 jobs:
   validate:
