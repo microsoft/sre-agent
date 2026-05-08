@@ -192,7 +192,7 @@ fi
 
 _log "Total: $(echo "$CONNECTORS" | jq 'length') connector(s)"
 
-# ═══════ Read config/ (merge main + 1p) ═══════
+# ═══════ Read config/ ═══════
 
 _info "Assembling config/"
 

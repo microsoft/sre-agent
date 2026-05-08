@@ -26,7 +26,7 @@ cd sre-agent/sreagent-templates
 ./bin/new-agent.sh --recipe azmon-lawappinsights --non-interactive \
   --set agentName=my-agent \
   --set resourceGroup=rg-my-agent \
-  --set location=swedencentral \       # or eastus2, uksouth, australiaeast
+  --set location=swedencentral \
   --set targetRGs=rg-my-workload \
   -o my-agent/
 
@@ -55,7 +55,9 @@ Each recipe README has the full parameter list, example values, and post-deploy 
 | `deploy.sh dir/ --dry-run` | Assemble only, no ARM call |
 | `deploy.sh dir/ --what-if` | ARM validation without deploying |
 | `deploy.sh dir/ --force` | Redeploy even if no changes detected |
-| `export-agent.sh --set agentName=clone -o dir/` | Export/clone a live agent |
+| `deploy-tf.sh dir/` | Deploy via Terraform |
+| `clone-agent.sh --from-agent <name> ...` | Clone: export → validate → deploy |
+| `export-agent.sh --set agentName=clone -o dir/` | Export a live agent to config dir |
 | `diff-agent.sh $SUB $RG $AGENT dir/` | Compare config vs live agent |
 | `verify-agent.sh $SUB $RG $AGENT --expected dir/` | 22-point verification |
 
@@ -199,7 +201,7 @@ Full PowerShell 7+ port in [`bin/ps/`](bin/ps/). Same config directory, same res
 
 ## CI/CD
 
-See [examples/ci-cd/](examples/ci-cd/) for GitHub Actions, EV2 pipelines, and step-by-step setup.
+See [examples/ci-cd/](examples/ci-cd/) for GitHub Actions and step-by-step setup.
 
 ## Contributing
 

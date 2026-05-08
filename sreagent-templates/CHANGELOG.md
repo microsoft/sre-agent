@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Recipes (3P)
 - `azmon-lawappinsights` — Azure Monitor alert response with App Insights + Log Analytics
 - `pagerduty-law-vmcosmos` — PagerDuty with VM, CosmosDB, HTTP error investigation
-- `dynatrace-mcp` — Dynatrace MCP + webhook bridge + GitHub issue creation
+- `dynatrace-mcp` — Dynatrace MCP connector for app error investigation
 
 ### Core Scripts
 - `new-agent.sh` / `New-Agent.ps1` — interactive or `--non-interactive` recipe setup

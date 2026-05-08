@@ -427,7 +427,7 @@ if [[ -d "$INPUT" ]]; then
   WH_URL=$(jq -r '.properties.outputs.webhookBridgeTriggerUrl.value // empty' "$TMP" 2>/dev/null)
 
   case "$SCENARIO" in
-    httptrigger-dynatrace)
+    dynatrace-mcp)
       # Try to get the Logic App callback URL
       WH_CALLBACK=$(az rest --method POST \
         --url "/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.Logic/workflows/${AG}-webhook-bridge/triggers/incoming_webhook/listCallbackUrl?api-version=2019-05-01" \

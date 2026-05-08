@@ -7,7 +7,7 @@
 #
 #   1. ARM sub-resources (connectors, incidentFilters, scheduledTasks,
 #      commonPrompts) — uses `az rest` with management-plane token.
-#      Works in Cloud Shell, EV2 pipelines, and PME/AME tenants.
+#      Works in Cloud Shell and CI/CD pipelines.
 #
 #   2. Data-plane only (hooks, httpTriggers, repos, knowledge upload)
 #      — requires token for audience https://azuresre.dev.
@@ -209,7 +209,7 @@ _dp_token() { az account get-access-token --resource https://azuresre.dev --quer
 echo "Applying extras to ${AGENT} in ${RG}..."
 
 # 1. incidentPlatforms — ARM PATCH on agent resource (not sub-resource PUT)
-# This sets the incident management type (AzMonitor, PagerDuty, ServiceNow, IcM)
+# This sets the incident management type (AzMonitor, PagerDuty, ServiceNow, etc.)
 count=$(jq '.incidentPlatforms // [] | length' "$FILE")
 if [[ "$count" -gt 0 ]]; then
   echo "incidentPlatforms: ${count}"
@@ -872,7 +872,7 @@ if [[ ${#DP_SKIPPED_ITEMS[@]} -gt 0 ]]; then
   echo "══════════════════════════════════════════════════════════════"
   echo "  ⚠ ${#DP_SKIPPED_ITEMS[@]} item(s) skipped (no data-plane token)"
   echo "  These require audience https://azuresre.dev which is not"
-  echo "  available in this environment (Cloud Shell MSI / PME CAP)."
+  echo "  available in this environment (Cloud Shell MSI)."
   echo ""
   echo "  To apply the remaining items:"
   echo "    1. From a compliant machine: az login && re-run this script"

@@ -7,7 +7,7 @@
 
       1. ARM sub-resources (connectors, incidentFilters, scheduledTasks,
          commonPrompts) — uses `az rest` with management-plane token.
-         Works in Cloud Shell, EV2 pipelines, and PME/AME tenants.
+         Works in Cloud Shell and CI/CD pipelines.
 
       2. Data-plane only (hooks, httpTriggers, repos, knowledge upload)
          — requires token for audience https://azuresre.dev.
@@ -1123,7 +1123,7 @@ if ($DpSkippedItems.Count -gt 0) {
     Write-Host "================================================================"
     Write-Host "  WARNING: $($DpSkippedItems.Count) item(s) skipped (no data-plane token)"
     Write-Host "  These require audience https://azuresre.dev which is not"
-    Write-Host "  available in this environment (Cloud Shell MSI / PME CAP)."
+    Write-Host "  available in this environment (Cloud Shell MSI)."
     Write-Host ""
     Write-Host "  To apply the remaining items:"
     Write-Host "    1. From a compliant machine: az login && re-run this script"

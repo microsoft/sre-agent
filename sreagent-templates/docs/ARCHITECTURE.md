@@ -22,6 +22,8 @@ sreagent-templates/
 │   └── ps/                                 ← PowerShell equivalents
 │       ├── New-Agent.ps1
 │       ├── Deploy-Agent.ps1
+│       ├── Deploy-Tf.ps1
+│       ├── Clone-Agent.ps1
 │       ├── Export-Agent.ps1
 │       ├── Diff-Agent.ps1
 │       ├── Verify-Agent.ps1

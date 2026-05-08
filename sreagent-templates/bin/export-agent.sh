@@ -1051,7 +1051,7 @@ CONNECTORS_CLEAN=$(sanitize "$CONNECTORS_CLEAN")
 
 # ── Write connectors.json ──
 # Toggle-managed types (AppInsights, LogAnalytics, AzureMonitor) go into toggles.
-# All other connectors (MCP, Kusto, IcM, DGrep, Geneva, etc.) go into the connectors array.
+# All other connectors (MCP, Kusto, etc.) go into the connectors array.
 TOGGLE_TYPES="AppInsights|LogAnalytics|AzureMonitor"
 CONNECTORS_ARRAY=$(echo "$CONNECTORS_CLEAN" | jq -c --arg tt "$TOGGLE_TYPES" '[.[] | select(.properties.dataConnectorType | test("^(\($tt))$") | not)]')
 
