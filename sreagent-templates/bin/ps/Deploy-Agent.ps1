@@ -745,7 +745,7 @@ if ($IsDirectory) {
         }
 
         switch ($Scenario) {
-            'httptrigger-dynatrace' {
+            'dynatrace-mcp' {
                 # Try to get the Logic App callback URL
                 $WhCallback = ''
                 try {

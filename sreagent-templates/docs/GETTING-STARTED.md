@@ -14,7 +14,7 @@ Step-by-step guide to create, deploy, and manage an Azure SRE Agent.
 
 ```bash
 git clone https://github.com/microsoft/sre-agent.git
-cd sreagent-templates
+cd sre-agent/sreagent-templates
 ```
 
 ## Step 2: Choose your path

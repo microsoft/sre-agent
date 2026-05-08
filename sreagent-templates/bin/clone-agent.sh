@@ -487,17 +487,11 @@ for i in $(seq 0 $((CONNECTOR_COUNT - 1))); do
     Outlook)
       _warn "Connector '${cname}' (${ctype}): needs PORTAL SETUP — configure Outlook connector via portal API Connections blade"
       ;;
-    IcM)
-      _warn "Connector '${cname}' (${ctype}): needs CERT or MI auth — 1P only. See roles.yaml for setup options"
-      ;;
     PagerDuty)
       _warn "Connector '${cname}' (${ctype}): needs PAGERDUTY API KEY — configure via portal Incident Platforms page"
       ;;
     ServiceNow)
       _warn "Connector '${cname}' (${ctype}): needs SERVICENOW CREDENTIALS — configure via portal Incident Platforms page"
-      ;;
-    Dgrep|GenevaMetrics|Ev2Mcp|S360Mcp)
-      _ok "Connector '${cname}' (${ctype}): 1P connector — uses MI or Key Vault (grant UAMI access after deploy)"
       ;;
     *)
       _warn "Connector '${cname}' (${ctype}): unknown type — verify auth manually in portal"

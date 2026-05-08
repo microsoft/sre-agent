@@ -284,7 +284,7 @@ if (Test-Path $connFile -PathType Leaf) {
 $totalConn = $connectors | jq 'length'
 Write-Log "Total: $totalConn connector(s)"
 
-# ═══════ Read config/ (merge main + 1p) ═══════
+# ═══════ Read config/ ═══════
 
 Write-Info 'Assembling config/'
 
