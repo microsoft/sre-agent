@@ -1,0 +1,12 @@
+metadata:
+  name: investigate-http-errors
+  description: Investigate HTTP 500 errors using App Insights traces, logs, and Azure
+    activity logs
+  spec:
+    tools:
+    - QueryAppInsightsUsingAppId
+    - RunAzCliReadCommands
+    - QueryLogAnalyticsByWorkspaceId
+    - SearchMemory
+skillContent: skills/investigate-http-errors.md
+additionalFiles: []

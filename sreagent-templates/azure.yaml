@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+name: sreagent-recipes
+metadata:
+  template: sreagent-recipes@0.0.1
+
+# azd hooks handle the full lifecycle. No built-in infra provider needed.
+# `azd up` = new-agent + assemble + Bicep deploy + apply-extras
+# `azd down` = delete resource group
+#
+# Set env vars via `azd env set`:
+#   RECIPE, AZURE_AGENT_NAME, AZURE_RESOURCE_GROUP, AZURE_LOCATION,
+#   AZURE_TARGET_RGS, AZURE_LAW_ID, AZURE_AI_ID, AZURE_AI_APPID
+#   (recipe-specific: PAGERDUTY_API_KEY, DT_TENANT, DT_TOKEN, GITHUB_REPO)
+
+hooks:
+  preprovision:
+    shell: sh
+    run: |
+      set -e
+      echo "── azd up: SRE Agent deployment ──"
+      CONFIG_DIR="./agents/${AZURE_AGENT_NAME:-my-agent}"
+      if [ ! -f "$CONFIG_DIR/agent.json" ]; then
+        if [ -z "$RECIPE" ]; then
+          echo "Error: No config at $CONFIG_DIR and RECIPE not set."
+          echo "  Either: azd env set RECIPE azmon-lawappinsights"
+          echo "  Or:     place config at $CONFIG_DIR/agent.json"
+          exit 1
+        fi
+        echo "── Step 1: Creating agent config from recipe '$RECIPE' ──"
+        ./bin/new-agent.sh --recipe "$RECIPE" --non-interactive \
+          --set agentName="${AZURE_AGENT_NAME:-my-agent}" \
+          --set resourceGroup="${AZURE_RESOURCE_GROUP:-rg-my-agent}" \
+          --set location="${AZURE_LOCATION:?Set AZURE_LOCATION first: azd env set AZURE_LOCATION swedencentral}" \
+          --set targetRGs="${AZURE_TARGET_RGS:-}" \
+          ${AZURE_LAW_ID:+--set lawId="$AZURE_LAW_ID"} \
+          ${AZURE_AI_ID:+--set appInsightsId="$AZURE_AI_ID"} \
+          ${AZURE_AI_APPID:+--set appInsightsAppId="$AZURE_AI_APPID"} \
+          ${PAGERDUTY_API_KEY:+--set pagerdutyApiKey="$PAGERDUTY_API_KEY"} \
+          ${DT_TENANT:+--set dtTenant="$DT_TENANT"} \
+          ${DT_TOKEN:+--set dtToken="$DT_TOKEN"} \
+          ${GITHUB_REPO:+--set githubRepo="$GITHUB_REPO"} \
+          -o "$CONFIG_DIR"
+      else
+        echo "── Config exists at $CONFIG_DIR — reusing ──"
+      fi
+
+      echo "── Step 2: Deploying via Bicep ──"
+      ./bin/deploy.sh "$CONFIG_DIR" --force
+
+      echo "── azd up complete ──"
+
+  predown:
+    shell: sh
+    run: |
+      RG="${AZURE_RESOURCE_GROUP:-rg-my-agent}"
+      echo "Deleting resource group: $RG"
+      az group delete --name "$RG" --yes --no-wait 2>/dev/null || true
+      echo "Resource group deletion queued."

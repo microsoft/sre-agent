@@ -1,0 +1,12 @@
+{
+  "toggles": {
+    "enableAppInsightsConnector": "{{appInsightsId:bool}}",
+    "appInsightsResourceId": "{{appInsightsId}}",
+    "appInsightsAppId": "{{appInsightsAppId}}",
+    "enableLogAnalyticsConnector": "{{lawId:bool}}",
+    "lawResourceId": "{{lawId}}",
+    "enableAzureMonitorConnector": false,
+    "azureMonitorLookbackDays": 7
+  },
+  "connectors": []
+}

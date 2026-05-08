@@ -1,0 +1,11 @@
+metadata:
+  name: investigate-azure-alerts
+  description: "Investigate fired Azure Monitor alerts \u2014 correlate with App Insights\
+    \ traces, logs, and metrics to find root cause."
+  spec:
+    tools:
+    - RunAzCliReadCommands
+    - QueryAppInsightsUsingAppId
+    - QueryLogAnalyticsByWorkspaceId
+skillContent: skills/investigate-azure-alerts.md
+additionalFiles: []

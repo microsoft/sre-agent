@@ -1,0 +1,10 @@
+metadata:
+  name: triage-app-errors
+  description: "Triage application errors from App Insights \u2014 group by exception\
+    \ type, identify patterns, and recommend fixes."
+  spec:
+    tools:
+    - QueryAppInsightsUsingAppId
+    - RunAzCliReadCommands
+skillContent: skills/triage-app-errors.md
+additionalFiles: []
