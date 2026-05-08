@@ -322,7 +322,7 @@ echo "       ./bin/deploy.sh ${OUTPUT}/"
 echo "  3. When validation passes, remove --validate-only to deploy."
 
 # ── Data residency warning ──
-_model=$(jq -r '.defaultModelProvider // "OpenAI"' "${OUTPUT}/agent.json" 2>/dev/null)
+_model=$(jq -r '.defaultModelProvider // "Anthropic"' "${OUTPUT}/agent.json" 2>/dev/null)
 _location=$(jq -r '.identity.location // ""' "${OUTPUT}/agent.json" 2>/dev/null)
 if [[ "$_model" == "Anthropic" ]]; then
   case "$_location" in
@@ -332,8 +332,8 @@ if [[ "$_model" == "Anthropic" ]]; then
       echo "     Some organizations block Anthropic in EU/regulated regions due to"
       echo "     data residency policy. If you see 'Anthropic is not available due to"
       echo "     your organization's data residency policy' in the portal, switch to"
-      echo "     GitHubCopilot or MicrosoftFoundry:"
-      echo "       Edit ${OUTPUT}/agent.json → set \"defaultModelProvider\": \"GitHubCopilot\""
+      echo "     MicrosoftFoundry (Azure OpenAI):"
+      echo "       Edit ${OUTPUT}/agent.json → set \"defaultModelProvider\": \"MicrosoftFoundry\""
       echo
       ;;
   esac
