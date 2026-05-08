@@ -1,5 +1,5 @@
 {
-  "_scenario": "httptrigger-dynatrace",
+  "_scenario": "dynatrace-mcp",
   "agent": {
     "accessLevel": "High",
     "actionMode": "Review",

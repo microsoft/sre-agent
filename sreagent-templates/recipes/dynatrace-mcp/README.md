@@ -1,4 +1,4 @@
-# httptrigger-dynatrace
+# dynatrace-mcp
 
 Dynatrace MCP connector for investigating application errors with skills and subagents.
 
@@ -8,7 +8,7 @@ Dynatrace MCP connector for investigating application errors with skills and sub
 
 **Bash:**
 ```bash
-./bin/new-agent.sh --recipe httptrigger-dynatrace --non-interactive \
+./bin/new-agent.sh --recipe dynatrace-mcp --non-interactive \
   --set agentName=dt-contoso \
   --set resourceGroup=rg-dt-contoso \
   --set location=swedencentral \
@@ -20,7 +20,7 @@ Dynatrace MCP connector for investigating application errors with skills and sub
 
 **PowerShell:**
 ```powershell
-./bin/ps/New-Agent.ps1 -Recipe httptrigger-dynatrace -NonInteractive `
+./bin/ps/New-Agent.ps1 -Recipe dynatrace-mcp -NonInteractive `
   -Set @{agentName='dt-contoso'; resourceGroup='rg-dt-contoso'; location='swedencentral';
     dtTenant='abc12345'; dtToken='dt0c01.ABCDEFGH.XXXXXXXX...';
     targetRGs='rg-contoso-prod,rg-contoso-web'} `

@@ -88,7 +88,7 @@ Recipe names follow: `<platform>-<key-connectors>[-variant]`
 |---|---|
 | Platform + connectors | `azmon-lawappinsights` |
 | Platform + connectors + workload | `pagerduty-law-vmcosmos` |
-| Platform + trigger type | `httptrigger-dynatrace` |
+| Platform + trigger type | `dynatrace-mcp` |
 
 ## Quality Guidelines
 

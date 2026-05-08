@@ -38,7 +38,7 @@ Prompts:
 ### Path B: Create from Dynatrace recipe
 
 ```bash
-./bin/new-agent.sh --recipe httptrigger-dynatrace
+./bin/new-agent.sh --recipe dynatrace-mcp
 ```
 
 Additional prompts:

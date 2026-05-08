@@ -55,7 +55,7 @@ declare_recipe() {
 
 declare_recipe AZMON azmon-lawappinsights "lawId=$LAW_CONTOSO;appInsightsId=$AI_ID;appInsightsAppId=$AI_APPID;githubRepo="
 declare_recipe PD pagerduty-law-vmcosmos "lawId=$LAW_EBC;pagerdutyApiKey=u+fake-pd-key"
-declare_recipe DT httptrigger-dynatrace "lawId=$LAW_CONTOSO;appInsightsId=$AI_ID;appInsightsAppId=$AI_APPID;dtTenant=$DT_TENANT;dtToken=$DT_TOKEN;githubRepo="
+declare_recipe DT dynatrace-mcp "lawId=$LAW_CONTOSO;appInsightsId=$AI_ID;appInsightsAppId=$AI_APPID;dtTenant=$DT_TENANT;dtToken=$DT_TOKEN;githubRepo="
 
 # ── Test function: one recipe × one backend × create/update/clone ──
 test_backend() {

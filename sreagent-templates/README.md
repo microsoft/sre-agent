@@ -38,13 +38,11 @@ cd sre-agent/sreagent-templates
 
 ## Recipes
 
-## Recipes
-
 | Recipe | Platform | One-line |
 |---|---|---|
 | [azmon-lawappinsights](recipes/azmon-lawappinsights/) | Azure Monitor | Alert response with AppInsights + Log Analytics, skills, subagents, scheduled tasks |
 | [pagerduty-law-vmcosmos](recipes/pagerduty-law-vmcosmos/) | PagerDuty | VM + CosmosDB + HTTP error investigation with knowledge files and skills |
-| [httptrigger-dynatrace](recipes/httptrigger-dynatrace/) | HTTP Trigger | Dynatrace MCP connector + webhook bridge, auto-creates GitHub issues |
+| [dynatrace-mcp](recipes/dynatrace-mcp/) | Dynatrace | Dynatrace MCP connector for investigating application errors |
 
 Each recipe README has the full parameter list, example values, and post-deploy steps.
 
@@ -201,13 +199,13 @@ Full PowerShell 7+ port in [`bin/ps/`](bin/ps/). Same config directory, same res
 
 ## CI/CD
 
-See [examples/ci-cd/](examples/ci-cd/) for GitHub Actions and step-by-step setup.
+See [examples/ci-cd/](examples/ci-cd/) for GitHub Actions, EV2 pipelines, and step-by-step setup.
 
 ## Contributing
 
 A recipe is defined by 5 dimensions — think through each for your use case:
 
-1. **Incident Platform** — AzMonitor, PagerDuty, ServiceNow, or HTTP webhook
+1. **Incident Platform** — AzMonitor, PagerDuty, ServiceNow
 2. **Connectors** — Log Analytics, App Insights, Kusto, MCP (Dynatrace/Datadog/custom)
 3. **Skills** — investigation playbooks for your workload (VM, CosmosDB, HTTP errors, etc.)
 4. **Knowledge** — runbooks, architecture docs, incident templates

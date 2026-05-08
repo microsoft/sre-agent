@@ -249,7 +249,7 @@ if [[ "$count" -gt 0 ]]; then
     name=$(jq -r --argjson i "$i" '.incidentFilters[$i].metadata.name' "$FILE")
     spec=$(jq -c --argjson i "$i" '.incidentFilters[$i].spec' "$FILE")
 
-    # Build ARM filter spec — needs incidentPlatform and handlingAgent
+    # Build ARM filter spec — pass all fields, override platform/handler/enabled
     platform=$(echo "$spec" | jq -r '.incidentPlatform // .platformType // "AzureMonitor"')
     handling=$(echo "$spec" | jq -r 'if .handlingAgent == "" or .handlingAgent == null then "default" else .handlingAgent end')
     arm_spec=$(echo "$spec" | jq -c --arg p "$platform" --arg h "$handling" \

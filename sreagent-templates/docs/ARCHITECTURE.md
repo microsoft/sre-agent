@@ -47,7 +47,7 @@ sreagent-templates/
 │
 ├── recipes/                                ← Recipe templates
 │   ├── azmon-lawappinsights/                 Azure Monitor alert response
-│   ├── httptrigger-dynatrace/                Dynatrace MCP + webhook bridge
+│   ├── dynatrace-mcp/                Dynatrace MCP connector
 │   └── pagerduty-law-vmcosmos/               PagerDuty + VM/CosmosDB investigation
 │
 ├── tests/                                  ← Dry-run + e2e test suite

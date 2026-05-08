@@ -1,5 +1,5 @@
 {
-  "_scenario": "httptrigger-dynatrace",
+  "_scenario": "dynatrace-mcp",
   "_description": "Dynatrace MCP connector for investigating application errors with skills and subagents.",
   "_prerequisites": [
     "Dynatrace environment with OTEL ingest configured",

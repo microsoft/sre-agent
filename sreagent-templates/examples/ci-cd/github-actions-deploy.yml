@@ -24,7 +24,7 @@ on:
         options:
           - azmon-lawappinsights
           - pagerduty-law-vmcosmos
-          - httptrigger-dynatrace
+          - dynatrace-mcp
       agent_name:
         description: 'Agent name'
         required: true
@@ -81,9 +81,9 @@ jobs:
 
       # ── Dynatrace example ──
       - name: Create agent config (Dynatrace)
-        if: inputs.recipe == 'httptrigger-dynatrace'
+        if: inputs.recipe == 'dynatrace-mcp'
         run: |
-          ./bin/new-agent.sh --recipe httptrigger-dynatrace \
+          ./bin/new-agent.sh --recipe dynatrace-mcp \
             --set agentName=${{ inputs.agent_name }} \
             --set resourceGroup=${{ inputs.resource_group }} \
             --set location=${{ inputs.location }} \

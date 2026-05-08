@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# tests/test-dry-run-dynatrace.sh — httptrigger-dynatrace: 4 backends × dry-run
+# tests/test-dry-run-dynatrace.sh — dynatrace-mcp: 4 backends × dry-run
 set -uo pipefail
 cd "$(dirname "$0")/.."
 REPORT="/tmp/test-dry-run-dynatrace.txt"; > "$REPORT"
 source tests/lib/test-helpers.sh
 
-RECIPE="httptrigger-dynatrace"
+RECIPE="dynatrace-mcp"
 EXTRA_SETS="lawId=/sub/fake;appInsightsId=/sub/fake;appInsightsAppId=fake;dtTenant=fake;dtToken=fake;githubRepo=https://github.com/fake/repo"
 EXP_SKILLS=1 EXP_SA=1 EXP_HOOKS=1 EXP_PROMPTS=1 EXP_SCHED=0 EXP_FILTERS=0 EXP_PLAT=0 EXP_HT=0
 OUT="/tmp/dryrun-${RECIPE}"
