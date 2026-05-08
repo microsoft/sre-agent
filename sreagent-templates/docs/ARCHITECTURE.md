@@ -18,6 +18,7 @@ sreagent-templates/
 │   ├── clone-agent.sh                        Clone agent: export → validate → deploy
 │   ├── diff-agent.sh                         Compare config vs live agent
 │   ├── verify-agent.sh                       22-point verification against live agent
+│   ├── check-prerequisites.sh                Verify required tools are installed
 │   ├── telemetry.sh                          Optional usage telemetry
 │   └── ps/                                 ← PowerShell equivalents
 │       ├── New-Agent.ps1

@@ -46,6 +46,8 @@ cd sre-agent/sreagent-templates
 
 Each recipe README has the full parameter list, example values, and post-deploy steps.
 
+> **Want a recipe for a different platform?** [Open a recipe request](https://github.com/microsoft/sre-agent/issues/new?template=recipe_request.md).
+
 ## CLI
 
 | Command | Purpose |

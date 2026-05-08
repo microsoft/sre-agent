@@ -629,7 +629,7 @@ $IM_TYPE = $AGENT_JSON | jq -r '.properties.incidentManagementConfiguration.type
 if ($IM_TYPE -and $IM_TYPE -ne 'None' -and $IM_TYPE -ne 'null') {
     $INCIDENT_PLATFORMS = jq -nc --arg t $IM_TYPE '[{name: ($t | ascii_downcase), spec: {platformType: $t}}]'
 }
-foreach ($platformType in @('azmonitor', 'pagerduty', 'servicenow', 'icm')) {
+foreach ($platformType in @('azmonitor', 'pagerduty', 'servicenow')) {
     $result = Invoke-DpGet "/api/v2/incidents/indexing/${platformType}/configuration" 2>$null
     if ($result -and $result -ne 'null') {
         $entry = $result | jq -c --arg t $platformType '{name: $t, spec: (.spec // .properties // .)}' 2>$null
