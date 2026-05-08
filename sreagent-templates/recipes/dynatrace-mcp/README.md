@@ -55,7 +55,7 @@ Dynatrace MCP connector for investigating application errors with skills and sub
 |---|---|---|
 | existingUamiId | `/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/<name>` | Use an existing UAMI instead of creating a new one. Portal → Managed Identities → Properties → Resource ID |
 | existingAgentAppInsightsId | `/subscriptions/<sub>/resourceGroups/<rg>/providers/microsoft.insights/components/<name>` | Use an existing Application Insights for agent telemetry instead of creating a new one. Portal → App Insights → Properties → Resource ID |
-| modelProvider | `Anthropic`, `MicrosoftFoundry` | `Anthropic` = Claude, `MicrosoftFoundry` = Azure OpenAI. Default: `Anthropic` |
+| modelProvider | `Anthropic`, `Azure OpenAI` | Default: `Anthropic` |
 
 ## What You Get
 

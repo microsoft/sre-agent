@@ -207,6 +207,21 @@ cp -r "${RECIPE_DIR}/." "$OUTPUT/"
 jq 'del(._recipe, ._description, ._prerequisites, ._prompts)' "${OUTPUT}/agent.json" > "${OUTPUT}/agent.json.tmp"
 mv "${OUTPUT}/agent.json.tmp" "${OUTPUT}/agent.json"
 
+# Map friendly names to API values
+_map_value() {
+  local v="$1"
+  case "$v" in
+    "Azure OpenAI"|"azure openai"|"AzureOpenAI") echo "MicrosoftFoundry" ;;
+    *) echo "$v" ;;
+  esac
+}
+# Apply mappings to collected values
+MAPPED_FILE=$(mktemp /tmp/mapped.XXXXXX)
+while IFS="=" read -r key val || [[ -n "$key" ]]; do
+  echo "${key}=$(_map_value "$val")" >> "$MAPPED_FILE"
+done < "$VALUES_FILE"
+mv "$MAPPED_FILE" "$VALUES_FILE"
+
 # Replace {{placeholders}} with user values in all JSON and YAML files
 for file in $(find "$OUTPUT" -name '*.json' -o -name '*.yaml' -type f); do
   content=$(cat "$file")
@@ -332,8 +347,8 @@ if [[ "$_model" == "Anthropic" ]]; then
       echo "     Some organizations block Anthropic in EU/regulated regions due to"
       echo "     data residency policy. If you see 'Anthropic is not available due to"
       echo "     your organization's data residency policy' in the portal, switch to"
-      echo "     MicrosoftFoundry (Azure OpenAI):"
-      echo "       Edit ${OUTPUT}/agent.json → set \"defaultModelProvider\": \"MicrosoftFoundry\""
+      echo "     Azure OpenAI:"
+      echo "       Edit ${OUTPUT}/agent.json → set \"defaultModelProvider\": \"Azure OpenAI\""
       echo
       ;;
   esac

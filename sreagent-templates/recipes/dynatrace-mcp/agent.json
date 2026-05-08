@@ -53,10 +53,10 @@
       "default": ""
     },
     "modelProvider": {
-      "ask": "AI model provider (Anthropic = Claude, MicrosoftFoundry = Azure OpenAI)",
+      "ask": "AI model provider",
       "options": [
         "Anthropic",
-        "MicrosoftFoundry"
+        "Azure OpenAI"
       ],
       "default": "Anthropic"
     },
