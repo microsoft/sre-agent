@@ -1,386 +1,77 @@
-# Azure SRE Agent — Resources
+# 🚀 Welcome to the Azure SRE Agent GitHub Repository!
+We’re excited to launch this space for collaboration around the [SRE Agent](https://learn.microsoft.com/en-us/azure/sre-agent/overview), a key tool in our mission to improve service reliability and operational excellence. 
 
-This repository is the official community hub for Azure SRE Agent. Here you'll find:
+## This repository is a community-driven hub where you can:
+* 🐛 Report bugs encountered while using the SRE Agent 
+* 💡 Request features that would improve usability or functionality
+* ❓ Share challenges or feedback related to using the product 
+* 🤝 Engage with the team and community to help shape the future of the SRE Agent 
 
-- **🐛 Report Issues** — File bugs, feature requests, and feedback via [GitHub Issues](https://github.com/microsoft/sre-agent/issues)
-- **📚 Resources** — Curated links to docs, videos, blogs, and community content for Azure SRE Agent
-- **🧪 Labs** — Hands-on labs and sample environments to deploy, break, and fix apps with Azure SRE Agent (see the [`labs/`](labs/) folder)
+> [!NOTE]
+> This repo is not intended for integration-related issues. For those, please use the appropriate internal or partner support channels. 
 
----
+## 🧼 Hygiene Guidelines for Creating Issues
 
-## Quick Links
+To help us keep things organized and productive, please follow these simple rules:
+* Be descriptive: Include steps to reproduce, logs, screenshots, and thread ID where applicable.  
+* Use labels: Tag your issue appropriately (bug, feature-request, usability, etc.) to help with triage. 
+* Avoid duplicates: Search existing issues before creating a new one. 
+* Stay constructive: We welcome feedback, but please keep it respectful and focused. 
+* No personal data: Please do not include any personally identifiable information (PII) in your issue. 
 
-| Resource | Link |
-|----------|------|
-| Product Home Page | <https://www.azure.com/sreagent> |
-| Portal (Create & Manage Agents) | <https://aka.ms/sreagent> |
-| Documentation | <https://aka.ms/sreagent/newdocs> |
-| Pricing & Billing | <https://aka.ms/sreagent/pricing> |
-| All Blogs | <https://aka.ms/sreagent/blog> |
-| YouTube Channel | <https://aka.ms/sreagent/youtube> |
-| GitHub — Azure SRE Agent (Report Issues, Official Labs & Resources) | <https://aka.ms/sreagent/github> |
-| Hands-on Lab | <https://aka.ms/sreagent/lab> |
-| GitHub — Official Plugins | <https://github.com/Azure/sre-agent-plugins> |
-| Tech Community Discussions | <https://aka.ms/sreagent/discussions> |
-| Agentic DevOps Live | <https://aka.ms/agenticdevopslive> |
-| X (Twitter) | <https://x.com/azuresreagent> |
+## 🧭 How to Find the Thread ID in SRE Agent
 
----
+Your direct chat interaction or incident is tracked as a thread in SRE Agent. Including the Thread ID in your GitHub issue helps us investigate quickly and accurately. A thread ID is a hex string like `50f7521d-dfee-487e-9188-5abdc8adde91`.
 
-## Featured Videos
+### 🔍 How to Locate the Thread ID:
+**Get thread ID for threads under "Activities" view <br />**
+<img width="722" height="126" alt="Screenshot 2025-10-09 at 3 22 07 PM" src="https://github.com/user-attachments/assets/62f6ea4b-3494-4f67-a85e-d16611f35da7" /> <br />
 
-### What is Azure SRE Agent — Official Overview
-The official Microsoft Azure product overview — a concise explainer of what Azure SRE Agent is, how it works, and the problems it solves.
-🔗 <https://www.youtube.com/watch?v=6vDrThUjDOc> · 6,156 views · 158 likes
 
-### Microsoft AI SRE Agent: Fixing Bugs While You Sleep
-Satya Nadella highlights Azure SRE Agent as a key example of AI-driven operations transforming how engineering teams manage reliability at scale.
-🔗 <https://www.youtube.com/watch?v=3hPeKDtLvPg> · 2,548 views · 26 likes
 
-### Azure SRE Agent: Less Toil, More Uptime, Maximum Innovation — Azure Friday
-Scott Hanselman walks through Azure SRE Agent on Azure Friday, showing how it reduces operational toil and lets teams focus on innovation.
-🔗 <https://www.youtube.com/watch?v=5c9pl8_DI3w> · 4,264 views · 75 likes
+**Get thread ID for threads under Incident Management view <br />** 
+step 1: <br />
+<img width="670" height="108" alt="Screenshot 2025-10-09 at 3 21 51 PM" src="https://github.com/user-attachments/assets/18794670-499b-4c74-aedd-0541621d78e6" /> <br />
 
-### Root Cause Analysis with Code Context: Azure SRE Agent + GitHub Integration — GA Launch
-The GA launch video demonstrating Azure SRE Agent performing root cause analysis with full code context through deep GitHub integration.
-🔗 <https://www.youtube.com/watch?v=1vKoxPeep_M> · 582 views · 25 likes
 
-### Use Azure SRE Agent to Automate Tasks and Increase Site Reliability (DEM550) — Build
-Deep-dive Build session covering end-to-end SRE Agent capabilities: automated investigation, remediation, proactive monitoring, and custom hooks.
-🔗 <https://www.youtube.com/watch?v=bK3SIQoE_Nc> · 12,294 views · 129 likes
 
----
 
-## More Videos
+step2: <br />
+<img width="747" height="108" alt="Screenshot 2025-10-09 at 3 21 37 PM" src="https://github.com/user-attachments/assets/09dbaf67-49f5-4346-b5eb-6624f4c5b803" /> <br />
 
-- [Fix It Before They Feel It: Proactive .NET Reliability with Azure SRE Agent](https://www.youtube.com/watch?v=Kx_6SB-mhgg) — dotnet · 1,466 views
-- [Azure SRE Agent - Incident Management with PagerDuty](https://www.youtube.com/watch?v=5wrArcKzUaI) — Azure SRE Agent (official) · 547 views
-- [Azure SRE Agent - Your 24/7 Automated Response Team](https://www.youtube.com/watch?v=xNTvYAoWvLU) — Mariusz Ferdyn · 313 views
-- [Azure's New SRE Agent Is INSANE — Here's Why you Should Pay Attention](https://www.youtube.com/watch?v=2QdTfBZiASc) — TechTalks with Gil · 249 views
-- [SRE Agent Series: What Is Azure SRE Agent and How to Create One Step by Step](https://www.youtube.com/watch?v=dvkfsbF0wmM) — JBSWiki · 204 views
-- [Azure SRE Agent Explained](https://www.youtube.com/watch?v=B93WmYLQ6PE) — Cloud Talk with Jonnychipz · 160 views
-- [SRE Agent Series: I Let an Azure SRE Agent Manage My Subscription — Here's What Happened](https://www.youtube.com/watch?v=rfwRvTTej-o) — JBSWiki · 143 views
-- [Agentic DevOps: Azure SRE Agent with GitHub Copilot Coding Agent demo](https://www.youtube.com/watch?v=ZrpxNkUQ0C8) — Jorge Balderas · new
 
----
 
-## Blogs
 
-### Post-GA (April 2026)
 
-- **[Event-Driven IaC Operations: Terraform Drift Detection via HTTP Triggers](https://techcommunity.microsoft.com/blog/appsonazureblog/event-driven-iac-operations-with-azure-sre-agent-terraform-drift-detection-via-h/4512233)** — Vineela Suri · 10 min read. End-to-end pipeline: Terraform Cloud webhook triggers SRE Agent to classify drift as benign/risky/critical, correlate with incidents, and ship a fix — including a "DO NOT revert" recommendation that prevents turning a mitigated incident into an outage.
-- **[Managing Multi-Tenant Azure Resources with SRE Agent and Lighthouse](https://techcommunity.microsoft.com/blog/appsonazureblog/managing-multi%E2%80%91tenant-azure-resource-with-sre-agent-and-lighthouse/4511789)** — Pranab Mandal · 6 min read. Step-by-step guide to configuring Azure Lighthouse delegation so a single SRE Agent can monitor and manage resources across multiple tenants — covering ARM templates, RBAC roles, and managed identity setup.
-- **[New in Azure SRE Agent: Log Analytics and Application Insights Connectors](https://techcommunity.microsoft.com/blog/appsonazureblog/new-in-azure-sre-agent-log-analytics-and-application-insights-connectors/4509649)** — Dalibor Kovacevic · 3 min read. Native MCP-backed connectors for Log Analytics and App Insights — connect a workspace, auto-grant RBAC, and the agent queries ContainerLog, Syslog, exceptions, and traces directly during investigations.
-- **[Azure Monitor in Azure SRE Agent: Autonomous Alert Investigation and Intelligent Merging](https://techcommunity.microsoft.com/blog/appsonazureblog/azure-monitor-in-azure-sre-agent-autonomous-alert-investigation-and-intelligent-/4509069)** — Vineela Suri · 9 min read. Full walkthrough of Azure Monitor integration: Incident Response Plans, alert merging (7 firings → 1 thread), auto-resolve trade-offs, and a live AKS + Redis scenario where the agent fixes a bad credential autonomously.
-- **[3 Ways to Get More from Azure SRE Agent](https://techcommunity.microsoft.com/blog/appsonazureblog/3-ways-to-get-more-from-azure-sre-agent/4508993)** — dchelupati · 4 min read. Practical cost and value tips: start narrow with incident routing, replace high-frequency polling with push/batch patterns, and keep scheduled task threads fresh with "new chat thread for each run."
-- **[How We Build and Use Azure SRE Agent with Agentic Workflows](https://techcommunity.microsoft.com/blog/appsonazureblog/how-we-build-and-use-azure-sre-agent-with-agentic-workflows/4508753)** — Shamir AbdulAziz · 6 min read. Customer Zero blog: how Microsoft embedded agents across the SDLC to build SRE Agent — 35K+ incidents handled, 50K+ developer hours saved, App Service time-to-mitigation down from 40.5 hours to 3 minutes.
-- **[An Update to the Active Flow Billing Model](https://aka.ms/sreagent/pricing/blog)** — Mayunk Jain · 3 min read. Active flow billing moves from time-based to token-based usage, with per-model-provider AAU rates. Always-on pricing unchanged at 4 AAUs per agent-hour.
+## 📝 Issue Template
+When creating a new issue, please use the following format: 
 
-### GA Launch (March 2026)
+**Issue Description** 
+Briefly describe the problem or request. 
 
-- **[Announcing General Availability for the Azure SRE Agent](https://aka.ms/sreagent/ga)** — Mayunk Jain · 4 min read. GA announcement: 1,300+ agents deployed internally at Microsoft, 35K+ incidents mitigated, 20K+ engineering hours saved. Covers deep context, built-in computation, memory and learning, and Ecolab customer story.
-- **[What's New in Azure SRE Agent in the GA Release](https://aka.ms/sreagent/blog/whatsnewGA)** — dchelupati · 2 min read. Companion to the GA announcement: redesigned onboarding, deep context, code interpreter, memory, skills, subagents, Python tools, agent hooks, and MCP connectors.
-- **[The Agent That Investigates Itself (SRE4SRE)](https://aka.ms/sreagent/blogs/sre4sre)** — Sanchit Mehta · 11 min read. Deep technical post — the SRE Agent investigating its own KV cache regression, demonstrating how the team uses the product to maintain the product.
-- **[Azure SRE Agent Now Builds Expertise Like Your Best Engineer (Deep Context)](https://aka.ms/sreagent/blogs/deepcontextblog)** — dchelupati · 6 min read. How the agent operates with continuous access to source code, persistent memory across investigations, and background intelligence that runs when nobody is asking questions.
-- **[What It Takes to Give SRE Agent a Useful Starting Point (Onboarding)](https://aka.ms/sreagent/blogs/onboardingtosrea)** — Dalibor Kovacevic · 10 min read. Designing the guided onboarding flow: connecting code, logs, incidents, Azure resources, and knowledge files so a new agent becomes useful on day one.
-- **[Agent Hooks: Production-Grade Governance for Azure SRE Agent](https://aka.ms/sreagent/blogs/agenthooks)** — Vineela Suri · 9 min read. Governance primitives for controlling agent behavior: stop hooks, PostToolUse hooks, and global hooks that enforce approval gates and safety boundaries.
-- **[An AI-Led SDLC: Building an End-to-End Agentic Software Development Lifecycle with Azure and GitHub](https://techcommunity.microsoft.com/blog/appsonazureblog/an-ai-led-sdlc-building-an-end-to-end-agentic-software-development-lifecycle-wit/4491896)** — owaino · 16 min read. Full agentic SDLC walkthrough: Spec-Kit → GitHub Coding Agent → Code Quality → CI/CD → SRE Agent — with the SRE Agent closing the loop by opening GitHub issues for the coding agent to fix.
+**Agent Name** 
+name of Agent
 
-### Pre-GA (December 2025)
+**Subscription ID**
+subscription in which agent is deployed 
 
-- **[Context Engineering: Lessons from Building Azure SRE Agent](https://techcommunity.microsoft.com/blog/appsonazureblog/context-engineering-lessons-from-building-azure-sre-agent/4481200)** — Sanchit Mehta · 8 min read. Engineering lessons: started with 100+ tools and 50+ specialized agents, ended with 5 core tools and generalist agents — why less is more in agent design.
+**Region**
+Region where agent is deployed 
 
----
+**Resource group** 
+For Agent deployment related issues, provide the resource group in which it was created
 
-## GitHub Repos
+**Thread ID** 
+Paste the thread ID from the SRE Agent portal (e.g., 50f7521d-dfee-487e-9188-5abdc8adde91) 
 
-| Repo | Stars | Description |
-|------|------:|-------------|
-| [microsoft/sre-agent](https://github.com/microsoft/sre-agent) | 83 | Official hands-on lab — sample environments, walkthroughs, and prompt guides |
-| [matthansen0/azure-sre-agent-sandbox](https://github.com/matthansen0/azure-sre-agent-sandbox) | 52 | Fully automated sandbox deployment with AKS break-fix scenarios |
-| [paulasilvatech/Agentic-Ops-Dev](https://github.com/paulasilvatech/Agentic-Ops-Dev) | 23 | Agentic Operations & Observability Workshop |
-# Azure SRE Agent Hands-On Lab
+**Steps to Reproduce** 
+1. Describe the action you took 
+2. Mention the resource or Azure service (if involved)
+3. Describe what you expected vs. what happened
+4. include  error messages experienced by you in Incident or chat threads or ARM deployment error details or HTTP status codes
 
-Deploy an Azure SRE Agent connected to a sample application with a single `azd up` command. Watch it diagnose and remediate issues autonomously.
+**Expected Behavior** 
+What should happen? 
 
-**Learn more:** [What is Azure SRE Agent?](https://sre.azure.com/docs/overview)
-
-## Architecture
-
-<p align="center">
-  <img src="labs/starter-lab/docs/architecture.svg" alt="Lab Architecture" width="960"/>
-</p>
-
-## Prerequisites
-
-### Required Tools
-
-| Tool | macOS | Windows |
-|------|-------|---------|
-| [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) 2.60+ | `brew install azure-cli` | `winget install Microsoft.AzureCLI` |
-| [Azure Developer CLI](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) 1.9+ | `brew install azd` | `winget install Microsoft.Azd` |
-| [Git](https://git-scm.com/) 2.x | `brew install git` | `winget install Git.Git` (includes Git Bash) |
-| [Python](https://python.org) 3.10+ | `brew install python3` | `winget install Python.Python.3.12` |
-
-> **Windows note:** After installing Python, disable the Windows Store app aliases:
-> **Settings → Apps → Advanced app settings → App execution aliases** → turn OFF `python.exe` and `python3.exe`
-
-### Azure Requirements
-
-- Active Azure subscription
-- **Owner** role on the subscription (needed for RBAC role assignments)
-- Register the resource provider:
-  ```bash
-  az provider register -n Microsoft.App --wait
-  ```
-
-### Optional
-
-- GitHub account (for code search and issue triage scenarios — uses OAuth sign-in, or a [fine-grained PAT](https://github.com/settings/personal-access-tokens/new) scoped to your fork with `Contents:Read`, `Issues:Read+Write`, `Metadata:Read` for least-privilege access)
-
-## Quick Start
-
-### Check prerequisites
-
-Run the prereqs script to verify everything is installed:
-
-```bash
-# macOS/Linux
-bash scripts/prereqs.sh
-
-# Windows (Git Bash or CMD)
-"C:\Program Files\Git\bin\bash.exe" scripts/prereqs.sh
-```
-
-### macOS / Linux
-
-```bash
-# 1. Clone the repo
-git clone https://github.com/dm-chelupati/sre-agent-lab.git
-cd sre-agent-lab
-git submodule update --init --recursive
-
-# 2. Sign in to Azure
-az login
-azd auth login
-
-# 3. Create environment and deploy
-azd env new sre-lab
-azd up
-# Select your subscription and eastus2 as the region
-```
-
-### Windows
-
-```cmd
-REM 1. Clone the repo (in CMD or PowerShell)
-git clone https://github.com/dm-chelupati/sre-agent-lab.git
-cd sre-agent-lab
-git submodule update --init --recursive
-
-REM 2. Sign in to Azure
-az login
-azd auth login
-
-REM 3. Create environment and deploy
-azd env new sre-lab
-azd up
-
-REM If post-provision fails with 'bash not found' or 'Python not found':
-set PATH=%PATH%;C:\Users\%USERNAME%\AppData\Local\Programs\Python\Python312
-"C:\Program Files\Git\bin\bash.exe" scripts/post-provision.sh
-```
-
-Deployment takes ~8-12 minutes.
-
-## What Gets Deployed
-
-### Azure Infrastructure (via Bicep)
-
-| Resource | Service | Purpose | Docs |
-|----------|---------|---------|------|
-| SRE Agent | `Microsoft.App/agents` | AI agent for incident investigation | [Overview](https://sre.azure.com/docs/overview) |
-| Grubify API | Azure Container Apps | Sample app to monitor | |
-| Grubify Frontend | Azure Container Apps | Sample app UI | |
-| Log Analytics | `Microsoft.OperationalInsights` | Log storage for KQL queries | [Azure Observability](https://sre.azure.com/docs/capabilities/diagnose-azure-observability) |
-| App Insights | `Microsoft.Insights` | Request tracing and exceptions | |
-| Alert Rules | `Microsoft.Insights/metricAlerts` | HTTP 5xx and error log alerts | |
-| Managed Identity | `Microsoft.ManagedIdentity` | Agent identity for Azure access | [Permissions](https://sre.azure.com/docs/tutorials/agent-config/manage-permissions) |
-| Container Registry | `Microsoft.ContainerRegistry` | Grubify container images | |
-
-### RBAC Roles Assigned
-
-| Role | Scope | Purpose |
-|------|-------|---------|
-| SRE Agent Administrator | Agent resource | User can manage agent via data plane APIs | 
-| Reader | Resource group | Agent can read all resources |
-| Monitoring Reader | Resource group | Agent can read metrics and alerts |
-| Log Analytics Reader | Log Analytics workspace | Agent can query logs via KQL |
-
-See: [Manage Permissions](https://sre.azure.com/docs/tutorials/agent-config/manage-permissions)
-
-### SRE Agent Configuration (via post-provision script)
-
-| Component | Purpose | Docs |
-|-----------|---------|------|
-| Knowledge Base | HTTP error runbook, app architecture, incident template | [Memory & Knowledge](https://sre.azure.com/docs/concepts/memory) |
-| incident-handler subagent | Investigates alerts using logs, metrics, runbooks | [Custom Agents](https://sre.azure.com/docs/concepts/subagents) |
-| Response Plan | Routes HTTP 500 alerts to incident-handler | [Response Plans](https://sre.azure.com/docs/capabilities/incident-response-plans) |
-| Azure Monitor | Incident platform — alerts flow to the agent | [Incident Platforms](https://sre.azure.com/docs/concepts/incident-platforms) |
-| GitHub OAuth connector | Code search and issue management (optional) | [Connectors](https://sre.azure.com/docs/concepts/connectors) |
-| code-analyzer subagent | Source code root cause analysis | [Custom Agents](https://sre.azure.com/docs/concepts/subagents) |
-| issue-triager subagent | Automated issue triage from runbook | [Custom Agents](https://sre.azure.com/docs/concepts/subagents) |
-
-> **Note on GitHub tools:** GitHub OAuth tools (code search, issue management) are **built-in native tools**, not MCP tools. Once the GitHub OAuth connector is set up, all agents — including subagents — get access to GitHub tools automatically through global settings. No explicit `mcp_tools` assignment is needed in subagent YAML. This is different from MCP connector tools (Datadog, Splunk, etc.) which require explicit `mcp_tools` assignment.
-| Scheduled Task | Triage customer issues every 12 hours | [Scheduled Tasks](https://sre.azure.com/docs/capabilities/scheduled-tasks) |
-| Code Repo | Agent indexes the Grubify source code | [Deep Context](https://sre.azure.com/docs/concepts/workspace-tools) |
-
-## Post-Deployment
-
-### Re-run the setup script
-
-```bash
-# Full re-run (rebuilds container images + re-uploads everything)
-./scripts/post-provision.sh
-
-# Skip container image builds (just update KB, subagents, response plan)
-./scripts/post-provision.sh --retry
-
-# Windows: run from CMD with Python in PATH
-set PATH=%PATH%;C:\Users\%USERNAME%\AppData\Local\Programs\Python\Python312
-"C:\Program Files\Git\bin\bash.exe" scripts/post-provision.sh --retry
-```
-
-### Manual container deploy (Windows fallback)
-
-If the script deploys images but the app still shows the default page:
-
-```cmd
-for /f "tokens=*" %a in ('azd env get-value AZURE_CONTAINER_REGISTRY_NAME') do set ACR=%a
-for /f "tokens=*" %a in ('azd env get-value CONTAINER_APP_NAME') do set APP=%a
-for /f "tokens=*" %a in ('azd env get-value FRONTEND_APP_NAME') do set FE=%a
-az containerapp update --name %APP% --resource-group rg-sre-lab --image %ACR%.azurecr.io/grubify-api:latest
-az containerapp update --name %FE% --resource-group rg-sre-lab --image %ACR%.azurecr.io/grubify-frontend:latest
-```
-
-## Verify Setup
-
-After deployment completes, open your agent at [sre.azure.com](https://sre.azure.com) and click **Full setup**. You should see green checkmarks on:
-
-| Card | Expected Status |
-|------|----------------|
-| **Code** | ✅ 1 repository |
-| **Incidents** | ✅ Connected to Azure Monitor |
-| **Azure resources** | ✅ 1 resource group added |
-| **Knowledge files** | ✅ 1 file |
-
-> **Checkpoint:** If any card is missing a checkmark, re-run the post-provision script: `bash scripts/post-provision.sh --retry`
-
-Once verified, click **"Done and go to agent"** to open the agent chat and start the team onboarding conversation.
-
-### Team Onboarding
-
-The agent opens a **"Team onboarding"** thread automatically. It will:
-
-1. **Explore your connected context** — reads the code repository, Azure resources, and knowledge files you connected during setup
-2. **Interview you about your team** — ask about your team structure, on-call rotation, services you own, and escalation paths
-
-Since the agent already has context from setup, try asking it questions:
-
-> *"What do you know about the Grubify app architecture?"*
->
-> *"Summarize the HTTP errors runbook"*
->
-> *"What Azure resources are in my resource group?"*
-
-The agent saves your team information to persistent memory and references it in every future investigation.
-
-> **Tip:** Ask *"What should I do next?"* for personalized recommendations based on what's connected.
-
-## Lab Scenarios
-
-### Scenario 1: IT Operations (No GitHub required)
-
-Break the app and watch the agent investigate:
-
-```bash
-./scripts/break-app.sh     # macOS/Linux
-# Windows: "C:\Program Files\Git\bin\bash.exe" scripts/break-app.sh
-```
-
-Then open [sre.azure.com](https://sre.azure.com) → Incidents to watch the agent:
-1. Detect the Azure Monitor alert
-2. Query Log Analytics for error patterns
-3. Reference the HTTP errors runbook
-4. Apply remediation (restart/scale)
-5. Summarize with root cause and evidence
-
-### Scenario 2: Developer (Requires GitHub)
-
-Ask the agent to search source code for root causes:
-- File:line references to problematic code
-- Correlation of production errors to code changes
-- Suggested fixes with before/after examples
-
-### Scenario 3: Workflow Automation (Requires GitHub)
-
-Create sample support issues and let the agent triage them:
-
-```bash
-./scripts/create-sample-issues.sh <owner/repo>
-```
-
-The agent classifies issues (Documentation, Bug, Feature Request), applies labels, and posts triage comments following the runbook.
-
-## Adding GitHub Later
-
-After initial setup, add GitHub by signing in via the OAuth URL:
-
-```bash
-./scripts/setup-github.sh   # macOS/Linux
-# Windows: "C:\Program Files\Git\bin\bash.exe" scripts/setup-github.sh
-```
-
-> **Security tip:** The OAuth flow requests broad repo access. For least-privilege,
-> use a [fine-grained PAT](https://github.com/settings/personal-access-tokens/new)
-> scoped to your grubify fork only with permissions: `Contents:Read`, `Issues:Read+Write`, `Metadata:Read`.
-> ```bash
-> export GITHUB_PAT=github_pat_xxxx
-> ./scripts/setup-github.sh
-> ```
-
-## Cleanup
-
-```bash
-azd down --purge
-```
-
-## Troubleshooting
-
-| Issue | Fix |
-|-------|-----|
-| `'bash' is not recognized` (Windows) | Run via: `"C:\Program Files\Git\bin\bash.exe" scripts/post-provision.sh` |
-| `Python was not found` (Windows) | Install: `winget install Python.Python.3.12`, disable App execution aliases |
-| `curl: error encountered when reading a file` | Python isn't in Git Bash PATH: `export PATH="$PATH:/c/Users/$USER/AppData/Local/Programs/Python/Python312"` |
-| `roleAssignments/write` denied | Need Owner role on subscription. Check: `az role assignment list --assignee $(az ad signed-in-user show --query id -o tsv)` |
-| `Microsoft.App not registered` | Run: `az provider register -n Microsoft.App --wait` |
-| Grubify shows default page after deploy | Run manual deploy commands (see Post-Deployment section above) |
-| Post-provision 405 on response plan | Wait 30s and run: `./scripts/post-provision.sh --retry` |
-| Agent can't create issues on forked repo | Forks have Issues disabled by default. Enable: repo Settings → Features → Issues ✅, or run `gh api -X PATCH repos/OWNER/REPO -f has_issues=true` |
-
-## Regions
-
-SRE Agent is available in: `eastus2`, `swedencentral`, `australiaeast`
-
-## Links
-
-- [Azure SRE Agent Documentation](https://sre.azure.com/docs)
-- [Getting Started Guide](https://sre.azure.com/docs/get-started/create-and-setup)
-- [Connectors](https://sre.azure.com/docs/concepts/connectors)
-- [Custom Agents](https://sre.azure.com/docs/concepts/subagents)
-- [Incident Response](https://sre.azure.com/docs/capabilities/incident-response)
-- [Azure Observability](https://sre.azure.com/docs/capabilities/diagnose-azure-observability)
-
-## License
-
-MIT
+**Actual Behavior** 
+What actually happened 
