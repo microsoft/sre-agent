@@ -20,7 +20,7 @@ This repository is the official community hub for Azure SRE Agent. Here you'll f
 | YouTube Channel | <https://aka.ms/sreagent/youtube> |
 | GitHub — Azure SRE Agent (Report Issues, Official Labs & Resources) | <https://aka.ms/sreagent/github> |
 | Hands-on Lab | <https://aka.ms/sreagent/lab> |
-| Region Availability | <https://aka.ms/sreagent/region> |
+| Request a New Region | <https://aka.ms/sreagent/region> |
 | GitHub — Official Plugins | <https://github.com/Azure/sre-agent-plugins> |
 | Tech Community Discussions | <https://aka.ms/sreagent/discussions> |
 | Agentic DevOps Live | <https://aka.ms/agenticdevopslive> |
