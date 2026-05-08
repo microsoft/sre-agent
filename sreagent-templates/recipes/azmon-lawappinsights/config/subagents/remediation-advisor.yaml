@@ -1,0 +1,17 @@
+metadata:
+  name: remediation-advisor
+spec:
+  instructions: subagents/remediation-advisor.instructions.md
+  handoffDescription: 'Recommends remediation actions based on investigation findings:
+    restart, scale, rollback, or config changes.'
+  handoffs: []
+  tools:
+  - RunAzCliReadCommands
+  - RunAzCliWriteCommands
+  - QueryAppInsightsUsingAppId
+  - SearchMemory
+  agentType: Autonomous
+  temperature: 0.2
+  enableSkills: true
+  allowedSkills:
+  - triage-app-errors

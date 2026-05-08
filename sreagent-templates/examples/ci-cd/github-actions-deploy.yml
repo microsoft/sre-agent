@@ -1,0 +1,105 @@
+# .github/workflows/deploy-agent.yml
+# Deploy an SRE Agent via GitHub Actions.
+#
+# Setup:
+#   1. Store Azure credentials as a repo secret: AZURE_CREDENTIALS
+#      (service principal JSON from `az ad sp create-for-rbac --role Contributor --scopes /subscriptions/<sub>`)
+#   2. Store connector secrets as repo secrets (e.g., PAGERDUTY_API_KEY, DYNATRACE_BEARER_TOKEN)
+#   3. Set recipe-specific values as repo variables (Settings → Variables → Actions)
+#
+# Trigger: push to main on agents/ path, or manual dispatch.
+
+name: Deploy SRE Agent
+
+on:
+  push:
+    branches: [main]
+    paths: ['agents/**']
+  workflow_dispatch:
+    inputs:
+      recipe:
+        description: 'Recipe name'
+        required: true
+        type: choice
+        options:
+          - azmon-lawappinsights
+          - pagerduty-law-vmcosmos
+          - dynatrace-mcp
+      agent_name:
+        description: 'Agent name'
+        required: true
+      resource_group:
+        description: 'Resource group'
+        required: true
+      location:
+        description: 'Azure region'
+        required: true
+        default: 'eastus2'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # ── PagerDuty example ──
+      - name: Create agent config (PagerDuty)
+        if: inputs.recipe == 'pagerduty-law-vmcosmos'
+        run: |
+          ./bin/new-agent.sh --recipe pagerduty-law-vmcosmos \
+            --set agentName=${{ inputs.agent_name }} \
+            --set resourceGroup=${{ inputs.resource_group }} \
+            --set location=${{ inputs.location }} \
+            --set targetRGs=${{ vars.TARGET_RGS }} \
+            --set accessLevel=Low \
+            --set actionMode=Review \
+            --set lawId=${{ vars.LAW_ID }} \
+            --set pagerdutyApiKey=${{ secrets.PAGERDUTY_API_KEY }} \
+            -o /tmp/agent-config
+
+      # ── Azure Monitor example ──
+      - name: Create agent config (Azure Monitor)
+        if: inputs.recipe == 'azmon-lawappinsights'
+        run: |
+          ./bin/new-agent.sh --recipe azmon-lawappinsights \
+            --set agentName=${{ inputs.agent_name }} \
+            --set resourceGroup=${{ inputs.resource_group }} \
+            --set location=${{ inputs.location }} \
+            --set targetRGs=${{ vars.TARGET_RGS }} \
+            --set accessLevel=Low \
+            --set actionMode=Review \
+            --set appInsightsId=${{ vars.APP_INSIGHTS_ID }} \
+            --set appInsightsAppId=${{ vars.APP_INSIGHTS_APP_ID }} \
+            --set lawId=${{ vars.LAW_ID }} \
+            -o /tmp/agent-config
+
+      # ── Dynatrace example ──
+      - name: Create agent config (Dynatrace)
+        if: inputs.recipe == 'dynatrace-mcp'
+        run: |
+          ./bin/new-agent.sh --recipe dynatrace-mcp \
+            --set agentName=${{ inputs.agent_name }} \
+            --set resourceGroup=${{ inputs.resource_group }} \
+            --set location=${{ inputs.location }} \
+            --set targetRGs=${{ vars.TARGET_RGS }} \
+            --set dtTenant=${{ vars.DT_TENANT }} \
+            --set dtToken=${{ secrets.DYNATRACE_BEARER_TOKEN }} \
+            --set lawId=${{ vars.LAW_ID }} \
+            -o /tmp/agent-config
+
+      # ── Deploy ──
+      - name: Deploy agent
+        run: ./bin/deploy.sh /tmp/agent-config/
+
+      # ── Verify ──
+      - name: Verify deployment
+        run: |
+          SUB=$(az account show --query id -o tsv)
+          ./bin/verify-agent.sh $SUB ${{ inputs.resource_group }} ${{ inputs.agent_name }} \
+            --expected /tmp/agent-config/

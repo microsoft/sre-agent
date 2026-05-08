@@ -1,0 +1,17 @@
+metadata:
+  name: alert-investigator
+spec:
+  instructions: subagents/alert-investigator.instructions.md
+  handoffDescription: Investigates Azure Monitor alerts by correlating App Insights
+    traces, logs, and metrics to identify root cause.
+  handoffs: []
+  tools:
+  - RunAzCliReadCommands
+  - QueryAppInsightsUsingAppId
+  - QueryLogAnalyticsByWorkspaceId
+  - SearchMemory
+  agentType: Autonomous
+  temperature: 0.2
+  enableSkills: true
+  allowedSkills:
+  - investigate-azure-alerts

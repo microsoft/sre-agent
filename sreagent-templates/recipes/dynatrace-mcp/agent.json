@@ -1,0 +1,90 @@
+{
+  "_scenario": "dynatrace-mcp",
+  "_description": "Dynatrace MCP connector for investigating application errors with skills and subagents.",
+  "_prerequisites": [
+    "Dynatrace environment with OTEL ingest configured",
+    "Dynatrace API token with entities.read, events.read, metrics.read scopes",
+    "Dynatrace MCP gateway URL (or self-hosted Dynatrace MCP server)",
+    "GitHub repo with app source code (optional but recommended)",
+    "Azure subscription with target resource groups"
+  ],
+  "_prompts": {
+    "agentName": {
+      "ask": "Agent name",
+      "default": "dynatrace-sre-agent"
+    },
+    "resourceGroup": {
+      "ask": "Resource group for the agent",
+      "default": "sre-agent-rg"
+    },
+    "location": {
+      "ask": "Region",
+      "options": [
+        "eastus2",
+        "swedencentral",
+        "uksouth",
+        "australiaeast"
+      ],
+      "required": true
+    },
+    "targetRGs": {
+      "ask": "Resource groups to monitor (comma-separated)",
+      "required": true
+    },
+    "dtTenant": {
+      "ask": "Dynatrace tenant ID (e.g. abc12345)",
+      "required": true
+    },
+    "dtToken": {
+      "ask": "Dynatrace API token",
+      "required": true,
+      "secret": true
+    },
+    "githubRepo": {
+      "ask": "GitHub repo URL (or leave blank)",
+      "default": ""
+    },
+    "lawId": {
+      "ask": "Log Analytics workspace resource ID (for Azure-side logs, or blank)",
+      "default": ""
+    },
+    "existingUamiId": {
+      "ask": "Existing UAMI resource ID (leave blank to create new)",
+      "default": ""
+    },
+    "modelProvider": {
+      "ask": "AI model provider",
+      "options": [
+        "Anthropic",
+        "GitHubCopilot",
+        "MicrosoftFoundry"
+      ],
+      "default": "Anthropic"
+    },
+    "existingAgentAppInsightsId": {
+      "ask": "Existing App Insights resource ID for agent telemetry (leave blank to create new)",
+      "default": ""
+    }
+  },
+  "identity": {
+    "agentName": "{{agentName}}",
+    "resourceGroup": "{{resourceGroup}}",
+    "subscription": "",
+    "location": "{{location}}",
+    "targetResourceGroups": "{{targetRGs}}"
+  },
+  "access": {
+    "accessLevel": "High",
+    "actionMode": "Review"
+  },
+  "upgradeChannel": "Preview",
+  "defaultModelProvider": "{{modelProvider}}",
+  "monthlyAgentUnitLimit": 10000,
+  "tags": {},
+  "toggles": {
+    "enableWebhookBridge": false,
+    "webhookBridgeTriggerUrl": ""
+  },
+  "existingUamiId": "{{existingUamiId}}",
+  "existingAgentAppInsightsId": "{{existingAgentAppInsightsId}}"
+}

@@ -1,0 +1,14 @@
+# Required roles/credentials for the Dynatrace scenario.
+# deploy.sh processes this after the UAMI is created.
+
+roles:
+  # Dynatrace MCP uses bearer token, not MI
+  - name: Dynatrace API Token
+    type: token
+    env_var: DYNATRACE_BEARER_TOKEN
+    _help: "Dynatrace API token with entities.read, events.read, metrics.read scopes"
+    instructions: |
+      Get a Dynatrace API token:
+      1. Go to https://{{dtTenant}}.apps.dynatrace.com → Settings → Access Tokens
+      2. Create token with scopes: entities.read, events.read, metrics.read
+      3. Add to connectors.secrets.env: DYNATRACE_BEARER_TOKEN=<token>

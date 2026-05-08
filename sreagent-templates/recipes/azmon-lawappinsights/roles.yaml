@@ -1,0 +1,37 @@
+# Required roles/credentials for the generic scenario.
+# deploy.sh processes this after the UAMI is created.
+#
+# Uncomment the connectors you need. deploy.sh will create resources
+# and print setup instructions (consent URLs, az commands, etc.)
+
+roles:
+  # Teams connector — creates API connection, prints consent URL to sign in
+  # Uncomment to enable:
+  # - name: Teams API Connection
+  #   type: api-connection
+  #   api: teams
+
+  # Outlook connector — creates API connection, prints consent URL to sign in
+  # Uncomment to enable:
+  # - name: Outlook API Connection
+  #   type: api-connection
+  #   api: office365
+
+  # GitHub repos — prints OAuth URL or uses GITHUB_PAT env var
+  # Uncomment to enable:
+  # - name: GitHub OAuth
+  #   type: manual
+  #   instructions: |
+  #     To connect GitHub repos, either:
+  #     1. Set GITHUB_PAT env var before deploy: export GITHUB_PAT=ghp_xxx
+  #     2. Or after deploy, open the OAuth URL printed by apply-extras.sh
+
+  # ADO repos — MI+FIC, PAT, or AAD auth
+  # Uncomment to enable:
+  # - name: ADO Authentication
+  #   type: manual
+  #   instructions: |
+  #     To connect ADO repos, set one of these before deploy:
+  #     - PAT:  export ADO_ORG=https://dev.azure.com/myorg ADO_PAT=<pat>
+  #     - AAD:  export ADO_ORG=https://dev.azure.com/myorg ADO_USE_AAD=1
+  #     - MI:   export ADO_ORG=https://dev.azure.com/myorg ADO_USE_MI=1

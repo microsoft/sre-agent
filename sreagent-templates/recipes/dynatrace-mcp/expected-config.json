@@ -1,0 +1,35 @@
+{
+  "_scenario": "dynatrace-mcp",
+  "agent": {
+    "accessLevel": "High",
+    "actionMode": "Review",
+    "upgradeChannel": "Preview",
+    "defaultModelProvider": "Anthropic",
+    "incidentPlatform": "None"
+  },
+  "connectors": [
+    {
+      "name": "log-analytics",
+      "type": "LogAnalytics"
+    },
+    {
+      "name": "dynatrace",
+      "type": "Mcp"
+    }
+  ],
+  "skills": [
+    "investigate-app-errors"
+  ],
+  "subagents": [
+    "dynatrace-investigator"
+  ],
+  "hooks": [
+    "deny-prod-deletes"
+  ],
+  "commonPrompts": [
+    "safety-rules"
+  ],
+  "scheduledTasks": [],
+  "responsePlans": [],
+  "repos": []
+}

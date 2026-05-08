@@ -1,0 +1,4 @@
+name: pagerduty
+spec:
+  platformType: PagerDuty
+  connectionKey: "{{pagerdutyApiKey}}"
