@@ -147,7 +147,7 @@ if ($IsDirectory) {
 
     Write-Header "── Assembling from directory: $InputPath/ ──"
 
-    $AssembleScript = Join-Path $ScriptDir 'Assemble-Agent.ps1'
+    $AssembleScript = Join-Path $BicepDir 'Assemble-Agent.ps1'
     if (-not (Test-Path $AssembleScript)) {
         # Fallback: try bash assemble
         $AssembleScript = Join-Path $BicepDir 'assemble-agent.sh'
@@ -496,7 +496,7 @@ if ($ExtrasFile -and (Test-Path $ExtrasFile -ErrorAction SilentlyContinue)) {
 
     if ($extrasCount -gt 0) {
         Write-Header '── Applying data-plane config (extras) ──'
-        $ApplyExtrasScript = Join-Path $ScriptDir 'Apply-Extras.ps1'
+        $ApplyExtrasScript = Join-Path $BicepDir 'Apply-Extras.ps1'
         if (Test-Path $ApplyExtrasScript) {
             $applyParams = @{
                 Subscription  = $SubscriptionId
