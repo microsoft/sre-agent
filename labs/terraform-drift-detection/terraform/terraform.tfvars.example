@@ -1,0 +1,20 @@
+# ---------------------------------------------------------------
+# Copy this file to terraform.tfvars and fill in your values:
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# HOW TO FIND YOUR SUBSCRIPTION ID:
+#   Azure Portal > Subscriptions > copy the "Subscription ID" column
+#   Or run: az account show --query id -o tsv
+# ---------------------------------------------------------------
+
+subscription_id       = "00000000-0000-0000-0000-000000000000"
+
+# Azure region — pick one close to you
+location              = "eastus2"
+
+# Short prefix for resource names (keep it lowercase, no spaces)
+prefix                = "iacdemo"
+
+# Leave this as placeholder for now — you'll update it in Step 5 after
+# creating the HTTP Trigger in SRE Agent
+sre_agent_trigger_url = "https://placeholder-update-after-step4.azuresre.ai"

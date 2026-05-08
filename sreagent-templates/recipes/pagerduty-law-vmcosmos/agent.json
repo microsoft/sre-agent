@@ -1,0 +1,87 @@
+{
+  "_scenario": "pagerduty-law-vmcosmos",
+  "_description": "SRE Agent for PagerDuty incident response with VM, Cosmos DB, and HTTP error investigation skills. Uses AppInsights + Log Analytics + Azure Monitor connectors.",
+  "_prerequisites": [
+    "Azure subscription with resource groups to monitor",
+    "PagerDuty account (OAuth configured post-deploy in portal)",
+    "Application Insights and/or Log Analytics workspace (optional but recommended)"
+  ],
+  "_prompts": {
+    "agentName": {
+      "ask": "Agent name (lowercase, hyphens ok)",
+      "default": "pd-agent"
+    },
+    "resourceGroup": {
+      "ask": "Resource group for the agent",
+      "default": "sre-agent-rg"
+    },
+    "location": {
+      "ask": "Region",
+      "options": [
+        "eastus2",
+        "swedencentral",
+        "uksouth",
+        "australiaeast"
+      ],
+      "required": true
+    },
+    "targetRGs": {
+      "ask": "Resource groups to monitor (comma-separated)",
+      "required": true
+    },
+    "appInsightsId": {
+      "ask": "Application Insights resource ID (or leave blank)",
+      "default": ""
+    },
+    "appInsightsAppId": {
+      "ask": "Application Insights App ID / GUID (or leave blank)",
+      "default": ""
+    },
+    "lawId": {
+      "ask": "Log Analytics workspace resource ID (or leave blank)",
+      "default": ""
+    },
+    "pagerdutyApiKey": {
+      "ask": "PagerDuty API key (Integration Key from PagerDuty service)",
+      "required": true,
+      "secret": true
+    },
+    "existingUamiId": {
+      "ask": "Existing UAMI resource ID (leave blank to create new)",
+      "default": ""
+    },
+    "modelProvider": {
+      "ask": "AI model provider",
+      "options": [
+        "Anthropic",
+        "Azure OpenAI"
+      ],
+      "default": "Anthropic"
+    },
+    "existingAgentAppInsightsId": {
+      "ask": "Existing App Insights resource ID for agent telemetry (leave blank to create new)",
+      "default": ""
+    }
+  },
+  "identity": {
+    "agentName": "{{agentName}}",
+    "resourceGroup": "{{resourceGroup}}",
+    "subscription": "",
+    "location": "{{location}}",
+    "targetResourceGroups": "{{targetRGs}}"
+  },
+  "access": {
+    "accessLevel": "Low",
+    "actionMode": "Review"
+  },
+  "upgradeChannel": "Preview",
+  "defaultModelProvider": "{{modelProvider}}",
+  "monthlyAgentUnitLimit": 10000,
+  "tags": {},
+  "toggles": {
+    "enableWebhookBridge": false,
+    "webhookBridgeTriggerUrl": ""
+  },
+  "existingUamiId": "{{existingUamiId}}",
+  "existingAgentAppInsightsId": "{{existingAgentAppInsightsId}}"
+}

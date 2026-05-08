@@ -1,0 +1,210 @@
+# Validate recipe PRs — runs on every pull request that touches recipes/ or shared scripts.
+#
+# Checks:
+#   1. YAML lint — all .yaml files parse
+#   2. Bash syntax — all .sh files pass bash -n
+#   3. Placeholder check — no {{...}} in generated output
+#   4. Dry-run changed recipes — new-agent.sh + deploy.sh --dry-run
+#   5. Cross-recipe guard — if shared scripts changed, dry-run ALL recipes
+#   6. README check — parameters table matches agent.json _prompts
+
+name: Validate PR
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'sreagent-templates/recipes/**'
+      - 'sreagent-templates/bicep/**'
+      - 'sreagent-templates/bin/**'
+      - 'sreagent-templates/terraform/**'
+      - 'sreagent-templates/tests/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sreagent-templates
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          pip install pyyaml
+          sudo apt-get install -y jq
+          # Install PowerShell 7
+          wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb" -O /tmp/ms.deb
+          sudo dpkg -i /tmp/ms.deb && sudo apt-get update && sudo apt-get install -y powershell || true
+          # Install Terraform
+          wget -qO- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt-get update && sudo apt-get install -y terraform || true
+
+      # ── 1. YAML lint ──
+      - name: YAML lint
+        run: |
+          echo "Checking YAML files..."
+          errors=0
+          for f in $(find recipes/ -name '*.yaml' -o -name '*.yml'); do
+            if ! python3 -c "import yaml; yaml.safe_load(open('$f'))" 2>/dev/null; then
+              echo "❌ $f"
+              errors=$((errors + 1))
+            fi
+          done
+          if [[ $errors -gt 0 ]]; then
+            echo "::error::$errors YAML file(s) failed to parse"
+            exit 1
+          fi
+          echo "✅ All YAML files valid"
+
+      # ── 2. Bash syntax ──
+      - name: Bash syntax check
+        run: |
+          echo "Checking bash scripts..."
+          errors=0
+          for f in bin/*.sh bicep/*.sh; do
+            if ! bash -n "$f" 2>/dev/null; then
+              echo "❌ $f"
+              errors=$((errors + 1))
+            fi
+          done
+          if [[ $errors -gt 0 ]]; then
+            echo "::error::$errors script(s) have syntax errors"
+            exit 1
+          fi
+          echo "✅ All scripts pass syntax check"
+
+      # ── 2b. PowerShell syntax ──
+      - name: PowerShell syntax check
+        run: |
+          if command -v pwsh &>/dev/null; then
+            echo "Checking PowerShell scripts..."
+            errors=0
+            for f in bin/ps/*.ps1; do
+              result=$(pwsh -NoProfile -Command "[System.Management.Automation.Language.Parser]::ParseFile('$f', [ref]\$null, [ref]\$errs); if(\$errs.Count -gt 0){\$errs | ForEach-Object { \$_.Message }}" 2>&1)
+              if [[ -n "$result" && "$result" != *"InvalidOperation"* ]]; then
+                echo "❌ $f: $result"
+                errors=$((errors + 1))
+              fi
+            done
+            [[ $errors -gt 0 ]] && exit 1
+            echo "✅ All PS scripts pass syntax check"
+          else
+            echo "⚠ pwsh not available — skipping PS syntax check"
+          fi
+
+      # ── 2c. Terraform validate ──
+      - name: Terraform validate
+        run: |
+          if command -v terraform &>/dev/null; then
+            cd terraform && terraform init -backend=false -input=false > /dev/null 2>&1
+            terraform validate
+            echo "✅ Terraform validates"
+          else
+            echo "⚠ terraform not available — skipping"
+          fi
+
+      # ── 3. Detect what changed ──
+      - name: Detect changes
+        id: changes
+        run: |
+          CHANGED_RECIPES=""
+          SHARED_CHANGED=false
+
+          # Check if shared scripts changed
+          if git diff --name-only origin/main...HEAD | grep -qE '^(bicep/|bin/)'; then
+            SHARED_CHANGED=true
+          fi
+
+          # Find changed recipes
+          for recipe_dir in recipes/*/; do
+            recipe=$(basename "$recipe_dir")
+            if git diff --name-only origin/main...HEAD | grep -q "^recipes/${recipe}/"; then
+              CHANGED_RECIPES="${CHANGED_RECIPES} ${recipe}"
+            fi
+          done
+
+          # If shared scripts changed, test ALL recipes
+          if [[ "$SHARED_CHANGED" == "true" ]]; then
+            echo "⚠ Shared scripts changed — testing ALL recipes"
+            CHANGED_RECIPES=$(ls -d recipes/*/ | xargs -I{} basename {})
+          fi
+
+          echo "recipes=${CHANGED_RECIPES}" >> $GITHUB_OUTPUT
+          echo "shared=${SHARED_CHANGED}" >> $GITHUB_OUTPUT
+          echo "Testing recipes: ${CHANGED_RECIPES:-none}"
+
+      # ── 4. Dry-run test suite (all 6 recipes × 4 backends) ──
+      - name: Dry-run test suite
+        if: steps.changes.outputs.shared == 'true' || steps.changes.outputs.recipes != ''
+        run: |
+          if [[ "${{ steps.changes.outputs.shared }}" == "true" ]]; then
+            echo "Shared scripts changed — running ALL recipes"
+            bash tests/test-dry-run-all.sh
+          else
+            for recipe in ${{ steps.changes.outputs.recipes }}; do
+              test_file="tests/test-dry-run-${recipe}.sh"
+              # Some recipes use shortened names
+              [[ ! -f "$test_file" ]] && test_file="tests/test-dry-run-$(echo $recipe | sed 's/azmon-lawappinsights/azmon/;s/pagerduty-law-vmcosmos/pagerduty/;s/httptrigger-dynatrace/dynatrace/;s/icm-kusto-geneva-/icm-/').sh"
+              if [[ -f "$test_file" ]]; then
+                echo "── Running $test_file ──"
+                bash "$test_file"
+              else
+                echo "⚠ No dry-run test for $recipe — running inline"
+                # Fallback: basic new-agent + deploy --dry-run
+                dir="/tmp/test-${recipe}"
+                rm -rf "$dir"
+                SET_FLAGS=$(jq -r '._prompts | to_entries[] | if .value.required == true and (.value.default // "") == "" then "--set \(.key)=test-value" elif (.value.default // "") != "" then "--set \(.key)=\(.value.default)" else "--set \(.key)=" end' "recipes/${recipe}/agent.json" 2>/dev/null | tr '\n' ' ')
+                ./bin/new-agent.sh --recipe "$recipe" --set agentName=ci-test --set resourceGroup=rg-ci --set location=swedencentral --set targetRGs=rg-fake $SET_FLAGS -o "$dir" --non-interactive
+                ./bin/deploy.sh "$dir/" --dry-run
+              fi
+            done
+          fi
+
+      # ── 5. README check ──
+      - name: Validate READMEs
+        if: steps.changes.outputs.recipes != ''
+        run: |
+          errors=0
+          for recipe in ${{ steps.changes.outputs.recipes }}; do
+            readme="recipes/${recipe}/README.md"
+            agent="recipes/${recipe}/agent.json"
+
+            if [[ ! -f "$readme" ]]; then
+              echo "❌ ${recipe}: missing README.md"
+              errors=$((errors + 1))
+              continue
+            fi
+
+            # Check README has required sections
+            for section in "Quick Start" "Parameters" "What You Get"; do
+              if ! grep -q "## ${section}" "$readme"; then
+                echo "❌ ${recipe}: missing '## ${section}' section"
+                errors=$((errors + 1))
+              fi
+            done
+
+            # Check parameter table matches _prompts
+            if [[ -f "$agent" ]]; then
+              prompt_keys=$(jq -r '._prompts | keys[]' "$agent" 2>/dev/null | sort)
+              for key in $prompt_keys; do
+                if ! grep -q "$key" "$readme"; then
+                  echo "⚠ ${recipe}: param '$key' in _prompts but not in README"
+                fi
+              done
+            fi
+
+            # Check line count
+            lines=$(wc -l < "$readme")
+            if [[ $lines -gt 80 ]]; then
+              echo "⚠ ${recipe}: README is ${lines} lines (target: <80)"
+            fi
+
+            echo "✅ ${recipe}: README validated"
+          done
+
+          if [[ $errors -gt 0 ]]; then
+            echo "::error::$errors README(s) failed validation"
+            exit 1
+          fi

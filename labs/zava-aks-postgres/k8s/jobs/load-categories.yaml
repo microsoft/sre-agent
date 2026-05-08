@@ -1,0 +1,78 @@
+# In-cluster load generator for Scenario 3 (missing-index demo).
+# Applied by break-db-perf.ps1 via `az aks command invoke` so the load
+# survives the script's local process and runs against the API over the
+# cluster-internal Service DNS (no operator workstation in the path).
+#
+# Reuses the zava-api image so no extra image pull (it's already on nodes
+# that run the API). The container just runs a small node one-liner that
+# loops async fetches at varied offsets to defeat PG's buffer cache.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: zava-cat-load
+  namespace: zava-demo
+  labels:
+    app.kubernetes.io/component: load-generator
+    zava.demo/scenario: missing-index
+spec:
+  # Auto-clean the Job + pods 60s after completion so repeated demo runs
+  # don't pile up "Completed" pods. AKS supports the TTL controller by default.
+  ttlSecondsAfterFinished: 60
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: load-generator
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: load
+          image: "${ACR_NAME}.azurecr.io/zava-api:latest"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits:   { cpu: 500m, memory: 128Mi }
+          env:
+            - name: TARGET_URL
+              # Cluster-internal Service DNS — no ingress, no operator workstation in path.
+              value: "http://zava-api.zava-demo.svc.cluster.local:3001"
+            - name: DURATION_MIN
+              value: "${DURATION_MIN}"
+            - name: CONCURRENCY
+              value: "10"
+          # Single-node pod with N concurrent async fetches. Random category +
+          # random offset over the 14k-row range defeats PG's buffer cache so
+          # most queries actually hit disk -> latency stays above the 30ms
+          # alert threshold.
+          command: ["node", "-e"]
+          args:
+            - |
+              const http = require('http');
+              const cats = ['Accessories','Cycling','Outdoor','Recovery','Running','Swimming','Training','Yoga'];
+              const base = process.env.TARGET_URL;
+              const end  = Date.now() + Number(process.env.DURATION_MIN) * 60_000;
+              const conc = Number(process.env.CONCURRENCY);
+              let done = 0, errs = 0;
+              const hit = () => new Promise(r => {
+                const c = cats[Math.floor(Math.random() * cats.length)];
+                const o = Math.floor(Math.random() * 14000);
+                const req = http.get(`${base}/api/products/category/${c}?limit=100&offset=${o}`, res => {
+                  res.resume(); res.on('end', () => { done++; r(); });
+                });
+                req.on('error', () => { errs++; r(); });
+                // req.destroy() inside the timeout handler synchronously fires
+                // the 'error' handler above, which already increments errs.
+                // Don't double-count here.
+                req.setTimeout(30000, () => { req.destroy(); r(); });
+              });
+              const worker = async () => { while (Date.now() < end) await hit(); };
+              const tick = setInterval(() => console.log(`[load] done=${done} errs=${errs}`), 30_000);
+              Promise.all(Array.from({ length: conc }, worker))
+                .then(() => { clearInterval(tick); console.log(`[load] FINAL done=${done} errs=${errs}`); });

@@ -1,0 +1,49 @@
+{
+  "_description": "Expected configuration for azmon-lawappinsights sample. Used by verify-agent.sh to validate deployments.",
+  "_scenario": "azmon-lawappinsights",
+
+  "agent": {
+    "accessLevel": "Low",
+    "actionMode": "Review",
+    "upgradeChannel": "Preview",
+    "defaultModelProvider": "Anthropic",
+    "incidentPlatform": "AzMonitor"
+  },
+
+  "connectors": [
+    { "name": "app-insights", "type": "AppInsights" },
+    { "name": "log-analytics", "type": "LogAnalytics" }
+  ],
+
+  "skills": [
+    "investigate-azure-alerts",
+    "triage-app-errors"
+  ],
+
+  "subagents": [
+    "alert-investigator",
+    "remediation-advisor"
+  ],
+
+  "hooks": [
+    "deny-prod-deletes",
+    "require-approval-for-restarts"
+  ],
+
+  "commonPrompts": [
+    "investigation-guidelines",
+    "safety-rules"
+  ],
+
+  "scheduledTasks": [
+    "daily-health-check"
+  ],
+
+  "responsePlans": [
+    { "name": "azmon-sev01", "handlingAgent": "alert-investigator" }
+  ],
+
+  "repos": [
+    "contoso-trading"
+  ]
+}

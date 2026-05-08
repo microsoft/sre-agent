@@ -1,0 +1,9 @@
+metadata:
+  name: daily-health-check
+spec:
+  description: Daily 8am health summary across all monitored resources
+  schedule: 0 8 * * *
+  prompt: Summarize the last 24h of incidents, fired alerts, and resource health for
+    all monitored resource groups. Flag anything that needs attention.
+  enabled: true
+  mode: Review

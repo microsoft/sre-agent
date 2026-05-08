@@ -1,0 +1,12 @@
+metadata:
+  name: azmon-sev01
+spec:
+  incidentPlatform: AzMonitor
+  isEnabled: true
+  priorities:
+  - Sev0
+  - Sev1
+  handlingAgent: alert-investigator
+  agentMode: Autonomous
+  deepInvestigationEnabled: false
+  maxAutomatedInvestigationAttempts: 3

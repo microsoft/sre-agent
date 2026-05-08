@@ -1,0 +1,13 @@
+metadata:
+  name: investigate-vm-issues
+  description: Diagnose VM performance issues — CPU, memory, disk, networking using
+    Log Analytics and Azure CLI
+  spec:
+    tools:
+    - RunAzCliReadCommands
+    - QueryLogAnalyticsByWorkspaceId
+    - SearchMemory
+    - ExecutePythonCode
+    - PlotAreaChartWithCorrelation
+skillContent: skills/investigate-vm-issues.md
+additionalFiles: []

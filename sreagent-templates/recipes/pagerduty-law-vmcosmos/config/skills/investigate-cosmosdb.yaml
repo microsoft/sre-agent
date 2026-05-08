@@ -1,0 +1,13 @@
+metadata:
+  name: investigate-cosmosdb
+  description: Diagnose Cosmos DB issues — RU consumption, throttling, latency, partition
+    hot spots using Azure Monitor metrics and CLI
+  spec:
+    tools:
+    - RunAzCliReadCommands
+    - QueryLogAnalyticsByWorkspaceId
+    - SearchMemory
+    - ExecutePythonCode
+    - PlotAreaChartWithCorrelation
+skillContent: skills/investigate-cosmosdb.md
+additionalFiles: []

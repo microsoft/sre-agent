@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zava-config
+data:
+  DB_HOST: "${DB_HOST}"
+  DB_PORT: "5432"
+  DB_NAME: "zava_store"
+  DB_USER: "${APP_IDENTITY_NAME}"
+  AZURE_CLIENT_ID: "${APP_IDENTITY_CLIENT_ID}"
+  API_URL: "http://zava-api:3001"
+  # 1 Hz (vs server.js default 30000ms): drives steady App Insights traffic so demo alerts trip without an external load generator.
+  PROBE_INTERVAL_MS: "1000"
+  AZURE_LOCATION: "${AZURE_LOCATION}"

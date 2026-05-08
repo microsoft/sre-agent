@@ -1,0 +1,12 @@
+metadata:
+  name: pd-p1p2
+spec:
+  incidentPlatform: PagerDuty
+  isEnabled: true
+  priorities:
+  - P1
+  - P2
+  handlingAgent: ''
+  agentMode: Autonomous
+  deepInvestigationEnabled: false
+  maxAutomatedInvestigationAttempts: 3
