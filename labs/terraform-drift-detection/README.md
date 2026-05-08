@@ -69,7 +69,7 @@ Terraform Cloud  ──webhook──▶  Azure Logic App  ──authenticated PO
 ```powershell
 # 1. Clone and configure
 git clone https://github.com/surivineela/sre-agent.git
-cd sre-agent/samples/terraform-drift-detection/terraform
+cd sre-agent/labs/terraform-drift-detection/terraform
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with your subscription ID
 
