@@ -41,7 +41,6 @@ A recipe is defined by 5 dimensions. Think through each one for your use case:
 | `AzMonitor` | Azure Monitor fired alerts (built-in, no external setup) |
 | `PagerDuty` | PagerDuty P1-P5 incidents (needs API key) |
 | `ServiceNow` | ServiceNow incidents (needs instance URL + auth) |
-| `IcM` | Microsoft internal IcM (needs cert or MI) |
 | HTTP Trigger | Webhook from any source (Dynatrace, Grafana, custom) |
 
 ### 2. Connectors — what data sources does the agent query?
@@ -51,8 +50,6 @@ A recipe is defined by 5 dimensions. Think through each one for your use case:
 | Log Analytics | Toggle | MI (auto) | KQL queries on Azure logs |
 | App Insights | Toggle | MI (auto) | App traces, exceptions, requests |
 | Kusto/ADX | Array | MI or FIC | Custom telemetry clusters |
-| Geneva Metrics | Array | MI | MDM time series (1P only) |
-| DGrep | Array | Cert or Proxy | Geneva log search (1P only) |
 | Dynatrace MCP | Array | Bearer token | Dynatrace problems, entities, metrics |
 | Datadog MCP | Array | API key | Datadog monitors, logs, metrics |
 | Custom MCP | Array | Varies | Any MCP server endpoint |
@@ -82,8 +79,6 @@ Put `.md` files in `data/` for anything the agent should reference:
 | `priorities` | Which severity levels trigger the agent (Sev0/Sev1, P1/P2) |
 | `agentMode` | `Autonomous` (acts on its own) or `Review` (proposes, waits for approval) |
 | `customInstructions` | Step-by-step prompt telling the agent what to do |
-| `triggers` | IcM only: IncidentCreatedOrTransferred, DiscussionEntry, etc. |
-| `owningTeamId` | IcM only: scope to a specific team |
 
 ### Naming Convention
 
@@ -107,7 +102,7 @@ Every YAML file must match the API shape it targets. Common mistakes:
 | Subagents | `metadata.name`, `spec.instructions: subagents/<name>.instructions.md`, `spec.handoffs: []` | Missing `subagents/` prefix, instructions < 50 chars |
 | Hooks | `spec.hook.type`, `spec.hook.prompt`, `spec.hook.matcher` | Using `hookType`/`hookBody` (Bicep shape, not API) |
 | Common Prompts | `metadata.name`, `spec.prompt` (inline text) | Referencing .md file instead of inline content |
-| Incident Filters | `metadata.name`, `spec.incidentPlatform` (`AzMonitor`, `PagerDuty`, `ServiceNow`, `IcM`) | Using `AzureMonitor` instead of `AzMonitor` |
+| Incident Filters | `metadata.name`, `spec.incidentPlatform` (`AzMonitor`, `PagerDuty`, `ServiceNow`) | Using `AzureMonitor` instead of `AzMonitor` |
 | Scheduled Tasks | `metadata.name`, `spec.schedule` or `spec.cronExpression`, `spec.prompt` or `spec.agentPrompt` | — |
 | Repos | `name`, `spec.url`, `spec.branch` | Using `repoUrl` instead of `url` |
 

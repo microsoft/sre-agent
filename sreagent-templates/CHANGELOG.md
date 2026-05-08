@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Content validation: skill specs, subagent handoffs, connector types, no unreplaced placeholders
 
 ### Fixes in this release
-- ARM sub-resource migration for Cloud Shell / PME compatibility
+- ARM sub-resource migration for Cloud Shell compatibility
 - System MI RBAC on target RGs (was missing — caused 403 on connector queries)
 - Skill encoding for TF (restructured to match Bicep: name, description, tools, skillContent)
 - KnowledgeFile connectors via apply-extras ARM PUT (not Bicep — avoids K8s hang)

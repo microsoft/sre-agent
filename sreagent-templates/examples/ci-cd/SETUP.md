@@ -12,7 +12,7 @@ git clone https://github.com/<your-org>/my-agent-config.git
 cd my-agent-config
 
 # Add the recipes repo as a submodule (or copy bin/ + bicep/)
-git submodule add https://github.com/coreai-microsoft/sreagent-templates.git templates
+git submodule add https://github.com/microsoft/sre-agent.git templates
 ```
 
 ### 2. Create your agent config
@@ -99,27 +99,6 @@ git add . && git commit -m "update VM investigation skill" && git push
 
 ---
 
-## Option 2: Azure DevOps / EV2
-
-See [ev2-deploy.sh](ev2-deploy.sh) — a shell script that reads all values from environment variables.
-
-```yaml
-# ADO pipeline example
-trigger:
-  branches:
-    include: [main]
-  paths:
-    include: [agents/**]
-
-pool:
-  vmImage: ubuntu-latest
-
-steps:
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: 'my-service-connection'
-      scriptType: bash
-      scriptPath: templates/examples/ci-cd/ev2-deploy.sh
     env:
       RECIPE: pagerduty-law-vmcosmos
       AGENT_NAME: my-pd-agent

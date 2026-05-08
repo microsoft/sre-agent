@@ -34,7 +34,9 @@ cd sre-agent/sreagent-templates
 ./bin/deploy.sh my-agent/
 ```
 
-> **Cloud Shell (PME/AME)**: Core deployment works with Cloud Shell's built-in auth. Some data-plane items (hooks, repos) require `az login --scope "https://azuresre.dev/.default"` first, or can be configured later in the [portal](https://sre.azure.com).
+> **Cloud Shell**: Core deployment works with Cloud Shell's built-in auth. Some data-plane items (hooks, repos) require `az login --scope "https://azuresre.dev/.default"` first, or can be configured later in the [portal](https://sre.azure.com).
+
+## Recipes
 
 ## Recipes
 
@@ -199,13 +201,13 @@ Full PowerShell 7+ port in [`bin/ps/`](bin/ps/). Same config directory, same res
 
 ## CI/CD
 
-See [examples/ci-cd/](examples/ci-cd/) for GitHub Actions, EV2 pipelines, and step-by-step setup.
+See [examples/ci-cd/](examples/ci-cd/) for GitHub Actions and step-by-step setup.
 
 ## Contributing
 
 A recipe is defined by 5 dimensions — think through each for your use case:
 
-1. **Incident Platform** — AzMonitor, PagerDuty, ServiceNow, IcM, or HTTP webhook
+1. **Incident Platform** — AzMonitor, PagerDuty, ServiceNow, or HTTP webhook
 2. **Connectors** — Log Analytics, App Insights, Kusto, MCP (Dynatrace/Datadog/custom)
 3. **Skills** — investigation playbooks for your workload (VM, CosmosDB, HTTP errors, etc.)
 4. **Knowledge** — runbooks, architecture docs, incident templates

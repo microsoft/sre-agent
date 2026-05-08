@@ -36,41 +36,21 @@
 - Platform: ServiceNow
 - Real Azure
 
-### Scenario 4: 1P IcM same-tenant (cert via Key Vault)
-
-- Connectors: IcM (cert/KV), DGrep, GenevaMetrics, AppInsights
-- Config: ICM skill, ICM subagent, incident filter (IcM Sev0+1), hooks, prompts, task
-- 1P: adminUsers (same tenant)
-- Auth: Cert/KV (IcM), MI (DGrep, Geneva, AI)
-- Mocked
-
-### Scenario 5: 1P IcM cross-tenant (MI + FIC)
-
-- Connectors: IcM (MI), Kusto (ADO MI+FIC), GenevaMetrics, DGrep
-- Config: same skill/subagent as S4, incident filter
-- 1P: adminUsers (CORP→AME), ADO MI+FIC
-- Auth: MI (IcM, DGrep, Geneva), MI+FIC (ADO Kusto)
-- Mocked
-
 ## Coverage matrix — Connectors
 
-| Connector | S1 | S2 | S3 | S4 | S5 |
-|---|:---:|:---:|:---:|:---:|:---:|
-| AppInsights | ✅ | | ✅ | ✅ | |
-| LogAnalytics | | ✅ | | | |
-| AzureMonitor | ✅ | | | | |
-| Kusto/ADX | | ✅ | | | ✅ |
-| Dynatrace MCP | | ✅ | | | |
-| Datadog MCP | | | ✅ | | |
+| Connector | S1 | S2 | S3 |
+|---|:---:|:---:|:---:|
+| AppInsights | ✅ | | ✅ |
+| LogAnalytics | | ✅ | |
+| AzureMonitor | ✅ | | |
+| Kusto/ADX | | ✅ | |
+| Dynatrace MCP | | ✅ | |
+| Datadog MCP | | | ✅ |
 | GitHub | ✅ | | | | |
 | ADO (PAT) | | ✅ | | | |
 | ADO (MI+FIC) | | | | | ✅ |
 | Teams | ✅ | | | | |
 | Outlook | | ✅ | | | |
-| IcM (cert/KV) | | | | ✅ | |
-| IcM (MI) | | | | | ✅ |
-| DGrep | | | | ✅ | ✅ |
-| GenevaMetrics | | | | ✅ | ✅ |
 | PagerDuty | | ✅ | | | |
 | ServiceNow | | | ✅ | | |
 | AzMonitor alerts | ✅ | | | | |
@@ -104,7 +84,6 @@
 | OAuth (GitHub) | ✅ | | | | |
 | PAT (ADO) | | ✅ | | | |
 | MI+FIC (ADO) | | | | | ✅ |
-| Cert/Key Vault (IcM) | | | | ✅ | |
 | api-connection (Teams) | ✅ | | | | |
 | api-connection (Outlook) | | ✅ | | | |
 | Portal setup (PD/SNOW) | | ✅ | ✅ | | |

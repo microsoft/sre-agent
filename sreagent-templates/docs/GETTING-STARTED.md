@@ -13,7 +13,7 @@ Step-by-step guide to create, deploy, and manage an Azure SRE Agent.
 ## Step 1: Clone this repo
 
 ```bash
-git clone https://github.com/coreai-microsoft/sreagent-templates.git
+git clone https://github.com/microsoft/sre-agent.git
 cd sreagent-templates
 ```
 
@@ -213,7 +213,6 @@ cd agents/prod && git add -A && git commit -m "backup $(date +%Y-%m-%d)" && git 
 |---|---|---|
 | Anthropic (claude-*) | ✅ preferred | Portal → Settings → Provider dropdown |
 | OpenAI/MicrosoftFoundry (gpt-*) | ✅ | Portal → Settings → Provider dropdown |
-| GitHubCopilot | ❌ 1P only | N/A for 3P |
 
 3P agents can switch between Anthropic and OpenAI. Cannot select individual models — provider only.
 
