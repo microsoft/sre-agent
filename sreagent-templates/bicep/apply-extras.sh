@@ -7,7 +7,7 @@
 #
 #   1. ARM sub-resources (connectors, incidentFilters, scheduledTasks,
 #      commonPrompts) — uses `az rest` with management-plane token.
-#      Works in Cloud Shell and CI/CD pipelines.
+#      Works in Cloud Shell, EV2 pipelines, and PME/AME tenants.
 #
 #   2. Data-plane only (hooks, httpTriggers, repos, knowledge upload)
 #      — requires token for audience https://azuresre.dev.
@@ -209,7 +209,7 @@ _dp_token() { az account get-access-token --resource https://azuresre.dev --quer
 echo "Applying extras to ${AGENT} in ${RG}..."
 
 # 1. incidentPlatforms — ARM PATCH on agent resource (not sub-resource PUT)
-# This sets the incident management type (AzMonitor, PagerDuty, ServiceNow, etc.)
+# This sets the incident management type (AzMonitor, PagerDuty, ServiceNow, IcM)
 count=$(jq '.incidentPlatforms // [] | length' "$FILE")
 if [[ "$count" -gt 0 ]]; then
   echo "incidentPlatforms: ${count}"
@@ -236,6 +236,40 @@ if [[ "$count" -gt 0 ]]; then
     # Wait for platform to initialize
     echo "  Waiting 30s for platform to initialize..."
     sleep 30
+
+    # Apply indexing configuration (data-plane) if present
+    indexing_config=$(jq -c '.incidentPlatforms[0].spec.indexingConfig // empty' "$FILE")
+    if [[ -n "$indexing_config" ]]; then
+      dp_token=$(_dp_token)
+      if [[ -n "$dp_token" ]]; then
+        # Map platform type to provider type for the API route
+        provider_type=$(echo "$platform_type" | tr '[:upper:]' '[:lower:]')
+        [[ "$provider_type" == "icm" ]] && provider_type="icm"
+        [[ "$provider_type" == "azmonitor" || "$provider_type" == "azuremonitor" ]] && provider_type="azmonitor"
+
+        # Build the payload — add providerType discriminator
+        indexing_body=$(echo "$indexing_config" | jq -c --arg pt "$provider_type" '. + {providerType: $pt}')
+
+        echo "  Configuring incident indexing ($provider_type)..."
+        idx_result=$(curl -s -w "\n%{http_code}" -X PUT \
+          "${AGENT_URL}/api/v2/incidents/indexing/${provider_type}/configuration" \
+          -H "Authorization: Bearer ${dp_token}" \
+          -H "Content-Type: application/json" \
+          -d "$indexing_body" 2>&1)
+        idx_code=$(echo "$idx_result" | tail -1)
+        if [[ "$idx_code" == "200" || "$idx_code" == "201" ]]; then
+          echo "    ok (teamIds: $(echo "$indexing_config" | jq -c '.teamIds // []'))"
+        else
+          echo "    FAILED (HTTP $idx_code) — configure manually in portal: Incident Platform → IcM → Team"
+          echo "    Response: $(echo "$idx_result" | head -1)"
+        fi
+      else
+        echo "  ⚠ Data-plane token unavailable — IcM indexing config skipped"
+        echo "    The agent won't process incidents until team indexing is configured."
+        echo "    Option 1 (CLI): az login --scope 'https://azuresre.dev/.default' && re-run deploy"
+        echo "    Option 2 (Portal): https://sre.azure.com/#/agent/${SUB}/${RG}/${AGENT} → Incident Platform → select team"
+      fi
+    fi
   fi
 fi
 
@@ -290,14 +324,19 @@ if [[ "$count" -gt 0 ]]; then
   for i in $(seq 0 $((count - 1))); do
     name=$(jq -r --argjson i "$i" '.scheduledTasks[$i].metadata.name' "$FILE")
     spec=$(jq -c --argjson i "$i" '.scheduledTasks[$i].spec' "$FILE")
-    # Normalize field names for the ARM envelope
+    # Normalize field names for the ARM envelope — pass all supported fields
     arm_spec=$(jq -c '{
       name: (.name // ""),
       description: (.description // ""),
       cronExpression: (.schedule // .cronExpression // ""),
       agentPrompt: (.prompt // .agentPrompt // ""),
-      agentMode: (.mode // .agentMode // "Review")
-    }' <<< "$spec")
+      agentMode: (.mode // .agentMode // "Review"),
+      agent: (.handlingAgent // .agent // null),
+      modelTier: (.modelTier // null),
+      status: (.status // "Active"),
+      notificationChannel: (.notificationChannel // null),
+      maxExecutions: (.maxExecutions // null)
+    } | with_entries(select(.value != null))' <<< "$spec")
     arm_put_subresource "scheduledTasks" "$name" "$arm_spec"
   done
 fi
@@ -872,7 +911,7 @@ if [[ ${#DP_SKIPPED_ITEMS[@]} -gt 0 ]]; then
   echo "══════════════════════════════════════════════════════════════"
   echo "  ⚠ ${#DP_SKIPPED_ITEMS[@]} item(s) skipped (no data-plane token)"
   echo "  These require audience https://azuresre.dev which is not"
-  echo "  available in this environment (Cloud Shell MSI)."
+  echo "  available in this environment (Cloud Shell MSI / PME CAP)."
   echo ""
   echo "  To apply the remaining items:"
   echo "    1. From a compliant machine: az login && re-run this script"
