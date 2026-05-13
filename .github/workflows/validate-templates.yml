@@ -82,9 +82,12 @@ jobs:
             echo "Checking PowerShell scripts..."
             errors=0
             for f in bin/ps/*.ps1; do
-              result=$(pwsh -NoProfile -Command "[System.Management.Automation.Language.Parser]::ParseFile('$f', [ref]\$null, [ref]\$errs); if(\$errs.Count -gt 0){\$errs | ForEach-Object { \$_.Message }}" 2>&1)
-              if [[ -n "$result" && "$result" != *"InvalidOperation"* ]]; then
-                echo "❌ $f: $result"
+              if ! pwsh -NoProfile -Command "
+                \$tokens = \$null; \$parseErrors = \$null
+                [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '$f'), [ref]\$tokens, [ref]\$parseErrors)
+                if (\$parseErrors.Count -gt 0) { \$parseErrors | ForEach-Object { Write-Error \$_.Message }; exit 1 }
+              " 2>/dev/null; then
+                echo "❌ $f"
                 errors=$((errors + 1))
               fi
             done
