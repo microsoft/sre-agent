@@ -1,0 +1,10 @@
+{
+  "containerApp": "ca-",
+  "containerAppsEnvironment": "cae-",
+  "containerRegistry": "acr",
+  "logAnalyticsWorkspace": "law-",
+  "applicationInsights": "ai-",
+  "managedIdentity": "id-",
+  "resourceGroup": "rg-",
+  "sreAgent": "sre-agent-"
+}

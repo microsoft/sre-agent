@@ -1,0 +1,45 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgentTool
+metadata:
+  name: CheckWarranty
+spec:
+  type: PythonTool
+  connector: ''
+  toolMode: Auto
+  description: |-
+    Check device warranty status by serial number. Returns warranty expiry, eligibility for replacement, and recommended replacement model. Use when handling laptop replacement requests or hardware support tickets.
+  functionCode: |-
+    import requests
+    import json
+
+    WARRANTY_API_URL = "https://app-zava-warranty.azurewebsites.net"
+
+    def check_warranty(serial_number: str) -> dict:
+        """Check warranty status by calling the Zava Warranty API.
+
+        Calls the real warranty lookup service to check device warranty
+        status, eligibility for replacement, and recommended replacement.
+        """
+        try:
+            response = requests.get(
+                f"{WARRANTY_API_URL}/warranty/{serial_number}",
+                timeout=10
+            )
+            if response.status_code == 404:
+                return {"found": False, "error": "Device not found in warranty database"}
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.Timeout:
+            return {"found": False, "error": "Warranty API timed out"}
+        except Exception as e:
+            return {"found": False, "error": f"Failed to reach warranty API: {str(e)}"}
+  timeoutSeconds: 240
+  dependencies:
+  - requests
+  authScopes: 
+  parameters:
+  - name: serial_number
+    type: string
+    description: |-
+      string:Device serial number (e.g. SN-2023-XPS-4471)
+    required: true

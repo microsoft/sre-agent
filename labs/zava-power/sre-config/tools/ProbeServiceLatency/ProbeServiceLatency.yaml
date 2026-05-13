@@ -1,0 +1,88 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgentTool
+metadata:
+  name: ProbeServiceLatency
+spec:
+  type: PythonTool
+  connector: ''
+  toolMode: Auto
+  description: |-
+    Issue N sequential HTTPS GETs against a service endpoint, measure
+    wall-clock latency for each, and return p50/p95/max plus per-request
+    status codes. Use as the FIRST step of post-deploy validation —
+    ground-truth latency, no telemetry ingestion lag. If any single
+    request exceeds 1500 ms or returns non-2xx, treat the service as a
+    regression candidate and proceed to deeper diagnosis.
+  functionCode: |-
+    import requests
+    import time
+    import statistics
+
+    def main(service_name: str, url: str, path: str = "/",
+                              count: int = 5, timeout_s: int = 10) -> dict:
+        full_url = url.rstrip("/") + "/" + path.lstrip("/")
+        latencies_ms = []
+        status_codes = []
+        ok_count = 0
+        errors = []
+        for i in range(count):
+            start = time.time()
+            try:
+                r = requests.get(full_url, timeout=timeout_s,
+                                 headers={"User-Agent": "sre-agent-probe/1.0"})
+                ms = int((time.time() - start) * 1000)
+                latencies_ms.append(ms)
+                status_codes.append(r.status_code)
+                if 200 <= r.status_code < 300:
+                    ok_count += 1
+            except Exception as e:
+                ms = int((time.time() - start) * 1000)
+                latencies_ms.append(ms)
+                status_codes.append(0)
+                errors.append(str(e)[:120])
+        latencies_sorted = sorted(latencies_ms)
+        def pct(p):
+            if not latencies_sorted:
+                return 0
+            k = max(0, min(len(latencies_sorted) - 1,
+                           int(round((p / 100.0) * (len(latencies_sorted) - 1)))))
+            return latencies_sorted[k]
+        return {
+            "service_name": service_name,
+            "url": full_url,
+            "count": count,
+            "ok_count": ok_count,
+            "p50_ms": pct(50),
+            "p95_ms": pct(95),
+            "max_ms": max(latencies_ms) if latencies_ms else 0,
+            "avg_ms": int(statistics.mean(latencies_ms)) if latencies_ms else 0,
+            "status_codes": status_codes,
+            "latencies_ms": latencies_ms,
+            "errors": errors[:5],
+            "verdict": "PASS" if (ok_count == count and pct(95) < 1500) else "FAIL",
+        }
+  timeoutSeconds: 120
+  dependencies:
+  - requests
+  authScopes:
+  parameters:
+  - name: service_name
+    type: string
+    description: "string:Logical service name (e.g. 'grid-status-api') for labelling the result"
+    required: true
+  - name: url
+    type: string
+    description: "string:Base URL of the service (e.g. https://{{AZ_APP_PREFIX}}-grid.<env>.azurecontainerapps.io)"
+    required: true
+  - name: path
+    type: string
+    description: "string:Endpoint path to probe, default '/'"
+    required: false
+  - name: count
+    type: int
+    description: "integer:Number of sequential probes (default 5)"
+    required: false
+  - name: timeout_s
+    type: int
+    description: "integer:Per-request timeout in seconds (default 10)"
+    required: false

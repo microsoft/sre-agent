@@ -1,0 +1,216 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgentTool
+metadata:
+  name: UploadChartToServiceNow
+spec:
+  type: PythonTool
+  connector: ''
+  toolMode: Auto
+  description: |-
+    Generate a metrics chart and (a) attach the PNG to a ServiceNow
+    incident AND (b) return the chart inline as a base64 data URI plus
+    a ready-to-paste markdown snippet so the agent can display the
+    chart directly in its SRE Agent thread reply. Runs a KQL query
+    against Log Analytics, plots the results with matplotlib, uploads
+    to SNOW, and returns both the SNOW download link and the inline
+    image.
+
+    Uses the agent's Managed Identity (DefaultAzureCredential) for all
+    Azure calls — no `az` CLI subprocess, no human-approval prompt.
+
+    To show the chart in the SRE Agent thread: the agent must include
+    the returned `markdown` string verbatim in its assistant reply so
+    the runtime renders the inline image.
+  functionCode: |-
+    from azure.identity import DefaultAzureCredential
+    import requests
+    import json
+    import io
+    import base64
+
+    SERVICENOW_URL = "https://dev385102.service-now.com"
+    SERVICENOW_USER = "admin"
+    SERVICENOW_PASS = "<SET_VIA_SRE_AGENT_PORTAL>"
+    SUBSCRIPTION = "e964602f-6afc-4cc7-ba6b-3a796008e254"
+    WORKSPACE_NAME = "law-powergrid"
+    RESOURCE_GROUP = "rg-powergrid"
+    ARM_API_VERSION = "2022-10-01"
+
+    def main(incident_id: str, kql_query: str,
+             chart_title: str = "Incident Metrics",
+             filename: str = "sre-agent-chart.png") -> dict:
+        try:
+            cred = DefaultAzureCredential()
+
+            # Step 1: Resolve workspace customerId via ARM REST (MI token)
+            arm_token = cred.get_token("https://management.azure.com/.default").token
+            ws_url = (f"https://management.azure.com/subscriptions/{SUBSCRIPTION}"
+                      f"/resourceGroups/{RESOURCE_GROUP}"
+                      f"/providers/Microsoft.OperationalInsights/workspaces/{WORKSPACE_NAME}"
+                      f"?api-version={ARM_API_VERSION}")
+            r = requests.get(ws_url, headers={"Authorization": f"Bearer {arm_token}"}, timeout=20)
+            if r.status_code != 200:
+                return {"success": False,
+                        "error": f"Workspace lookup failed: {r.status_code} {r.text[:200]}"}
+            ws_id = r.json().get("properties", {}).get("customerId")
+            if not ws_id:
+                return {"success": False, "error": "workspace customerId missing"}
+
+            # Step 2: Run KQL via Log Analytics REST (separate audience)
+            la_token = cred.get_token("https://api.loganalytics.io/.default").token
+            q_url = f"https://api.loganalytics.io/v1/workspaces/{ws_id}/query"
+            r = requests.post(q_url, headers={"Authorization": f"Bearer {la_token}",
+                                              "Content-Type": "application/json"},
+                              json={"query": kql_query}, timeout=60)
+            if r.status_code != 200:
+                return {"success": False,
+                        "error": f"KQL query failed: {r.status_code} {r.text[:200]}"}
+            tables = r.json().get("tables", [])
+            if not tables or not tables[0].get("rows"):
+                return {"success": False, "error": "Query returned no data"}
+            cols = [c["name"] for c in tables[0]["columns"]]
+            rows = [dict(zip(cols, row)) for row in tables[0]["rows"]]
+
+            # Step 3: Plot with matplotlib
+            try:
+                import matplotlib
+                matplotlib.use("Agg")
+                import matplotlib.pyplot as plt
+                import matplotlib.dates as mdates
+                from datetime import datetime as dt
+            except ImportError:
+                return {"success": False, "error": "matplotlib not available"}
+
+            time_col = None
+            val_cols = []
+            skip = {"TableName", "Type"}
+            for c in cols:
+                if c in skip:
+                    continue
+                sample = str(rows[0].get(c, ""))
+                if "T" in sample and ("Z" in sample or "+" in sample):
+                    time_col = c
+                else:
+                    try:
+                        float(rows[0][c])
+                        val_cols.append(c)
+                    except (ValueError, TypeError):
+                        pass
+            if not time_col or not val_cols:
+                return {"success": False,
+                        "error": f"Cannot auto-detect columns. Found: {cols}"}
+
+            times = []
+            for row in rows:
+                t = str(row[time_col]).replace("Z", "+00:00")
+                try:
+                    times.append(dt.fromisoformat(t))
+                except Exception:
+                    times.append(None)
+
+            fig, ax1 = plt.subplots(figsize=(10, 4))
+            colors = ["#0078D4", "#E74C3C", "#2ECC71", "#F39C12"]
+            for i, vc in enumerate(val_cols[:4]):
+                vals = [float(row.get(vc, 0) or 0) for row in rows]
+                c = colors[i % len(colors)]
+                if i == 0:
+                    ax1.plot(times, vals, color=c, linewidth=2, label=vc)
+                    ax1.set_ylabel(vc, color=c)
+                elif i == 1:
+                    ax2 = ax1.twinx()
+                    ax2.plot(times, vals, color=c, linewidth=2, linestyle="--", label=vc)
+                    ax2.set_ylabel(vc, color=c)
+                else:
+                    ax1.plot(times, vals, color=c, linewidth=1.5, label=vc)
+
+            ax1.set_title(chart_title, fontsize=13, fontweight="bold")
+            ax1.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+            fig.autofmt_xdate()
+            fig.legend(loc="upper left", bbox_to_anchor=(0.1, 0.95), fontsize=8)
+            fig.tight_layout()
+
+            buf = io.BytesIO()
+            fig.savefig(buf, format="png", dpi=90)
+            plt.close(fig)
+            image_bytes = buf.getvalue()
+            image_b64 = base64.b64encode(image_bytes).decode("ascii")
+            data_uri = f"data:image/png;base64,{image_b64}"
+            inline_markdown = f"![{chart_title}]({data_uri})"
+
+            # Step 4: Resolve INC -> sys_id
+            sys_id = incident_id
+            if incident_id.startswith("INC"):
+                lookup = requests.get(
+                    f"{SERVICENOW_URL}/api/now/table/incident",
+                    params={"sysparm_query": f"number={incident_id}",
+                            "sysparm_limit": "1", "sysparm_fields": "sys_id"},
+                    auth=(SERVICENOW_USER, SERVICENOW_PASS),
+                    headers={"Accept": "application/json"},
+                    timeout=10
+                )
+                lookup.raise_for_status()
+                results = lookup.json().get("result", [])
+                if not results:
+                    return {"success": False,
+                            "error": f"Incident {incident_id} not found"}
+                sys_id = results[0]["sys_id"]
+
+            # Step 5: Upload PNG to SNOW
+            response = requests.post(
+                f"{SERVICENOW_URL}/api/now/attachment/file",
+                params={"table_name": "incident", "table_sys_id": sys_id,
+                        "file_name": filename},
+                auth=(SERVICENOW_USER, SERVICENOW_PASS),
+                headers={"Content-Type": "image/png", "Accept": "application/json"},
+                data=image_bytes,
+                timeout=30
+            )
+            response.raise_for_status()
+            result = response.json().get("result", {})
+
+            return {
+                "success": True,
+                "attachment_id": result.get("sys_id", ""),
+                "snow_download_link": result.get("download_link", ""),
+                "snow_attachments_url": f"{SERVICENOW_URL}/incident.do?sysparm_query=number={incident_id}",
+                "chart_data_points": len(rows),
+                "columns_plotted": val_cols[:4],
+                "image_size_bytes": len(image_bytes),
+                "data_uri": data_uri,
+                "markdown": inline_markdown,
+                "message": (f"Chart '{chart_title}' uploaded to {incident_id} "
+                            f"AND returned inline. Paste the `markdown` field "
+                            f"verbatim into your reply to render the chart in "
+                            f"the SRE Agent thread."),
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)[:300]}
+  timeoutSeconds: 300
+  dependencies:
+  - azure-identity
+  - requests
+  - matplotlib
+  authScopes:
+  - https://management.azure.com/.default
+  - https://api.loganalytics.io/.default
+  parameters:
+  - name: incident_id
+    type: string
+    description: |-
+      ServiceNow incident number (e.g. INC0010042) or sys_id
+    required: true
+  - name: kql_query
+    type: string
+    description: |-
+      KQL query to run against Log Analytics. Must return a time column and at least one numeric column. Example: requests | where timestamp > ago(30m) | summarize avg(duration), count() by bin(timestamp, 1m)
+    required: true
+  - name: chart_title
+    type: string
+    description: |-
+      Title for the chart (e.g. 'Disk Usage During Incident' or 'Request Latency Spike')
+    required: false
+  - name: filename
+    type: string
+    description: |-
+      Filename for the attachment (default: sre-agent-chart.png)
+    required: false

@@ -1,0 +1,204 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgentTool
+metadata:
+  name: RemediateContainerApp
+spec:
+  type: PythonTool
+  connector: ''
+  toolMode: Auto
+  description: |-
+    Apply ONE of four safe remediations to a Container App via the
+    ARM REST API using the agent's Managed Identity. No human
+    approval prompt. Use this from pod-incident-remediator Phase 2.
+
+    category options:
+      • replica-misconfig — set minReplicas=1, maxReplicas=max(3, current_max)
+      • oom               — bump container memory to next tier
+                            (0.25Gi→0.5Gi→1Gi→2Gi). Cap at 2Gi; if already
+                            at 2Gi the tool returns success=False with a
+                            "needs-engineering" reason.
+      • probe-misconfig   — set Liveness probe httpGet.path to "/health"
+                            on container 0.
+      • crash-on-startup  — restore the named env var to env_value on
+                            container 0 (env_var + env_value required).
+
+    Returns: {success, app_name, category, before, after, message}.
+  functionCode: |-
+    from azure.identity import DefaultAzureCredential
+    import requests
+    import time
+
+    SUBSCRIPTION_ID = "e964602f-6afc-4cc7-ba6b-3a796008e254"
+    API_VERSION = "2024-03-01"
+
+    MEM_TIERS = ["0.25Gi", "0.5Gi", "1Gi", "2Gi"]
+    CPU_TIERS = ["0.25",   "0.5",   "1.0", "2.0"]
+
+    def _next_mem(current):
+        c = (current or "").lower().replace(" ", "")
+        for i, t in enumerate(MEM_TIERS):
+            if t.lower() == c and i + 1 < len(MEM_TIERS):
+                return MEM_TIERS[i + 1], CPU_TIERS[i + 1]
+        return None, None
+
+    def _probe_path(container):
+        for p in (container.get("probes") or []):
+            if p.get("type") == "Liveness":
+                return ((p.get("httpGet") or {}).get("path"))
+        return None
+
+    def main(app_name: str, resource_group: str, category: str,
+             env_var: str = "", env_value: str = "") -> dict:
+        try:
+            cred = DefaultAzureCredential()
+            token = cred.get_token("https://management.azure.com/.default").token
+            headers = {"Authorization": f"Bearer {token}",
+                       "Content-Type": "application/json"}
+            base = (f"https://management.azure.com/subscriptions/{SUBSCRIPTION_ID}"
+                    f"/resourceGroups/{resource_group}"
+                    f"/providers/Microsoft.App/containerApps/{app_name}"
+                    f"?api-version={API_VERSION}")
+
+            r = requests.get(base, headers=headers, timeout=20)
+            r.raise_for_status()
+            app = r.json()
+            tpl = app["properties"]["template"]
+            scale = tpl.get("scale") or {}
+            containers = tpl["containers"]
+            if not containers:
+                return {"success": False, "error": "no containers"}
+            c0 = containers[0]
+
+            before = {
+                "minReplicas": scale.get("minReplicas"),
+                "maxReplicas": scale.get("maxReplicas"),
+                "memory": (c0.get("resources") or {}).get("memory"),
+                "cpu": (c0.get("resources") or {}).get("cpu"),
+                "probe_path": _probe_path(c0),
+                "env_vars": [e.get("name") for e in (c0.get("env") or [])],
+            }
+
+            cat = (category or "").strip().lower()
+            patch = None
+
+            if cat == "replica-misconfig":
+                new_min = 1
+                new_max = max(3, int(scale.get("maxReplicas") or 1))
+                patch = {"properties": {"template": {
+                    "scale": {**scale, "minReplicas": new_min,
+                              "maxReplicas": new_max}}}}
+
+            elif cat == "oom":
+                cur_mem = (c0.get("resources") or {}).get("memory")
+                new_mem, new_cpu = _next_mem(cur_mem)
+                if not new_mem:
+                    return {"success": False, "category": cat,
+                            "before": before,
+                            "message": (f"already at top tier ({cur_mem}); "
+                                        "needs-engineering — recommend "
+                                        "code/leak investigation")}
+                new_c0 = {**c0,
+                          "resources": {**(c0.get("resources") or {}),
+                                        "memory": new_mem, "cpu": float(new_cpu)}}
+                patch = {"properties": {"template": {"containers": [new_c0]}}}
+
+            elif cat == "probe-misconfig":
+                new_probes = []
+                for p in (c0.get("probes") or []):
+                    if p.get("type") == "Liveness":
+                        hg = dict(p.get("httpGet") or {})
+                        hg["path"] = "/health"
+                        new_probes.append({**p, "httpGet": hg})
+                    else:
+                        new_probes.append(p)
+                if not new_probes:
+                    new_probes = [{"type": "Liveness",
+                                   "httpGet": {"path": "/health",
+                                               "port": 80},
+                                   "periodSeconds": 10,
+                                   "failureThreshold": 3}]
+                new_c0 = {**c0, "probes": new_probes}
+                patch = {"properties": {"template": {"containers": [new_c0]}}}
+
+            elif cat == "crash-on-startup":
+                if not env_var:
+                    return {"success": False, "error":
+                            "env_var required for crash-on-startup"}
+                env = list(c0.get("env") or [])
+                env = [e for e in env if e.get("name") != env_var]
+                env.append({"name": env_var, "value": env_value or "default"})
+                new_c0 = {**c0, "env": env}
+                patch = {"properties": {"template": {"containers": [new_c0]}}}
+
+            else:
+                return {"success": False, "error":
+                        f"unknown category '{category}'"}
+
+            r = requests.patch(base, headers=headers, json=patch, timeout=60)
+            r.raise_for_status()
+
+            provisioning = None
+            app2 = app
+            for _ in range(25):
+                time.sleep(3)
+                r2 = requests.get(base, headers=headers, timeout=20)
+                if r2.status_code != 200:
+                    continue
+                provisioning = r2.json().get("properties", {}).get("provisioningState")
+                if provisioning in ("Succeeded", "Failed", "Canceled"):
+                    app2 = r2.json()
+                    break
+
+            tpl2 = app2["properties"]["template"]
+            scale2 = tpl2.get("scale") or {}
+            c0_2 = tpl2["containers"][0]
+            after = {
+                "minReplicas": scale2.get("minReplicas"),
+                "maxReplicas": scale2.get("maxReplicas"),
+                "memory": (c0_2.get("resources") or {}).get("memory"),
+                "cpu": (c0_2.get("resources") or {}).get("cpu"),
+                "probe_path": _probe_path(c0_2),
+                "env_vars": [e.get("name") for e in (c0_2.get("env") or [])],
+            }
+
+            return {
+                "success": provisioning == "Succeeded",
+                "app_name": app_name,
+                "category": cat,
+                "before": before,
+                "after": after,
+                "provisioning_state": provisioning or "Unknown",
+                "message": f"Remediation '{cat}' applied to {app_name}",
+            }
+        except requests.HTTPError as e:
+            return {"success": False,
+                    "error": f"HTTP {e.response.status_code}: {e.response.text[:300]}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)[:300]}
+  timeoutSeconds: 180
+  dependencies:
+  - azure-identity
+  - requests
+  authScopes:
+  - https://management.azure.com/.default
+  parameters:
+  - name: app_name
+    type: string
+    description: "string:Container App name (e.g. ca-powergrid-outage)"
+    required: true
+  - name: resource_group
+    type: string
+    description: "string:Resource group name (e.g. rg-powergrid)"
+    required: true
+  - name: category
+    type: string
+    description: "string:One of replica-misconfig, oom, probe-misconfig, crash-on-startup"
+    required: true
+  - name: env_var
+    type: string
+    description: "string:Env var name to restore (only for crash-on-startup)"
+    required: false
+  - name: env_value
+    type: string
+    description: "string:Env var value to restore (only for crash-on-startup; defaults to 'default')"
+    required: false

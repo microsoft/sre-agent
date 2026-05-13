@@ -1,0 +1,13 @@
+#requires -Version 7.0
+# Example scenario runner for {{LAB_DISPLAY_NAME}}.
+$ErrorActionPreference = 'Stop'
+$labRoot = Split-Path $PSScriptRoot -Parent | Split-Path -Parent
+$labsRoot = Split-Path $labRoot -Parent
+
+$deployed = Get-Content (Join-Path $labsRoot '.deployed/{{LAB_NAME}}.json') | ConvertFrom-Json
+$rg    = $deployed.resourceGroup
+$sub   = $deployed.subscriptionId
+$agent = $deployed.sreAgentName
+
+Write-Host "`n  TODO: implement scenario logic for {{LAB_NAME}}" -ForegroundColor Yellow
+Write-Host "  sub=$sub rg=$rg agent=$agent`n" -ForegroundColor DarkGray

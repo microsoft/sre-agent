@@ -1,0 +1,49 @@
+api: 1
+name: zava-athletic
+displayName: Zava Athletic — AKS + PostgreSQL e-commerce
+subsidiary: Zava Athletic
+description: AI-first AKS + PostgreSQL e-commerce demo with 3 break/fix scenarios. Agent works entirely through the Azure control plane (no VNet injection).
+tags:
+  - aks
+  - postgresql
+  - ecommerce
+  - control-plane
+
+prereqs:
+  - az
+  - azd
+  - kubectl
+  - pwsh
+  - docker
+
+prompts: []
+
+sim:
+  command: pwsh
+  args:
+    - -NoProfile
+    - -File
+    - .github/skills/running-demo/scripts/run-demo.ps1
+  description: Interactive break/fix runner with status dashboard
+
+scenarios:
+  - id: db-outage
+    label: Scenario 1 — PostgreSQL outage (server stopped)
+    description: Stops the PostgreSQL flexible server. Storefront returns 503; agent restarts the server via control plane.
+    runner: .github/skills/running-demo/scripts/break-sql.ps1
+    minutes: 5
+    needs: []
+
+  - id: network-partition
+    label: Scenario 2 — Network partition (K8s NetworkPolicy blocks DB)
+    description: Applies a NetworkPolicy that blocks api → postgres traffic. Agent diagnoses via aks command invoke and removes the policy.
+    runner: .github/skills/running-demo/scripts/break-network.ps1
+    minutes: 5
+    needs: []
+
+  - id: db-perf
+    label: Scenario 3 — Missing index (slow queries)
+    description: Drops the category/name index. Catalog browse becomes slow. Agent runs DDL by exec'ing into the api pod.
+    runner: .github/skills/running-demo/scripts/break-db-perf.ps1
+    minutes: 7
+    needs: []

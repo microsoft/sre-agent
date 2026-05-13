@@ -1,0 +1,29 @@
+# Azure Developer CLI (azd) template for Zava — IT Support SRE Agent Lab
+# Run: azd up
+name: sre-agent-zava-itsupport-lab
+metadata:
+  template: sre-agent-zava-itsupport-lab@1.0.0
+
+infra:
+  provider: bicep
+  path: infra
+
+# Container images for the 2 IT services are built and pushed to ACR by
+# the post-provision hook (`az acr build`), then the Container Apps are
+# updated to the new image tag. azd's `services:` block intentionally omitted.
+
+hooks:
+  postprovision:
+    posix:
+      shell: sh
+      run: scripts/post-provision.sh
+      interactive: true
+    windows:
+      shell: pwsh
+      run: |
+        if (-not (Get-Command bash -ErrorAction SilentlyContinue)) {
+          Write-Error "bash not found. Install Git for Windows (https://git-scm.com/download/win)."
+          exit 1
+        }
+        bash scripts/post-provision.sh
+      interactive: true

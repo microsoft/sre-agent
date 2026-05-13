@@ -1,0 +1,18 @@
+metadata:
+  name: it-support-handler
+spec:
+  instructions: subagents/it-support-handler.instructions.md
+  handoffDescription: Handles employee laptop replacement requests from ServiceNow — fetches the ticket, validates warranty, submits the replacement order, and resolves the ticket.
+  tools:
+  - CheckWarranty
+  - LookupServiceNowIncident
+  - GetServiceNowIncident
+  - PostServiceNowDiscussionEntry
+  - AcknowledgeServiceNowIncident
+  - ResolveServiceNowIncident
+  - SendOutlookEmail
+  agentType: Autonomous
+  temperature: 0.2
+  handoffs: []
+  enableSkills: false
+  allowedSkills: []

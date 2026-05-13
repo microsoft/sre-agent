@@ -1,0 +1,15 @@
+metadata:
+  name: crash-regression-diagnosis
+  description: 'Deep-dive diagnosis when deployment-validation has flagged a service
+
+    with elevated 5xx errors AND exceptions present in App Insights.
+
+    Identifies whether the cause is an unhandled exception, OOMKilled,
+
+    ImagePullBackOff, missing dependency, or import error. Produces a
+
+    structured RCA suitable for SNOW work note + fix PR.'
+  spec:
+    tools: []
+skillContent: skills/crash-regression-diagnosis.md
+additionalFiles: []

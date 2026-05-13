@@ -1,0 +1,54 @@
+{
+  "_scenario": "azmon-aca-servicenow-zavapower-ops",
+  "agent": {
+    "accessLevel": "High",
+    "actionMode": "Autonomous",
+    "upgradeChannel": "Preview",
+    "defaultModelProvider": "Anthropic",
+    "incidentPlatform": "AzureMonitor"
+  },
+  "connectors": [
+    { "name": "app-insights", "type": "AppInsights" },
+    { "name": "log-analytics", "type": "LogAnalytics" },
+    { "name": "azure-monitor", "type": "AzureMonitor" }
+  ],
+  "skills": [
+    "config-regression-diagnosis",
+    "crash-regression-diagnosis",
+    "deployment-rollback",
+    "deployment-validation",
+    "disk-pressure-diagnosis",
+    "grid-status-diagnosis",
+    "meter-api-diagnosis",
+    "notification-svc-diagnosis",
+    "outage-api-diagnosis",
+    "perf-regression-diagnosis",
+    "plot-incident-metrics",
+    "pod-fleet-audit-deck",
+    "release-on-sre-fix",
+    "repo-routing",
+    "sre-agent-customizer"
+  ],
+  "subagents": [
+    "deployment-validator",
+    "incident-handler",
+    "pipeline-failure-investigator",
+    "pod-incident-remediator",
+    "release-orchestrator",
+    "utility-ops-agent",
+    "vm-ops-agent",
+    "web-app-troubleshooter"
+  ],
+  "hooks": [],
+  "commonPrompts": [],
+  "scheduledTasks": [
+    "pod-fleet-audit-daily"
+  ],
+  "responsePlans": [
+    {
+      "name": "auto-investigate-azmon",
+      "handlingAgent": "incident-handler"
+    }
+  ],
+  "repos": []
+}

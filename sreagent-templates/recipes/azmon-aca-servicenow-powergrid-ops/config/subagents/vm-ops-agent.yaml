@@ -1,0 +1,16 @@
+metadata:
+  name: vm-ops-agent
+spec:
+  instructions: subagents/vm-ops-agent.instructions.md
+  handoffDescription: Handles VM and infrastructure alerts
+  handoffs: []
+  tools:
+  - CreateServiceNowIncident
+  - UpdateServiceNowWorkNotes
+  - ResolveServiceNowIncident
+  - LookupServiceNowIncident
+  - UploadChartToServiceNow
+  agentType: Autonomous
+  temperature: 0.2
+  enableSkills: true
+  allowedSkills: []

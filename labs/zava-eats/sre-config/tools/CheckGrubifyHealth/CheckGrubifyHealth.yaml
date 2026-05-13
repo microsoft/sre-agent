@@ -1,0 +1,60 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgentTool
+metadata:
+  name: CheckGrubifyHealth
+spec:
+  type: PythonTool
+  connector: ''
+  toolMode: Auto
+  description: |-
+    Probes the Grubify Container App's /health endpoint and returns status,
+    HTTP code, latency, and any error body. Use to confirm the app is up
+    or to capture the failure mode when investigating 5xx alerts.
+  functionCode: |-
+    import os
+    import time
+    import urllib.request
+    import urllib.error
+
+    def check_grubify_health(endpoint: str = "") -> dict:
+        """Check the Grubify Container App /health endpoint."""
+        base = endpoint or os.environ.get("GRUBIFY_URL", "")
+        if not base:
+            return {"ok": False, "error": "no endpoint and GRUBIFY_URL env var not set"}
+        url = base.rstrip("/") + "/health"
+        start = time.time()
+        try:
+            with urllib.request.urlopen(url, timeout=10) as resp:
+                body = resp.read().decode("utf-8", errors="replace")[:500]
+                return {
+                    "ok": 200 <= resp.status < 300,
+                    "status_code": resp.status,
+                    "url": url,
+                    "latency_ms": int((time.time() - start) * 1000),
+                    "body": body,
+                }
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")[:500] if hasattr(e, "read") else str(e)
+            return {
+                "ok": False,
+                "status_code": e.code,
+                "url": url,
+                "latency_ms": int((time.time() - start) * 1000),
+                "body": body,
+            }
+        except Exception as e:
+            return {
+                "ok": False,
+                "url": url,
+                "latency_ms": int((time.time() - start) * 1000),
+                "error": f"{type(e).__name__}: {e}",
+            }
+  timeoutSeconds: 60
+  dependencies: []
+  authScopes:
+  parameters:
+    - name: endpoint
+      type: string
+      description: |-
+        string:Optional override of the Grubify base URL (otherwise reads GRUBIFY_URL env var)
+      required: false

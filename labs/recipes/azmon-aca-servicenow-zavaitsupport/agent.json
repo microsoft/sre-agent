@@ -1,0 +1,86 @@
+{
+  "_scenario": "azmon-aca-servicenow-zavaitsupport-itsupport",
+  "_description": "ServiceNow IT-support helpdesk agent for the Zava IT Support demo (Zava). Polls ServiceNow for laptop-replacement requests, validates warranty via a custom Python tool against the lab's warranty API, submits a replacement order via Browser Operator, and resolves the SNOW ticket. Native ServiceNow incident-platform integration — no Kusto, no AzMon.",
+  "_prerequisites": [
+    "Azure subscription with SRE Agent RP access",
+    "ServiceNow instance reachable from the agent (PDI works for demos)",
+    "ServiceNow admin creds — entered when connecting the Incident Platform in the SRE Agent UI",
+    "Zava warranty API reachable at WARRANTY_API_URL (the lab's Azure Function or Web App)",
+    "(Optional) Outlook mailbox for the SendOutlookEmail tool"
+  ],
+  "_prompts": {
+    "agentName": {
+      "ask": "Agent name",
+      "default": "zavaitsupport-itsupport-agent"
+    },
+    "resourceGroup": {
+      "ask": "Resource group",
+      "default": "rg-zavaitsupport-itsupport"
+    },
+    "location": {
+      "ask": "Region",
+      "options": ["eastus2", "swedencentral", "uksouth", "australiaeast"],
+      "default": "eastus2",
+      "required": true
+    },
+    "WORKLOAD_NAME": {
+      "ask": "Workload short name (used in tags + email body templates)",
+      "default": "zava-itsupport"
+    },
+    "WARRANTY_API_URL": {
+      "ask": "Zava warranty API base URL (the CheckWarranty tool calls this for serial-number lookup)",
+      "default": "https://app-zava-warranty.azurewebsites.net"
+    },
+    "SERVICENOW_INSTANCE_URL": {
+      "ask": "ServiceNow instance URL (e.g. https://dev123456.service-now.com)",
+      "required": true
+    },
+    "SERVICENOW_USERNAME": {
+      "ask": "ServiceNow username for the LookupServiceNowIncident tool (e.g. admin)",
+      "default": "admin"
+    },
+    "demoEmployeeEmail": {
+      "ask": "Demo employee email used as fallback when not in the ticket",
+      "default": "demo.user@zavaitsupport.com"
+    },
+    "modelProvider": {
+      "ask": "AI model provider",
+      "options": ["Anthropic", "GitHubCopilot", "MicrosoftFoundry"],
+      "default": "Anthropic"
+    },
+    "existingUamiId": {
+      "ask": "Existing UAMI resource ID (leave blank to create new)",
+      "default": ""
+    },
+    "existingAgentAppInsightsId": {
+      "ask": "Existing App Insights resource ID for agent telemetry (leave blank to create new)",
+      "default": ""
+    }
+  },
+  "identity": {
+    "agentName": "{{agentName}}",
+    "resourceGroup": "{{resourceGroup}}",
+    "subscription": "",
+    "location": "{{location}}",
+    "targetResourceGroups": ""
+  },
+  "access": {
+    "accessLevel": "Low",
+    "actionMode": "Autonomous"
+  },
+  "upgradeChannel": "Preview",
+  "defaultModelProvider": "{{modelProvider}}",
+  "monthlyAgentUnitLimit": 5000,
+  "tags": {
+    "scenario": "zavaitsupport-itsupport",
+    "workload": "{{WORKLOAD_NAME}}"
+  },
+  "toggles": {
+    "enableWebhookBridge": false,
+    "webhookBridgeTriggerUrl": ""
+  },
+  "existingUamiId": "{{existingUamiId}}",
+  "existingAgentAppInsightsId": "{{existingAgentAppInsightsId}}"
+}
+
+

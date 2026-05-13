@@ -1,0 +1,12 @@
+metadata:
+  name: release-orchestrator
+spec:
+  instructions: subagents/release-orchestrator.instructions.md
+  handoffDescription: Triggers PowerGrid-Release for SRE-Agent-authored fix builds
+    only
+  handoffs: []
+  tools: []
+  agentType: Autonomous
+  temperature: 0.2
+  enableSkills: true
+  allowedSkills: []

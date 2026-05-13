@@ -1,0 +1,185 @@
+# ═══════════════════════════════════════════════════════════════
+# Zava Power Limited — Release Pipeline
+# ═══════════════════════════════════════════════════════════════
+# Deploys images from ACR to Azure Container Apps + App Service.
+# Triggered manually or after a successful build.
+# SRE Agent tracks this as the RELEASE pipeline in Release Management.
+
+trigger: none
+pr: none
+
+# Auto-trigger on successful PowerGrid-Build run.
+# This closes the SRE-Agent-driven CI/CD loop:
+#   Build success -> Release auto-runs -> Post-Deploy Validation trigger
+#   re-invokes deployment-validator with the new buildId.
+resources:
+  pipelines:
+    - pipeline: build
+      source: PowerGrid-Build
+      trigger:
+        branches:
+          include:
+            - main
+
+parameters:
+  - name: buildId
+    displayName: 'Build ID to deploy (image tag)'
+    type: string
+    default: 'latest'
+  - name: services
+    displayName: 'Services being deployed (for SRE Agent correlation)'
+    type: string
+    default: 'all'
+
+variables:
+  acrName: 'acrpowergrid'
+  resourceGroup: '{{AZ_RG}}'
+  workloadName: 'powergrid'
+
+stages:
+  - stage: Deploy
+    displayName: 'Deploy to Production'
+    jobs:
+      - deployment: DeployServices
+        displayName: 'Deploy PowerGrid Services'
+        pool:
+          vmImage: 'ubuntu-latest'
+        environment: 'production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureCLI@2
+                  displayName: 'Deploy outage-api'
+                  condition: or(contains('${{ parameters.services }}', 'all'), contains('${{ parameters.services }}', 'outage-api'))
+                  inputs:
+                    azureSubscription: 'zava-pl-azure'
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      echo "Deploying outage-api:${{ parameters.buildId }}..."
+                      az containerapp update \
+                        -n ca-$(workloadName)-outage \
+                        -g $(resourceGroup) \
+                        --image $(acrName).azurecr.io/outage-api:${{ parameters.buildId }} \
+                        --output none
+
+                - task: AzureCLI@2
+                  displayName: 'Deploy meter-api'
+                  condition: or(contains('${{ parameters.services }}', 'all'), contains('${{ parameters.services }}', 'meter-api'))
+                  inputs:
+                    azureSubscription: 'zava-pl-azure'
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      az containerapp update \
+                        -n ca-$(workloadName)-meter \
+                        -g $(resourceGroup) \
+                        --image $(acrName).azurecr.io/meter-api:${{ parameters.buildId }} \
+                        --output none
+
+                - task: AzureCLI@2
+                  displayName: 'Deploy grid-status-api'
+                  condition: or(contains('${{ parameters.services }}', 'all'), contains('${{ parameters.services }}', 'grid-status-api'))
+                  inputs:
+                    azureSubscription: 'zava-pl-azure'
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      az containerapp update \
+                        -n ca-$(workloadName)-grid \
+                        -g $(resourceGroup) \
+                        --image $(acrName).azurecr.io/grid-status-api:${{ parameters.buildId }} \
+                        --output none
+
+                - task: AzureCLI@2
+                  displayName: 'Deploy notification-svc'
+                  condition: or(contains('${{ parameters.services }}', 'all'), contains('${{ parameters.services }}', 'notification-svc'))
+                  inputs:
+                    azureSubscription: 'zava-pl-azure'
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      az containerapp update \
+                        -n ca-$(workloadName)-notify \
+                        -g $(resourceGroup) \
+                        --image $(acrName).azurecr.io/notification-svc:${{ parameters.buildId }} \
+                        --set-env-vars REQUIRED_CONFIG=enabled \
+                        --output none
+
+                - task: AzureCLI@2
+                  displayName: 'Deploy portal-web (App Service)'
+                  condition: or(contains('${{ parameters.services }}', 'all'), contains('${{ parameters.services }}', 'portal-web'))
+                  inputs:
+                    azureSubscription: 'zava-pl-azure'
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      az webapp config container set \
+                        --name app-$(workloadName)-portal \
+                        --resource-group $(resourceGroup) \
+                        --container-image-name $(acrName).azurecr.io/portal-web:${{ parameters.buildId }} \
+                        --container-registry-url https://$(acrName).azurecr.io \
+                        --output none
+                      az webapp restart \
+                        --name app-$(workloadName)-portal \
+                        --resource-group $(resourceGroup) \
+                        --output none
+
+  - stage: Validate
+    displayName: 'Validate Deployment'
+    dependsOn: Deploy
+    jobs:
+      - job: HealthChecks
+        displayName: 'Run Health Checks'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Verify service health'
+            inputs:
+              azureSubscription: 'zava-pl-azure'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "Waiting 30s for new revisions..."
+                sleep 30
+
+                FAILED=0
+                for svc in outage meter grid; do
+                  FQDN=$(az containerapp show -n ca-$(workloadName)-$svc -g $(resourceGroup) --query properties.configuration.ingress.fqdn -o tsv)
+                  STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$FQDN/health" --max-time 10 || echo "000")
+                  if [ "$STATUS" = "200" ]; then
+                    echo "✅ $svc: HTTP $STATUS"
+                  else
+                    echo "❌ $svc: HTTP $STATUS"
+                    FAILED=$((FAILED + 1))
+                  fi
+                done
+
+                # notification-svc has internal-only ingress — check ACA revision health
+                # instead of HTTP. Active revision must be Healthy + Running + Provisioned.
+                NOTIFY_STATE=$(az containerapp revision list \
+                  -n ca-$(workloadName)-notify -g $(resourceGroup) \
+                  --query "[?properties.active] | [0].{h:properties.healthState,r:properties.runningState,p:properties.provisioningState}" \
+                  -o tsv 2>/dev/null || echo "unknown")
+                if echo "$NOTIFY_STATE" | grep -qi "healthy.*running.*provisioned"; then
+                  echo "✅ notify: $NOTIFY_STATE (internal ingress)"
+                else
+                  echo "❌ notify: $NOTIFY_STATE (expected Healthy/Running/Provisioned)"
+                  FAILED=$((FAILED + 1))
+                fi
+
+                # Check App Service portal
+                STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://app-$(workloadName)-portal.azurewebsites.net" --max-time 15 || echo "000")
+                if [ "$STATUS" = "200" ]; then
+                  echo "✅ portal: HTTP $STATUS"
+                else
+                  echo "❌ portal: HTTP $STATUS"
+                  FAILED=$((FAILED + 1))
+                fi
+
+                if [ $FAILED -gt 0 ]; then
+                  echo ""
+                  echo "##[warning]$FAILED service(s) unhealthy after deployment!"
+                fi

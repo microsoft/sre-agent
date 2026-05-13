@@ -1,0 +1,28 @@
+{
+  "toggles": {
+    "enableAppInsightsConnector": "{{appInsightsId:bool}}",
+    "appInsightsResourceId": "{{appInsightsId}}",
+    "appInsightsAppId": "{{appInsightsAppId}}",
+    "enableLogAnalyticsConnector": "{{lawId:bool}}",
+    "lawResourceId": "{{lawId}}",
+    "enableAzureMonitorConnector": true,
+    "azureMonitorLookbackDays": 7
+  },
+  "connectors": [
+    {
+      "name": "servicenow",
+      "type": "MCP",
+      "transport": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@servicenow/sdk-mcp@latest"
+      ],
+      "env": {
+        "SN_INSTANCE_URL": "https://{{serviceNowInstance}}",
+        "SN_USERNAME": "{{serviceNowUser}}",
+        "SN_PASSWORD": "${SN_PASSWORD}"
+      }
+    }
+  ]
+}

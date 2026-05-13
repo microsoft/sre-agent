@@ -1,0 +1,46 @@
+# ─────────────────────────────────────────────────────────────
+# ServiceNow Integration — Using Native SRE Agent Tools
+# ─────────────────────────────────────────────────────────────
+#
+# SRE Agent has BUILT-IN ServiceNow tools when you connect
+# ServiceNow as the Incident Platform. No MCP needed.
+#
+# Native tools available automatically:
+#   - GetServiceNowIncident (requires sys_id)
+#   - PostServiceNowDiscussionEntry (add work notes)
+#   - AcknowledgeServiceNowIncident
+#   - ResolveServiceNowIncident
+#
+# Custom Python tool needed (see LookupServiceNowIncident below):
+#   - LookupServiceNowIncident (translates INC number → sys_id)
+#
+# SETUP:
+#   1. Connect ServiceNow as Incident Platform:
+#      sre.azure.com → Agent → Builder → Incidents → Connect platform
+#      → ServiceNow → Enter instance URL + credentials
+#
+#   2. Upload the LookupServiceNowIncident Python tool:
+#      Builder → Tools → + Add tool → Python
+#      (see sre-config/tools/LookupServiceNowIncident.yaml)
+#
+#   3. The native SNOW tools become available to all subagents
+#      once the Incident Platform is connected
+#
+# Instance: https://{{SN_INSTANCE}}.service-now.com
+# ─────────────────────────────────────────────────────────────
+
+# This is NOT an MCP connector config — it documents the native
+# ServiceNow integration used in this lab.
+#
+# The native integration:
+#   - INBOUND: Agent polls SNOW for new/updated incidents (every 60s)
+#   - OUTBOUND: Agent uses native tools to update/resolve tickets
+#   - Agent can also create discussion entries (work notes)
+#
+# Combined with Azure Monitor alerts:
+#   - Monitor alert → Response Plan triggers investigation
+#   - Agent creates SNOW incident via LookupServiceNowIncident
+#     (or SNOW incident already exists from monitoring webhook)
+#   - Agent documents investigation in SNOW discussion entries
+#   - Agent resolves SNOW incident when fix is validated
+

@@ -1,0 +1,7 @@
+metadata:
+  name: servicenow-incident-mgmt
+  description: 'Skill: servicenow-incident-mgmt'
+  spec:
+    tools: []
+skillContent: skills/servicenow-incident-mgmt.md
+additionalFiles: []

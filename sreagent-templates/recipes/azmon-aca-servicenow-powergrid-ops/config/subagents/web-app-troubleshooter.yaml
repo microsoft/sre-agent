@@ -1,0 +1,18 @@
+metadata:
+  name: web-app-troubleshooter
+spec:
+  instructions: subagents/web-app-troubleshooter.instructions.md
+  handoffDescription: 'Triage & remediate Azure web app issues (App Service / Container
+    Apps / AKS web apps): 5xx, latency, availability, deployment regressions, dependency
+    failures, resource pressure.'
+  handoffs: []
+  tools:
+  - CreateServiceNowIncident
+  - UpdateServiceNowWorkNotes
+  - ResolveServiceNowIncident
+  - LookupServiceNowIncident
+  - UploadChartToServiceNow
+  agentType: Autonomous
+  temperature: 0.2
+  enableSkills: null
+  allowedSkills: []

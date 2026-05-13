@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>New Laptop Request — Zava IT Asset Management</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ─── Header ──────────────────────────────────────── -->
+<header class="header">
+  <div class="header-logo">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="4" fill="rgba(255,255,255,.15)"/>
+      <path d="M6 8h7v7H6zM15 8h7v7h-7zM6 17h7v5H6zM15 17h7v5h-7z" fill="#fff"/>
+    </svg>
+    Zava IT Asset Management
+  </div>
+  <div class="header-right">
+    <span class="user-name">IT Service Portal</span>
+    <div class="avatar">SA</div>
+  </div>
+</header>
+
+<!-- ─── Sidebar ─────────────────────────────────────── -->
+<nav class="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-section-title">Main Menu</div>
+    <ul class="sidebar-nav">
+      <li>
+        <a href="#">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path d="M3 3h6v6H3V3zm0 8h6v6H3v-6zm8-8h6v6h-6V3zm0 8h6v6h-6v-6z"/></svg>
+          Dashboard
+        </a>
+      </li>
+      <li>
+        <a href="#" class="active">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a1 1 0 011 1v6h6a1 1 0 110 2h-6v6a1 1 0 11-2 0v-6H3a1 1 0 110-2h6V3a1 1 0 011-1z"/></svg>
+          New Request
+        </a>
+      </li>
+      <li>
+        <a href="#">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4h12v2H4V4zm0 5h12v2H4V9zm0 5h8v2H4v-2z"/></svg>
+          My Requests
+        </a>
+      </li>
+      <li>
+        <a href="#">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a7 7 0 100 14A7 7 0 009 2zm1 10H8V8h2v4zm0-5H8V5h2v2z"/></svg>
+          Knowledge Base
+        </a>
+      </li>
+    </ul>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-title">Support</div>
+    <ul class="sidebar-nav">
+      <li>
+        <a href="#">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5l8 5 8-5V4l-8 5-8-5v1zm0 2v8h16V7l-8 5-8-5z"/></svg>
+          Contact IT
+        </a>
+      </li>
+      <li>
+        <a href="#">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 12H9v-2h2v2zm0-4H9V6h2v4z"/></svg>
+          FAQ
+        </a>
+      </li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ─── Main Content ────────────────────────────────── -->
+<main class="main">
+  <h1 class="page-title">New Laptop Request</h1>
+  <p class="page-subtitle">Complete the form below to submit a laptop replacement or new laptop request. All fields marked with <span style="color:#d13438">*</span> are required.</p>
+
+  <div class="card">
+    <div class="card-title">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm1 0v9h12V4H4zm-3 12a1 1 0 011-1h16a1 1 0 110 2H2a1 1 0 01-1-1z"/></svg>
+      Laptop Request Details
+    </div>
+
+    <form id="laptopRequestForm" novalidate>
+      <div class="form-grid">
+        <!-- Employee Name -->
+        <div class="form-group">
+          <label for="employeeName">Employee Name <span class="required">*</span></label>
+          <input type="text" id="employeeName" name="employeeName" placeholder="e.g. Jane Doe" required />
+        </div>
+
+        <!-- Employee Email -->
+        <div class="form-group">
+          <label for="employeeEmail">Employee Email <span class="required">*</span></label>
+          <input type="email" id="employeeEmail" name="employeeEmail" placeholder="e.g. jane.doe@zava.com" required />
+        </div>
+
+        <!-- Employee ID -->
+        <div class="form-group">
+          <label for="employeeId">Employee ID <span class="required">*</span></label>
+          <input type="text" id="employeeId" name="employeeId" placeholder="e.g. EMP-20345" required />
+        </div>
+
+        <!-- Department -->
+        <div class="form-group">
+          <label for="department">Department <span class="required">*</span></label>
+          <select id="department" name="department" required>
+            <option value="">— Select Department —</option>
+            <option value="Engineering">Engineering</option>
+            <option value="Sales">Sales</option>
+            <option value="Marketing">Marketing</option>
+            <option value="Finance">Finance</option>
+            <option value="HR">HR</option>
+            <option value="Operations">Operations</option>
+          </select>
+        </div>
+
+        <!-- Current Laptop Serial Number -->
+        <div class="form-group">
+          <label for="serialNumber">Current Laptop Serial Number <span class="required">*</span></label>
+          <input type="text" id="serialNumber" name="serialNumber" placeholder="e.g. SN-XPS-2022-48291" required />
+        </div>
+
+        <!-- Reason for Request -->
+        <div class="form-group">
+          <label for="reason">Reason for Request <span class="required">*</span></label>
+          <select id="reason" name="reason" required>
+            <option value="">— Select Reason —</option>
+            <option value="Warranty Expired">Warranty Expired</option>
+            <option value="Hardware Failure">Hardware Failure</option>
+            <option value="Performance Issues">Performance Issues</option>
+            <option value="Role Change">Role Change</option>
+            <option value="New Hire">New Hire</option>
+          </select>
+        </div>
+
+        <!-- Preferred Laptop Model -->
+        <div class="form-group">
+          <label for="laptopModel">Preferred Laptop Model <span class="required">*</span></label>
+          <select id="laptopModel" name="laptopModel" required>
+            <option value="">— Select Model —</option>
+            <option value="Dell XPS 15">Dell XPS 15</option>
+            <option value='MacBook Pro 16"'>MacBook Pro 16"</option>
+            <option value="Lenovo ThinkPad X1 Carbon">Lenovo ThinkPad X1 Carbon</option>
+            <option value="HP EliteBook 860">HP EliteBook 860</option>
+          </select>
+        </div>
+
+        <!-- ServiceNow Ticket Reference -->
+        <div class="form-group">
+          <label for="snowTicket">ServiceNow Ticket Reference</label>
+          <input type="text" id="snowTicket" name="snowTicket" placeholder="e.g. INC0012345" />
+          <span class="hint">If a ServiceNow incident already exists, enter the ticket number.</span>
+        </div>
+
+        <!-- Additional Notes -->
+        <div class="form-group full-width">
+          <label for="notes">Additional Notes</label>
+          <textarea id="notes" name="notes" placeholder="Any additional information about your request…"></textarea>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="reset" class="btn btn-secondary">Clear Form</button>
+        <button type="submit" class="btn btn-primary">Submit Request</button>
+      </div>
+    </form>
+  </div>
+</main>
+
+<!-- ─── Success Modal ───────────────────────────────── -->
+<div class="modal-overlay" id="successModal">
+  <div class="modal" role="dialog" aria-labelledby="modalTitle">
+    <div class="modal-header">
+      <div class="icon-circle">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div>
+        <h2 id="modalTitle">Request Submitted Successfully</h2>
+        <p>Your laptop request has been recorded and is pending approval.</p>
+      </div>
+    </div>
+
+    <div class="modal-body">
+      <div class="request-id-banner">
+        <div>
+          <div class="label">Request ID</div>
+          <div class="value" id="requestIdValue"></div>
+        </div>
+      </div>
+
+      <table class="summary-table" id="summaryTable">
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+      <button class="btn btn-primary" onclick="closeModal()">View My Requests</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Script ──────────────────────────────────────── -->
+<script>
+  const form = document.getElementById('laptopRequestForm');
+  const modal = document.getElementById('successModal');
+
+  function generateRequestId() {
+    const year = new Date().getFullYear();
+    const seq = String(Math.floor(Math.random() * 90000) + 10000);
+    return `LR-${year}-${seq}`;
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    // Basic validation
+    const requiredFields = form.querySelectorAll('[required]');
+    let valid = true;
+    requiredFields.forEach(field => {
+      if (!field.value.trim()) {
+        field.style.borderColor = '#d13438';
+        valid = false;
+      } else {
+        field.style.borderColor = '';
+      }
+    });
+    if (!valid) return;
+
+    const requestId = generateRequestId();
+    document.getElementById('requestIdValue').textContent = requestId;
+
+    // Build summary
+    const rows = [
+      ['Employee Name', form.employeeName.value],
+      ['Employee Email', form.employeeEmail.value],
+      ['Employee ID', form.employeeId.value],
+      ['Department', form.department.value],
+      ['Current Serial Number', form.serialNumber.value],
+      ['Reason for Request', form.reason.value],
+      ['Preferred Laptop Model', form.laptopModel.value],
+      ['ServiceNow Ticket', form.snowTicket.value || '—'],
+      ['Additional Notes', form.notes.value || '—'],
+      ['Submitted At', new Date().toLocaleString()],
+    ];
+
+    const tbody = document.querySelector('#summaryTable tbody');
+    tbody.innerHTML = '';
+    rows.forEach(([label, value]) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${label}</td><td>${value}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    modal.classList.add('visible');
+  });
+
+  function closeModal() {
+    modal.classList.remove('visible');
+  }
+
+  // Close modal on backdrop click
+  modal.addEventListener('click', function (e) {
+    if (e.target === modal) closeModal();
+  });
+
+  // Close modal on Escape
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeModal();
+  });
+</script>
+</body>
+</html>

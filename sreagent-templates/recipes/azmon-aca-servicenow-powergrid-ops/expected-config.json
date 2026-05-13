@@ -1,0 +1,69 @@
+{
+  "_description": "Expected configuration for azmon-aca-servicenow-powergrid-ops. Used by verify-agent.sh.",
+  "_scenario": "azmon-aca-servicenow-powergrid-ops",
+  "agent": {
+    "accessLevel": "Medium",
+    "actionMode": "Autonomous",
+    "upgradeChannel": "Preview",
+    "defaultModelProvider": "Anthropic",
+    "incidentPlatform": "AzMonitor"
+  },
+  "connectors": [
+    {
+      "name": "app-insights",
+      "type": "AppInsights"
+    },
+    {
+      "name": "log-analytics",
+      "type": "LogAnalytics"
+    },
+    {
+      "name": "servicenow",
+      "type": "MCP"
+    }
+  ],
+  "skills": [
+    "config-regression-diagnosis",
+    "crash-regression-diagnosis",
+    "deployment-rollback",
+    "deployment-validation",
+    "disk-pressure-diagnosis",
+    "grid-status-diagnosis",
+    "meter-api-diagnosis",
+    "notification-svc-diagnosis",
+    "outage-api-diagnosis",
+    "perf-regression-diagnosis",
+    "plot-incident-metrics",
+    "pod-fleet-audit-deck",
+    "release-on-sre-fix",
+    "repo-routing",
+    "servicenow-incident-mgmt"
+  ],
+  "subagents": [
+    "deployment-validator",
+    "incident-handler",
+    "pipeline-failure-investigator",
+    "pod-incident-remediator",
+    "release-orchestrator",
+    "utility-ops-agent",
+    "vm-ops-agent",
+    "web-app-troubleshooter"
+  ],
+  "hooks": [
+    "deny-prod-deletes",
+    "require-approval-for-restarts"
+  ],
+  "commonPrompts": [
+    "safety-rules"
+  ],
+  "scheduledTasks": [
+    "pod-fleet-audit"
+  ],
+  "responsePlans": [
+    {
+      "name": "powergrid-sev01",
+      "handlingAgent": "incident-handler"
+    }
+  ],
+  "repos": []
+}

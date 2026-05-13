@@ -1,0 +1,93 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aka.ms/zava-unlimited/lab.schema.json",
+  "title": "Zava Unlimited lab manifest",
+  "description": "Declarative contract every lab provides. Read by labs/lab.ps1 (launcher) and labs/sim.ps1 (meta-simulator).",
+  "type": "object",
+  "required": ["name", "displayName", "description"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Manifest schema version. Always 1 for now."
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]+$",
+      "description": "Stable kebab-case identifier. Must match the lab's directory name."
+    },
+    "displayName": {
+      "type": "string",
+      "description": "Human-readable lab name shown in pickers (e.g. 'Zava Power — ZeroOps')."
+    },
+    "subsidiary": {
+      "type": "string",
+      "description": "Which Zava Unlimited subsidiary this lab represents (e.g. 'Zava Power', 'Zava Athletic'). Optional for non-Zava-themed labs."
+    },
+    "description": {
+      "type": "string",
+      "description": "One-sentence description shown in launcher list."
+    },
+    "estimatedMinutes": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Approximate end-to-end deploy time in minutes."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Free-form labels (e.g. 'aca', 'aks', 'servicenow', 'autoremediation')."
+    },
+    "prereqs": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "CLI tools that must be on PATH (e.g. 'az', 'azd', 'pwsh', 'python', 'docker', 'srectl')."
+    },
+    "prompts": {
+      "type": "array",
+      "description": "Values azd cannot infer that the launcher must collect interactively before deploy. Stashed in the lab's azd env.",
+      "items": {
+        "type": "object",
+        "required": ["name", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "name":    { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$", "description": "Env var name (SCREAMING_SNAKE)." },
+          "text":    { "type": "string", "description": "Question shown to the user." },
+          "default": { "type": "string", "description": "Default if the user just presses Enter." },
+          "secret":  { "type": "boolean", "description": "If true, input is masked." },
+          "optional":{ "type": "boolean", "description": "If true, blank input is allowed." }
+        }
+      }
+    },
+    "sim": {
+      "type": "object",
+      "description": "How the meta-sim launches this lab's own simulator UI when the user picks 'open lab sim'.",
+      "required": ["command", "args"],
+      "additionalProperties": false,
+      "properties": {
+        "command": { "type": "string", "description": "Executable (e.g. 'python', 'pwsh', 'node')." },
+        "args":    { "type": "array", "items": { "type": "string" }, "description": "Args relative to the lab's root dir." },
+        "envFromConfig": { "type": "boolean", "default": true, "description": "If true, the meta-sim reads .lab-config.json (or .deployed/<name>.json) and exports it to env before launching." }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "description": "Break/fix scenarios this lab can drive. Exposed in the meta-sim's unified picker. Optional — labs without scenarios just don't show in the unified picker.",
+      "items": {
+        "type": "object",
+        "required": ["id", "label"],
+        "additionalProperties": false,
+        "properties": {
+          "id":     { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+          "label":  { "type": "string" },
+          "description": { "type": "string" },
+          "runner": { "type": "string", "description": "Path to the runner script relative to the lab root." },
+          "minutes":{ "type": "integer", "minimum": 1 },
+          "needs":  { "type": "array", "items": { "type": "string" }, "description": "Capability tags the scenario needs (e.g. 'snow', 'ado', 'github')." },
+          "tags":   { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

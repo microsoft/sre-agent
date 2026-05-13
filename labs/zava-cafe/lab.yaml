@@ -1,0 +1,30 @@
+api: 1
+name: zava-cafe
+displayName: Zava — Zava Café SRE Agent Lab
+description: Realistic e-commerce platform (Zava) — break SQL/web on purpose, watch SRE Agent investigate and remediate.
+tags:
+  - intermediate
+  - sql
+  - aspnet
+
+prereqs:
+  - az
+  - azd
+  - sqlcmd
+
+prompts: []
+
+scenarios:
+  - id: dtu-spike
+    label: Spike SQL DTU
+    description: Inject heavy queries to spike SQL DTU >80% — triggers Azure Monitor alert that wakes the agent.
+    runner: sre-config/simulate-dtu-spike.ps1
+    minutes: 5
+    needs: []
+
+  - id: slow-queries
+    label: Generate slow queries
+    description: Run a flood of slow queries — agent diagnoses + recommends index.
+    runner: sre-config/simulate-slow-queries.ps1
+    minutes: 5
+    needs: []

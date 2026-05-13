@@ -1,0 +1,8 @@
+metadata:
+  name: meter-api-diagnosis
+  description: Diagnose and fix meter-api issues including OOM kills, memory leaks, and .NET container restarts. Use when
+    meter-api health degrades or containers restart repeatedly.
+  spec:
+    tools: []
+skillContent: skills/meter-api-diagnosis.md
+additionalFiles: []

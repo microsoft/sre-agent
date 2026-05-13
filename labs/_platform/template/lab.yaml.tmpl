@@ -1,0 +1,35 @@
+schemaVersion: 1
+name: {{LAB_NAME}}
+displayName: "{{LAB_DISPLAY_NAME}}"
+subsidiary: "{{LAB_SUBSIDIARY}}"
+description: "{{LAB_DESCRIPTION}}"
+estimatedMinutes: 20
+tags: [{{LAB_TAGS}}]
+
+# CLI tools that must be on PATH (preprovision will check)
+prereqs: [az, azd, pwsh, python]
+
+# Values azd cannot infer — launcher prompts before deploy and stashes in azd env.
+# Use SCREAMING_SNAKE names. Set secret:true for passwords.
+prompts: []
+  # Example:
+  # - name: SOME_API_KEY
+  #   text: "API key for the foo connector"
+  #   secret: true
+
+# How the meta-sim launches this lab's own simulator UI when the user picks "open lab sim".
+sim:
+  command: python
+  args: [simulator/demo.py]
+  envFromConfig: true
+
+# Break/fix scenarios this lab can drive. Exposed in the meta-sim's unified picker.
+# Add one block per scenario. The runner script can be .ps1, .py, or .sh.
+scenarios: []
+  # Example:
+  # - id: example-failure
+  #   label: "Example failure"
+  #   description: "Brief description of what breaks and what the agent does."
+  #   runner: scripts/scenarios/example.ps1
+  #   minutes: 5
+  #   needs: []  # capability tags: snow, ado, github, etc.

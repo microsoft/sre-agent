@@ -1,0 +1,10 @@
+metadata:
+  name: pod-fleet-audit-daily
+spec:
+  agent: utility-ops-agent
+  cronExpression: 0 8 * * *
+  isEnabled: true
+  agentPrompt: "Run the pod-fleet-audit-deck skill end-to-end. Window: last 48 hours (UTC). Scope: all Container Apps in the\
+    \ target resource group. Output: ONE .pptx deck attached to this thread plus a one-paragraph executive summary. HARD CONSTRAINTS:\
+    \ do not create/modify ServiceNow incidents, do not run remediation, do not run incident-handler phases \u2014 only the\
+    \ deck workflow defined in the skill."

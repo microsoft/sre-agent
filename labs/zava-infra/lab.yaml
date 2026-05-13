@@ -1,0 +1,28 @@
+api: 1
+name: zava-infra
+displayName: Zava Infra — Infrastructure Operations & Governance
+description: Multi-scenario infra-ops lab demonstrating Azure SRE Agent across three forms of infra drift — Terraform drift, performance drift, and deployment compliance drift.
+tags:
+  - infra
+  - drift
+  - governance
+  - terraform
+  - compliance
+  - perf
+
+prereqs:
+  - az
+  - azd
+
+prompts: []
+
+scenarios:
+  - name: tf-drift
+    path: scenarios/tf-drift
+    description: Terraform Cloud drift detection via webhook + Logic App + drift-classification skill.
+  - name: perf-drift
+    path: scenarios/perf-drift
+    description: VM + CosmosDB performance drift detected via Azure Monitor alerts.
+  - name: compliance
+    path: scenarios/compliance
+    description: Deployment compliance — Activity Log alerts catch Portal-driven Container App changes that bypass CI/CD.

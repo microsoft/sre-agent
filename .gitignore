@@ -9,3 +9,8 @@
 Thumbs.db
 Desktop.ini
 samples/deployment-compliance/skills/.DS_Store
+
+# Lab launcher state
+labs/**/.deployed/
+labs/**/*.legacy
+

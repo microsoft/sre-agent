@@ -1,0 +1,12 @@
+.azure/
+.deployed/
+*.zip
+bin/
+obj/
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+.env
+.tmp/
+publish/

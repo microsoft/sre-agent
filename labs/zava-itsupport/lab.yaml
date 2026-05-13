@@ -1,0 +1,23 @@
+api: 1
+name: zava-itsupport
+displayName: Zava — IT Support SRE Agent Lab
+description: Internal IT helpdesk demo — laptop replacement portal + warranty API + IT-support agent that triggers on ServiceNow incidents.
+tags:
+  - intermediate
+  - itsupport
+  - servicenow
+  - aca
+
+prereqs:
+  - az
+  - azd
+
+prompts: []
+
+scenarios:
+  - id: laptop-request
+    label: Laptop replacement request
+    description: File a sample IT support ticket — it-support-handler agent processes warranty + drafts response.
+    runner: scripts/laptop-request-demo.sh
+    minutes: 5
+    needs: []

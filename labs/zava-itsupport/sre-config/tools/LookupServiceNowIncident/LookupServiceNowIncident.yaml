@@ -1,0 +1,60 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgentTool
+metadata:
+  name: LookupServiceNowIncident
+spec:
+  type: PythonTool
+  connector: ''
+  toolMode: Auto
+  description: |-
+    Look up a ServiceNow incident by its number (e.g. INC0010005) and return the sys_id and full incident details. Use this FIRST before calling GetServiceNowIncident, PostServiceNowDiscussionEntry, AcknowledgeServiceNowIncident, or ResolveServiceNowIncident — those tools require the sys_id, not the INC number.
+  functionCode: |-
+    import requests
+    import json
+
+    SERVICENOW_URL = "https://<SN_INSTANCE>.service-now.com"
+    SERVICENOW_USER = "admin"
+    SERVICENOW_PASS = "<SN_PASSWORD>"
+
+    def lookup_servicenow_incident(incident_number: str) -> dict:
+        try:
+            response = requests.get(
+                f"{SERVICENOW_URL}/api/now/table/incident",
+                params={
+                    "sysparm_query": f"number={incident_number}",
+                    "sysparm_limit": "1",
+                    "sysparm_fields": "sys_id,number,short_description,description,state,priority,category,subcategory,caller_id,assignment_group,assigned_to,opened_at,resolved_at"
+                },
+                auth=(SERVICENOW_USER, SERVICENOW_PASS),
+                headers={"Accept": "application/json"},
+                timeout=10
+            )
+            response.raise_for_status()
+            results = response.json().get("result", [])
+            if not results:
+                return {"found": False, "error": f"Incident {incident_number} not found"}
+            incident = results[0]
+            return {
+                "found": True,
+                "sys_id": incident["sys_id"],
+                "number": incident["number"],
+                "short_description": incident.get("short_description", ""),
+                "description": incident.get("description", ""),
+                "state": incident.get("state", ""),
+                "priority": incident.get("priority", ""),
+                "category": incident.get("category", ""),
+                "subcategory": incident.get("subcategory", ""),
+                "opened_at": incident.get("opened_at", "")
+            }
+        except Exception as e:
+            return {"found": False, "error": str(e)}
+  timeoutSeconds: 240
+  dependencies:
+  - requests
+  authScopes: 
+  parameters:
+  - name: incident_number
+    type: string
+    description: |-
+      string:ServiceNow incident number (e.g. INC0010005)
+    required: true

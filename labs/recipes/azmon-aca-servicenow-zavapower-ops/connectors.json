@@ -1,0 +1,40 @@
+{
+  "toggles": {
+    "enableAppInsightsConnector": true,
+    "appInsightsResourceId": "{{appInsightsId}}",
+    "appInsightsAppId": "{{appInsightsAppId}}",
+    "enableLogAnalyticsConnector": true,
+    "lawResourceId": "{{lawResourceId}}",
+    "enableAzureMonitorConnector": true,
+    "azureMonitorLookbackDays": 7
+  },
+  "connectors": [
+    {
+      "name": "datadog-mcp",
+      "_optional": true,
+      "_skipIf": {"datadogApiKey": ""},
+      "properties": {
+        "dataConnectorType": "Mcp",
+        "dataSource": "https://mcp.datadoghq.com/api/v1/mcp",
+        "extendedProperties": {
+          "transport": "http",
+          "authHeader": "DD-API-KEY: {{datadogApiKey}}"
+        },
+        "identity": "system"
+      }
+    },
+    {
+      "name": "dynatrace-mcp",
+      "_optional": true,
+      "_skipIf": {"dynatraceTenantUrl": ""},
+      "properties": {
+        "dataConnectorType": "Mcp",
+        "dataSource": "{{dynatraceTenantUrl}}/api/v2/mcp",
+        "extendedProperties": {
+          "transport": "http"
+        },
+        "identity": "system"
+      }
+    }
+  ]
+}
