@@ -44,7 +44,7 @@ echo "=== STEP 2: deploy (azd) ==="
 # Copy new-agent config into ./agents/<name>/ so azd preprovision hook finds it
 mkdir -p "./agents/$AGENT"
 cp -r "$DIR/"* "./agents/$AGENT/" 2>/dev/null || true
-azd env new "$AGENT" --no-prompt
+azd env select "$AGENT" --no-prompt 2>/dev/null || azd env new "$AGENT" --no-prompt
 azd env set AZURE_AGENT_NAME "$AGENT" --no-prompt
 azd env set AZURE_RESOURCE_GROUP "$RG" --no-prompt
 azd env set AZURE_LOCATION "$REGION" --no-prompt
