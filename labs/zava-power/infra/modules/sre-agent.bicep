@@ -11,6 +11,14 @@ param appInsightsAppId string
 param appInsightsConnectionString string
 param appInsightsId string
 
+@allowed(['custom', 'contributor', 'readonly'])
+param rbacTier string = 'custom'
+
+@description('Operator role definition GUID. Empty when rbacTier=readonly.')
+param agentOperatorRoleId string = ''
+
+var assignOperatorRole = rbacTier != 'readonly' && !empty(agentOperatorRoleId)
+
 var agentName = 'sre-zavapower-ops'
 var sreAgentAdminRoleId = 'e79298df-d852-4c6d-84f9-5d13249d1e55'
 
@@ -44,21 +52,23 @@ resource logAnalyticsReaderRole 'Microsoft.Authorization/roleAssignments@2022-04
   }
 }
 
-// ── RBAC: Custom least-priv role for SRE Agent writes ──
-// "PowerGrid SRE Agent Operator" — created out-of-band via:
-//   az role definition create --role-definition infra/roles/powergrid-sre-agent-operator.json
-// Grants ONLY the actions the agent needs across demo scenarios:
-//   • Microsoft.App/containerApps/{write,listSecrets,revisions/{activate,deactivate,restart}}
-//   • Microsoft.Compute/virtualMachines/{runCommand,runCommands/{write,delete},restart}
-//   • Microsoft.HybridCompute/machines/runCommands/{write,delete}
-// See docs/SRE-AGENT-MI-ACCESS.md for rationale.
-var sreAgentOperatorRoleId = 'b592102b-80f0-4cc3-99ac-282f746b0978'
-resource sreAgentOperatorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(identityId, targetResourceGroupName, 'PowerGrid SRE Agent Operator')
+// ── RBAC: Operator role for SRE Agent writes ──
+// rbacTier='custom'      → PowerGrid SRE Agent Operator (least-priv, 11 actions, RG-scoped)
+//                          Created by preprovision-rbac via az role definition create
+//                          using infra/roles/powergrid-sre-agent-operator.json
+// rbacTier='contributor' → Built-in Contributor (broader, RG-scoped) — fallback when
+//                          custom role can't be created (tenant role limit, no perms)
+// rbacTier='readonly'    → no operator role; agent can detect/diagnose only
+//                          (Reader, Monitoring Reader, Log Analytics Reader still granted)
+//
+// Either way the agent's actionConfiguration.mode is 'Review' so every action requires
+// human approval — in 'readonly' mode the human admin handles remediation manually.
+resource sreAgentOperatorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (assignOperatorRole) {
+  name: guid(identityId, targetResourceGroupName, 'PowerGrid SRE Agent Operator', rbacTier)
   properties: {
     principalId: identityPrincipalId
     principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', sreAgentOperatorRoleId)
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', agentOperatorRoleId)
   }
 }
 
@@ -100,7 +110,6 @@ resource sreAgent 'Microsoft.App/agents@2025-05-01-preview' = {
     readerRole
     monitoringReaderRole
     logAnalyticsReaderRole
-    sreAgentOperatorRole
   ]
 }
 
@@ -117,13 +126,13 @@ resource sreAgentAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@20
 
 // PythonTool's DefaultAzureCredential picks the system-assigned MI by default,
 // so the operator role MUST also be granted to the agent's system-assigned identity
-// (not just to the user-assigned identity).
-resource sreAgentSystemMiOperatorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(sreAgent.id, targetResourceGroupName, 'PowerGrid SRE Agent Operator', 'system')
+// (not just to the user-assigned identity). Skipped in readonly mode.
+resource sreAgentSystemMiOperatorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (assignOperatorRole) {
+  name: guid(sreAgent.id, targetResourceGroupName, 'PowerGrid SRE Agent Operator', 'system', rbacTier)
   properties: {
     principalId: sreAgent.identity.principalId
     principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', sreAgentOperatorRoleId)
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', agentOperatorRoleId)
   }
 }
 

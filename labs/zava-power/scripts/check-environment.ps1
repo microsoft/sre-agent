@@ -62,3 +62,98 @@ foreach ($k in @{
 }
 
 Write-Host "`n  Ready to deploy. azd will provision Azure resources next.`n" -ForegroundColor Green
+
+# ── 4. RBAC tier probe (T1 → T2 → T3 with user prompt on fallback) ──
+# Determines what permission tier the SRE Agent's MI will get:
+#   T1 (custom)      = least-privilege "PowerGrid SRE Agent Operator" custom role
+#   T2 (contributor) = built-in Contributor scoped to the RG
+#   T3 (readonly)    = no operator role; agent detects/diagnoses but every action
+#                      is routed through the agent's approval flow for a human admin
+# User can override by setting RBAC_TIER explicitly: `azd env set RBAC_TIER contributor`
+Write-Host "═══ RBAC tier probe ═══" -ForegroundColor Cyan
+
+$rbacTier = Get-AzdEnv 'RBAC_TIER'
+$operatorRoleId = ''
+$noPrompt = $env:AZD_NON_INTERACTIVE -eq 'true' -or $args -contains '--no-prompt'
+
+if ($rbacTier) {
+    Write-Host "  RBAC_TIER explicitly set to '$rbacTier' — skipping probe" -ForegroundColor DarkGray
+    # Resolve role id for explicitly-set tiers
+    if ($rbacTier -eq 'contributor') {
+        $operatorRoleId = 'b24988ac-6180-42a0-ab88-20f7382dd24c'
+    }
+    elseif ($rbacTier -eq 'custom') {
+        $existing = az role definition list --custom-role-only true --name 'PowerGrid SRE Agent Operator' 2>$null | ConvertFrom-Json
+        if ($existing) { $operatorRoleId = $existing[0].name }
+        else { Write-Host "  ⚠ RBAC_TIER=custom but role not found — bicep will fail. Run probe (unset RBAC_TIER) or create role first." -ForegroundColor Yellow }
+    }
+}
+else {
+    $subId = $acct.id
+    $rgName = (Get-AzdEnv 'AZURE_RESOURCE_GROUP'); if (-not $rgName) { $rgName = 'rg-powergrid' }
+
+    # ── T1: try to create the custom role (idempotent — "already exists" is success) ──
+    Write-Host "  Probing T1 (custom least-priv role 'PowerGrid SRE Agent Operator')..." -NoNewline
+    $roleJsonSrc = Join-Path $PSScriptRoot '..\infra\roles\powergrid-sre-agent-operator.json'
+    $roleJsonTmp = Join-Path ([System.IO.Path]::GetTempPath()) "powergrid-role-$([Guid]::NewGuid().ToString('N')).json"
+    (Get-Content $roleJsonSrc -Raw) `
+        -replace '<SUBSCRIPTION_ID>', $subId `
+        -replace '<RESOURCE_GROUP>', $rgName `
+        | Set-Content $roleJsonTmp -Encoding utf8
+
+    $existing = az role definition list --custom-role-only true --name 'PowerGrid SRE Agent Operator' 2>$null | ConvertFrom-Json
+    if ($existing -and $existing.Count -gt 0) {
+        $operatorRoleId = $existing[0].name
+        $rbacTier = 'custom'
+        Write-Host " ✓ exists (id=$operatorRoleId)" -ForegroundColor Green
+    } else {
+        $createOut = az role definition create --role-definition $roleJsonTmp 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $created = $createOut | ConvertFrom-Json
+            $operatorRoleId = $created.name
+            $rbacTier = 'custom'
+            Write-Host " ✓ created (id=$operatorRoleId)" -ForegroundColor Green
+            Start-Sleep -Seconds 30  # propagation
+        } else {
+            $reason = if ($createOut -match 'RoleDefinitionLimitExceeded') { 'tenant custom-role limit exceeded' }
+                      elseif ($createOut -match 'AuthorizationFailed') { 'caller lacks Microsoft.Authorization/roleDefinitions/write' }
+                      else { ($createOut | Out-String).Trim() -replace '\s+', ' ' }
+            Write-Host " ✗ unavailable: $reason" -ForegroundColor Yellow
+
+            # ── Prompt unless --no-prompt ──
+            if ($noPrompt) {
+                Write-Host "  Non-interactive mode — defaulting to T3 (readonly)" -ForegroundColor Yellow
+                $rbacTier = 'readonly'
+            } else {
+                Write-Host ""
+                Write-Host "  T1 (custom least-priv) is unavailable. Choose fallback:" -ForegroundColor Cyan
+                Write-Host "    [1] T2 — Built-in Contributor scoped to $rgName"
+                Write-Host "          Agent gets full remediation; broader perms than T1."
+                Write-Host "    [2] T3 — Read-only (no operator role)"
+                Write-Host "          Agent detects/diagnoses; remediation goes to human admin via approval flow."
+                Write-Host "    [3] Abort"
+                $choice = Read-Host "  Choice [1/2/3]"
+                switch ($choice) {
+                    '1' {
+                        $rbacTier = 'contributor'
+                        # Built-in Contributor role definition GUID
+                        $operatorRoleId = 'b24988ac-6180-42a0-ab88-20f7382dd24c'
+                    }
+                    '2' { $rbacTier = 'readonly' }
+                    default { Write-Host "Aborted by user." -ForegroundColor Red; exit 1 }
+                }
+            }
+        }
+    }
+    Remove-Item $roleJsonTmp -ErrorAction SilentlyContinue
+}
+
+azd env set RBAC_TIER $rbacTier | Out-Null
+azd env set AGENT_OPERATOR_ROLE_ID $operatorRoleId | Out-Null
+
+$tierLabel = switch ($rbacTier) {
+    'custom'      { 'T1 (custom least-priv) — agent has full remediation via PowerGrid SRE Agent Operator' }
+    'contributor' { 'T2 (built-in Contributor) — agent has full remediation; broader perms than T1' }
+    'readonly'    { 'T3 (read-only) — agent detects/diagnoses; remediation routed to human admin' }
+}
+Write-Host "  RBAC tier: $tierLabel`n" -ForegroundColor Green

@@ -21,6 +21,13 @@ param deployArcVm bool = false
 @description('Container image tag to deploy')
 param imageTag string = 'latest'
 
+@description('RBAC tier for the SRE Agent managed identity. custom = least-priv (PowerGrid SRE Agent Operator); contributor = built-in Contributor on RG; readonly = no remediation. Set by preprovision script.')
+@allowed(['custom', 'contributor', 'readonly'])
+param rbacTier string = 'custom'
+
+@description('Role definition GUID for the operator role assigned to the SRE Agent MI. Empty when rbacTier=readonly. Set by preprovision script after probing.')
+param agentOperatorRoleId string = ''
+
 var resourceGroupName = 'rg-${workloadName}'
 var tags = {
   project: 'zava-power-zeroops-lab'
@@ -122,6 +129,8 @@ module sreAgent 'modules/sre-agent.bicep' = {
     appInsightsAppId: observability.outputs.appInsightsAppId
     appInsightsConnectionString: observability.outputs.appInsightsConnectionString
     appInsightsId: observability.outputs.appInsightsId
+    rbacTier: rbacTier
+    agentOperatorRoleId: agentOperatorRoleId
   }
 }
 

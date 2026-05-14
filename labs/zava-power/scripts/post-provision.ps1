@@ -77,6 +77,7 @@ try {
 
     # ── 3. Write .lab-config.json ──
     Write-Host "`n═══ Writing .lab-config.json ═══" -ForegroundColor Cyan
+    $rbacTier = Env 'RBAC_TIER' 'custom'
     $cfg = [ordered]@{
         azure = [ordered]@{
             subscriptionId      = $sub
@@ -93,6 +94,7 @@ try {
         }
         sreAgent = [ordered]@{
             opsAgentName       = $opsAgent
+            rbacTier           = $rbacTier
         }
         serviceNow = [ordered]@{ instance = $snInstance; user = $snUser }
         demo = [ordered]@{
@@ -100,7 +102,7 @@ try {
         }
     }
     $cfg | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $labRoot '.lab-config.json') -Encoding utf8
-    Write-Host "  ✓ .lab-config.json written"
+    Write-Host "  ✓ .lab-config.json written (rbacTier=$rbacTier)"
 
     # ── 4. Render sre-config ──
     Write-Host "`n═══ Rendering sre-config ═══" -ForegroundColor Cyan
@@ -225,7 +227,21 @@ try {
     $deployedRecord | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $deployedDir 'zava-power.json') -Encoding utf8
     Write-Host "  ✓ recorded in $deployedDir\zava-power.json (meta-sim will see it)"
 
-    # ── 8. Launch the simulator ──
+    # ── 8. RBAC tier banner ──
+    $tierMsg = switch ($rbacTier) {
+        'custom'      { @{ icon='✅'; label='T1 (custom least-priv)';      capability='Full remediation via PowerGrid SRE Agent Operator (11 specific actions on rg).' } }
+        'contributor' { @{ icon='⚠'; label='T2 (built-in Contributor)';   capability='Full remediation via Contributor on rg. Broader perms than T1 — fallback because custom role unavailable.' } }
+        'readonly'    { @{ icon='ℹ'; label='T3 (read-only)';              capability='Detect + diagnose only. Remediation requests are routed via the agent approval flow to a human admin.' } }
+        default       { @{ icon='?'; label="unknown ($rbacTier)";         capability='' } }
+    }
+    Write-Host ""
+    Write-Host "═══ RBAC tier: $($tierMsg.icon) $($tierMsg.label) ═══" -ForegroundColor Cyan
+    Write-Host "  $($tierMsg.capability)" -ForegroundColor DarkGray
+    if ($rbacTier -ne 'custom') {
+        Write-Host "  To upgrade later:  azd env set RBAC_TIER custom && azd provision" -ForegroundColor DarkGray
+    }
+
+    # ── 9. Launch the simulator ──
     if ($env:LAB_NO_AUTOLAUNCH) {
         Write-Host "`n═══ Done — simulator NOT auto-launched (LAB_NO_AUTOLAUNCH set) ═══" -ForegroundColor Green
         Write-Host "  Run manually:  python simulator/demo.py" -ForegroundColor DarkGray

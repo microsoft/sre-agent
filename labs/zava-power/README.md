@@ -83,6 +83,45 @@ See `docs/scenarios/` for per-scenario deep dives.
 
 See `docs/architecture.md`.
 
+## RBAC modes
+
+The lab assigns the SRE Agent's managed identity one of three permission tiers, automatically chosen at deploy time. The probe runs in `scripts/check-environment.ps1` (preprovision hook) and prompts you when the preferred tier isn't available.
+
+| Tier | Operator role | Agent capabilities | When you get this |
+|---|---|---|---|
+| **T1 — custom (preferred)** | `PowerGrid SRE Agent Operator` (11 specific actions on the RG) | Full autonomous remediation: rollback CA revisions, restart VMs, run hybrid-compute commands | Default. Probe creates the role from `infra/roles/powergrid-sre-agent-operator.json` (idempotent) |
+| **T2 — built-in Contributor** | `Contributor` scoped to the RG | Same as T1, but broader perms | T1 unavailable (e.g., tenant custom-role limit hit, or caller lacks `roleDefinitions/write`). Probe prompts; you choose `[1] Contributor` |
+| **T3 — read-only** | _(none)_ | Detect + diagnose only. Every remediation request goes through the agent's approval flow to a human admin | T1 unavailable and you choose `[2] Read-only`, **or** `azd up --no-prompt` (defaults to T3) |
+
+`Reader`, `Monitoring Reader`, and `Log Analytics Reader` are granted in **all 3 tiers** so the agent can always observe the workload.
+
+The agent's `actionConfiguration.mode = Review` means every action requires human approval regardless of tier — in T3 the admin completes the action manually with their own perms.
+
+### Override the probe
+
+```bash
+azd env set RBAC_TIER custom        # or contributor / readonly
+azd provision
+```
+
+When `RBAC_TIER` is explicitly set, the probe is skipped. Useful for CI or when re-deploying.
+
+### Upgrade later
+
+If T2 or T3 was used and you later want T1 (e.g., admin freed up tenant role-quota):
+
+```bash
+azd env set RBAC_TIER custom
+azd provision
+```
+
+### Files
+
+- `infra/roles/powergrid-sre-agent-operator.json` — role definition (uses `<SUBSCRIPTION_ID>` + `<RESOURCE_GROUP>` placeholders, substituted at probe time)
+- `infra/modules/sre-agent.bicep` — conditional role assignments based on `rbacTier` param
+- `scripts/check-environment.ps1` — the T1→T2→T3 probe + prompt
+- `docs/SRE-AGENT-MI-ACCESS.md` — full action→command mapping per tier
+
 ## Cleanup
 
 ```bash

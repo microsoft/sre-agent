@@ -19,6 +19,6 @@
   "DataActions": [],
   "NotDataActions": [],
   "AssignableScopes": [
-    "/subscriptions/e964602f-6afc-4cc7-ba6b-3a796008e254/resourceGroups/rg-powergrid"
+    "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<RESOURCE_GROUP>"
   ]
 }
