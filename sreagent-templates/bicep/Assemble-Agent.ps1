@@ -476,13 +476,13 @@ $paramsObj = [ordered]@{
         'enableWebhookBridge'         = @{ value = [bool](Get-Prop $togglesObj 'enableWebhookBridge'         $false) }
         'webhookBridgeTriggerUrl'     = @{ value = [string](Get-Prop $togglesObj 'webhookBridgeTriggerUrl'   '') }
         'connectors'                  = @{ value = $bicepConnectors }
-        'tools'                       = @{ value = $toolsArr }
-        'skills'                      = @{ value = $skillsArr }
-        'subagents'                   = @{ value = $subagentsArr }
+        'tools'                       = @{ value = @() }  # deployed via data-plane (apply-extras)
+        'skills'                      = @{ value = @() }  # deployed via data-plane (apply-extras)
+        'subagents'                   = @{ value = @() }  # deployed via data-plane (apply-extras)
         'scheduledTasks'              = @{ value = @() }
         'incidentFilters'             = @{ value = @() }
-        'commonPrompts'               = @{ value = $commonPromptsArm }
-        'pluginConfigs'               = @{ value = $pluginConfigsArr }
+        'commonPrompts'               = @{ value = @() }  # deployed via data-plane (apply-extras)
+        'pluginConfigs'               = @{ value = @() }  # deployed via data-plane (apply-extras)
     }
 }
 
@@ -534,6 +534,10 @@ $extrasObj = [ordered]@{
     scheduledTasks         = $scheduledTasksArr
     hooks                  = $hooksArm
     commonPrompts          = $commonPromptsArm
+    skills                 = $skillsArr
+    subagents              = $subagentsArr
+    tools                  = $toolsArr
+    pluginConfigs          = $pluginConfigsArr
     httpTriggers           = $httpTriggersArr
     knowledge              = $knowledgeArr
     knowledgeItems         = $knowledgeItemsArr

@@ -113,20 +113,19 @@ if [[ "$n" -gt 0 ]]; then
     echo "    ✓ Connector: ${cname} (${ctype})"
   done
 fi
-# Skills + subagents (Bicep arrays)
-for arr in skills subagents; do
-  n=$(jq -r ".parameters.${arr}.value // [] | length" "$FILE")
-  [[ "$n" -gt 0 ]] && echo "    ✓ ${arr}: ${n}"
-done
+# Skills + subagents (now in extras, not Bicep)
 echo
 echo "  Data-plane (apply-extras):"
 EXTRAS_FILE="${FILE%.parameters.json}.extras.json"
 [[ ! -f "$EXTRAS_FILE" ]] && EXTRAS_FILE="$(dirname "$FILE")/assembled.extras.json"
 if [[ -f "$EXTRAS_FILE" ]]; then
-  for key in hooks commonPrompts incidentPlatforms incidentFilters scheduledTasks httpTriggers repos knowledgeItems knowledge; do
+  for key in skills subagents tools hooks commonPrompts incidentPlatforms incidentFilters scheduledTasks httpTriggers repos knowledgeItems knowledge pluginConfigs; do
     n=$(jq -r ".${key} // [] | length" "$EXTRAS_FILE" 2>/dev/null)
     if [[ "$n" -gt 0 ]]; then
       case "$key" in
+        skills)             echo "    ✓ Skills: ${n}" ;;
+        subagents)          echo "    ✓ Subagents: ${n}" ;;
+        tools)              echo "    ✓ Tools: ${n}" ;;
         hooks)              echo "    ✓ Hooks: ${n}" ;;
         commonPrompts)      echo "    ✓ Common prompts: ${n}" ;;
         incidentPlatforms)  echo "    ✓ Incident platforms: ${n}" ;;
@@ -136,6 +135,7 @@ if [[ -f "$EXTRAS_FILE" ]]; then
         repos)              echo "    ✓ Repos: ${n}" ;;
         knowledgeItems)     echo "    ✓ Knowledge files: ${n}" ;;
         knowledge)          echo "    ✓ Knowledge docs: ${n}" ;;
+        pluginConfigs)      echo "    ✓ Plugin configs: ${n}" ;;
       esac
     fi
   done
