@@ -87,6 +87,12 @@ param(
 )
 
 Set-StrictMode -Version Latest
+
+# PS 7.3+ changed how native-command arguments are passed; use Legacy to avoid
+# broken arg splitting when args contain '=' (e.g. jq --argjson, terraform -out=).
+if ($PSVersionTable.PSVersion.Major -ge 7 -and $PSVersionTable.PSVersion.Minor -ge 3) {
+    $PSNativeCommandArgumentPassing = 'Legacy'
+}
 $ErrorActionPreference = 'Stop'
 
 # ─────────────────────────── Defaults ───────────────────────────
@@ -1198,10 +1204,14 @@ if (-not $INC_PLATFORM) { $INC_PLATFORM = 'None' }
 $EXPECTED_PLANS = $INCIDENT_FILTERS | jq -c '[.[] | {name: (.metadata.name // .name), handlingAgent: (.spec.handlingAgent // .handlingAgent // "")}]' 2>$null
 if (-not $EXPECTED_PLANS) { $EXPECTED_PLANS = '[]' }
 
-$skillNames   = $SKILLS | jq -c '[.[].metadata.name]'
-$saNames      = $SUBAGENTS | jq -c '[.[].metadata.name]'
-$hookNames    = @($HOOKS_FOR_EXTRAS, $HOOKS_FOR_PARAMS) -join "`n" | jq -sc 'add // [] | [.[] | .name // .metadata.name] | unique'
-$promptNames  = @($PROMPTS_FOR_EXTRAS, $PROMPTS_FOR_PARAMS) -join "`n" | jq -sc 'add // [] | [.[] | .name // .metadata.name] | unique'
+$skillNames   = $SKILLS | jq -c '[.[].metadata.name]' 2>$null
+if (-not $skillNames) { $skillNames = '[]' }
+$saNames      = $SUBAGENTS | jq -c '[.[].metadata.name]' 2>$null
+if (-not $saNames) { $saNames = '[]' }
+$hookNames    = @($HOOKS_FOR_EXTRAS, $HOOKS_FOR_PARAMS) -join "`n" | jq -sc 'add // [] | [.[] | .name // .metadata.name] | unique' 2>$null
+if (-not $hookNames) { $hookNames = '[]' }
+$promptNames  = @($PROMPTS_FOR_EXTRAS, $PROMPTS_FOR_PARAMS) -join "`n" | jq -sc 'add // [] | [.[] | .name // .metadata.name] | unique' 2>$null
+if (-not $promptNames) { $promptNames = '[]' }
 $taskNames    = $SCHEDULED_TASKS | jq -c '[.[] | .metadata.name // .name]' 2>$null
 if (-not $taskNames) { $taskNames = '[]' }
 $repoNames    = $REPOS | jq -c '[.[].name]' 2>$null

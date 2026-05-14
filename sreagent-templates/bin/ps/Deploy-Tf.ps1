@@ -41,6 +41,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# PS 7.3+ changed how native-command arguments are passed; use Legacy to avoid
+# "Too many command line arguments" from terraform/jq when args contain '='.
+if ($PSVersionTable.PSVersion.Major -ge 7 -and $PSVersionTable.PSVersion.Minor -ge 3) {
+    $PSNativeCommandArgumentPassing = 'Legacy'
+}
+
 # ── Paths ──
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $BinDir    = Split-Path -Parent $ScriptDir          # bin/ps -> bin

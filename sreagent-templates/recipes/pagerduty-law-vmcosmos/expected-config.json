@@ -12,6 +12,18 @@
     {
       "name": "log-analytics",
       "type": "LogAnalytics"
+    },
+    {
+      "name": "incident-report-template-md",
+      "type": "KnowledgeSource"
+    },
+    {
+      "name": "vm-cosmosdb-architecture-md",
+      "type": "KnowledgeSource"
+    },
+    {
+      "name": "http-500-errors-md",
+      "type": "KnowledgeSource"
     }
   ],
   "skills": [

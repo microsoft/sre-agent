@@ -646,7 +646,7 @@ jq \
   "$SOURCE" > "$CLONE_PARAMS"
 
 # Apply any --override key=value pairs
-for ov in "${OVERRIDES[@]}"; do
+for ov in ${OVERRIDES[@]+"${OVERRIDES[@]}"}; do
   key="${ov%%=*}"
   val="${ov#*=}"
   _log "Applying override: ${key} = ${val}"
