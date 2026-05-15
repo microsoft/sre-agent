@@ -159,6 +159,8 @@ if [[ -d "$INPUT" ]]; then
     if [[ -z "$FORCE" ]]; then
       echo "  Skipping deployment. Use --force to redeploy anyway."
       echo
+      # Check connector health even when skipping deploy
+      check_connector_health "$SUB" "$RG" "$AG"
       # Still run verify to confirm current state
       echo "── Current state verification ──"
       "${SCRIPT_DIR}/verify-agent.sh" "$SUB" "$RG" "$AG" --expected "$INPUT" 2>&1 || true
@@ -225,14 +227,66 @@ STATE=$(jq -r '.properties.provisioningState // "?"' "$TMP" 2>/dev/null || echo 
 if [[ "$STATE" == "?" && $AZ_RC -ne 0 ]]; then
   STATE=$(az deployment sub show -n "$NAME" --query 'properties.provisioningState' -o tsv 2>/dev/null || echo "Failed")
 fi
+# ── Colors (if terminal supports it) ──
+if [[ -t 1 ]]; then
+  RED='\033[0;31m' GREEN='\033[0;32m' YELLOW='\033[1;33m' CYAN='\033[0;36m' BOLD='\033[1m' NC='\033[0m'
+else
+  RED='' GREEN='' YELLOW='' CYAN='' BOLD='' NC=''
+fi
+
+# ── Connector health check (reused in multiple paths) ──
+check_connector_health() {
+  local sub="$1" rg="$2" ag="$3"
+  local api_url="https://management.azure.com/subscriptions/${sub}/resourceGroups/${rg}/providers/Microsoft.App/agents/${ag}/connectors?api-version=2025-05-01-preview"
+  local conn_json
+  conn_json=$(az rest --method GET --url "$api_url" 2>/dev/null || true)
+  local count
+  count=$(echo "$conn_json" | jq '.value | length' 2>/dev/null || echo 0)
+  [[ "$count" -gt 0 ]] || return 0
+
+  echo -e "  ${BOLD}Connectors:${NC}"
+  local warn=false
+  for i in $(seq 0 $((count - 1))); do
+    local cname cstate ctype
+    cname=$(echo "$conn_json" | jq -r ".value[$i].name")
+    cstate=$(echo "$conn_json" | jq -r ".value[$i].properties.provisioningState // \"Unknown\"")
+    ctype=$(echo "$conn_json" | jq -r ".value[$i].properties.dataConnectorType // \"\"")
+
+    # Check for missing auth (null/empty bearerToken, endpoint, etc.)
+    local auth_issue=""
+    if [[ "$ctype" == "Mcp" ]]; then
+      local ep bt
+      ep=$(echo "$conn_json" | jq -r ".value[$i].properties.extendedProperties.endpoint // empty")
+      bt=$(echo "$conn_json" | jq -r ".value[$i].properties.extendedProperties.bearerToken // empty")
+      [[ -z "$ep" ]] && auth_issue="endpoint is empty"
+      [[ -z "$bt" ]] && auth_issue="${auth_issue:+$auth_issue, }bearerToken is empty"
+    fi
+
+    if [[ "$cstate" == "Succeeded" && -z "$auth_issue" ]]; then
+      echo -e "    ${GREEN}✓ ${cname} (${ctype}): ${cstate}${NC}"
+    elif [[ "$cstate" == "Succeeded" && -n "$auth_issue" ]]; then
+      echo -e "    ${YELLOW}⚠ ${cname} (${ctype}): Deployed but ${auth_issue}${NC}"
+      warn=true
+    else
+      echo -e "    ${YELLOW}⚠ ${cname} (${ctype}): ${cstate}${NC}"
+      warn=true
+    fi
+  done
+  if [[ "$warn" == "true" ]]; then
+    echo
+    echo -e "  ${YELLOW}${BOLD}⚠ Some connectors need attention. Check connectors.secrets.env and redeploy.${NC}"
+  fi
+  echo
+}
+
 if [[ "$STATE" != "Succeeded" ]]; then
   echo
-  echo "══════════ Deployment FAILED ══════════"
+  echo -e "${RED}${BOLD}══════════ Deployment FAILED ══════════${NC}"
   # Extract the most useful error message
   ERR_MSG=$(jq -r '.. | .message? // empty' "$TMP" 2>/dev/null | grep -v "^At least" | head -3)
   if [[ -n "$ERR_MSG" ]]; then
     echo
-    echo "  Root cause:"
+    echo -e "  ${RED}Root cause:${NC}"
     echo "$ERR_MSG" | sed 's/^/    /'
   fi
   echo
@@ -242,10 +296,10 @@ if [[ "$STATE" != "Succeeded" ]]; then
 fi
 
 echo
-echo "─────────────── Deployment Succeeded ───────────────"
-echo "  Agent (portal):  $(jq -r '.properties.outputs.agentPortalUrl.value // empty' "$TMP")"
-echo "  Resource group:  $(jq -r '.properties.outputs.resourceGroupPortalUrl.value // empty' "$TMP")"
-echo "  Data plane:      $(jq -r '.properties.outputs.agentDataPlaneUrl.value // empty' "$TMP")"
+echo -e "${GREEN}${BOLD}─────────────── Deployment Succeeded ───────────────${NC}"
+echo -e "  Agent (portal):  ${CYAN}$(jq -r '.properties.outputs.agentPortalUrl.value // empty' "$TMP")${NC}"
+echo -e "  Resource group:  ${CYAN}$(jq -r '.properties.outputs.resourceGroupPortalUrl.value // empty' "$TMP")${NC}"
+echo -e "  Data plane:      ${CYAN}$(jq -r '.properties.outputs.agentDataPlaneUrl.value // empty' "$TMP")${NC}"
 echo
 
 # ── Telemetry ──
@@ -268,6 +322,9 @@ else
   echo "  ./apply-extras.sh $SUB $RG $AG <extras-file>"
 fi
 echo "─────────────────────────────────────────────────────"
+
+# ── Check connector health (after apply-extras, which deploys connectors) ──
+check_connector_health "$SUB" "$RG" "$AG"
 
 # ── Deployment log ──
 LOG_DIR="${INPUT}"
