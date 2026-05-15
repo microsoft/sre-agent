@@ -59,7 +59,9 @@ function Invoke-Jq {
                 return ($joined | jq @flags)
             }
             else {
-                return (jq @flags)
+                # No pipeline input and no InputFile — use jq -n (null-input mode)
+                # so jq doesn't block waiting on stdin.
+                return (jq '-n' @flags)
             }
         }
         finally {

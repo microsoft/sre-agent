@@ -276,7 +276,7 @@ if ($ExpPromptNames) {
 $Tasks      = Invoke-Dp '/api/v1/scheduledtasks'
 $TaskCt     = $Tasks | Invoke-Jq -Filter 'if type == "array" then length else 0 end'
 if (-not $TaskCt) { $TaskCt = '0' }
-$TaskUnique = $Tasks | jq '[.[].name] | unique | length' 2>$null
+$TaskUnique = $Tasks | Invoke-Jq -Filter '[.[].name] | unique | length'
 if (-not $TaskUnique) { $TaskUnique = '0' }
 $TaskNames    = $Tasks | Invoke-Jq -Raw -Filter '[.[].name] | unique | sort | join(",")'
 $ExpTaskCt    = Get-Exp '.scheduledTasks | length'
@@ -295,7 +295,7 @@ if ($TaskCt -ne $TaskUnique) {
 $Filters   = Invoke-Dp '/api/v1/incidentPlayground/filters'
 $FilterCt  = $Filters | Invoke-Jq -Filter 'if type == "array" then length else 0 end'
 if (-not $FilterCt) { $FilterCt = '0' }
-$FilterNames    = ($Filters | jq -r '.[].id' 2>$null | Sort-Object) -join ','
+$FilterNames    = ($Filters | Invoke-Jq -Raw -Filter '[.[].id] | sort | join(",")' )
 $ExpFilterCt    = Get-Exp '.responsePlans | length'
 $ExpFilterNames = Get-ExpList '[.responsePlans[].name]'
 

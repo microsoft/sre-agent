@@ -230,7 +230,7 @@ function Invoke-DpGet {
     param([string]$Path)
     $token = Get-DpToken
     try {
-        $result = (curl -sS -f -H "Authorization: Bearer $token" "${AGENT_ENDPOINT}${Path}" 2>$null) -join "`n"
+        $result = (curl -sS -f --max-time 10 -H "Authorization: Bearer $token" "${AGENT_ENDPOINT}${Path}" 2>$null) -join "`n"
         if ($LASTEXITCODE -ne 0 -or -not $result) { return 'null' }
         return $result
     } catch {
