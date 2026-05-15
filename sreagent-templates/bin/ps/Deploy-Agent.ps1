@@ -172,6 +172,12 @@ if ($IsDirectory) {
     $ExtrasFile = "${AssembleOut}.extras.json"
     $CleanupFiles += $ParametersFile, $ExtrasFile, (Split-Path $AssembleTmp -Parent)
 
+    # Copy extras.json into InputPath so it survives cleanup and can be re-used
+    # (e.g. re-running Apply-Extras standalone without a full re-deploy)
+    $AgentNameForExtras = (Get-Item $InputPath).Name
+    $PersistedExtras = Join-Path $InputPath "${AgentNameForExtras}.extras.json"
+    Copy-Item $ExtrasFile $PersistedExtras -Force
+
     Write-Host ''
 } elseif (Test-Path $InputPath -PathType Leaf) {
     $ParametersFile = $InputPath

@@ -30,7 +30,9 @@
 #   ADO — set $ADO_PAT, $ADO_USE_AAD=1, or $ADO_USE_MI=1 (with $ADO_ORG).
 #
 # Usage:
-#   ./apply-extras.sh <subscription-id> <resource-group> <agent-name> [extras-file]
+#   ./apply-extras.sh <subscription-id> <resource-group> <agent-name> [extras-file-or-config-dir]
+#
+# If the 4th argument is a directory (agent config dir), extras are auto-assembled from it.
 
 set -euo pipefail
 
@@ -41,7 +43,16 @@ FILE="${4:-extras.parameters.json}"
 FORCE=""
 for arg in "$@"; do [[ "$arg" == "--force" ]] && FORCE="true"; done
 
-[[ -f "$FILE" ]] || { echo "extras file not found: $FILE" >&2; exit 1; }
+# Auto-assemble if a config directory was passed instead of a file
+if [[ -d "$FILE" ]]; then
+  CONFIG_DIR="$FILE"
+  ASSEMBLE_TMP="$(mktemp -d)/assembled"
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  bash "${SCRIPT_DIR}/assemble-agent.sh" "$CONFIG_DIR" --output "$ASSEMBLE_TMP"
+  FILE="${ASSEMBLE_TMP}.extras.json"
+fi
+
+[[ -f "$FILE" ]] || { echo "extras file not found: $FILE (pass a config dir or pre-assembled extras.json)" >&2; exit 1; }
 command -v jq    >/dev/null || { echo "jq is required"    >&2; exit 1; }
 command -v tar   >/dev/null || { echo "tar is required"   >&2; exit 1; }
 command -v curl  >/dev/null || { echo "curl is required"  >&2; exit 1; }

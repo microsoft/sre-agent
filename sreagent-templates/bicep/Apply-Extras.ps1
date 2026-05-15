@@ -53,7 +53,10 @@ param(
     [string]$Subscription,
     [Parameter(Mandatory)][string]$ResourceGroup,
     [Parameter(Mandatory)][string]$AgentName,
-    [string]$ExtrasFile = "extras.parameters.json",
+    # Either supply a pre-assembled extras JSON OR a config directory — Apply-Extras
+    # will auto-assemble from the directory if ExtrasFile is not found.
+    [string]$ExtrasFile = "",
+    [string]$ConfigDir  = "",
     [switch]$Force
 )
 
@@ -73,8 +76,20 @@ if (Test-Path $PrereqScript) {
     }
 }
 
+# ── Auto-assemble from ConfigDir if ExtrasFile not supplied/found ───────────
+if (($ExtrasFile -eq "" -or -not (Test-Path $ExtrasFile)) -and $ConfigDir -ne "" -and (Test-Path $ConfigDir -PathType Container)) {
+    Write-Host "No extras file supplied — assembling from config dir: $ConfigDir"
+    $AssembleScript = Join-Path $PSScriptRoot 'Assemble-Agent.ps1'
+    $AssembleTmp = Join-Path ([System.IO.Path]::GetTempPath()) "assembled-$(New-Guid)"
+    & $AssembleScript -ConfigDir $ConfigDir -Output $AssembleTmp
+    $ExtrasFile = "${AssembleTmp}.extras.json"
+} elseif ($ExtrasFile -eq "") {
+    # Default: look for <AgentName>.extras.json next to the script caller's cwd
+    $ExtrasFile = "extras.parameters.json"
+}
+
 if (-not (Test-Path $ExtrasFile)) {
-    Write-Error "extras file not found: $ExtrasFile"
+    Write-Error "extras file not found: $ExtrasFile`nTip: pass -ConfigDir <agent-dir> to auto-assemble."
     return
 }
 
@@ -1139,7 +1154,8 @@ if ($DpTokenAvailable) {
                         $token = Get-DpToken
                         $headers = @{ Authorization = "Bearer $token" }
                         $ghCheck = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/auth/status" -Headers $headers
-                        if ($ghCheck.isConfigured -eq $true -or ($ghCheck.hosts -and $ghCheck.hosts[0].isConfigured -eq $true)) {
+                        $ghJson = $ghCheck | ConvertTo-Json -Depth 10 -Compress
+                        if ($ghJson -match '"isConfigured"\s*:\s*true') {
                             Write-Host "  GitHub authorized!"
                             $authOk = $true
                             break
