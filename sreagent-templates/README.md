@@ -1,4 +1,4 @@
-# Azure SRE Agent Recipes
+# Awesome Azure SRE Agent Recipes
 
 Production-ready recipes to deploy SRE Agents as code. Pick a recipe, run two commands, deploy.
 
