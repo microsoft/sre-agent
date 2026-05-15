@@ -662,6 +662,13 @@ for ov in ${OVERRIDES[@]+"${OVERRIDES[@]}"}; do
 done
 
 _log "Clone parameters written to ${CLONE_PARAMS}"
+
+# Copy extras file next to params so deploy.sh can find it for summary + apply
+if [[ -n "$EXTRAS" && -f "$EXTRAS" ]]; then
+  CLONE_EXTRAS="${CLONE_PARAMS%.parameters.json}.extras.json"
+  cp "$EXTRAS" "$CLONE_EXTRAS"
+  trap 'rm -f "$CLONE_PARAMS" "$CLONE_EXTRAS"' EXIT
+fi
 echo
 
 # 6a. Deploy via deploy.sh (Bicep — ARM resources)
@@ -682,7 +689,9 @@ fi
 echo
 
 # 6b. Apply extras (data-plane — hooks, repos, knowledge, etc.)
-if [[ "$SKIP_EXTRAS" == "false" && -n "$EXTRAS" ]]; then
+# Note: if deploy.sh found the extras file (copied next to params above),
+# it already ran apply-extras.sh. Only run manually if deploy.sh was skipped.
+if [[ "$SKIP_EXTRAS" == "false" && -n "$EXTRAS" && ! -f "${CLONE_EXTRAS:-}" ]]; then
   _log "Running apply-extras.sh..."
   if [[ -f "${SCRIPT_DIR}/../bicep/apply-extras.sh" ]]; then
     bash "${SCRIPT_DIR}/../bicep/apply-extras.sh" "$NEW_SUB" "$NEW_RG" "$NEW_AGENT" "$EXTRAS"
