@@ -1,5 +1,5 @@
 {
-  "_scenario": "bare",
+  "_scenario": "minimal",
   "_description": "Minimal SRE Agent — just infra and RBAC. Add your own connectors, skills, and automations.",
   "_prerequisites": [
     "Azure subscription with at least one resource group to monitor"

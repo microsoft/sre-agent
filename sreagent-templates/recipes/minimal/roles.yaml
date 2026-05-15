@@ -1,4 +1,4 @@
-# Required roles/credentials for the bare scenario.
+# Required roles/credentials for the minimal scenario.
 # deploy.sh processes this after the UAMI is created.
 #
 # This recipe has no connectors by default.

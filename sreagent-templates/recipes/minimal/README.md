@@ -1,4 +1,4 @@
-# bare
+# minimal
 
 Minimal SRE Agent — deploys the agent infrastructure and RBAC with no connectors, skills, or automations. Use this as a starting point when none of the other recipes match your setup.
 
@@ -13,7 +13,7 @@ Minimal SRE Agent — deploys the agent infrastructure and RBAC with no connecto
 
 **Bash:**
 ```bash
-./bin/new-agent.sh --recipe bare --non-interactive \
+./bin/new-agent.sh --recipe minimal --non-interactive \
   --set agentName=my-agent \
   --set resourceGroup=rg-my-agent \
   --set location=swedencentral \
@@ -23,7 +23,7 @@ Minimal SRE Agent — deploys the agent infrastructure and RBAC with no connecto
 
 **PowerShell:**
 ```powershell
-./bin/ps/New-Agent.ps1 -Recipe bare -NonInteractive `
+./bin/ps/New-Agent.ps1 -Recipe minimal -NonInteractive `
   -Set @{agentName='my-agent'; resourceGroup='rg-my-agent'; location='swedencentral';
     targetRGs='rg-my-workload'} `
   -Output my-agent/
@@ -68,7 +68,7 @@ Minimal SRE Agent — deploys the agent infrastructure and RBAC with no connecto
 
 ## Adding Connectors and Skills
 
-After deploying the bare agent, add capabilities by dropping files into the config directory:
+After deploying the minimal agent, add capabilities by dropping files into the config directory:
 
 ```
 my-agent/
