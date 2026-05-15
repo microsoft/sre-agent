@@ -21,6 +21,9 @@ param deployArcVm bool = false
 @description('Container image tag to deploy')
 param imageTag string = 'latest'
 
+@description('Use a public bootstrap image instead of ACR-hosted images. Required on the FIRST deploy because postprovision builds the real images AFTER bicep runs. Postprovision flips this to false in azd env after the first successful image build.')
+param useBootstrapImage bool = true
+
 @description('RBAC tier for the SRE Agent managed identity. custom = least-priv (PowerGrid SRE Agent Operator); contributor = built-in Contributor on RG; readonly = no remediation. Set by preprovision script.')
 @allowed(['custom', 'contributor', 'readonly'])
 param rbacTier string = 'custom'
@@ -87,6 +90,7 @@ module containerApps 'modules/container-apps.bicep' = if (computePlatform == 'ac
     appInsightsConnectionString: observability.outputs.appInsightsConnectionString
     containerRegistryName: acr.outputs.registryName
     imageTag: imageTag
+    useBootstrapImage: useBootstrapImage
   }
 }
 

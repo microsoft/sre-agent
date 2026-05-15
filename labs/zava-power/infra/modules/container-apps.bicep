@@ -8,6 +8,21 @@ param appInsightsConnectionString string
 param containerRegistryName string
 param imageTag string
 
+@description('Use a public bootstrap image instead of ACR images. Required on first deploy because postprovision builds the real images AFTER bicep runs. Set to false on subsequent deploys via USE_BOOTSTRAP_IMAGE=false.')
+param useBootstrapImage bool = true
+
+@description('Public placeholder image used when useBootstrapImage=true.')
+param bootstrapImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
+
+// Per-service image: bootstrap on first deploy, ACR on subsequent deploys.
+var images = {
+  portal: useBootstrapImage ? bootstrapImage : '${containerRegistryName}.azurecr.io/portal-web:${imageTag}'
+  outage: useBootstrapImage ? bootstrapImage : '${containerRegistryName}.azurecr.io/outage-api:${imageTag}'
+  meter:  useBootstrapImage ? bootstrapImage : '${containerRegistryName}.azurecr.io/meter-api:${imageTag}'
+  grid:   useBootstrapImage ? bootstrapImage : '${containerRegistryName}.azurecr.io/grid-status-api:${imageTag}'
+  notify: useBootstrapImage ? bootstrapImage : '${containerRegistryName}.azurecr.io/notification-svc:${imageTag}'
+}
+
 // ── Managed Identity for all apps ──
 resource appIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: 'id-${workloadName}-apps'
@@ -65,7 +80,7 @@ resource portalWeb 'Microsoft.App/containerApps@2024-03-01' = {
       containers: [
         {
           name: 'portal-web'
-          image: '${containerRegistryName}.azurecr.io/portal-web:${imageTag}'
+          image: images.portal
           resources: { cpu: json('0.25'), memory: '0.5Gi' }
           env: [
             { name: 'OUTAGE_API_URL', value: 'https://ca-${workloadName}-outage.${acaEnv.properties.defaultDomain}' }
@@ -103,7 +118,7 @@ resource outageApi 'Microsoft.App/containerApps@2024-03-01' = {
       containers: [
         {
           name: 'outage-api'
-          image: '${containerRegistryName}.azurecr.io/outage-api:${imageTag}'
+          image: images.outage
           resources: { cpu: json('0.25'), memory: '0.5Gi' }
           env: [
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
@@ -139,7 +154,7 @@ resource meterApi 'Microsoft.App/containerApps@2024-03-01' = {
       containers: [
         {
           name: 'meter-api'
-          image: '${containerRegistryName}.azurecr.io/meter-api:${imageTag}'
+          image: images.meter
           resources: { cpu: json('0.5'), memory: '1Gi' }
           env: [
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
@@ -175,7 +190,7 @@ resource gridStatusApi 'Microsoft.App/containerApps@2024-03-01' = {
       containers: [
         {
           name: 'grid-status-api'
-          image: '${containerRegistryName}.azurecr.io/grid-status-api:${imageTag}'
+          image: images.grid
           resources: { cpu: json('0.25'), memory: '0.5Gi' }
           env: [
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
@@ -211,7 +226,7 @@ resource notificationSvc 'Microsoft.App/containerApps@2024-03-01' = {
       containers: [
         {
           name: 'notification-svc'
-          image: '${containerRegistryName}.azurecr.io/notification-svc:${imageTag}'
+          image: images.notify
           resources: { cpu: json('0.25'), memory: '0.5Gi' }
           env: [
             { name: 'REQUIRED_CONFIG', value: 'enabled' }

@@ -168,13 +168,13 @@ WORKLOAD    = os.environ.get("POWERGRID_WORKLOAD_NAME", "powergrid")
 ADO_ORG     = _lc("azureDevOps", "org", default="sreagentlab")
 ADO_PROJECT = _lc("azureDevOps", "project", default="zava-pl")
 OUTAGE_API_URL = os.environ.get("POWERGRID_OUTAGE_API_URL",
-    "https://ca-powergrid-outage.proudmoss-f0b5f310.eastus2.azurecontainerapps.io")
+    _lc("services", "outageApiUrl", default="https://ca-powergrid-outage.example.azurecontainerapps.io"))
 GRID_API_URL = os.environ.get("POWERGRID_GRID_API_URL",
-    "https://ca-powergrid-grid.proudmoss-f0b5f310.eastus2.azurecontainerapps.io")
+    _lc("services", "gridApiUrl", default="https://ca-powergrid-grid.example.azurecontainerapps.io"))
 NOTIFY_URL = os.environ.get("POWERGRID_NOTIFY_URL",
-    "https://ca-powergrid-notify.proudmoss-f0b5f310.eastus2.azurecontainerapps.io")
+    _lc("services", "notifyUrl", default="https://ca-powergrid-notify.example.azurecontainerapps.io"))
 PORTAL_URL = os.environ.get("POWERGRID_PORTAL_URL",
-    "https://app-powergrid-portal.azurewebsites.net")
+    _lc("services", "portalUrl", default="https://ca-powergrid-portal.example.azurecontainerapps.io"))
 _SN_INSTANCE = _lc("serviceNow", "instance", default="dev268981")
 SN_URL  = os.environ.get("POWERGRID_SN_URL",  f"https://{_SN_INSTANCE}.service-now.com")
 SN_USER = os.environ.get("POWERGRID_SN_USER", _lc("serviceNow", "user", default="admin"))

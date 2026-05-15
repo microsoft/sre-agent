@@ -48,23 +48,32 @@ try {
     Write-Host "  ops:    $opsAgent`n"
 
     # ── 1. Build & push the 5 service images ──
+    # NOTE: image NAMES must match what bicep references in container-apps.bicep:
+    #   portal-web, outage-api, meter-api, grid-status-api, notification-svc.
+    # Container APP names are the ACA resources ("$appPrefix-<short>").
     Write-Host "═══ Building container images ═══" -ForegroundColor Cyan
     $services = @(
-        @{ name = 'outage-api';       dir = 'src/outage-api';       image = "$appPrefix-outage" }
-        @{ name = 'meter-api';        dir = 'src/meter-api';        image = "$appPrefix-meter" }
-        @{ name = 'grid-status-api';  dir = 'src/grid-status-api';  image = "$appPrefix-grid" }
-        @{ name = 'notification-svc'; dir = 'src/notification-svc'; image = "$appPrefix-notify" }
-        @{ name = 'portal-web';       dir = 'src/portal-web';       image = "$appPrefix-portal" }
+        @{ srcDir = 'src/outage-api';       imageName = 'outage-api';       appName = "$appPrefix-outage" }
+        @{ srcDir = 'src/meter-api';        imageName = 'meter-api';        appName = "$appPrefix-meter" }
+        @{ srcDir = 'src/grid-status-api';  imageName = 'grid-status-api';  appName = "$appPrefix-grid" }
+        @{ srcDir = 'src/notification-svc'; imageName = 'notification-svc'; appName = "$appPrefix-notify" }
+        @{ srcDir = 'src/portal-web';       imageName = 'portal-web';       appName = "$appPrefix-portal" }
     )
+    $builtAny = $false
     foreach ($svc in $services) {
-        if (-not (Test-Path $svc.dir)) { Write-Host "  ⚠ $($svc.dir) missing, skipping" -ForegroundColor Yellow; continue }
-        Write-Host "  ▶ building $($svc.image):latest ..."
-        az acr build --registry $acr --image "$($svc.image):latest" $svc.dir --only-show-errors --no-logs 2>&1 | Select-Object -Last 3
-        if ($LASTEXITCODE -ne 0) { throw "az acr build failed for $($svc.name)" }
+        if (-not (Test-Path $svc.srcDir)) { Write-Host "  ⚠ $($svc.srcDir) missing, skipping" -ForegroundColor Yellow; continue }
+        Write-Host "  ▶ building $($svc.imageName):latest ..."
+        az acr build --registry $acr --image "$($svc.imageName):latest" $svc.srcDir --only-show-errors --no-logs 2>&1 | Select-Object -Last 3
+        if ($LASTEXITCODE -ne 0) { throw "az acr build failed for $($svc.imageName)" }
+        $builtAny = $true
 
-        $appName = $svc.image
-        Write-Host "    ⤷ rolling $appName to new image"
-        az containerapp update -n $appName -g $rg --image "$acr.azurecr.io/$($svc.image):latest" --only-show-errors --query "name" -o tsv 2>$null | Out-Null
+        Write-Host "    ⤷ rolling $($svc.appName) to new image"
+        az containerapp update -n $svc.appName -g $rg --image "$acr.azurecr.io/$($svc.imageName):latest" --only-show-errors --query "name" -o tsv 2>$null | Out-Null
+    }
+    if ($builtAny) {
+        # First-deploy bootstrap done — flip flag so future bicep redeploys reference real ACR images.
+        azd env set USE_BOOTSTRAP_IMAGE false 2>$null | Out-Null
+        Write-Host "  ✓ USE_BOOTSTRAP_IMAGE=false (future redeploys will use ACR images)" -ForegroundColor DarkGray
     }
 
     # ── 2. Discover FQDNs ──
