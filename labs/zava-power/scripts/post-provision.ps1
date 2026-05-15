@@ -125,19 +125,34 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "render-config.py failed" }
 
     # ── 5. srectl apply ──
+    # Resolve agent HTTPS endpoint from ARM — srectl init expects this, NOT an ARM resource id.
+    # (Reused below by step 5.5 for HTTP trigger registration.)
+    $opsAgentResId = "/subscriptions/$sub/resourceGroups/$rg/providers/Microsoft.App/agents/$opsAgent"
+    $agentApiVersion = '2025-05-01-preview'
+    $opsEndpoint = az resource show --ids $opsAgentResId --api-version $agentApiVersion --query "properties.agentEndpoint" -o tsv 2>$null
+    if (-not $opsEndpoint) {
+        # Fallback for older API surface
+        $opsEndpoint = az resource show --ids $opsAgentResId --api-version $agentApiVersion --query "properties.endpoint" -o tsv 2>$null
+    }
+    if ($opsEndpoint -and $opsEndpoint -notmatch '^https?://') { $opsEndpoint = "https://$opsEndpoint" }
+
     if ($env:LABS_SKIP_SRECTL -eq '1') {
         Write-Host "`n═══ Skipping srectl (LABS_SKIP_SRECTL=1 — infra-only mode) ═══" -ForegroundColor Yellow
         Write-Host "  Apply config later with:"
-        Write-Host "    srectl init --resource-url $opsUrl"
+        Write-Host "    srectl init --resource-url $opsEndpoint"
         Write-Host "    Get-ChildItem .rendered -Recurse -Filter *.yaml | %% { srectl apply-yaml --file `$_.FullName }"
     } elseif (-not (Get-Command srectl -ErrorAction SilentlyContinue)) {
         Write-Host "`n═══ srectl not on PATH — skipping config apply ═══" -ForegroundColor Yellow
         Write-Host "  This is expected if you don't have SRE Agent private-preview access yet."
         Write-Host "  Infra is deployed; request srectl access at aka.ms/sreagent-onboarding."
+    } elseif (-not $opsEndpoint) {
+        Write-Host "`n═══ srectl skipped — could not resolve agent HTTPS endpoint ═══" -ForegroundColor Yellow
+        Write-Host "  Agent ARM id: $opsAgentResId"
+        Write-Host "  Check 'az resource show --ids <id> --query properties.endpoint' manually."
     } else {
         Write-Host "`n═══ Applying SRE Agent config (ops) ═══" -ForegroundColor Cyan
-        $opsUrl = "/subscriptions/$sub/resourceGroups/$rg/providers/Microsoft.App/sreAgents/$opsAgent"
-        srectl init --resource-url $opsUrl 2>&1 | Select-Object -Last 3
+        Write-Host "  srectl endpoint: $opsEndpoint" -ForegroundColor DarkGray
+        srectl init --resource-url $opsEndpoint 2>&1 | Select-Object -Last 3
         foreach ($kind in 'connectors','tools','skills','agents','scheduled-tasks','response-plans') {
             $dir = Join-Path $rendered $kind
             if (-not (Test-Path $dir)) { continue }
@@ -155,17 +170,10 @@ try {
     if (-not (Test-Path $platformHelper)) {
         Write-Host "  ⏭️  Skipped — labs/_platform/http_trigger.py not found" -ForegroundColor Yellow
     } else {
-        # Resolve agent HTTP endpoint from ARM (bicep doesn't currently export it)
-        $opsAgentResId = "/subscriptions/$sub/resourceGroups/$rg/providers/Microsoft.App/agents/$opsAgent"
-        $opsEndpoint = az resource show --ids $opsAgentResId --query "properties.endpoint" -o tsv 2>$null
-        if (-not $opsEndpoint) {
-            # Older API shape — sometimes nested under properties.connectivity / configuration
-            $opsEndpoint = az resource show --ids $opsAgentResId --query "properties.connectivity.endpoint" -o tsv 2>$null
-        }
+        # $opsAgentResId + $opsEndpoint already resolved in step 5
         if (-not $opsEndpoint) {
             Write-Host "  ⏭️  Skipped — could not resolve SRE agent HTTP endpoint via ARM" -ForegroundColor Yellow
         } else {
-            if ($opsEndpoint -notmatch '^https?://') { $opsEndpoint = "https://$opsEndpoint" }
             Write-Host "  endpoint: $opsEndpoint"
             $htJson = & python $platformHelper create-and-enable `
                 --endpoint $opsEndpoint `

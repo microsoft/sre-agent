@@ -23,7 +23,7 @@ try {
     # ── TODO: customize these steps for your lab ──
     # Examples:
     #   az acr build --registry $acr --image foo:latest src/foo
-    #   srectl init --resource-url "/subscriptions/$sub/resourceGroups/$rg/providers/Microsoft.App/sreAgents/$agent"
+    #   srectl init --resource-url "$endpoint"   # endpoint = az resource show --ids <agent-id> --query properties.endpoint -o tsv
     #   srectl apply-yaml --file sre-config/agents/handler.yaml
     Write-Host "  (no custom steps yet — edit scripts/post-provision.ps1)" -ForegroundColor DarkGray
 
