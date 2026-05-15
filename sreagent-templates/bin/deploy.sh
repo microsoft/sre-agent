@@ -64,7 +64,7 @@ else
   exit 1
 fi
 
-cleanup() { for f in "${CLEANUP_FILES[@]}"; do rm -rf "$f" 2>/dev/null; done; }
+cleanup() { for f in ${CLEANUP_FILES[@]+"${CLEANUP_FILES[@]}"}; do rm -rf "$f" 2>/dev/null; done; }
 trap cleanup EXIT
 
 [[ -f "$FILE" ]] || { echo "parameters file not found: $FILE" >&2; exit 1; }

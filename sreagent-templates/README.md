@@ -6,21 +6,45 @@ Production-ready recipes to deploy SRE Agents as code. Pick a recipe, run two co
 
 [Azure Cloud Shell](https://shell.azure.com) has everything pre-installed — no setup needed.
 
-For local use:
+For local use, run the install script to check and install all required tools:
+
+```bash
+# macOS / Linux
+./bin/install-prerequisites.sh
+
+# Windows (PowerShell 7+)
+.\bin\ps\Install-Prerequisites.ps1
+```
+
+To include optional tools (Terraform, azd):
+```bash
+./bin/install-prerequisites.sh --all          # everything
+./bin/install-prerequisites.sh --terraform    # just Terraform
+./bin/install-prerequisites.sh --check        # check only, no install
+```
+
+<details>
+<summary>Manual install (if you prefer)</summary>
 
 | Tool | Install |
 |---|---|
 | Azure CLI (`az`) | `brew install azure-cli` or [install guide](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) |
-| `jq` | `brew install jq` / `apt install jq` / `choco install jq` |
+| `jq` | `brew install jq` / `apt install jq` / `winget install jqlang.jq` |
 | Python 3 + PyYAML | `brew install python3 && pip3 install pyyaml` |
 | `curl` | Pre-installed on macOS/Linux |
-| `bash` 3.2+ | Pre-installed on macOS/Linux. Windows: use WSL or Git Bash |
+| Terraform (optional) | `brew install hashicorp/tap/terraform` or [install guide](https://developer.hashicorp.com/terraform/install) |
+| azd (optional) | `brew install azd` or [install guide](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd) |
+
+</details>
 
 ## Quick Start
 
 ```bash
 git clone https://github.com/microsoft/sre-agent.git
 cd sre-agent/sreagent-templates
+
+# Step 0: Install prerequisites (skips already-installed tools)
+./bin/install-prerequisites.sh
 
 # Create agent config from a recipe
 ./bin/new-agent.sh --recipe azmon-lawappinsights --non-interactive \
