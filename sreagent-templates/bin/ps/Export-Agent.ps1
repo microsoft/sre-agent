@@ -1054,7 +1054,7 @@ Invoke-Jq -Filter '{
         '--arg', 'action', $ACTION_MODE,
         '--slurpfile', 'targetRgs', $trgTmpFile,
         '--arg', 'enableBridge', $bridgeBool
-    ) -InputFile '/dev/null' | Set-Content -Path (Join-Path $EXPORT_DIR 'agent.json') -Encoding utf8
+    ) | Set-Content -Path (Join-Path $EXPORT_DIR 'agent.json') -Encoding utf8
 Remove-Item $trgTmpFile -Force -ErrorAction SilentlyContinue
 
 # Apply --set overrides
@@ -1288,7 +1288,7 @@ Invoke-Jq -Filter '{
         '--slurpfile', 'tasks', (Join-Path $ecTmpDir 'tasks.json'),
         '--slurpfile', 'plans', (Join-Path $ecTmpDir 'plans.json'),
         '--slurpfile', 'repos', (Join-Path $ecTmpDir 'repos.json')
-    ) -InputFile '/dev/null' | Set-Content -Path (Join-Path $EXPORT_DIR 'expected-config.json') -Encoding utf8
+    ) | Set-Content -Path (Join-Path $EXPORT_DIR 'expected-config.json') -Encoding utf8
 Remove-Item $ecTmpDir -Recurse -Force -ErrorAction SilentlyContinue
 
 _log 'Wrote expected-config.json'
