@@ -41,6 +41,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# PS 7.3+ changed how native-command arguments are passed; use Legacy to avoid
+# "Too many command line arguments" from terraform/jq when args contain '='.
+if ($PSVersionTable.PSVersion.Major -ge 7 -and $PSVersionTable.PSVersion.Minor -ge 3) {
+    $PSNativeCommandArgumentPassing = 'Legacy'
+}
+
 # ── Paths ──
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $BinDir    = Split-Path -Parent $ScriptDir          # bin/ps -> bin
@@ -51,6 +57,7 @@ $TfDir     = Join-Path $RepoRoot 'terraform'
 # ── Prerequisites ──
 . (Join-Path $ScriptDir 'Check-Prerequisites.ps1')
 if (-not (Test-Prerequisites -IncludePython)) { exit 1 }
+. (Join-Path $ScriptDir 'Invoke-Jq.ps1')
 
 foreach ($cmd in @('terraform')) {
     if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
@@ -167,7 +174,7 @@ $jqFilter = @'
 }
 '@
 
-jq $jqFilter $ParamsFile | Set-Content -Path $TfVarsFile -Encoding utf8
+Invoke-Jq -Filter $jqFilter -InputFile $ParamsFile | Set-Content -Path $TfVarsFile -Encoding utf8
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Error: jq conversion failed" -ForegroundColor Red
     exit 1
@@ -218,7 +225,7 @@ try {
 
     # ── Step 5: Plan ──
     Write-Header '── Terraform plan ──'
-    terraform plan -input=false -no-color -out=tf.plan 2>&1 | Select-Object -Last 20 | ForEach-Object { Write-Host $_ }
+    terraform plan -input=false -no-color -out tf.plan 2>&1 | Select-Object -Last 20 | ForEach-Object { Write-Host $_ }
     Write-Host ''
 
     if ($DryRun) {
@@ -248,7 +255,7 @@ try {
 
     # ── Step 7: Apply extras ──
     if ((Test-Path $ExtrasFile -ErrorAction SilentlyContinue)) {
-        $extrasSize = jq 'del(._exported_from) | to_entries | map(select(.value | if type == "array" then length > 0 elif type == "object" then length > 0 else false end)) | length' $ExtrasFile 2>$null
+        $extrasSize = Invoke-Jq -Filter 'del(._exported_from) | to_entries | map(select(.value | if type == "array" then length > 0 elif type == "object" then length > 0 else false end)) | length' -InputFile $ExtrasFile
         if ($extrasSize -and [int]$extrasSize -gt 0) {
             Write-Header '── Applying data-plane config (extras) ──'
             $ApplyExtrasPs = Join-Path $BicepDir 'Apply-Extras.ps1'

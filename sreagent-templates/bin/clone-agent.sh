@@ -48,6 +48,7 @@ Optional:
   --action-mode         Override action mode (Review/Automatic)
   --override            key=value override (repeatable). e.g.:
                           --override connectors.0.properties.dataSource=/subscriptions/.../new-ai
+  --backend             Deploy backend: bicep (default) or terraform
   --validate-only       Run all validation checks without deploying
   --skip-extras         Deploy Bicep only, skip data-plane config
   -h, --help            Show this help
@@ -57,7 +58,7 @@ EOF
 
 SOURCE="" EXTRAS="" SECRETS="" NEW_AGENT="" NEW_RG="" NEW_LOC="" NEW_TARGET_RGS=""
 NEW_SUB="" NEW_ACCESS="" NEW_ACTION="" VALIDATE_ONLY=false SKIP_EXTRAS=false
-FROM_AGENT="" FROM_RG="" FROM_SUB=""
+FROM_AGENT="" FROM_RG="" FROM_SUB="" BACKEND="bicep"
 declare -a OVERRIDES=()
 
 while [[ $# -gt 0 ]]; do
@@ -76,6 +77,7 @@ while [[ $# -gt 0 ]]; do
     --access-level)            NEW_ACCESS="$2"; shift 2 ;;
     --action-mode)             NEW_ACTION="$2"; shift 2 ;;
     --override)                OVERRIDES+=("$2"); shift 2 ;;
+    --backend)                 BACKEND="$2"; shift 2 ;;
     --validate-only)           VALIDATE_ONLY=true; shift ;;
     --skip-extras)             SKIP_EXTRAS=true; shift ;;
     -h|--help)                 usage 0 ;;
@@ -646,7 +648,7 @@ jq \
   "$SOURCE" > "$CLONE_PARAMS"
 
 # Apply any --override key=value pairs
-for ov in "${OVERRIDES[@]}"; do
+for ov in ${OVERRIDES[@]+"${OVERRIDES[@]}"}; do
   key="${ov%%=*}"
   val="${ov#*=}"
   _log "Applying override: ${key} = ${val}"
@@ -662,27 +664,48 @@ for ov in "${OVERRIDES[@]}"; do
 done
 
 _log "Clone parameters written to ${CLONE_PARAMS}"
+
+# Copy extras file next to params so deploy.sh can find it for summary + apply
+if [[ -n "$EXTRAS" && -f "$EXTRAS" ]]; then
+  CLONE_EXTRAS="${CLONE_PARAMS%.parameters.json}.extras.json"
+  cp "$EXTRAS" "$CLONE_EXTRAS"
+  trap 'rm -f "$CLONE_PARAMS" "$CLONE_EXTRAS"' EXIT
+fi
 echo
 
-# 6a. Deploy via deploy.sh (Bicep — ARM resources)
-_log "Running deploy.sh..."
-if [[ -f "${SCRIPT_DIR}/deploy.sh" ]]; then
-  bash "${SCRIPT_DIR}/deploy.sh" "$CLONE_PARAMS" "${NEW_AGENT}-clone-$(date +%Y%m%d-%H%M%S)"
+# 6a. Deploy infrastructure
+if [[ "$BACKEND" == "terraform" ]]; then
+  # Terraform needs the config directory, not .parameters.json
+  if [[ -z "${CLONE_SOURCE_DIR:-}" || ! -d "${CLONE_SOURCE_DIR:-}" ]]; then
+    _err "--backend terraform requires a directory source (--from-agent or directory --source)"
+  elif [[ -f "${SCRIPT_DIR}/deploy-tf.sh" ]]; then
+    _log "Running deploy-tf.sh (terraform)..."
+    bash "${SCRIPT_DIR}/deploy-tf.sh" "$CLONE_SOURCE_DIR"
+  else
+    _warn "deploy-tf.sh not found at ${SCRIPT_DIR}/deploy-tf.sh"
+  fi
 else
-  _warn "deploy.sh not found at ${SCRIPT_DIR}/deploy.sh"
-  _log "Running az deployment directly..."
-  az deployment sub create \
-    --location "$NEW_LOC" \
-    --name "${NEW_AGENT}-clone-$(date +%Y%m%d-%H%M%S)" \
-    --template-file "${SCRIPT_DIR}/../bicep/main.bicep" \
-    --parameters "@${CLONE_PARAMS}" \
-    --output json
+  _log "Running deploy.sh (bicep)..."
+  if [[ -f "${SCRIPT_DIR}/deploy.sh" ]]; then
+    bash "${SCRIPT_DIR}/deploy.sh" "$CLONE_PARAMS" "${NEW_AGENT}-clone-$(date +%Y%m%d-%H%M%S)"
+  else
+    _warn "deploy.sh not found at ${SCRIPT_DIR}/deploy.sh"
+    _log "Running az deployment directly..."
+    az deployment sub create \
+      --location "$NEW_LOC" \
+      --name "${NEW_AGENT}-clone-$(date +%Y%m%d-%H%M%S)" \
+      --template-file "${SCRIPT_DIR}/../bicep/main.bicep" \
+      --parameters "@${CLONE_PARAMS}" \
+      --output json
+  fi
 fi
 
 echo
 
 # 6b. Apply extras (data-plane — hooks, repos, knowledge, etc.)
-if [[ "$SKIP_EXTRAS" == "false" && -n "$EXTRAS" ]]; then
+# Note: deploy.sh (with extras file) and deploy-tf.sh (with config dir) both
+# run apply-extras.sh internally. Only run manually if neither handled it.
+if [[ "$SKIP_EXTRAS" == "false" && -n "$EXTRAS" && "$BACKEND" != "terraform" && ! -f "${CLONE_EXTRAS:-}" ]]; then
   _log "Running apply-extras.sh..."
   if [[ -f "${SCRIPT_DIR}/../bicep/apply-extras.sh" ]]; then
     bash "${SCRIPT_DIR}/../bicep/apply-extras.sh" "$NEW_SUB" "$NEW_RG" "$NEW_AGENT" "$EXTRAS"

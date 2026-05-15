@@ -333,13 +333,13 @@ jq -n \
       "enableWebhookBridge":           { "value": ($toggles.enableWebhookBridge // false) },
       "webhookBridgeTriggerUrl":       { "value": ($toggles.webhookBridgeTriggerUrl // "") },
       "connectors":                    { "value": [$connectors[] | select(.properties.dataConnectorType != "KnowledgeFile")] },
-      "tools":                         { "value": $tools },
-      "skills":                        { "value": $skills },
-      "subagents":                     { "value": $subagents },
+      "tools":                         { "value": [] },
+      "skills":                        { "value": [] },
+      "subagents":                     { "value": [] },
       "scheduledTasks":                { "value": [] },
       "incidentFilters":               { "value": [] },
-      "commonPrompts":                 { "value": [($commonPrompts // [])[] | {name: (.metadata.name // .name), type: (.type // "CommonPrompt"), tags: (.tags // []), properties: (.spec // .properties // {})}] },
-      "pluginConfigs":                 { "value": $pluginConfigs }
+      "commonPrompts":                 { "value": [] },
+      "pluginConfigs":                 { "value": [] }
     }
   }' > "$PARAMS_FILE"
 
@@ -365,6 +365,10 @@ jq -n \
   --argjson marketplaces "$MARKETPLACES" \
   --argjson installations "$INSTALLATIONS" \
   --argjson connectors "$CONNECTORS" \
+  --argjson skills "$SKILLS" \
+  --argjson subagents "$SUBAGENTS" \
+  --argjson tools "$TOOLS" \
+  --argjson pluginConfigs "$PLUGIN_CONFIGS" \
   '{
     "repos": $repos,
     "incidentPlatforms": $incidentPlatforms,
@@ -382,7 +386,11 @@ jq -n \
       "marketplaces": $marketplaces,
       "installations": $installations
     },
-    "connectors": [$connectors[] | select(.properties.dataConnectorType == "Mcp" or .properties.dataConnectorType == "KnowledgeFile")]
+    "connectors": [$connectors[] | select(.properties.dataConnectorType == "Mcp" or .properties.dataConnectorType == "KnowledgeFile")],
+    "skills": $skills,
+    "subagents": $subagents,
+    "tools": $tools,
+    "pluginConfigs": [($pluginConfigs // [])[] | {name: (.metadata.name // .name), type: (.type // "Plugin"), tags: (.tags // []), properties: (.spec // .properties // {})}]
   }' > "$EXTRAS_FILE"
 
 # Merge admin settings if present (adminUsers for cross-tenant access)

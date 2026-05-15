@@ -1,4 +1,4 @@
-# Contributing to Azure SRE Agent Recipes
+# Contributing to Awesome Azure SRE Agent Recipes
 
 Thank you for your interest in contributing! We welcome new recipes, improvements to existing ones, and bug fixes.
 

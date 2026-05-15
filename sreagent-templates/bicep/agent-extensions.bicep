@@ -138,48 +138,11 @@ resource parent 'Microsoft.App/agents@2025-05-01-preview' existing = {
   name: agentName
 }
 
-@batchSize(1)
-resource subagentRes 'Microsoft.App/agents/subagents@2025-05-01-preview' = [for s in subagents: {
-  parent: parent
-  name: s.metadata.name
-  properties: { value: base64(string(s.spec)) }
-}]
-
-@batchSize(1)
-resource toolRes 'Microsoft.App/agents/tools@2025-05-01-preview' = [for t in tools: {
-  parent: parent
-  name: t.metadata.name
-  properties: { value: base64(string(t.spec)) }
-}]
-
-@batchSize(1)
-resource skillRes 'Microsoft.App/agents/skills@2025-05-01-preview' = [for s in skills: {
-  parent: parent
-  name: s.metadata.name
-  properties: {
-    value: base64(string({
-      name: s.metadata.name
-      description: s.metadata.description
-      tools: s.metadata.spec.tools
-      skillContent: s.skillContent
-      additionalFiles: s.additionalFiles
-    }))
-  }
-}]
-
-// scheduledTasks — NOT deployed via Bicep.
-// The Bicep resource loop triggers K8s extension provisioning which
-// intermittently fails with "Failed to create or update extension in Kubernetes".
-// The ARM PUT path in apply-extras.sh uses a simpler code path that works reliably.
-// Same issue as incidentFilters (platform sequencing).
-
-// incidentFilters — NOT deployed via Bicep.
-// The filter requires incidentPlatform to be set first (ARM PATCH in apply-extras.sh),
-// but Bicep can't guarantee sequencing. Stays in apply-extras.sh with retry logic.
-
-// ─────────── NOT deployed via Bicep (RP does not expose as ARM child type) ───────────
-// hooks, pluginConfigs, incidentFilters aren't deployed here.
-// Surface them as outputs for apply-extras.sh.
+// ─────────── NOT deployed via Bicep ───────────────────────────
+// All child resources except connectors are now deployed via data-plane
+// (apply-extras.sh) to avoid ARM tenant restrictions that block 3P tenants.
+// This includes: skills, subagents, tools, commonPrompts, scheduledTasks,
+// incidentFilters, hooks, pluginConfigs.
 
 // Connectors (working typed shape — see comment above builtInConnectors).
 #disable-next-line BCP081
@@ -188,16 +151,6 @@ resource connectorRes 'Microsoft.App/agents/connectors@2025-05-01-preview' = [fo
   parent: parent
   name: c.name
   properties: c.properties
-}]
-
-// commonPrompts — ARM PUT sub-resource (base64 envelope, same as skills)
-// Shape: { name, type, tags, properties: { prompt } }
-#disable-next-line BCP081
-@batchSize(1)
-resource commonPromptRes 'Microsoft.App/agents/commonPrompts@2025-05-01-preview' = [for p in allCommonPrompts: {
-  parent: parent
-  name: p.name
-  properties: { value: base64(string(p.properties)) }
 }]
 
 output pendingHooks         array = allHooks

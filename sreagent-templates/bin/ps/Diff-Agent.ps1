@@ -48,6 +48,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# PS 7.3+ changed how native-command arguments are passed; use Legacy to avoid
+# broken arg splitting when args contain '=' (e.g. jq --argjson, terraform -out=).
+if ($PSVersionTable.PSVersion.Major -ge 7 -and $PSVersionTable.PSVersion.Minor -ge 3) {
+    $PSNativeCommandArgumentPassing = 'Legacy'
+}
+
 # ─────────────────────────── Prerequisites ───────────────────────────
 
 $PrereqScript = Join-Path $PSScriptRoot 'Check-Prerequisites.ps1'
@@ -62,6 +68,7 @@ if (Test-Path $PrereqScript) {
         }
     }
 }
+. (Join-Path $PSScriptRoot 'Invoke-Jq.ps1')
 
 # ─────────────────────────── ARM setup ───────────────────────────
 
@@ -73,7 +80,7 @@ $ARM_BASE    = "https://management.azure.com/subscriptions/${Subscription}/resou
 $AgentJson = az rest -m GET --url "${ARM_BASE}?api-version=${API_VERSION}" -o json 2>$null
 if (-not $AgentJson) { $AgentJson = '{}' }
 
-$Endpoint = $AgentJson | jq -r '.properties.agentEndpoint // empty' 2>$null
+$Endpoint = $AgentJson | Invoke-Jq -Raw -Filter '.properties.agentEndpoint // empty'
 if (-not $Endpoint -or $Endpoint -eq 'null') {
     Write-Host "Agent '${AgentName}' does not exist in ${ResourceGroup}. All items will be CREATED." -ForegroundColor Yellow
     Write-Host ''
@@ -82,7 +89,7 @@ if (-not $Endpoint -or $Endpoint -eq 'null') {
     $connFile = Join-Path $ConfigDir 'connectors.json'
     if (Test-Path $connFile) {
         foreach ($tog in @('enableLogAnalyticsConnector', 'enableAppInsightsConnector', 'enableAzureMonitorConnector')) {
-            $v = Get-Content $connFile -Raw | jq -r ".toggles.${tog} // false" 2>$null
+            $v = Get-Content $connFile -Raw | Invoke-Jq -Raw -Filter ".toggles.${tog} // false"
             if ($v -eq 'true') {
                 $label = switch ($tog) {
                     'enableLogAnalyticsConnector' { 'Log Analytics (toggle)' }
@@ -92,11 +99,11 @@ if (-not $Endpoint -or $Endpoint -eq 'null') {
                 Write-Host "    + connector: $label" -ForegroundColor Green
             }
         }
-        $arrCt = Get-Content $connFile -Raw | jq -r '.connectors // [] | length' 2>$null
+        $arrCt = Get-Content $connFile -Raw | Invoke-Jq -Raw -Filter '.connectors // [] | length'
         if ([int]$arrCt -gt 0) {
             $cNames = Get-Content $connFile -Raw | jq -r '.connectors[].name' 2>$null
             foreach ($cname in ($cNames -split "`n" | Where-Object { $_ })) {
-                $ctype = Get-Content $connFile -Raw | jq -r --arg n $cname '.connectors[] | select(.name==$n) | .properties.dataConnectorType' 2>$null
+                $ctype = Get-Content $connFile -Raw | Invoke-Jq -Raw -Filter '.connectors[] | select(.name==$n) | .properties.dataConnectorType' -ExtraArgs @('--arg', 'n', $cname)
                 Write-Host "    + connector: ${cname} (${ctype})" -ForegroundColor Green
             }
         }
@@ -105,7 +112,7 @@ if (-not $Endpoint -or $Endpoint -eq 'null') {
     # Check webhook bridge
     $agentFile = Join-Path $ConfigDir 'agent.json'
     if (Test-Path $agentFile) {
-        $wh = Get-Content $agentFile -Raw | jq -r '.toggles.enableWebhookBridge // false' 2>$null
+        $wh = Get-Content $agentFile -Raw | Invoke-Jq -Raw -Filter '.toggles.enableWebhookBridge // false'
         if ($wh -eq 'true') {
             Write-Host '    + webhook bridge (Logic App)' -ForegroundColor Green
         }
@@ -213,7 +220,7 @@ Write-Host ''
 
 # ─────────────────────────── Skills ───────────────────────────
 
-$deployedSkills = @(Invoke-Dp '/api/v1/extendedAgent/skills' | jq -r '(if type == "array" then . elif .value then .value else [] end)[].name' 2>$null | Where-Object { $_ })
+$deployedSkills = @(Invoke-Dp '/api/v1/extendedAgent/skills' | Invoke-Jq -Raw -Filter '(if type == "array" then . elif .value then .value else [] end)[].name' | Where-Object { $_ })
 Compare-Items 'skills' (Join-Path $ConfigDir 'config/skills') $deployedSkills
 
 # ─────────────────────────── Subagents ───────────────────────────
@@ -223,12 +230,12 @@ Compare-Items 'subagents' (Join-Path $ConfigDir 'config/subagents') $deployedSA
 
 # ─────────────────────────── Hooks ───────────────────────────
 
-$deployedHooks = @(Invoke-Dp '/api/v2/extendedAgent/hooks' | jq -r '(.value // .)[].name' 2>$null | Where-Object { $_ })
+$deployedHooks = @(Invoke-Dp '/api/v2/extendedAgent/hooks' | Invoke-Jq -Raw -Filter '(.value // .)[].name' | Where-Object { $_ })
 Compare-Items 'hooks' (Join-Path $ConfigDir 'config/hooks') $deployedHooks
 
 # ─────────────────────────── Common Prompts ───────────────────────────
 
-$deployedPrompts = @(Invoke-Dp '/api/v2/extendedAgent/commonprompts' | jq -r '(.value // .)[].name' 2>$null | Where-Object { $_ })
+$deployedPrompts = @(Invoke-Dp '/api/v2/extendedAgent/commonprompts' | Invoke-Jq -Raw -Filter '(.value // .)[].name' | Where-Object { $_ })
 Compare-Items 'common-prompts' (Join-Path $ConfigDir 'config/common-prompts') $deployedPrompts
 
 # ─────────────────────────── Scheduled Tasks ───────────────────────────
@@ -252,7 +259,7 @@ if (Test-Path $filterDir) {
 
         if ($deployedFilters -contains $localName) {
             # Deep field comparison
-            $deployed = $deployedFiltersJson | jq -c --arg n $localName '[.[] | select(.id == $n)][0] // {}' 2>$null
+            $deployed = $deployedFiltersJson | Invoke-Jq -Compact -Filter '[.[] | select(.id == $n)][0] // {}' -ExtraArgs @('--arg', 'n', $localName)
             $localSpec = python3 -c @"
 import yaml,json,sys
 d=yaml.safe_load(open(sys.argv[1]))
@@ -264,8 +271,8 @@ print(json.dumps(s))
 
             $diffs = @()
             foreach ($key in @('agentMode', 'deepInvestigationEnabled', 'isEnabled')) {
-                $localVal  = $localSpec  | jq -r --arg k $key '.[$k] // empty' 2>$null
-                $deployVal = $deployed   | jq -r --arg k $key '.[$k] // empty' 2>$null
+                $localVal  = $localSpec  | Invoke-Jq -Raw -Filter '.[$k] // empty' -ExtraArgs @('--arg', 'k', $key)
+                $deployVal = $deployed   | Invoke-Jq -Raw -Filter '.[$k] // empty' -ExtraArgs @('--arg', 'k', $key)
                 if ($localVal -and $localVal -ne $deployVal) {
                     $diffs += "${key}:${deployVal}->${localVal}"
                 }
@@ -273,7 +280,7 @@ print(json.dumps(s))
 
             # Check customInstructions via handler
             $localCi  = python3 -c "import yaml,sys; d=yaml.safe_load(open(sys.argv[1])); print(d.get('spec',{}).get('customInstructions',''))" $f.FullName 2>$null
-            $deployCi = $deployedHandlersJson | jq -r --arg n $localName '[.[] | select(.incidentFilterId == $n)][0].customInstructions // ""' 2>$null
+            $deployCi = $deployedHandlersJson | Invoke-Jq -Raw -Filter '[.[] | select(.incidentFilterId == $n)][0].customInstructions // ""' -ExtraArgs @('--arg', 'n', $localName)
             if ($localCi -and $localCi -ne $deployCi) {
                 $diffs += 'customInstructions:changed'
             }
@@ -312,7 +319,7 @@ print(json.dumps(s))
 
 # ─────────────────────────── Repos ───────────────────────────
 
-$deployedRepos = @(Invoke-Dp '/api/v2/repos' | jq -r '(.value // .)[].name' 2>$null | Where-Object { $_ })
+$deployedRepos = @(Invoke-Dp '/api/v2/repos' | Invoke-Jq -Raw -Filter '(.value // .)[].name' | Where-Object { $_ })
 Compare-Items 'repos' (Join-Path $ConfigDir 'config/repos') $deployedRepos
 
 # ─────────────────────────── Connectors (toggle-based count check) ───────────────────────────
@@ -323,7 +330,7 @@ $deployedConnCt  = @($deployedConnRaw -split "`n" | Where-Object { $_ }).Count
 $connFile = Join-Path $ConfigDir 'connectors.json'
 $configConnCt = 0
 if (Test-Path $connFile) {
-    $configConnCt = Get-Content $connFile -Raw | jq '.toggles | to_entries | map(select(.key | startswith("enable")) | select(.value == true)) | length' 2>$null
+    $configConnCt = Get-Content $connFile -Raw | Invoke-Jq -Filter '.toggles | to_entries | map(select(.key | startswith("enable")) | select(.value == true)) | length'
     if (-not $configConnCt) { $configConnCt = 0 }
 }
 

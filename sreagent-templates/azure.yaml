@@ -3,6 +3,10 @@ name: sreagent-recipes
 metadata:
   template: sreagent-recipes@0.0.1
 
+infra:
+  provider: bicep
+  path: ./infra
+
 # azd hooks handle the full lifecycle. No built-in infra provider needed.
 # `azd up` = new-agent + assemble + Bicep deploy + apply-extras
 # `azd down` = delete resource group

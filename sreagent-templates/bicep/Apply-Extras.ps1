@@ -1,18 +1,16 @@
 <#
 .SYNOPSIS
-    Applies agent configuration via ARM sub-resources (preferred) or data-plane.
+    Applies agent configuration via data-plane API.
 
 .DESCRIPTION
     Two auth paths:
 
-      1. ARM sub-resources (connectors, incidentFilters, scheduledTasks,
-         commonPrompts) — uses `az rest` with management-plane token.
-         Works in Cloud Shell and CI/CD pipelines.
-
-      2. Data-plane only (hooks, httpTriggers, repos, knowledge upload)
+      1. Data-plane (skills, subagents, tools, connectors, incidentFilters,
+         scheduledTasks, commonPrompts, hooks, httpTriggers, repos, knowledge)
          — requires token for audience https://azuresre.dev.
-         Falls back gracefully: if data-plane token is unavailable,
-         prints what was skipped so you can finish from a compliant machine.
+
+      2. ARM (agent resource itself, incident platform PATCH)
+         — uses `az rest` with management-plane token.
 
     Auth:
       ARM calls         → `az login` (control-plane token, always available)
@@ -50,7 +48,9 @@
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][string]$Subscription,
+    [Parameter(Mandatory)]
+    [Alias('SubscriptionId')]
+    [string]$Subscription,
     [Parameter(Mandatory)][string]$ResourceGroup,
     [Parameter(Mandatory)][string]$AgentName,
     [string]$ExtrasFile = "extras.parameters.json",
@@ -366,67 +366,67 @@ if ($ipCount -gt 0) {
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 1b. incidentFilters — ARM PUT sub-resource with retry
+# 1b. incidentFilters — data-plane PUT with retry
+# Route: PUT /api/v2/extendedAgent/incidentFilters/{name}
 # ═════════════════════════════════════════════════════════════════════════════
 $incidentFilters = $extras.incidentFilters
 $ifCount = ($incidentFilters | Measure-Object).Count
 if ($ifCount -gt 0) {
-    Write-Host "incidentFilters (response plans): $ifCount"
-    foreach ($filter in $incidentFilters) {
-        $name = $filter.metadata.name
-        $spec = $filter.spec
+    if ($DpTokenAvailable) {
+        Write-Host "incidentFilters (response plans): $ifCount"
+        foreach ($filter in $incidentFilters) {
+            $name = $filter.metadata.name
+            $spec = $filter.spec
 
-        $customInstructions = $spec.customInstructions
+            $customInstructions = $spec.customInstructions
 
-        # Build ARM filter spec
-        $platform = if ($spec.incidentPlatform) { $spec.incidentPlatform }
-                    elseif ($spec.platformType) { $spec.platformType }
-                    else { "AzureMonitor" }
-        $handling = if ($spec.handlingAgent -and $spec.handlingAgent -ne "") { $spec.handlingAgent } else { "default" }
+            # Build filter properties
+            $platform = if ($spec.incidentPlatform) { $spec.incidentPlatform }
+                        elseif ($spec.platformType) { $spec.platformType }
+                        else { "AzureMonitor" }
+            $handling = if ($spec.handlingAgent -and $spec.handlingAgent -ne "") { $spec.handlingAgent } else { "default" }
 
-        # Build arm_spec object: spec without customInstructions, plus overrides
-        $armSpecObj = $spec.PSObject.Copy()
-        $armSpecObj.PSObject.Properties.Remove('customInstructions')
-        $armSpecObj | Add-Member -NotePropertyName 'incidentPlatform' -NotePropertyValue $platform -Force
-        $armSpecObj | Add-Member -NotePropertyName 'handlingAgent' -NotePropertyValue $handling -Force
-        $armSpecObj | Add-Member -NotePropertyName 'isEnabled' -NotePropertyValue $true -Force
-        $armSpec = $armSpecObj | ConvertTo-Json -Compress -Depth 20
+            $propsObj = $spec.PSObject.Copy()
+            $propsObj.PSObject.Properties.Remove('customInstructions')
+            $propsObj | Add-Member -NotePropertyName 'incidentPlatform' -NotePropertyValue $platform -Force
+            $propsObj | Add-Member -NotePropertyName 'handlingAgent' -NotePropertyValue $handling -Force
+            $propsObj | Add-Member -NotePropertyName 'isEnabled' -NotePropertyValue $true -Force
 
-        # ARM PUT with retry — platform init may still be in progress
-        $filterOk = $false
-        for ($attempt = 1; $attempt -le 4; $attempt++) {
-            $url = "$ArmBase/incidentFilters/$name`?api-version=$ApiVersion"
-            $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($armSpec))
-            $body = @{ properties = @{ value = $encoded } } | ConvertTo-Json -Compress -Depth 10
-            $tmp = [System.IO.Path]::GetTempFileName()
-            try {
-                Set-Content -Path $tmp -Value $body -NoNewline
-                $result = az rest -m PUT --url $url --body "@$tmp" --headers "Content-Type=application/json" -o json 2>&1
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Host "  ARM PUT incidentFilters/$name"
+            # Data-plane PUT with retry — platform init may still be in progress
+            $filterOk = $false
+            for ($attempt = 1; $attempt -le 4; $attempt++) {
+                try {
+                    $token = Get-DpToken
+                    $body = @{
+                        name       = $name
+                        type       = "IncidentFilter"
+                        tags       = @()
+                        properties = $propsObj
+                    } | ConvertTo-Json -Compress -Depth 20
+                    $encodedName = [uri]::EscapeDataString($name)
+                    $headers = @{
+                        Authorization  = "Bearer $token"
+                        "Content-Type" = "application/json"
+                    }
+                    $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/extendedAgent/incidentFilters/$encodedName" `
+                        -Method Put -Headers $headers -Body $body -ContentType "application/json"
+                    Write-Host "  data-plane PUT incidentFilters/$name"
                     Write-Host "    ok"
                     $filterOk = $true
                     break
-                } else {
-                    throw "PUT failed"
+                } catch {
+                    if ($attempt -lt 4) {
+                        Write-Host "  data-plane PUT incidentFilters/$name - retry $attempt/4 in 30s (platform init)..."
+                        Start-Sleep -Seconds 30
+                    } else {
+                        Write-Host "  data-plane PUT incidentFilters/$name"
+                        Write-Host "    FAILED"
+                    }
                 }
-            } catch {
-                if ($attempt -lt 4) {
-                    Write-Host "  ARM PUT incidentFilters/$name - retry $attempt/4 in 30s (platform init)..."
-                    Start-Sleep -Seconds 30
-                } else {
-                    $msg = ($result | Out-String) -replace '(?s).*"message":"([^"]*)".*', '$1'
-                    Write-Host "  ARM PUT incidentFilters/$name"
-                    Write-Host "    FAILED - $msg"
-                }
-            } finally {
-                Remove-Item $tmp -ErrorAction SilentlyContinue
             }
-        }
 
-        # Create incident handler if customInstructions is set (data-plane only)
-        if ($customInstructions) {
-            if ($DpTokenAvailable) {
+            # Create incident handler if customInstructions is set (data-plane only)
+            if ($customInstructions) {
                 $handlerBody = @{
                     id                       = $name
                     name                     = ""
@@ -468,32 +468,43 @@ if ($ifCount -gt 0) {
                     }
                 }
                 if (-not $handlerOk) { Write-Host "    FAILED after 5 attempts" }
-            } else {
-                Write-Host "  WARNING: customInstructions skipped (no data-plane token)"
-                $DpSkippedItems.Add("handler/$name (customInstructions)")
             }
+        }
+    } else {
+        Write-Host "incidentFilters: $ifCount - WARNING skipped (no data-plane token)"
+        foreach ($f in $incidentFilters) {
+            $DpSkippedItems.Add("incidentFilter/$($f.metadata.name)")
         }
     }
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 1c. scheduledTasks — ARM PUT sub-resource
+# 1c. scheduledTasks — data-plane PUT
+# Route: PUT /api/v2/extendedAgent/scheduledtasks/{name}
 # ═════════════════════════════════════════════════════════════════════════════
 $scheduledTasks = $extras.scheduledTasks
 $stCount = ($scheduledTasks | Measure-Object).Count
 if ($stCount -gt 0) {
-    Write-Host "scheduledTasks: $stCount"
-    foreach ($task in $scheduledTasks) {
-        $name = $task.metadata.name
-        $spec = $task.spec
-        $armSpec = @{
-            name           = if ($spec.name) { $spec.name } else { "" }
-            description    = if ($spec.description) { $spec.description } else { "" }
-            cronExpression = if ($spec.schedule) { $spec.schedule } elseif ($spec.cronExpression) { $spec.cronExpression } else { "" }
-            agentPrompt    = if ($spec.prompt) { $spec.prompt } elseif ($spec.agentPrompt) { $spec.agentPrompt } else { "" }
-            agentMode      = if ($spec.mode) { $spec.mode } elseif ($spec.agentMode) { $spec.agentMode } else { "Review" }
-        } | ConvertTo-Json -Compress -Depth 10
-        Arm-PutSubresource -Type "scheduledTasks" -Name $name -SpecJson $armSpec
+    if ($DpTokenAvailable) {
+        Write-Host "scheduledTasks: $stCount"
+        foreach ($task in $scheduledTasks) {
+            $name = $task.metadata.name
+            $spec = $task.spec
+            $props = @{
+                name           = if ($spec.name) { $spec.name } else { "" }
+                description    = if ($spec.description) { $spec.description } else { "" }
+                cronExpression = if ($spec.schedule) { $spec.schedule } elseif ($spec.cronExpression) { $spec.cronExpression } else { "" }
+                agentPrompt    = if ($spec.prompt) { $spec.prompt } elseif ($spec.agentPrompt) { $spec.agentPrompt } else { "" }
+                agentMode      = if ($spec.mode) { $spec.mode } elseif ($spec.agentMode) { $spec.agentMode } else { "Review" }
+                isEnabled      = if ($null -ne $spec.enabled) { $spec.enabled } else { $true }
+            }
+            DataPlane-PutExtended -Kind "scheduledtasks" -Name $name -Type "ScheduledTask" -Tags @() -Properties $props
+        }
+    } else {
+        Write-Host "scheduledTasks: $stCount - WARNING skipped (no data-plane token)"
+        foreach ($t in $scheduledTasks) {
+            $DpSkippedItems.Add("scheduledTask/$($t.metadata.name)")
+        }
     }
 }
 
@@ -708,16 +719,19 @@ if ($hkCount -gt 0) {
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 4e. commonPrompts — ARM PUT sub-resource
+# 4e. commonPrompts — data-plane PUT
+# Route: PUT /api/v2/extendedAgent/commonprompts/{name}
 # ═════════════════════════════════════════════════════════════════════════════
 $commonPrompts = $extras.commonPrompts
 $cpCount = ($commonPrompts | Measure-Object).Count
 if ($cpCount -gt 0) {
-    Write-Host "commonPrompts: $cpCount (ARM)"
-    foreach ($cp in $commonPrompts) {
-        $name = $cp.name
-        $props = if ($cp.properties) { $cp.properties | ConvertTo-Json -Compress -Depth 20 } else { "{}" }
-        Arm-PutSubresource -Type "commonPrompts" -Name $name -SpecJson $props
+    if ($DpTokenAvailable) {
+        Process-ExtendedItems -JqKey "commonPrompts" -Kind "commonprompts" -Items $commonPrompts
+    } else {
+        Write-Host "commonPrompts: $cpCount - WARNING skipped (no data-plane token)"
+        foreach ($cp in $commonPrompts) {
+            $DpSkippedItems.Add("commonPrompt/$($cp.name)")
+        }
     }
 }
 
@@ -732,6 +746,82 @@ if ($pcCount -gt 0) {
     } else {
         Write-Host "pluginConfigs: $pcCount - WARNING skipped (no data-plane token)"
         $DpSkippedItems.Add("pluginConfigs ($pcCount items)")
+    }
+}
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 4g-1. skills — data-plane PUT
+# Route: PUT /api/v2/extendedAgent/skills/{name}
+# ═════════════════════════════════════════════════════════════════════════════
+$skillItems = if ($extras.PSObject.Properties['skills']) { $extras.skills } else { $null }
+$skCount = ($skillItems | Measure-Object).Count
+if ($skCount -gt 0) {
+    if ($DpTokenAvailable) {
+        Write-Host "skills: $skCount"
+        foreach ($sk in $skillItems) {
+            $name = if ($sk.metadata) { $sk.metadata.name } else { $sk.name }
+            $spec = if ($sk.spec) { $sk.spec } else { $sk.properties }
+            $props = @{
+                name            = if ($spec.name) { $spec.name } else { $name }
+                description     = if ($spec.description) { $spec.description } else { "" }
+                tools           = if ($spec.tools) { @($spec.tools) } else { @() }
+                skillContent    = if ($spec.skillContent) { $spec.skillContent } else { "" }
+                additionalFiles = if ($spec.additionalFiles) { @($spec.additionalFiles) } else { @() }
+            }
+            DataPlane-PutExtended -Kind "skills" -Name $name -Type "Skill" -Tags @() -Properties $props
+        }
+    } else {
+        Write-Host "skills: $skCount - WARNING skipped (no data-plane token)"
+        foreach ($sk in $skillItems) {
+            $skName = if ($sk.metadata) { $sk.metadata.name } else { $sk.name }
+            $DpSkippedItems.Add("skill/$skName")
+        }
+    }
+}
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 4g-2. subagents — data-plane PUT
+# Route: PUT /api/v2/extendedAgent/agents/{name}
+# ═════════════════════════════════════════════════════════════════════════════
+$subagentItems = if ($extras.PSObject.Properties['subagents']) { $extras.subagents } else { $null }
+$saCount = ($subagentItems | Measure-Object).Count
+if ($saCount -gt 0) {
+    if ($DpTokenAvailable) {
+        Write-Host "subagents: $saCount"
+        foreach ($sa in $subagentItems) {
+            $name = if ($sa.metadata) { $sa.metadata.name } else { $sa.name }
+            $props = if ($sa.spec) { $sa.spec } else { $sa.properties }
+            DataPlane-PutExtended -Kind "agents" -Name $name -Type "ExtendedAgent" -Tags @() -Properties $props
+        }
+    } else {
+        Write-Host "subagents: $saCount - WARNING skipped (no data-plane token)"
+        foreach ($sa in $subagentItems) {
+            $saName = if ($sa.metadata) { $sa.metadata.name } else { $sa.name }
+            $DpSkippedItems.Add("subagent/$saName")
+        }
+    }
+}
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 4g-3. tools — data-plane PUT
+# Route: PUT /api/v2/extendedAgent/tools/{name}
+# ═════════════════════════════════════════════════════════════════════════════
+$toolItems = if ($extras.PSObject.Properties['tools']) { $extras.tools } else { $null }
+$tlCount = ($toolItems | Measure-Object).Count
+if ($tlCount -gt 0) {
+    if ($DpTokenAvailable) {
+        Write-Host "tools: $tlCount"
+        foreach ($tl in $toolItems) {
+            $name = if ($tl.metadata) { $tl.metadata.name } else { $tl.name }
+            $props = if ($tl.spec) { $tl.spec } else { $tl.properties }
+            DataPlane-PutExtended -Kind "tools" -Name $name -Type "Tool" -Tags @() -Properties $props
+        }
+    } else {
+        Write-Host "tools: $tlCount - WARNING skipped (no data-plane token)"
+        foreach ($tl in $toolItems) {
+            $tlName = if ($tl.metadata) { $tl.metadata.name } else { $tl.name }
+            $DpSkippedItems.Add("tool/$tlName")
+        }
     }
 }
 
@@ -997,6 +1087,10 @@ if ($DpTokenAvailable) {
             foreach ($repo in $repos) {
                 $rname = $repo.name
                 $rurl = $repo.spec.url
+                # Normalize short "org/repo" to full URL (API requires https://...)
+                if ($rurl -and $rurl -notmatch '^https?://' -and $rurl -match '/') {
+                    $rurl = "https://github.com/$rurl"
+                }
                 $rtypeIn = if ($repo.spec.type) { $repo.spec.type } else { "github" }
                 $rtype = switch -Regex ($rtypeIn.ToLower()) {
                     '^(ado|azuredevops|azure-devops)$' { "AzureDevOps" }
@@ -1079,6 +1173,10 @@ if ($DpTokenAvailable) {
                     foreach ($repo in $repos) {
                         $rname = $repo.name
                         $rurl = $repo.spec.url
+                        # Normalize short "org/repo" to full URL (API requires https://...)
+                        if ($rurl -and $rurl -notmatch '^https?://' -and $rurl -match '/') {
+                            $rurl = "https://github.com/$rurl"
+                        }
                         $rtypeIn = if ($repo.spec.type) { $repo.spec.type } else { "github" }
                         $rtype = if ($rtypeIn.ToLower() -match '^(ado|azuredevops|azure-devops)$') { "AzureDevOps" } else { "GitHub" }
                         $rbody = @{

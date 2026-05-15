@@ -2,6 +2,13 @@
 
 Dynatrace MCP connector for investigating application errors with skills and subagents.
 
+## Prerequisites
+
+- Azure subscription with target resource groups
+- Dynatrace environment with an API token (scopes: `entities.read`, `events.read`, `metrics.read`)
+- GitHub repo with app source code (optional — for code context during investigations)
+- All [CLI tools](../../README.md#prerequisites) installed (`./bin/install-prerequisites.sh --check`)
+
 ## Quick Start
 
 ### Step 1 — Generate agent config
@@ -34,7 +41,7 @@ Dynatrace MCP connector for investigating application errors with skills and sub
 | Bicep | `./bin/deploy.sh dt-contoso/` |
 | Terraform | `./bin/deploy-tf.sh dt-contoso/` |
 | PowerShell | `./bin/ps/Deploy-Agent.ps1 -InputPath dt-contoso/` |
-| azd | `azd up` (see [main README](../../README.md) for setup) |
+| azd | `azd up` (see [main README](../../README.md#azure-developer-cli-azd) for setup) |
 
 ## Parameters
 
@@ -42,38 +49,42 @@ Dynatrace MCP connector for investigating application errors with skills and sub
 |---|---|---|---|
 | agentName | ✅ | `dt-contoso` | You choose (lowercase, hyphens) |
 | resourceGroup | ✅ | `rg-dt-contoso` | You choose or use existing RG |
-| location | ✅ | `swedencentral` | Azure region ([supported regions](../../README.md)) |
-| dtTenant | ✅ | `abc12345` | Dynatrace → Settings → Environment ID |
-| dtToken | ✅ | `dt0c01.ABCDEFGH.XXXX...` | Dynatrace → Access tokens → Create (scopes: Read problems, Read entities) |
+| location | ✅ | `swedencentral` | Azure region — see [supported regions](../../README.md) |
+| dtTenant | ✅ | `abc12345` | Dynatrace → Settings → Environment ID (the subdomain in `abc12345.apps.dynatrace.com`) |
+| dtToken | ✅ | `dt0c01.ABCDEFGH.XXXX...` | Dynatrace → Access tokens → Create (scopes: `entities.read`, `events.read`, `metrics.read`) |
 | targetRGs | ✅ | `rg-contoso-prod,rg-contoso-web` | Comma-separated RG names to monitor |
-| lawId | | `/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name>` | Portal → LAW → Properties → Resource ID (optional) |
+| lawId | | `/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name>` | Portal → LAW → Properties → Resource ID. If blank, the LAW connector is disabled. |
 | githubRepo | | `contoso/trading-app` | GitHub org/repo for code context (optional) |
 
 ### Advanced Options
 
-| Param | Example | Description |
+| Param | Default | Description |
 |---|---|---|
-| existingUamiId | `/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/<name>` | Use an existing UAMI instead of creating a new one. Portal → Managed Identities → Properties → Resource ID |
-| existingAgentAppInsightsId | `/subscriptions/<sub>/resourceGroups/<rg>/providers/microsoft.insights/components/<name>` | Use an existing Application Insights for agent telemetry instead of creating a new one. Portal → App Insights → Properties → Resource ID |
-| modelProvider | `Anthropic`, `Azure OpenAI` | Default: `Anthropic` |
+| existingUamiId | (create new) | ARM resource ID of an existing User-Assigned Managed Identity. Leave blank to create a new one. |
+| existingAgentAppInsightsId | (create new) | ARM resource ID of an existing Application Insights for **agent telemetry** (not your app's AI). Leave blank to create a new one. |
+| modelProvider | `Anthropic` | AI model provider. Options: `Anthropic`, `Azure OpenAI`. |
 
 ## What You Get
 
-- **Connectors**: Dynatrace (MCP, bearer token), Log Analytics (optional)
-- **Skills**: investigate-app-errors
-- **Subagents**: dynatrace-investigator
-- **Hooks**: deny-prod-deletes
-- **Repo**: github-repo (placeholder)
+| Category | Items |
+|---|---|
+| **Connectors** | Dynatrace (MCP, bearer token), Log Analytics (optional, if lawId provided) |
+| **Skills** | investigate-app-errors |
+| **Subagents** | dynatrace-investigator |
+| **Hooks** | deny-prod-deletes |
+| **Common Prompts** | safety-rules |
+
+> **Note:** This recipe does not include a response plan or scheduled tasks. To add automated incident response, create files in `automations/incident-filters/` and `automations/incident-platforms/` — see the [azmon recipe](../azmon-lawappinsights/) for examples.
 
 ## After Deploy
 
-1. In Dynatrace → Settings → Workflows → configure alerting to trigger investigations
-2. Grant the agent UAMI appropriate RBAC on target resource groups
+1. Open [SRE Agent portal](https://sre.azure.com) → Connections → verify Dynatrace shows "Connected"
+2. Grant the agent's UAMI appropriate RBAC on target resource groups (Reader at minimum)
+3. To connect a GitHub repo, uncomment the GitHub section in `roles.yaml` and redeploy, or configure in the portal
 
-## Clone
+## Clone an Existing Agent
 
 ```bash
-# Get your subscription ID
 SUB=$(az account show --query id -o tsv)
 
 ./bin/export-agent.sh -s $SUB -g rg-dt-contoso -n dt-contoso \
@@ -84,8 +95,10 @@ SUB=$(az account show --query id -o tsv)
 # If cloning to a different Dynatrace environment, update DYNATRACE_BEARER_TOKEN
 # in connectors.secrets.env with a token from the new tenant.
 
-# Review config — check connectors.json, connectors.secrets.env, and automations/
+# Review the exported config:
+#   - connectors.json — verify Dynatrace tenant URL is correct
+#   - connectors.secrets.env — update token if changing tenants
+#   - roles.yaml — Dynatrace token instructions
+
 ./bin/deploy.sh dt-clone/
 ```
-
-> Token exports from data-plane (not redacted), but verify `connectors.secrets.env` after export.

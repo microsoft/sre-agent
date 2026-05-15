@@ -57,6 +57,30 @@ $ExtrasFile = "${Output}.extras.json"
 function Write-Log  { param([string]$Msg) Write-Host "  $Msg" }
 function Write-Info { param([string]$Msg) Write-Host "── $Msg ──" }
 
+# ── Load safe jq wrapper (avoids PS 7.3+ argument mangling) ──
+$InvokeJqPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'bin/ps/Invoke-Jq.ps1'
+if (-not (Test-Path $InvokeJqPath)) {
+    $InvokeJqPath = Join-Path $PSScriptRoot '../bin/ps/Invoke-Jq.ps1'
+}
+. $InvokeJqPath
+
+# ── Resolve Python executable (python3 on Windows may be a Store stub) ──
+$Python = $null
+foreach ($candidate in @('python3', 'python')) {
+    $cmd = Get-Command $candidate -ErrorAction SilentlyContinue
+    if ($cmd) {
+        # Verify it's real Python, not the Windows Store stub
+        $ver = & $cmd.Source --version 2>&1
+        if ($LASTEXITCODE -eq 0 -and $ver -match 'Python 3') {
+            $Python = $cmd.Source
+            break
+        }
+    }
+}
+if (-not $Python) {
+    Write-Error "Python 3 is required but not found. Install from https://www.python.org/downloads/"
+}
+
 # ── Load secrets into environment variables (for connector token substitution) ──
 
 if (Test-Path $Secrets -PathType Leaf) {
@@ -111,7 +135,7 @@ print(json.dumps(resolve(data)))
 '@
 
     try {
-        $result = $Json | python3 -c $pyScript $BaseDir 2>$null
+        $result = $Json | & $Python -c $pyScript $BaseDir 2>$null
         if ($LASTEXITCODE -eq 0 -and $result) { return $result }
     } catch {}
     return $Json
@@ -144,9 +168,13 @@ with open(sys.argv[1]) as fh:
 print(json.dumps(data))
 '@
             try {
-                $item = python3 -c $pyYaml $f.FullName 2>$null
+                $item = & $Python -c $pyYaml $f.FullName 2>$null
                 if ($LASTEXITCODE -ne 0 -or -not $item) { continue }
-                $items = $items | jq -c --argjson i $item '. + [$i]'
+                # Use --slurpfile to safely pass JSON without --argjson quoting issues
+                $tmpItem = [System.IO.Path]::GetTempFileName()
+                Set-Content -Path $tmpItem -Value $item -NoNewline -Encoding UTF8
+                $items = $items | Invoke-Jq -Compact -Filter '. + [$i[0]]' -ExtraArgs @('--slurpfile', 'i', $tmpItem)
+                Remove-Item $tmpItem -ErrorAction SilentlyContinue
             } catch { continue }
         }
 
@@ -154,12 +182,12 @@ print(json.dumps(data))
         foreach ($f in (Get-ChildItem $full -File -Filter '*.json' -ErrorAction SilentlyContinue)) {
             try {
                 $item = Get-Content $f.FullName -Raw
-                $items = ($items, $item) | jq -sc 'add // []' 2>$null
+                $items = @($items, $item) -join "`n" | Invoke-Jq -Compact -Slurp -Filter 'add // []'
                 if ($LASTEXITCODE -ne 0) { continue }
             } catch { continue }
         }
 
-        $result = ($result, $items) | jq -sc 'add // []'
+        $result = @($result, $items) -join "`n" | Invoke-Jq -Compact -Slurp -Filter 'add // []'
     }
     return $result
 }
@@ -187,7 +215,7 @@ print(json.dumps(sub(data)))
 '@
 
     try {
-        $result = $Json | python3 -c $pyScript 2>$null
+        $result = $Json | & $Python -c $pyScript 2>$null
         if ($LASTEXITCODE -eq 0 -and $result) { return $result }
     } catch {}
     return $Json
@@ -200,18 +228,18 @@ $agentJson = Get-Content (Join-Path $ConfigDir 'agent.json') -Raw
 
 $agentName      = $agentJson | jq -r '.identity.agentName'
 $agentRg        = $agentJson | jq -r '.identity.resourceGroup'
-$agentSub       = $agentJson | jq -r '.identity.subscription // ""'
+$agentSub       = $agentJson | Invoke-Jq -Raw -Filter '.identity.subscription // empty'
 $agentLoc       = $agentJson | jq -r '.identity.location'
-$targetRgs      = $agentJson | jq -c 'if .identity.targetResourceGroups | type == "array" then .identity.targetResourceGroups elif .identity.targetResourceGroups | type == "string" and length > 0 then [.identity.targetResourceGroups | split(",")[] | gsub("^\\s+|\\s+$"; "")] else [] end'
+$targetRgs      = $agentJson | Invoke-Jq -Compact -Filter 'if .identity.targetResourceGroups | type == "array" then .identity.targetResourceGroups elif .identity.targetResourceGroups | type == "string" and length > 0 then [.identity.targetResourceGroups | split(",")[] | gsub("^\\s+|\\s+$"; "")] else [] end'
 $access         = $agentJson | jq -r '.access.accessLevel'
 $action         = $agentJson | jq -r '.access.actionMode'
-$toggles        = $agentJson | jq -c '.toggles // {}'
-$upgradeChannel = $agentJson | jq -r '.upgradeChannel // "Preview"'
-$modelProvider  = $agentJson | jq -r '.defaultModelProvider // "Anthropic"'
-$monthlyLimit   = $agentJson | jq -r '.monthlyAgentUnitLimit // 10000'
-$tags           = $agentJson | jq -c '.tags // {}'
-$existingUami   = $agentJson | jq -r '.existingUamiId // ""'
-$existingAi     = $agentJson | jq -r '.existingAgentAppInsightsId // ""'
+$toggles        = $agentJson | Invoke-Jq -Compact -Filter '.toggles // {}'
+$upgradeChannel = $agentJson | Invoke-Jq -Raw -Filter '.upgradeChannel // "Preview"'
+$modelProvider  = $agentJson | Invoke-Jq -Raw -Filter '.defaultModelProvider // "Anthropic"'
+$monthlyLimit   = $agentJson | Invoke-Jq -Raw -Filter '.monthlyAgentUnitLimit // 10000'
+$tags           = $agentJson | Invoke-Jq -Compact -Filter '.tags // {}'
+$existingUami   = $agentJson | Invoke-Jq -Raw -Filter '.existingUamiId // empty'
+$existingAi     = $agentJson | Invoke-Jq -Raw -Filter '.existingAgentAppInsightsId // empty'
 
 Write-Log "Agent: $agentName ($agentLoc, $agentRg)"
 
@@ -228,8 +256,8 @@ if (Test-Path $connFile -PathType Leaf) {
     if ($LASTEXITCODE -eq 0) {
         $connectors = $rawConn
     } else {
-        $connectorToggles = $rawConn | jq -c '.toggles // {}'
-        $connectors       = $rawConn | jq -c '.connectors // []'
+        $connectorToggles = $rawConn | Invoke-Jq -Compact -Filter '.toggles // {}'
+        $connectors       = $rawConn | Invoke-Jq -Compact -Filter '.connectors // []'
     }
     $connCount = $connectors | jq 'length'
     Write-Log "$connCount connector(s) from connectors.json"
@@ -382,8 +410,22 @@ if ($mdFiles.Count -gt 0) {
     foreach ($mdf in $mdFiles) {
         $fname   = $mdf.Name
         $content = Get-Content $mdf.FullName -Raw
-        $knowledgeItems = $knowledgeItems | jq -c --arg name $fname --arg content $content `
-            '. + [{"name": $name, "type": "KnowledgeText", "content": $content}]'
+        # Build JSON item via Python to avoid jq --arg quoting issues with large content
+        $tmpContent = [System.IO.Path]::GetTempFileName()
+        Set-Content -Path $tmpContent -Value $content -NoNewline -Encoding UTF8
+        $item = & $Python -c @"
+import json, sys
+with open(sys.argv[1]) as f:
+    content = f.read()
+print(json.dumps({"name": sys.argv[2], "type": "KnowledgeText", "content": content}))
+"@ $tmpContent $fname 2>$null
+        Remove-Item $tmpContent -ErrorAction SilentlyContinue
+        if ($LASTEXITCODE -eq 0 -and $item) {
+            $tmpItem = [System.IO.Path]::GetTempFileName()
+            Set-Content -Path $tmpItem -Value $item -NoNewline -Encoding UTF8
+            $knowledgeItems = $knowledgeItems | Invoke-Jq -Compact -Filter '. + [$i[0]]' -ExtraArgs @('--slurpfile', 'i', $tmpItem)
+            Remove-Item $tmpItem -ErrorAction SilentlyContinue
+        }
     }
 }
 
@@ -476,13 +518,13 @@ $paramsObj = [ordered]@{
         'enableWebhookBridge'         = @{ value = [bool](Get-Prop $togglesObj 'enableWebhookBridge'         $false) }
         'webhookBridgeTriggerUrl'     = @{ value = [string](Get-Prop $togglesObj 'webhookBridgeTriggerUrl'   '') }
         'connectors'                  = @{ value = $bicepConnectors }
-        'tools'                       = @{ value = $toolsArr }
-        'skills'                      = @{ value = $skillsArr }
-        'subagents'                   = @{ value = $subagentsArr }
+        'tools'                       = @{ value = @() }  # deployed via data-plane (apply-extras)
+        'skills'                      = @{ value = @() }  # deployed via data-plane (apply-extras)
+        'subagents'                   = @{ value = @() }  # deployed via data-plane (apply-extras)
         'scheduledTasks'              = @{ value = @() }
         'incidentFilters'             = @{ value = @() }
-        'commonPrompts'               = @{ value = $commonPromptsArm }
-        'pluginConfigs'               = @{ value = $pluginConfigsArr }
+        'commonPrompts'               = @{ value = @() }  # deployed via data-plane (apply-extras)
+        'pluginConfigs'               = @{ value = @() }  # deployed via data-plane (apply-extras)
     }
 }
 
@@ -534,6 +576,10 @@ $extrasObj = [ordered]@{
     scheduledTasks         = $scheduledTasksArr
     hooks                  = $hooksArm
     commonPrompts          = $commonPromptsArm
+    skills                 = $skillsArr
+    subagents              = $subagentsArr
+    tools                  = $toolsArr
+    pluginConfigs          = $pluginConfigsArr
     httpTriggers           = $httpTriggersArr
     knowledge              = $knowledgeArr
     knowledgeItems         = $knowledgeItemsArr

@@ -64,7 +64,7 @@ else
   exit 1
 fi
 
-cleanup() { for f in "${CLEANUP_FILES[@]}"; do rm -rf "$f" 2>/dev/null; done; }
+cleanup() { for f in ${CLEANUP_FILES[@]+"${CLEANUP_FILES[@]}"}; do rm -rf "$f" 2>/dev/null; done; }
 trap cleanup EXIT
 
 [[ -f "$FILE" ]] || { echo "parameters file not found: $FILE" >&2; exit 1; }
@@ -113,20 +113,19 @@ if [[ "$n" -gt 0 ]]; then
     echo "    ✓ Connector: ${cname} (${ctype})"
   done
 fi
-# Skills + subagents (Bicep arrays)
-for arr in skills subagents; do
-  n=$(jq -r ".parameters.${arr}.value // [] | length" "$FILE")
-  [[ "$n" -gt 0 ]] && echo "    ✓ ${arr}: ${n}"
-done
+# Skills + subagents (now in extras, not Bicep)
 echo
 echo "  Data-plane (apply-extras):"
 EXTRAS_FILE="${FILE%.parameters.json}.extras.json"
 [[ ! -f "$EXTRAS_FILE" ]] && EXTRAS_FILE="$(dirname "$FILE")/assembled.extras.json"
 if [[ -f "$EXTRAS_FILE" ]]; then
-  for key in hooks commonPrompts incidentPlatforms incidentFilters scheduledTasks httpTriggers repos knowledgeItems knowledge; do
+  for key in skills subagents tools hooks commonPrompts incidentPlatforms incidentFilters scheduledTasks httpTriggers repos knowledgeItems knowledge pluginConfigs; do
     n=$(jq -r ".${key} // [] | length" "$EXTRAS_FILE" 2>/dev/null)
     if [[ "$n" -gt 0 ]]; then
       case "$key" in
+        skills)             echo "    ✓ Skills: ${n}" ;;
+        subagents)          echo "    ✓ Subagents: ${n}" ;;
+        tools)              echo "    ✓ Tools: ${n}" ;;
         hooks)              echo "    ✓ Hooks: ${n}" ;;
         commonPrompts)      echo "    ✓ Common prompts: ${n}" ;;
         incidentPlatforms)  echo "    ✓ Incident platforms: ${n}" ;;
@@ -136,6 +135,7 @@ if [[ -f "$EXTRAS_FILE" ]]; then
         repos)              echo "    ✓ Repos: ${n}" ;;
         knowledgeItems)     echo "    ✓ Knowledge files: ${n}" ;;
         knowledge)          echo "    ✓ Knowledge docs: ${n}" ;;
+        pluginConfigs)      echo "    ✓ Plugin configs: ${n}" ;;
       esac
     fi
   done
@@ -159,6 +159,8 @@ if [[ -d "$INPUT" ]]; then
     if [[ -z "$FORCE" ]]; then
       echo "  Skipping deployment. Use --force to redeploy anyway."
       echo
+      # Check connector health even when skipping deploy
+      check_connector_health "$SUB" "$RG" "$AG"
       # Still run verify to confirm current state
       echo "── Current state verification ──"
       "${SCRIPT_DIR}/verify-agent.sh" "$SUB" "$RG" "$AG" --expected "$INPUT" 2>&1 || true
@@ -215,18 +217,65 @@ az deployment sub create \
   --name "$NAME" \
   --template-file "$TEMPLATE" \
   --parameters "@${FILE}" \
-  --output json | tee "$TMP"
+  --output json > "$TMP" 2>&1
+AZ_RC=$?
+cat "$TMP"
 
 # ── Post-deploy: print key links ──
 STATE=$(jq -r '.properties.provisioningState // "?"' "$TMP" 2>/dev/null || echo "Failed")
+# If az exited non-zero but jq can't parse the output, fall back to querying ARM
+if [[ "$STATE" == "?" && $AZ_RC -ne 0 ]]; then
+  STATE=$(az deployment sub show -n "$NAME" --query 'properties.provisioningState' -o tsv 2>/dev/null || echo "Failed")
+fi
+# ── Colors (if terminal supports it) ──
+if [[ -t 1 ]]; then
+  RED='\033[0;31m' GREEN='\033[0;32m' YELLOW='\033[1;33m' CYAN='\033[0;36m' BOLD='\033[1m' NC='\033[0m'
+else
+  RED='' GREEN='' YELLOW='' CYAN='' BOLD='' NC=''
+fi
+
+# ── Connector health check (reused in multiple paths) ──
+check_connector_health() {
+  local sub="$1" rg="$2" ag="$3"
+  local api_url="https://management.azure.com/subscriptions/${sub}/resourceGroups/${rg}/providers/Microsoft.App/agents/${ag}/connectors?api-version=2025-05-01-preview"
+  local conn_json
+  conn_json=$(az rest --method GET --url "$api_url" 2>/dev/null || true)
+  local count
+  count=$(echo "$conn_json" | jq '.value | length' 2>/dev/null || echo 0)
+  [[ "$count" -gt 0 ]] || return 0
+
+  echo -e "  ${BOLD}Connectors:${NC}"
+  local warn=false
+  for i in $(seq 0 $((count - 1))); do
+    local cname cstate ctype
+    cname=$(echo "$conn_json" | jq -r ".value[$i].name")
+    cstate=$(echo "$conn_json" | jq -r ".value[$i].properties.provisioningState // \"Unknown\"")
+    ctype=$(echo "$conn_json" | jq -r ".value[$i].properties.dataConnectorType // \"\"")
+
+    # Note: ARM redacts extendedProperties (bearerToken, endpoint, etc.)
+    # on GET — they always appear null. Only provisioningState is reliable.
+    if [[ "$cstate" == "Succeeded" ]]; then
+      echo -e "    ${GREEN}✓ ${cname} (${ctype}): ${cstate}${NC}"
+    else
+      echo -e "    ${YELLOW}⚠ ${cname} (${ctype}): ${cstate}${NC}"
+      warn=true
+    fi
+  done
+  if [[ "$warn" == "true" ]]; then
+    echo
+    echo -e "  ${YELLOW}${BOLD}⚠ Some connectors are not healthy. Check the portal or redeploy.${NC}"
+  fi
+  echo
+}
+
 if [[ "$STATE" != "Succeeded" ]]; then
   echo
-  echo "══════════ Deployment FAILED ══════════"
+  echo -e "${RED}${BOLD}══════════ Deployment FAILED ══════════${NC}"
   # Extract the most useful error message
   ERR_MSG=$(jq -r '.. | .message? // empty' "$TMP" 2>/dev/null | grep -v "^At least" | head -3)
   if [[ -n "$ERR_MSG" ]]; then
     echo
-    echo "  Root cause:"
+    echo -e "  ${RED}Root cause:${NC}"
     echo "$ERR_MSG" | sed 's/^/    /'
   fi
   echo
@@ -236,10 +285,10 @@ if [[ "$STATE" != "Succeeded" ]]; then
 fi
 
 echo
-echo "─────────────── Deployment Succeeded ───────────────"
-echo "  Agent (portal):  $(jq -r '.properties.outputs.agentPortalUrl.value // empty' "$TMP")"
-echo "  Resource group:  $(jq -r '.properties.outputs.resourceGroupPortalUrl.value // empty' "$TMP")"
-echo "  Data plane:      $(jq -r '.properties.outputs.agentDataPlaneUrl.value // empty' "$TMP")"
+echo -e "${GREEN}${BOLD}─────────────── Deployment Succeeded ───────────────${NC}"
+echo -e "  Agent (portal):  ${CYAN}$(jq -r '.properties.outputs.agentPortalUrl.value // empty' "$TMP")${NC}"
+echo -e "  Resource group:  ${CYAN}$(jq -r '.properties.outputs.resourceGroupPortalUrl.value // empty' "$TMP")${NC}"
+echo -e "  Data plane:      ${CYAN}$(jq -r '.properties.outputs.agentDataPlaneUrl.value // empty' "$TMP")${NC}"
 echo
 
 # ── Telemetry ──
@@ -262,6 +311,9 @@ else
   echo "  ./apply-extras.sh $SUB $RG $AG <extras-file>"
 fi
 echo "─────────────────────────────────────────────────────"
+
+# ── Check connector health (after apply-extras, which deploys connectors) ──
+check_connector_health "$SUB" "$RG" "$AG"
 
 # ── Deployment log ──
 LOG_DIR="${INPUT}"

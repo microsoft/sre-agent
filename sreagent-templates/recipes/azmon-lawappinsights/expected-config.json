@@ -43,7 +43,5 @@
     { "name": "azmon-sev01", "handlingAgent": "alert-investigator" }
   ],
 
-  "repos": [
-    "contoso-trading"
-  ]
+  "repos": []
 }

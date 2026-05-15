@@ -185,6 +185,7 @@ resource "azapi_resource" "sre_agent" {
 # ═══════════════════════ CHILD RESOURCES ═════════════════════
 
 # ── Connectors (typed properties — not base64) ──
+# Connectors remain on ARM — they work for all tenants (1P and 3P).
 
 resource "azapi_resource" "connector" {
   for_each                  = { for c in local.all_connectors : c.name => c }
@@ -208,69 +209,8 @@ resource "azapi_resource" "connector" {
   }
 }
 
-# ── Skills (base64-encoded spec in properties.value) ──
-
-resource "azapi_resource" "skill" {
-  for_each                  = { for s in var.skills : s.name => s }
-  schema_validation_enabled = false
-  type                      = "Microsoft.App/agents/skills@2025-05-01-preview"
-  name      = each.key
-  parent_id = azapi_resource.sre_agent.id
-
-  body = {
-    properties = {
-      value = base64encode(jsonencode(each.value.spec))
-    }
-  }
-}
-
-# ── Subagents (base64-encoded spec in properties.value) ──
-
-resource "azapi_resource" "subagent" {
-  for_each                  = { for s in var.subagents : s.name => s }
-  schema_validation_enabled = false
-  type                      = "Microsoft.App/agents/subagents@2025-05-01-preview"
-  name      = each.key
-  parent_id = azapi_resource.sre_agent.id
-
-  body = {
-    properties = {
-      value = base64encode(jsonencode(each.value.spec))
-    }
-  }
-}
-
-# ── Tools (base64-encoded spec in properties.value) ──
-
-resource "azapi_resource" "tool" {
-  for_each                  = { for t in var.tools : t.name => t }
-  schema_validation_enabled = false
-  type                      = "Microsoft.App/agents/tools@2025-05-01-preview"
-  name      = each.key
-  parent_id = azapi_resource.sre_agent.id
-
-  body = {
-    properties = {
-      value = base64encode(jsonencode(each.value.spec))
-    }
-  }
-}
-
-# ── Common Prompts (base64-encoded properties in properties.value) ──
-
-resource "azapi_resource" "common_prompt" {
-  for_each                  = { for p in var.common_prompts : p.name => p }
-  schema_validation_enabled = false
-  type                      = "Microsoft.App/agents/commonPrompts@2025-05-01-preview"
-  name      = each.key
-  parent_id = azapi_resource.sre_agent.id
-
-  body = {
-    properties = {
-      value = base64encode(jsonencode(each.value.properties))
-    }
-  }
-}
+# Skills, subagents, tools, and common prompts are now deployed via data-plane
+# (apply-extras.sh) instead of ARM to avoid tenant restrictions that block 3P tenants.
 
 # ═══════════════════════════ RBAC ═════════════════════════════
 

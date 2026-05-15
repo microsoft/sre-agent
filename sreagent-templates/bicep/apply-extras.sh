@@ -206,6 +206,47 @@ dataplane_post_json() {
 # Reusable: get a data-plane bearer (defined here so multipart helper can use it)
 _dp_token() { az account get-access-token --resource https://azuresre.dev --query accessToken -o tsv 2>/dev/null; }
 
+# ---------------------------------------------------------------------------
+# Helper: PUT to v2 extendedAgent dataplane (skills/subagents/hooks/commonprompts/etc.).
+# Body shape (from Agent.Web/ApiResources/ApiRequestEnvelope.cs):
+#   { name, type, tags, properties: <spec> }
+# Routes (from Agent.Web/Controllers/v2/ExtendedAgentApiController.cs):
+#   PUT /api/v2/extendedAgent/{kind}/{name}
+# ---------------------------------------------------------------------------
+dataplane_put_extended() {
+  local kind="$1" name="$2" type="$3" tags_json="$4" props_json="$5"
+  local TOKEN body url
+  TOKEN=$(_dp_token)
+  body=$(jq -nc --arg n "$name" --arg t "$type" --argjson tags "$tags_json" --argjson props "$props_json" \
+    '{name:$n, type:$t, tags:$tags, properties:$props}')
+  url="${AGENT_ENDPOINT}/api/v2/extendedAgent/${kind}/$(printf %s "$name" | jq -sRr @uri)"
+  if curl -sS -f -X PUT "$url" \
+       -H "Authorization: Bearer ${TOKEN}" \
+       -H "Content-Type: application/json" \
+       --data "$body" >/dev/null; then
+    echo "  ok ${kind}/${name}"
+  else
+    echo "  FAILED — PUT ${kind}/${name}"
+  fi
+}
+
+# Generic processor for hooks / commonPrompts / pluginConfigs entries.
+# Each entry: { name, type, tags?, properties }
+_process_extended() {
+  local jq_key="$1" kind="$2"
+  local count name type tags props
+  count=$(jq "(.${jq_key} // []) | length" "$FILE")
+  [[ "$count" -gt 0 ]] || return 0
+  echo "${jq_key}: ${count}"
+  for i in $(seq 0 $((count - 1))); do
+    name=$(jq -r --argjson i "$i" ".${jq_key}[\$i].name" "$FILE")
+    type=$(jq -r --argjson i "$i" ".${jq_key}[\$i].type // \"\"" "$FILE")
+    tags=$(jq -c --argjson i "$i" ".${jq_key}[\$i].tags // []" "$FILE")
+    props=$(jq -c --argjson i "$i" ".${jq_key}[\$i].properties // {}" "$FILE")
+    dataplane_put_extended "$kind" "$name" "$type" "$tags" "$props"
+  done
+}
+
 echo "Applying extras to ${AGENT} in ${RG}..."
 
 # 1. incidentPlatforms — ARM PATCH on agent resource (not sub-resource PUT)
@@ -239,67 +280,84 @@ if [[ "$count" -gt 0 ]]; then
   fi
 fi
 
-# 1b. incidentFilters — ARM PUT sub-resource
-# Body: base64-encoded JSON with incidentPlatform, priorities, agentMode, handlingAgent.
-# Handlers (customInstructions) require data-plane — applied if token available.
+# 1b. incidentFilters — data-plane PUT
+# Route: PUT /api/v2/extendedAgent/incidentFilters/{name}
+# Body: { name, type: "IncidentFilter", tags: [], properties: { incidentPlatform, priorities, agentMode, ... } }
 count=$(jq '.incidentFilters // [] | length' "$FILE")
 if [[ "$count" -gt 0 ]]; then
-  echo "incidentFilters (response plans): ${count}"
-  for i in $(seq 0 $((count - 1))); do
-    name=$(jq -r --argjson i "$i" '.incidentFilters[$i].metadata.name' "$FILE")
-    spec=$(jq -c --argjson i "$i" '.incidentFilters[$i].spec' "$FILE")
+  if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
+    echo "incidentFilters (response plans): ${count}"
+    for i in $(seq 0 $((count - 1))); do
+      name=$(jq -r --argjson i "$i" '.incidentFilters[$i].metadata.name' "$FILE")
+      spec=$(jq -c --argjson i "$i" '.incidentFilters[$i].spec' "$FILE")
 
-    # Build ARM filter spec — pass all fields, override platform/handler/enabled
-    platform=$(echo "$spec" | jq -r '.incidentPlatform // .platformType // "AzureMonitor"')
-    handling=$(echo "$spec" | jq -r 'if .handlingAgent == "" or .handlingAgent == null then "default" else .handlingAgent end')
-    arm_spec=$(echo "$spec" | jq -c --arg p "$platform" --arg h "$handling" \
-      'del(.customInstructions) + {incidentPlatform: $p, handlingAgent: $h, isEnabled: true}')
+      # Build filter properties
+      platform=$(echo "$spec" | jq -r '.incidentPlatform // .platformType // "AzureMonitor"')
+      handling=$(echo "$spec" | jq -r 'if .handlingAgent == "" or .handlingAgent == null then "default" else .handlingAgent end')
+      props=$(echo "$spec" | jq -c --arg p "$platform" --arg h "$handling" \
+        '. + {incidentPlatform: $p, handlingAgent: $h, isEnabled: true}')
 
-    # ARM PUT with retry — platform init may still be in progress after PATCH
-    filter_ok=false
-    for attempt in 1 2 3 4; do
-      local_url="${ARM_BASE}/incidentFilters/${name}?api-version=${API_VERSION}"
-      local_encoded=$(printf '%s' "$arm_spec" | base64)
-      local_tmp=$(mktemp)
-      printf '{"properties":{"value":"%s"}}' "$local_encoded" > "$local_tmp"
-      local_result=$(az rest -m PUT --url "$local_url" --body "@${local_tmp}" \
-           --headers "Content-Type=application/json" -o json 2>&1) && {
-        echo "  ARM PUT incidentFilters/${name}"
-        echo "    ok"
-        filter_ok=true
-        rm -f "$local_tmp"
-        break
-      } || {
-        rm -f "$local_tmp"
-        if [[ $attempt -lt 4 ]]; then
-          echo "  ARM PUT incidentFilters/${name} — retry ${attempt}/4 in 30s (platform init)..."
-          sleep 30
+      # Data-plane PUT with retry — platform init may still be in progress after PATCH
+      filter_ok=false
+      for attempt in 1 2 3 4; do
+        TOKEN=$(_dp_token)
+        body=$(jq -nc --arg n "$name" --argjson props "$props" \
+          '{name:$n, type:"IncidentFilter", tags:[], properties:$props}')
+        url="${AGENT_ENDPOINT}/api/v2/extendedAgent/incidentFilters/$(printf %s "$name" | jq -sRr @uri)"
+        if curl -sS -f -X PUT "$url" \
+             -H "Authorization: Bearer ${TOKEN}" \
+             -H "Content-Type: application/json" \
+             --data "$body" >/dev/null 2>&1; then
+          echo "  ok incidentFilters/${name}"
+          filter_ok=true
+          break
         else
-          echo "  ARM PUT incidentFilters/${name}"
-          echo "    FAILED — $(echo "$local_result" | grep -o '"message":"[^"]*"' | head -1 | cut -d'"' -f4)"
+          if [[ $attempt -lt 4 ]]; then
+            echo "  incidentFilters/${name} — retry ${attempt}/4 in 30s (platform init)..."
+            sleep 30
+          else
+            echo "  FAILED — PUT incidentFilters/${name}"
+          fi
         fi
-      }
+      done
     done
-  done
+  else
+    echo "incidentFilters: ${count} — ⚠ skipped (no data-plane token)"
+    for i in $(seq 0 $((count - 1))); do
+      fname=$(jq -r --argjson i "$i" '.incidentFilters[$i].metadata.name' "$FILE")
+      DP_SKIPPED_ITEMS+=("incidentFilter/${fname}")
+    done
+  fi
 fi
 
-# 1c. scheduledTasks — ARM PUT sub-resource
+# 1c. scheduledTasks — data-plane PUT
+# Route: PUT /api/v2/extendedAgent/scheduledtasks/{name}
+# Body: { name, type: "ScheduledTask", tags: [], properties: { description, cronExpression, agentPrompt, agentMode } }
 count=$(jq '.scheduledTasks // [] | length' "$FILE")
 if [[ "$count" -gt 0 ]]; then
-  echo "scheduledTasks: ${count}"
-  for i in $(seq 0 $((count - 1))); do
-    name=$(jq -r --argjson i "$i" '.scheduledTasks[$i].metadata.name' "$FILE")
-    spec=$(jq -c --argjson i "$i" '.scheduledTasks[$i].spec' "$FILE")
-    # Normalize field names for the ARM envelope
-    arm_spec=$(jq -c '{
-      name: (.name // ""),
-      description: (.description // ""),
-      cronExpression: (.schedule // .cronExpression // ""),
-      agentPrompt: (.prompt // .agentPrompt // ""),
-      agentMode: (.mode // .agentMode // "Review")
-    }' <<< "$spec")
-    arm_put_subresource "scheduledTasks" "$name" "$arm_spec"
-  done
+  if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
+    echo "scheduledTasks: ${count}"
+    for i in $(seq 0 $((count - 1))); do
+      name=$(jq -r --argjson i "$i" '.scheduledTasks[$i].metadata.name' "$FILE")
+      spec=$(jq -c --argjson i "$i" '.scheduledTasks[$i].spec' "$FILE")
+      # Normalize field names
+      props=$(jq -c '{
+        name: (.name // ""),
+        description: (.description // ""),
+        cronExpression: (.schedule // .cronExpression // ""),
+        agentPrompt: (.prompt // .agentPrompt // ""),
+        agentMode: (.mode // .agentMode // "Review"),
+        isEnabled: (.enabled // true)
+      }' <<< "$spec")
+      dataplane_put_extended "scheduledtasks" "$name" "ScheduledTask" "[]" "$props"
+    done
+  else
+    echo "scheduledTasks: ${count} — ⚠ skipped (no data-plane token)"
+    for i in $(seq 0 $((count - 1))); do
+      tname=$(jq -r --argjson i "$i" '.scheduledTasks[$i].metadata.name' "$FILE")
+      DP_SKIPPED_ITEMS+=("scheduledTask/${tname}")
+    done
+  fi
 fi
 
 # 2. repos — data-plane only (requires azuresre.dev token)
@@ -469,47 +527,6 @@ if [[ "$count" -gt 0 ]]; then
   fi
 fi
 
-# ---------------------------------------------------------------------------
-# Helper: PUT to v2 extendedAgent dataplane (hooks/commonprompts/plugins).
-# Body shape (from Agent.Web/ApiResources/ApiRequestEnvelope.cs):
-#   { name, type, tags, properties: <spec> }
-# Routes (from Agent.Web/Controllers/v2/ExtendedAgentApiController.cs):
-#   PUT /api/v2/extendedAgent/{kind}/{name}  where kind ∈ {hooks,commonprompts,plugins}
-# ---------------------------------------------------------------------------
-dataplane_put_extended() {
-  local kind="$1" name="$2" type="$3" tags_json="$4" props_json="$5"
-  local TOKEN body url
-  TOKEN=$(_dp_token)
-  body=$(jq -nc --arg n "$name" --arg t "$type" --argjson tags "$tags_json" --argjson props "$props_json" \
-    '{name:$n, type:$t, tags:$tags, properties:$props}')
-  url="${AGENT_ENDPOINT}/api/v2/extendedAgent/${kind}/$(printf %s "$name" | jq -sRr @uri)"
-  if curl -sS -f -X PUT "$url" \
-       -H "Authorization: Bearer ${TOKEN}" \
-       -H "Content-Type: application/json" \
-       --data "$body" >/dev/null; then
-    echo "  ok ${kind}/${name}"
-  else
-    echo "  FAILED — PUT ${kind}/${name}"
-  fi
-}
-
-# Generic processor for hooks / commonPrompts / pluginConfigs entries.
-# Each entry: { name, type, tags?, properties }
-_process_extended() {
-  local jq_key="$1" kind="$2"
-  local count name type tags props
-  count=$(jq "(.${jq_key} // []) | length" "$FILE")
-  [[ "$count" -gt 0 ]] || return 0
-  echo "${jq_key}: ${count}"
-  for i in $(seq 0 $((count - 1))); do
-    name=$(jq -r --argjson i "$i" ".${jq_key}[\$i].name" "$FILE")
-    type=$(jq -r --argjson i "$i" ".${jq_key}[\$i].type // \"\"" "$FILE")
-    tags=$(jq -c --argjson i "$i" ".${jq_key}[\$i].tags // []" "$FILE")
-    props=$(jq -c --argjson i "$i" ".${jq_key}[\$i].properties // {}" "$FILE")
-    dataplane_put_extended "$kind" "$name" "$type" "$tags" "$props"
-  done
-}
-
 # 4d. hooks — data-plane only (no ARM sub-resource)
 count=$(jq '(.hooks // []) | length' "$FILE")
 if [[ "$count" -gt 0 ]]; then
@@ -524,15 +541,18 @@ if [[ "$count" -gt 0 ]]; then
   fi
 fi
 
-# 4e. commonPrompts — ARM PUT sub-resource
+# 4e. commonPrompts — data-plane PUT
 count=$(jq '(.commonPrompts // []) | length' "$FILE")
 if [[ "$count" -gt 0 ]]; then
-  echo "commonPrompts: ${count} (ARM)"
-  for i in $(seq 0 $((count - 1))); do
-    name=$(jq -r --argjson i "$i" '.commonPrompts[$i].name' "$FILE")
-    props=$(jq -c --argjson i "$i" '.commonPrompts[$i].properties // {}' "$FILE")
-    arm_put_subresource "commonPrompts" "$name" "$props"
-  done
+  if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
+    _process_extended "commonPrompts" "commonprompts"
+  else
+    echo "commonPrompts: ${count} — ⚠ skipped (no data-plane token)"
+    for i in $(seq 0 $((count - 1))); do
+      cpname=$(jq -r --argjson i "$i" '.commonPrompts[$i].name' "$FILE")
+      DP_SKIPPED_ITEMS+=("commonPrompt/${cpname}")
+    done
+  fi
 fi
 
 # 4f. pluginConfigs — data-plane only
@@ -596,6 +616,75 @@ if [[ "$count" -gt 0 ]]; then
     body=$(jq -c --argjson i "$i" '{properties: .connectors[$i].properties}' "$FILE")
     arm_put_connector "$cname" "$body"
   done
+fi
+
+# 4i-1. skills — data-plane PUT
+# Route: PUT /api/v2/extendedAgent/skills/{name}
+# Body: { name, type: "Skill", tags: [], properties: { name, description, tools, skillContent, additionalFiles } }
+count=$(jq '.skills // [] | length' "$FILE")
+if [[ "$count" -gt 0 ]]; then
+  if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
+    echo "skills: ${count}"
+    for i in $(seq 0 $((count - 1))); do
+      name=$(jq -r --argjson i "$i" '.skills[$i].metadata.name' "$FILE")
+      desc=$(jq -r --argjson i "$i" '.skills[$i].metadata.description // ""' "$FILE")
+      skill_tools=$(jq -c --argjson i "$i" '.skills[$i].metadata.spec.tools // []' "$FILE")
+      skill_content=$(jq -r --argjson i "$i" '.skills[$i].skillContent // ""' "$FILE")
+      additional_files=$(jq -c --argjson i "$i" '.skills[$i].additionalFiles // []' "$FILE")
+      props=$(jq -nc --arg n "$name" --arg d "$desc" --argjson t "$skill_tools" \
+        --arg c "$skill_content" --argjson af "$additional_files" \
+        '{name:$n, description:$d, tools:$t, skillContent:$c, additionalFiles:$af}')
+      dataplane_put_extended "skills" "$name" "Skill" "[]" "$props"
+    done
+  else
+    echo "skills: ${count} — ⚠ skipped (no data-plane token)"
+    for i in $(seq 0 $((count - 1))); do
+      sname=$(jq -r --argjson i "$i" '.skills[$i].metadata.name' "$FILE")
+      DP_SKIPPED_ITEMS+=("skill/${sname}")
+    done
+  fi
+fi
+
+# 4i-2. subagents — data-plane PUT
+# Route: PUT /api/v2/extendedAgent/agents/{name}
+# Body: { name, type: "ExtendedAgent", tags: [], properties: { instructions, handoffDescription, tools, ... } }
+count=$(jq '.subagents // [] | length' "$FILE")
+if [[ "$count" -gt 0 ]]; then
+  if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
+    echo "subagents: ${count}"
+    for i in $(seq 0 $((count - 1))); do
+      name=$(jq -r --argjson i "$i" '.subagents[$i].metadata.name' "$FILE")
+      props=$(jq -c --argjson i "$i" '.subagents[$i].spec' "$FILE")
+      dataplane_put_extended "agents" "$name" "ExtendedAgent" "[]" "$props"
+    done
+  else
+    echo "subagents: ${count} — ⚠ skipped (no data-plane token)"
+    for i in $(seq 0 $((count - 1))); do
+      saname=$(jq -r --argjson i "$i" '.subagents[$i].metadata.name' "$FILE")
+      DP_SKIPPED_ITEMS+=("subagent/${saname}")
+    done
+  fi
+fi
+
+# 4i-3. tools — data-plane PUT
+# Route: PUT /api/v2/extendedAgent/tools/{name}
+# Body: { name, type: "Tool", tags: [], properties: { ... tool spec } }
+count=$(jq '.tools // [] | length' "$FILE")
+if [[ "$count" -gt 0 ]]; then
+  if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
+    echo "tools: ${count}"
+    for i in $(seq 0 $((count - 1))); do
+      name=$(jq -r --argjson i "$i" '.tools[$i].metadata.name' "$FILE")
+      props=$(jq -c --argjson i "$i" '.tools[$i].spec' "$FILE")
+      dataplane_put_extended "tools" "$name" "Tool" "[]" "$props"
+    done
+  else
+    echo "tools: ${count} — ⚠ skipped (no data-plane token)"
+    for i in $(seq 0 $((count - 1))); do
+      tname=$(jq -r --argjson i "$i" '.tools[$i].metadata.name' "$FILE")
+      DP_SKIPPED_ITEMS+=("tool/${tname}")
+    done
+  fi
 fi
 
 # 4i. Webhook bridge Logic App — auto-deploy if httpTriggers exist and enableWebhookBridge is set
@@ -769,6 +858,10 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
     for i in $(seq 0 $((count - 1))); do
       rname=$(jq -r --argjson i "$i" '.repos[$i].name' "$FILE")
       rurl=$(jq -r  --argjson i "$i" '.repos[$i].spec.url' "$FILE")
+      # Normalize short "org/repo" to full URL (API requires valid URL format)
+      if [[ "$rurl" != http* && "$rurl" == */* ]]; then
+        rurl="https://github.com/${rurl}"
+      fi
       # Map our spec.type ("github"/"ado") to the View enum ("GitHub"/"AzureDevOps").
       rtype_in=$(jq -r --argjson i "$i" '.repos[$i].spec.type // "github"' "$FILE")
       case "$(printf %s "$rtype_in" | tr "[:upper:]" "[:lower:]")" in
@@ -835,6 +928,10 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
         for i in $(seq 0 $((count - 1))); do
           rname=$(jq -r --argjson i "$i" '.repos[$i].name' "$FILE")
           rurl=$(jq -r --argjson i "$i" '.repos[$i].spec.url' "$FILE")
+          # Normalize short "org/repo" to full URL (API requires valid URL format)
+          if [[ "$rurl" != http* && "$rurl" == */* ]]; then
+            rurl="https://github.com/${rurl}"
+          fi
           rtype_in=$(jq -r --argjson i "$i" '.repos[$i].spec.type // "github"' "$FILE")
           case "$(printf %s "$rtype_in" | tr "[:upper:]" "[:lower:]")" in ado*) rtype="AzureDevOps" ;; *) rtype="GitHub" ;; esac
           rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg t "$rtype" '{name:$n,type:"CodeRepo",properties:{url:$u,type:$t}}')

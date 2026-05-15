@@ -87,31 +87,10 @@ jq '{
     properties: .properties
   }],
 
-  skills: [(.parameters.skills.value // [])[] | {
-    name: .metadata.name,
-    spec: {
-      name:            .metadata.name,
-      description:     (.metadata.description // ""),
-      tools:           (.metadata.spec.tools // []),
-      skillContent:    (.skillContent // ""),
-      additionalFiles: (.additionalFiles // [])
-    }
-  }],
-
-  subagents: [(.parameters.subagents.value // [])[] | {
-    name: .metadata.name,
-    spec: .spec
-  }],
-
-  tools: [(.parameters.tools.value // [])[] | {
-    name: .metadata.name,
-    spec: .spec
-  }],
-
-  common_prompts: [(.parameters.commonPrompts.value // [])[] | {
-    name: .name,
-    properties: (.properties // .spec // {})
-  }]
+  skills: [],
+  subagents: [],
+  tools: [],
+  common_prompts: []
 }' "$PARAMS_FILE" > "$TFVARS_FILE"
 
 # Summary
@@ -122,10 +101,7 @@ echo "  Agent:       $AG"
 echo "  RG:          $RG"
 echo "  Location:    $LOC"
 echo "  Connectors:  $(jq '.connectors | length' "$TFVARS_FILE") custom + toggles"
-echo "  Skills:      $(jq '.skills | length' "$TFVARS_FILE")"
-echo "  Subagents:   $(jq '.subagents | length' "$TFVARS_FILE")"
-echo "  Tools:       $(jq '.tools | length' "$TFVARS_FILE")"
-echo "  Prompts:     $(jq '.common_prompts | length' "$TFVARS_FILE")"
+echo "  Skills, subagents, tools, prompts: deployed via data-plane (apply-extras.sh)"
 echo "  Wrote:       ${TFVARS_FILE}"
 echo
 

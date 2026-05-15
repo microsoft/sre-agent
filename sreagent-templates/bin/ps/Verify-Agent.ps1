@@ -42,7 +42,16 @@ param(
 )
 
 Set-StrictMode -Version Latest
+
+# PS 7.3+ changed how native-command arguments are passed; use Legacy to avoid
+# broken arg splitting when args contain '=' (e.g. jq --argjson, terraform -out=).
+if ($PSVersionTable.PSVersion.Major -ge 7 -and $PSVersionTable.PSVersion.Minor -ge 3) {
+    $PSNativeCommandArgumentPassing = 'Legacy'
+}
 $ErrorActionPreference = 'Stop'
+
+# ── Load safe jq wrapper (avoids PS 7.3+ argument mangling) ──
+. (Join-Path $PSScriptRoot 'Invoke-Jq.ps1')
 
 # ─────────────────────────── Prerequisites ───────────────────────────
 
@@ -69,7 +78,7 @@ if ($Expected -and (Test-Path (Join-Path $Expected 'expected-config.json'))) {
 function Get-Exp {
     param([string]$JqPath, [string]$Fallback = '-')
     if ($ExpectedConfig) {
-        $val = $ExpectedConfig | jq -r "$JqPath // empty" 2>$null
+        $val = $ExpectedConfig | Invoke-Jq -Raw -Filter "$JqPath // empty"
         if ($val -and $val -ne 'null') { return $val }
     }
     return $Fallback
@@ -78,7 +87,7 @@ function Get-Exp {
 function Get-ExpList {
     param([string]$JqPath)
     if ($ExpectedConfig) {
-        return ($ExpectedConfig | jq -r "$JqPath // [] | sort | join(`",`")" 2>$null)
+        return ($ExpectedConfig | Invoke-Jq -Raw -Filter "$JqPath // [] | sort | join(`,`)")
     }
     return ''
 }
@@ -91,7 +100,7 @@ $ARM_BASE    = "https://management.azure.com/subscriptions/${Subscription}/resou
 $AgentJson = az rest -m GET --url "${ARM_BASE}?api-version=${API_VERSION}" -o json 2>$null
 if (-not $AgentJson) { $AgentJson = '{}' }
 
-$Endpoint = $AgentJson | jq -r '.properties.agentEndpoint // empty' 2>$null
+$Endpoint = $AgentJson | Invoke-Jq -Raw -Filter '.properties.agentEndpoint // empty'
 if (-not $Endpoint -or $Endpoint -eq 'null') {
     Write-Host "FAIL: Could not resolve agent endpoint for ${AgentName} in ${ResourceGroup}" -ForegroundColor Red
     exit 1
@@ -166,7 +175,7 @@ Write-Host ''
 
 # ─────────────────────────── Agent properties ───────────────────────────
 
-$Props = $AgentJson | jq -c '{
+$Props = $AgentJson | Invoke-Jq -Compact -Filter '{
   accessLevel: .properties.actionConfiguration.accessLevel,
   mode: .properties.actionConfiguration.mode,
   upgradeChannel: .properties.upgradeChannel,
@@ -185,7 +194,7 @@ Add-Check 'Incident platform'  ($Props | jq -r '.incidentPlatform')             
 
 $Connectors   = Invoke-Arm '/DataConnectors'
 $ConnCt       = $Connectors | jq '.value | length'
-$ConnHealthy  = $Connectors | jq '[.value[] | select(.properties.provisioningState == "Succeeded")] | length'
+$ConnHealthy  = $Connectors | Invoke-Jq -Filter '[.value[] | select(.properties.provisioningState == "Succeeded")] | length'
 $ConnNames    = ($Connectors | jq -r '.value[].name' 2>$null | Sort-Object) -join ','
 $ExpConnCt    = Get-Exp '.connectors | length'
 $ExpConnNames = Get-ExpList '.connectors[].name'
@@ -201,9 +210,9 @@ if ($ExpConnNames) {
 # ─────────────────────────── Skills ───────────────────────────
 
 $Skills   = Invoke-Dp '/api/v1/extendedAgent/skills'
-$SkillCt  = $Skills | jq 'if type == "array" then length elif .value then (.value | length) else 0 end' 2>$null
+$SkillCt  = $Skills | Invoke-Jq -Filter 'if type == "array" then length elif .value then (.value | length) else 0 end'
 if (-not $SkillCt) { $SkillCt = '0' }
-$SkillNames   = ($Skills | jq -r '(if type == "array" then . elif .value then .value else [] end)[].name' 2>$null | Sort-Object) -join ','
+$SkillNames   = ($Skills | Invoke-Jq -Raw -Filter '(if type == "array" then . elif .value then .value else [] end)[].name' | Sort-Object) -join ','
 $ExpSkillCt   = Get-Exp '.skills | length'
 $ExpSkillNames = Get-ExpList '.skills'
 
@@ -233,9 +242,9 @@ if ($ExpSaNames) {
 # ─────────────────────────── Hooks ───────────────────────────
 
 $Hooks   = Invoke-Dp '/api/v2/extendedAgent/hooks'
-$HookCt  = $Hooks | jq '.value // . | if type == "array" then length else 0 end' 2>$null
+$HookCt  = $Hooks | Invoke-Jq -Filter '.value // . | if type == "array" then length else 0 end'
 if (-not $HookCt) { $HookCt = '0' }
-$HookNames    = ($Hooks | jq -r '(.value // .)[].name' 2>$null | Sort-Object) -join ','
+$HookNames    = ($Hooks | Invoke-Jq -Raw -Filter '(.value // .)[].name' | Sort-Object) -join ','
 $ExpHookCt    = Get-Exp '.hooks | length'
 $ExpHookNames = Get-ExpList '.hooks'
 
@@ -249,9 +258,9 @@ if ($ExpHookNames) {
 # ─────────────────────────── Common Prompts ───────────────────────────
 
 $Prompts   = Invoke-Dp '/api/v2/extendedAgent/commonprompts'
-$PromptCt  = $Prompts | jq '.value // . | if type == "array" then length else 0 end' 2>$null
+$PromptCt  = $Prompts | Invoke-Jq -Filter '.value // . | if type == "array" then length else 0 end'
 if (-not $PromptCt) { $PromptCt = '0' }
-$PromptNames    = ($Prompts | jq -r '(.value // .)[].name' 2>$null | Sort-Object) -join ','
+$PromptNames    = ($Prompts | Invoke-Jq -Raw -Filter '(.value // .)[].name' | Sort-Object) -join ','
 $ExpPromptCt    = Get-Exp '.commonPrompts | length'
 $ExpPromptNames = Get-ExpList '.commonPrompts'
 
@@ -265,11 +274,11 @@ if ($ExpPromptNames) {
 # ─────────────────────────── Scheduled Tasks ───────────────────────────
 
 $Tasks      = Invoke-Dp '/api/v1/scheduledtasks'
-$TaskCt     = $Tasks | jq 'if type == "array" then length else 0 end' 2>$null
+$TaskCt     = $Tasks | Invoke-Jq -Filter 'if type == "array" then length else 0 end'
 if (-not $TaskCt) { $TaskCt = '0' }
 $TaskUnique = $Tasks | jq '[.[].name] | unique | length' 2>$null
 if (-not $TaskUnique) { $TaskUnique = '0' }
-$TaskNames    = $Tasks | jq -r '[.[].name] | unique | sort | join(",")' 2>$null
+$TaskNames    = $Tasks | Invoke-Jq -Raw -Filter '[.[].name] | unique | sort | join(",")'
 $ExpTaskCt    = Get-Exp '.scheduledTasks | length'
 $ExpTaskNames = Get-ExpList '.scheduledTasks'
 
@@ -284,7 +293,7 @@ if ($TaskCt -ne $TaskUnique) {
 # ─────────────────────────── Response Plans (Incident Filters) ───────────────────────────
 
 $Filters   = Invoke-Dp '/api/v1/incidentPlayground/filters'
-$FilterCt  = $Filters | jq 'if type == "array" then length else 0 end' 2>$null
+$FilterCt  = $Filters | Invoke-Jq -Filter 'if type == "array" then length else 0 end'
 if (-not $FilterCt) { $FilterCt = '0' }
 $FilterNames    = ($Filters | jq -r '.[].id' 2>$null | Sort-Object) -join ','
 $ExpFilterCt    = Get-Exp '.responsePlans | length'
@@ -300,15 +309,15 @@ if ($ExpFilterNames) {
 # ─────────────────────────── GitHub ───────────────────────────
 
 $GhStatus     = Invoke-Dp '/api/v1/Github/auth/status'
-$GhConfigured = $GhStatus | jq -r '.isConfigured // .hosts[0].isConfigured // false' 2>$null
+$GhConfigured = $GhStatus | Invoke-Jq -Raw -Filter '.isConfigured // .hosts[0].isConfigured // false'
 Add-Check 'GitHub OAuth' $GhConfigured '-'
 
 # ─────────────────────────── Repos ───────────────────────────
 
 $Repos   = Invoke-Dp '/api/v2/repos'
-$RepoCt  = $Repos | jq '.value // . | if type == "array" then length else 0 end' 2>$null
+$RepoCt  = $Repos | Invoke-Jq -Filter '.value // . | if type == "array" then length else 0 end'
 if (-not $RepoCt) { $RepoCt = '0' }
-$RepoNames    = ($Repos | jq -r '(.value // .)[].name' 2>$null | Sort-Object) -join ','
+$RepoNames    = ($Repos | Invoke-Jq -Raw -Filter '(.value // .)[].name' | Sort-Object) -join ','
 $ExpRepoCt    = Get-Exp '.repos | length'
 $ExpRepoNames = Get-ExpList '.repos'
 

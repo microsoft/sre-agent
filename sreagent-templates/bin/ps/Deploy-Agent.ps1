@@ -58,6 +58,12 @@ if ($args -contains '--WhatIf' -or $args -contains '-WhatIf') {
 }
 
 Set-StrictMode -Version Latest
+
+# PS 7.3+ changed how native-command arguments are passed; use Legacy to avoid
+# broken arg splitting when args contain '=' (e.g. jq --argjson, terraform -out=).
+if ($PSVersionTable.PSVersion.Major -ge 7 -and $PSVersionTable.PSVersion.Minor -ge 3) {
+    $PSNativeCommandArgumentPassing = 'Legacy'
+}
 $ErrorActionPreference = 'Stop'
 
 # ── Prereqs ──
