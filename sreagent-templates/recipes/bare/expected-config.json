@@ -1,0 +1,12 @@
+{
+  "agent": true,
+  "connectors": 0,
+  "skills": 0,
+  "subagents": 0,
+  "hooks": 0,
+  "common-prompts": 1,
+  "repos": [],
+  "scheduled-tasks": 0,
+  "incident-filters": 0,
+  "incident-platforms": 0
+}

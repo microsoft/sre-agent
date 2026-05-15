@@ -1,0 +1,23 @@
+# Required roles/credentials for the bare scenario.
+# deploy.sh processes this after the UAMI is created.
+#
+# This recipe has no connectors by default.
+# Uncomment below or add your own connector blocks as needed.
+
+roles:
+  # Log Analytics connector — uncomment and add lawId to connectors.json
+  # - name: Log Analytics Reader
+  #   type: rbac
+  #   role: "Log Analytics Reader"
+
+  # Teams connector — creates API connection, prints consent URL to sign in
+  # - name: Teams API Connection
+  #   type: api-connection
+  #   api: teams
+
+  # GitHub repos — prints OAuth URL or uses GITHUB_PAT env var
+  # - name: GitHub OAuth
+  #   type: manual
+  #   instructions: |
+  #     Set GITHUB_PAT env var before deploy: export GITHUB_PAT=ghp_xxx
+  #     Or after deploy, open the OAuth URL printed by apply-extras.sh

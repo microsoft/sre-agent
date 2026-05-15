@@ -67,6 +67,7 @@ cd sre-agent/sreagent-templates
 | [azmon-lawappinsights](recipes/azmon-lawappinsights/) | Azure Monitor | Alert response with AppInsights + Log Analytics, skills, subagents, scheduled tasks |
 | [pagerduty-law-vmcosmos](recipes/pagerduty-law-vmcosmos/) | PagerDuty | VM + CosmosDB + HTTP error investigation with knowledge files and skills |
 | [dynatrace-mcp](recipes/dynatrace-mcp/) | Dynatrace | Dynatrace MCP connector for investigating application errors |
+| [bare](recipes/bare/) | (none) | Minimal agent — just infra + RBAC, add your own connectors and skills |
 
 Each recipe README has the full parameter list, example values, and post-deploy steps.
 
@@ -86,6 +87,21 @@ Each recipe README has the full parameter list, example values, and post-deploy 
 | `export-agent.sh --set agentName=clone -o dir/` | Export a live agent to config dir |
 | `diff-agent.sh $SUB $RG $AGENT dir/` | Compare config vs live agent |
 | `verify-agent.sh $SUB $RG $AGENT --expected dir/` | 22-point verification |
+
+## What Gets Deployed
+
+Every recipe deploys these resources (regardless of backend):
+
+| Resource | Description |
+|---|---|
+| Resource Group | Container for all agent resources |
+| User-Assigned Managed Identity (UAMI) | Agent's identity for RBAC |
+| Log Analytics Workspace | Agent telemetry (created unless you supply one) |
+| Application Insights | Agent monitoring (created unless you supply one) |
+| SRE Agent | The agent itself |
+| Connectors | Data sources (App Insights, LAW, PagerDuty, Dynatrace, etc.) |
+| Skills, Subagents, Tools, Common Prompts | Agent capabilities from the recipe |
+| RBAC role assignments | Reader, Log Analytics Reader, Monitoring Reader on target RGs |
 
 ## Deploy Backends
 
@@ -151,17 +167,6 @@ Each agent gets its own Terraform workspace — deploy multiple agents from the 
 | Terraform 1.5+ | [install guide](https://developer.hashicorp.com/terraform/install) |
 | azapi provider | Auto-installed on `terraform init` |
 | azurerm provider | Auto-installed on `terraform init` |
-
-### What It Creates
-
-| Resource | Provider |
-|---|---|
-| Resource Group, UAMI, LAW, App Insights | azurerm |
-| SRE Agent | azapi |
-| Connectors, Skills, Subagents, Tools, Common Prompts | azapi |
-| RBAC (Reader, Log Analytics Reader, Monitoring Reader, SRE Agent Admin) | azurerm |
-
-> **Region note**: Use `swedencentral` for fastest provisioning.
 
 ## Azure Developer CLI (azd)
 
