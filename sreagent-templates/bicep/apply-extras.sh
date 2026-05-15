@@ -928,6 +928,10 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
         for i in $(seq 0 $((count - 1))); do
           rname=$(jq -r --argjson i "$i" '.repos[$i].name' "$FILE")
           rurl=$(jq -r --argjson i "$i" '.repos[$i].spec.url' "$FILE")
+          # Normalize short "org/repo" to full URL (API requires valid URL format)
+          if [[ "$rurl" != http* && "$rurl" == */* ]]; then
+            rurl="https://github.com/${rurl}"
+          fi
           rtype_in=$(jq -r --argjson i "$i" '.repos[$i].spec.type // "github"' "$FILE")
           case "$(printf %s "$rtype_in" | tr "[:upper:]" "[:lower:]")" in ado*) rtype="AzureDevOps" ;; *) rtype="GitHub" ;; esac
           rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg t "$rtype" '{name:$n,type:"CodeRepo",properties:{url:$u,type:$t}}')
