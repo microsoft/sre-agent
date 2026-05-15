@@ -61,7 +61,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [Alias('s')]
+    [Alias('s', 'SubscriptionId')]
     [string]$Subscription,
 
     [Parameter(Mandatory)]
