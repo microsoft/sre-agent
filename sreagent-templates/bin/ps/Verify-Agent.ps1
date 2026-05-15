@@ -197,7 +197,7 @@ $ConnCt       = $Connectors | jq '.value | length'
 $ConnHealthy  = $Connectors | Invoke-Jq -Filter '[.value[] | select(.properties.provisioningState == "Succeeded")] | length'
 $ConnNames    = ($Connectors | jq -r '.value[].name' 2>$null | Sort-Object) -join ','
 $ExpConnCt    = Get-Exp '.connectors | length'
-$ExpConnNames = Get-ExpList '.connectors[].name'
+$ExpConnNames = Get-ExpList '[.connectors[].name]'
 
 Add-Check 'Connectors (total)'   $ConnCt      $ExpConnCt
 Add-Check 'Connectors (healthy)' $ConnHealthy  $ConnCt
@@ -297,7 +297,7 @@ $FilterCt  = $Filters | Invoke-Jq -Filter 'if type == "array" then length else 0
 if (-not $FilterCt) { $FilterCt = '0' }
 $FilterNames    = ($Filters | jq -r '.[].id' 2>$null | Sort-Object) -join ','
 $ExpFilterCt    = Get-Exp '.responsePlans | length'
-$ExpFilterNames = Get-ExpList '.responsePlans[].name'
+$ExpFilterNames = Get-ExpList '[.responsePlans[].name]'
 
 Add-Check 'Response Plans' $FilterCt $ExpFilterCt
 if ($ExpFilterNames) {
