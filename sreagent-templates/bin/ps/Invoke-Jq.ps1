@@ -32,7 +32,15 @@ function Invoke-Jq {
         [switch]$Slurp,
         [switch]$ExitTest    # like jq -e
     )
+    begin {
+        # Accumulate all pipeline input so multi-line JSON (e.g. from az rest)
+        # and ($a, $b) | Invoke-Jq both work correctly.
+        $inputLines = [System.Collections.Generic.List[string]]::new()
+    }
     process {
+        if ($InputJson) { $inputLines.Add($InputJson) }
+    }
+    end {
         $tmpFilter = [System.IO.Path]::GetTempFileName()
         try {
             Set-Content -Path $tmpFilter -Value $Filter -NoNewline -Encoding UTF8
@@ -46,8 +54,9 @@ function Invoke-Jq {
             if ($InputFile) {
                 return (jq @flags $InputFile)
             }
-            elseif ($InputJson) {
-                return ($InputJson | jq @flags)
+            elseif ($inputLines.Count -gt 0) {
+                $joined = $inputLines -join "`n"
+                return ($joined | jq @flags)
             }
             else {
                 return (jq @flags)

@@ -87,7 +87,7 @@ $ArmBase = "https://management.azure.com/subscriptions/$Subscription/resourceGro
 
 # ── Resolve agent endpoint and UAMI ────────────────────────────────────────
 try {
-    $agentRaw = az rest -m GET --url "$ArmBase`?api-version=$ApiVersion" -o json 2>$null
+    $agentRaw = (az rest -m GET --url "$ArmBase`?api-version=$ApiVersion" -o json 2>$null) -join "`n"
     $agentObj = $agentRaw | ConvertFrom-Json
 } catch {
     $agentObj = $null

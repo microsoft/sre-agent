@@ -97,7 +97,7 @@ function Get-ExpList {
 $API_VERSION = '2025-05-01-preview'
 $ARM_BASE    = "https://management.azure.com/subscriptions/${Subscription}/resourceGroups/${ResourceGroup}/providers/Microsoft.App/agents/${AgentName}"
 
-$AgentJson = az rest -m GET --url "${ARM_BASE}?api-version=${API_VERSION}" -o json 2>$null
+$AgentJson = (az rest -m GET --url "${ARM_BASE}?api-version=${API_VERSION}" -o json 2>$null) -join "`n"
 if (-not $AgentJson) { $AgentJson = '{}' }
 
 $Endpoint = $AgentJson | Invoke-Jq -Raw -Filter '.properties.agentEndpoint // empty'
@@ -114,12 +114,12 @@ if (-not $Token) {
 
 function Invoke-Dp {
     param([string]$Path)
-    curl -sS "${Endpoint}${Path}" -H "Authorization: Bearer $Token" 2>$null
+    (curl -sS "${Endpoint}${Path}" -H "Authorization: Bearer $Token" 2>$null) -join "`n"
 }
 
 function Invoke-Arm {
     param([string]$Path)
-    $result = az rest -m GET --url "${ARM_BASE}${Path}?api-version=${API_VERSION}" -o json 2>$null
+    $result = (az rest -m GET --url "${ARM_BASE}${Path}?api-version=${API_VERSION}" -o json 2>$null) -join "`n"
     if (-not $result) { return '{}' }
     return $result
 }

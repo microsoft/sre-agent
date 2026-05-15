@@ -188,7 +188,7 @@ function Write-Yaml {
 function Invoke-ArmGet {
     param([string]$Url)
     try {
-        $result = az rest -m GET --url "${Url}?api-version=${API_VERSION}" -o json 2>$null
+        $result = (az rest -m GET --url "${Url}?api-version=${API_VERSION}" -o json 2>$null) -join "`n"
         if ($LASTEXITCODE -ne 0 -or -not $result) { return 'null' }
         return $result
     } catch {
@@ -201,7 +201,7 @@ function Invoke-ArmList {
     param([string]$ChildType)
     $url = "${ARM_BASE}/${ChildType}?api-version=${API_VERSION}"
     try {
-        $result = az rest -m GET --url $url -o json 2>$null
+        $result = (az rest -m GET --url $url -o json 2>$null) -join "`n"
         if ($LASTEXITCODE -ne 0 -or -not $result) { return '[]' }
         return ($result | Invoke-Jq -Compact -Filter '.value // []')
     } catch {
@@ -230,7 +230,7 @@ function Invoke-DpGet {
     param([string]$Path)
     $token = Get-DpToken
     try {
-        $result = curl -sS -f -H "Authorization: Bearer $token" "${AGENT_ENDPOINT}${Path}" 2>$null
+        $result = (curl -sS -f -H "Authorization: Bearer $token" "${AGENT_ENDPOINT}${Path}" 2>$null) -join "`n"
         if ($LASTEXITCODE -ne 0 -or -not $result) { return 'null' }
         return $result
     } catch {
@@ -720,7 +720,7 @@ _log 'Checking for webhook bridge (Logic App)...'
 $BRIDGE_EXISTS = $false
 $bridgeId = "/subscriptions/${Subscription}/resourceGroups/${ResourceGroup}/providers/Microsoft.Logic/workflows/${AgentName}-webhook-bridge"
 try {
-    $BRIDGE_JSON = az resource show --ids $bridgeId -o json 2>$null
+    $BRIDGE_JSON = (az resource show --ids $bridgeId -o json 2>$null) -join "`n"
     if ($LASTEXITCODE -eq 0 -and $BRIDGE_JSON -and $BRIDGE_JSON -ne 'null') {
         $BRIDGE_EXISTS = $true
         _log "  Found webhook bridge: ${AgentName}-webhook-bridge"
