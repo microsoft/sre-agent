@@ -57,6 +57,23 @@ $ExtrasFile = "${Output}.extras.json"
 function Write-Log  { param([string]$Msg) Write-Host "  $Msg" }
 function Write-Info { param([string]$Msg) Write-Host "── $Msg ──" }
 
+# ── Resolve Python executable (python3 on Windows may be a Store stub) ──
+$Python = $null
+foreach ($candidate in @('python3', 'python')) {
+    $cmd = Get-Command $candidate -ErrorAction SilentlyContinue
+    if ($cmd) {
+        # Verify it's real Python, not the Windows Store stub
+        $ver = & $cmd.Source --version 2>&1
+        if ($LASTEXITCODE -eq 0 -and $ver -match 'Python 3') {
+            $Python = $cmd.Source
+            break
+        }
+    }
+}
+if (-not $Python) {
+    Write-Error "Python 3 is required but not found. Install from https://www.python.org/downloads/"
+}
+
 # ── Load secrets into environment variables (for connector token substitution) ──
 
 if (Test-Path $Secrets -PathType Leaf) {
@@ -111,7 +128,7 @@ print(json.dumps(resolve(data)))
 '@
 
     try {
-        $result = $Json | python3 -c $pyScript $BaseDir 2>$null
+        $result = $Json | & $Python -c $pyScript $BaseDir 2>$null
         if ($LASTEXITCODE -eq 0 -and $result) { return $result }
     } catch {}
     return $Json
@@ -144,7 +161,7 @@ with open(sys.argv[1]) as fh:
 print(json.dumps(data))
 '@
             try {
-                $item = python3 -c $pyYaml $f.FullName 2>$null
+                $item = & $Python -c $pyYaml $f.FullName 2>$null
                 if ($LASTEXITCODE -ne 0 -or -not $item) { continue }
                 $items = $items | jq -c --argjson i $item '. + [$i]'
             } catch { continue }
@@ -187,7 +204,7 @@ print(json.dumps(sub(data)))
 '@
 
     try {
-        $result = $Json | python3 -c $pyScript 2>$null
+        $result = $Json | & $Python -c $pyScript 2>$null
         if ($LASTEXITCODE -eq 0 -and $result) { return $result }
     } catch {}
     return $Json
@@ -200,7 +217,7 @@ $agentJson = Get-Content (Join-Path $ConfigDir 'agent.json') -Raw
 
 $agentName      = $agentJson | jq -r '.identity.agentName'
 $agentRg        = $agentJson | jq -r '.identity.resourceGroup'
-$agentSub       = $agentJson | jq -r '.identity.subscription // ""'
+$agentSub       = $agentJson | jq -r '.identity.subscription // empty'
 $agentLoc       = $agentJson | jq -r '.identity.location'
 $targetRgs      = $agentJson | jq -c 'if .identity.targetResourceGroups | type == "array" then .identity.targetResourceGroups elif .identity.targetResourceGroups | type == "string" and length > 0 then [.identity.targetResourceGroups | split(",")[] | gsub("^\\s+|\\s+$"; "")] else [] end'
 $access         = $agentJson | jq -r '.access.accessLevel'
@@ -210,8 +227,8 @@ $upgradeChannel = $agentJson | jq -r '.upgradeChannel // "Preview"'
 $modelProvider  = $agentJson | jq -r '.defaultModelProvider // "Anthropic"'
 $monthlyLimit   = $agentJson | jq -r '.monthlyAgentUnitLimit // 10000'
 $tags           = $agentJson | jq -c '.tags // {}'
-$existingUami   = $agentJson | jq -r '.existingUamiId // ""'
-$existingAi     = $agentJson | jq -r '.existingAgentAppInsightsId // ""'
+$existingUami   = $agentJson | jq -r '.existingUamiId // empty'
+$existingAi     = $agentJson | jq -r '.existingAgentAppInsightsId // empty'
 
 Write-Log "Agent: $agentName ($agentLoc, $agentRg)"
 

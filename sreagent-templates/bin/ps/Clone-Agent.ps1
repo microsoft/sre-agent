@@ -39,6 +39,9 @@
 .PARAMETER SkipExtras
     Deploy Bicep only, skip data-plane config.
 
+.PARAMETER Backend
+    Deploy backend: bicep (default) or terraform.
+
 .PARAMETER Force
     Redeploy even if no changes detected.
 
@@ -59,6 +62,7 @@ param(
     [string]$Subscription,
     [switch]$ValidateOnly,
     [switch]$SkipExtras,
+    [ValidateSet('bicep','terraform')][string]$Backend = 'bicep',
     [switch]$Force
 )
 
@@ -168,9 +172,22 @@ if ($ValidateOnly) {
 
 # ── Step 4: Deploy ──
 Write-Host "── Deploying clone ──"
-$DeployScript = Join-Path $ScriptDir 'Deploy-Agent.ps1'
-$deployParams = @{ InputPath = $Source }
-if ($Force) { $deployParams['Force'] = $true }
-if ($SkipExtras) { $deployParams['SkipExtras'] = $true }
-if ($Subscription) { $deployParams['Subscription'] = $Subscription }
-& $DeployScript @deployParams
+if ($Backend -eq 'terraform') {
+    $DeployTfScript = Join-Path $ScriptDir 'Deploy-Tf.ps1'
+    if (-not (Test-Path $DeployTfScript)) {
+        Write-Error "Deploy-Tf.ps1 not found at $DeployTfScript"
+    }
+    if (-not (Test-Path $Source -PathType Container)) {
+        Write-Error "-Backend terraform requires a directory source (-FromAgent or directory -Source)"
+    }
+    $deployParams = @{ InputPath = $Source }
+    if ($Force) { $deployParams['Force'] = $true }
+    & $DeployTfScript @deployParams
+} else {
+    $DeployScript = Join-Path $ScriptDir 'Deploy-Agent.ps1'
+    $deployParams = @{ InputPath = $Source }
+    if ($Force) { $deployParams['Force'] = $true }
+    if ($SkipExtras) { $deployParams['SkipExtras'] = $true }
+    if ($Subscription) { $deployParams['Subscription'] = $Subscription }
+    & $DeployScript @deployParams
+}

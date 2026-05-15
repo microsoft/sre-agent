@@ -1085,6 +1085,10 @@ if ($DpTokenAvailable) {
             foreach ($repo in $repos) {
                 $rname = $repo.name
                 $rurl = $repo.spec.url
+                # Normalize short "org/repo" to full URL (API requires https://...)
+                if ($rurl -and $rurl -notmatch '^https?://' -and $rurl -match '/') {
+                    $rurl = "https://github.com/$rurl"
+                }
                 $rtypeIn = if ($repo.spec.type) { $repo.spec.type } else { "github" }
                 $rtype = switch -Regex ($rtypeIn.ToLower()) {
                     '^(ado|azuredevops|azure-devops)$' { "AzureDevOps" }
@@ -1167,6 +1171,10 @@ if ($DpTokenAvailable) {
                     foreach ($repo in $repos) {
                         $rname = $repo.name
                         $rurl = $repo.spec.url
+                        # Normalize short "org/repo" to full URL (API requires https://...)
+                        if ($rurl -and $rurl -notmatch '^https?://' -and $rurl -match '/') {
+                            $rurl = "https://github.com/$rurl"
+                        }
                         $rtypeIn = if ($repo.spec.type) { $repo.spec.type } else { "github" }
                         $rtype = if ($rtypeIn.ToLower() -match '^(ado|azuredevops|azure-devops)$') { "AzureDevOps" } else { "GitHub" }
                         $rbody = @{

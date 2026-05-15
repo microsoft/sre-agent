@@ -252,21 +252,10 @@ check_connector_health() {
     cstate=$(echo "$conn_json" | jq -r ".value[$i].properties.provisioningState // \"Unknown\"")
     ctype=$(echo "$conn_json" | jq -r ".value[$i].properties.dataConnectorType // \"\"")
 
-    # Check for missing auth (null/empty bearerToken, endpoint, etc.)
-    local auth_issue=""
-    if [[ "$ctype" == "Mcp" ]]; then
-      local ep bt
-      ep=$(echo "$conn_json" | jq -r ".value[$i].properties.extendedProperties.endpoint // empty")
-      bt=$(echo "$conn_json" | jq -r ".value[$i].properties.extendedProperties.bearerToken // empty")
-      [[ -z "$ep" ]] && auth_issue="endpoint is empty"
-      [[ -z "$bt" ]] && auth_issue="${auth_issue:+$auth_issue, }bearerToken is empty"
-    fi
-
-    if [[ "$cstate" == "Succeeded" && -z "$auth_issue" ]]; then
+    # Note: ARM redacts extendedProperties (bearerToken, endpoint, etc.)
+    # on GET — they always appear null. Only provisioningState is reliable.
+    if [[ "$cstate" == "Succeeded" ]]; then
       echo -e "    ${GREEN}✓ ${cname} (${ctype}): ${cstate}${NC}"
-    elif [[ "$cstate" == "Succeeded" && -n "$auth_issue" ]]; then
-      echo -e "    ${YELLOW}⚠ ${cname} (${ctype}): Deployed but ${auth_issue}${NC}"
-      warn=true
     else
       echo -e "    ${YELLOW}⚠ ${cname} (${ctype}): ${cstate}${NC}"
       warn=true
@@ -274,7 +263,7 @@ check_connector_health() {
   done
   if [[ "$warn" == "true" ]]; then
     echo
-    echo -e "  ${YELLOW}${BOLD}⚠ Some connectors need attention. Check connectors.secrets.env and redeploy.${NC}"
+    echo -e "  ${YELLOW}${BOLD}⚠ Some connectors are not healthy. Check the portal or redeploy.${NC}"
   fi
   echo
 }
