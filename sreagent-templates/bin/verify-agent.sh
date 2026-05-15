@@ -9,6 +9,13 @@
 
 set -uo pipefail
 
+# ── Colors ──
+if [[ -t 1 ]]; then
+  GREEN='\033[0;32m' RED='\033[0;31m' YELLOW='\033[0;33m' CYAN='\033[0;36m' BOLD='\033[1m' NC='\033[0m'
+else
+  GREEN='' RED='' YELLOW='' CYAN='' BOLD='' NC=''
+fi
+
 SUB="${1:?subscription-id required}"
 RG="${2:?resource-group required}"
 AGENT="${3:?agent-name required}"
@@ -71,22 +78,22 @@ RESULTS=""
 check() {
   local name="$1" actual="$2" expected="$3"
   if [[ "$expected" == "-" ]]; then
-    RESULTS="${RESULTS}\n  ${name}|${actual}|—|✅"
+    RESULTS="${RESULTS}\n  ${name}|${actual}|—|${GREEN}✅${NC}"
     PASS=$((PASS + 1))
   elif [[ "$actual" == "$expected" ]]; then
-    RESULTS="${RESULTS}\n  ${name}|${actual}|${expected}|✅ PASS"
+    RESULTS="${RESULTS}\n  ${name}|${actual}|${expected}|${GREEN}✅ PASS${NC}"
     PASS=$((PASS + 1))
   else
-    RESULTS="${RESULTS}\n  ${name}|${actual}|${expected}|❌ FAIL"
+    RESULTS="${RESULTS}\n  ${name}|${actual}|${expected}|${RED}❌ FAIL${NC}"
     FAIL=$((FAIL + 1))
   fi
 }
 
 echo ""
-echo "═══════════════════════════════════════════════════"
-echo "  SRE Agent Verification: ${AGENT}"
-echo "  Endpoint: ${ENDPOINT}"
-echo "═══════════════════════════════════════════════════"
+echo -e "${BOLD}═══════════════════════════════════════════════════${NC}"
+echo -e "  ${BOLD}SRE Agent Verification:${NC} ${CYAN}${AGENT}${NC}"
+echo -e "  ${BOLD}Endpoint:${NC} ${CYAN}${ENDPOINT}${NC}"
+echo -e "${BOLD}═══════════════════════════════════════════════════${NC}"
 echo ""
 
 # ── Agent properties ──
@@ -116,7 +123,7 @@ check "Connectors (healthy)" "$CONN_HEALTHY" "$CONN_CT"
 # Show errored connectors explicitly
 if [[ "$CONN_ERRORED" -gt 0 ]]; then
   ERRORED_LIST=$(echo "$CONNECTORS" | jq -r '.value[] | select(.properties.provisioningState != "Succeeded" and .properties.provisioningState != "Running") | "\(.name) (\(.properties.dataConnectorType)): \(.properties.provisioningState)"')
-  RESULTS="${RESULTS}\n  ⚠ Errored connectors|${ERRORED_LIST}||❌ FAIL"
+  RESULTS="${RESULTS}\n  ⚠ Errored connectors|${ERRORED_LIST}||${RED}❌ FAIL${NC}"
   FAIL=$((FAIL + 1))
 fi
 CONN_NAMES=$(echo "$CONNECTORS" | jq -r '.value[].name' 2>/dev/null | sort | tr '\n' ', ' | sed 's/,$//')
@@ -197,18 +204,22 @@ check "Repos" "$REPO_CT" "$EXP_REPO_CT"
 
 # ── Print results ──
 echo ""
-printf "  %-25s %-10s %-10s %s\n" "Check" "Actual" "Expected" "Result"
+printf "  ${BOLD}%-25s %-10s %-10s %s${NC}\n" "Check" "Actual" "Expected" "Result"
 printf "  %-25s %-10s %-10s %s\n" "─────────────────────────" "──────────" "──────────" "──────"
 echo -e "$RESULTS" | while IFS='|' read -r name actual expected result; do
   [[ -z "$name" ]] && continue
-  printf "  %-25s %-10s %-10s %s\n" "$name" "$actual" "$expected" "$result"
+  printf "  %-25s %-10s %-10s %b\n" "$name" "$actual" "$expected" "$result"
 done
 
 echo ""
-echo "═══════════════════════════════════════════════════"
-echo "  Results: ${PASS} passed, ${FAIL} failed"
-echo "  Portal:  https://sre.azure.com/#/agent/${SUB}/${RG}/${AGENT}"
-echo "═══════════════════════════════════════════════════"
+echo -e "${BOLD}═══════════════════════════════════════════════════${NC}"
+if [[ "$FAIL" -gt 0 ]]; then
+  echo -e "  Results: ${GREEN}${PASS} passed${NC}, ${RED}${FAIL} failed${NC}"
+else
+  echo -e "  Results: ${GREEN}${PASS} passed${NC}, ${FAIL} failed"
+fi
+echo -e "  Portal:  ${CYAN}https://sre.azure.com/#/agent/${SUB}/${RG}/${AGENT}${NC}"
+echo -e "${BOLD}═══════════════════════════════════════════════════${NC}"
 echo ""
 
 [[ "$FAIL" -gt 0 ]] && exit 1
