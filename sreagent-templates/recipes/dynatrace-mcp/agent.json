@@ -73,7 +73,7 @@
     "targetResourceGroups": "{{targetRGs}}"
   },
   "access": {
-    "accessLevel": "High",
+    "accessLevel": "Low",
     "actionMode": "Review"
   },
   "upgradeChannel": "Preview",
