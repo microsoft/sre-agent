@@ -159,7 +159,11 @@ function _fail { param([string]$Msg) Write-Host "  ERROR: $Msg" -ForegroundColor
 # ── JSON → YAML via python3 ──
 function ConvertTo-Yaml {
     param([Parameter(ValueFromPipeline)][string]$Json)
-    $result = $Json | python3 -c @"
+    begin   { $inputLines = [System.Collections.Generic.List[string]]::new() }
+    process { if ($Json) { $inputLines.Add($Json) } }
+    end {
+        $fullJson = $inputLines -join "`n"
+        $result = $fullJson | python3 -c @"
 import sys, json, yaml
 
 def strip_nulls(obj):
@@ -173,10 +177,11 @@ data = json.load(sys.stdin)
 data = strip_nulls(data)
 yaml.dump(data, sys.stdout, default_flow_style=False, sort_keys=False, allow_unicode=True)
 "@
-    if ($LASTEXITCODE -ne 0 -or -not $result) {
-        throw "python3 YAML conversion failed (exit code: $LASTEXITCODE)"
+        if ($LASTEXITCODE -ne 0 -or -not $result) {
+            throw "python3 YAML conversion failed (exit code: $LASTEXITCODE)"
+        }
+        return $result
     }
-    return $result
 }
 
 function Write-Yaml {
