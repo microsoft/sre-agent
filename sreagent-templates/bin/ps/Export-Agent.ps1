@@ -180,7 +180,9 @@ yaml.dump(data, sys.stdout, default_flow_style=False, sort_keys=False, allow_uni
         if ($LASTEXITCODE -ne 0 -or -not $result) {
             throw "python3 YAML conversion failed (exit code: $LASTEXITCODE)"
         }
-        return $result
+        # PS captures native-command stdout as string[] (one per line).
+        # Join with newlines so Set-Content -NoNewline writes proper YAML.
+        return ($result -join "`n")
     }
 }
 
