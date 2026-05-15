@@ -858,6 +858,10 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
     for i in $(seq 0 $((count - 1))); do
       rname=$(jq -r --argjson i "$i" '.repos[$i].name' "$FILE")
       rurl=$(jq -r  --argjson i "$i" '.repos[$i].spec.url' "$FILE")
+      # Normalize short "org/repo" to full URL (API requires valid URL format)
+      if [[ "$rurl" != http* && "$rurl" == */* ]]; then
+        rurl="https://github.com/${rurl}"
+      fi
       # Map our spec.type ("github"/"ado") to the View enum ("GitHub"/"AzureDevOps").
       rtype_in=$(jq -r --argjson i "$i" '.repos[$i].spec.type // "github"' "$FILE")
       case "$(printf %s "$rtype_in" | tr "[:upper:]" "[:lower:]")" in
