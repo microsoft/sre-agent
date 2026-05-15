@@ -147,6 +147,7 @@ if (Test-Path $PrereqScript) {
         }
     }
 }
+. (Join-Path $PSScriptRoot 'Invoke-Jq.ps1')
 
 # ─────────────────────────── Helpers ───────────────────────────
 
@@ -202,7 +203,7 @@ function Invoke-ArmList {
     try {
         $result = az rest -m GET --url $url -o json 2>$null
         if ($LASTEXITCODE -ne 0 -or -not $result) { return '[]' }
-        return ($result | jq -c '.value // []')
+        return ($result | Invoke-Jq -Compact -Filter '.value // []')
     } catch {
         return '[]'
     }
@@ -275,7 +276,7 @@ function Invoke-DpDownloadTarball {
 # ── Decode base64 opaque ARM sub-resources ──
 function ConvertFrom-OpaqueArm {
     param([string]$Raw)
-    $Raw | jq -c '[.[] | {
+    $Raw | Invoke-Jq -Compact -Filter '[.[] | {
         metadata: { name: (.name | split("/") | last) },
         spec: (
             (.properties.value // "") |
@@ -287,7 +288,7 @@ function ConvertFrom-OpaqueArm {
 # ── Decode skills (special shape) ──
 function ConvertFrom-SkillsArm {
     param([string]$Raw)
-    $Raw | jq -c '[.[] | {
+    $Raw | Invoke-Jq -Compact -Filter '[.[] | {
         metadata: {
             name: (.name | split("/") | last),
             description: (
@@ -315,7 +316,7 @@ function ConvertFrom-SkillsArm {
 # ── Sanitize secrets ──
 function Invoke-Sanitize {
     param([string]$Json)
-    $Json | jq '
+    $Json | Invoke-Jq -Filter '
         walk(
             if type == "string" then
                 (if test("^ghp_[A-Za-z0-9_]+$") then "EDIT_ME_GITHUB_PAT"
@@ -359,17 +360,17 @@ if ($AGENT_JSON -eq 'null') {
     _fail "Agent ${AgentName} not found in ${ResourceGroup} (subscription: ${Subscription})"
 }
 
-$AGENT_ENDPOINT = $AGENT_JSON | jq -r '.properties.agentEndpoint // empty'
+$AGENT_ENDPOINT = $AGENT_JSON | Invoke-Jq -Raw -Filter '.properties.agentEndpoint // empty'
 if (-not $AGENT_ENDPOINT) {
     _fail 'Agent has no endpoint — may still be provisioning'
 }
 
-$LOCATION      = ($AGENT_JSON | jq -r '.location // "eastus2"')
-$ACCESS_LEVEL  = ($AGENT_JSON | jq -r '.properties.actionConfiguration.accessLevel // .properties.accessLevel // "Low"')
-$ACTION_MODE   = ($AGENT_JSON | jq -r '.properties.actionConfiguration.mode // .properties.actionMode // "Review"')
-$UPGRADE_CHANNEL = ($AGENT_JSON | jq -r '.properties.upgradeChannel // "Preview"')
-$DEFAULT_MODEL_PROVIDER = ($AGENT_JSON | jq -r '.properties.defaultModelProvider // "Anthropic"')
-$AGENT_UAMI    = ($AGENT_JSON | jq -r '.identity.userAssignedIdentities // {} | keys[0] // ""')
+$LOCATION      = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.location // "eastus2"')
+$ACCESS_LEVEL  = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.properties.actionConfiguration.accessLevel // .properties.accessLevel // "Low"')
+$ACTION_MODE   = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.properties.actionConfiguration.mode // .properties.actionMode // "Review"')
+$UPGRADE_CHANNEL = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.properties.upgradeChannel // "Preview"')
+$DEFAULT_MODEL_PROVIDER = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.properties.defaultModelProvider // "Anthropic"')
+$AGENT_UAMI    = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.identity.userAssignedIdentities // {} | keys[0] // ""')
 
 _log "Location:       ${LOCATION}"
 _log "Access level:   ${ACCESS_LEVEL}"
@@ -378,7 +379,7 @@ _log "Endpoint:       ${AGENT_ENDPOINT}"
 if ($AGENT_UAMI) { _log "UAMI:           $($AGENT_UAMI.Split('/')[-1])" }
 
 # Extract target resource groups
-$TARGET_RGS = $AGENT_JSON | jq -c '
+$TARGET_RGS = $AGENT_JSON | Invoke-Jq -Compact -Filter '
     ([
         .properties.knowledgeGraphConfiguration.managedResources // [] | .[] |
         capture("/resourceGroups/(?<rg>[^/]+)") | .rg
@@ -390,7 +391,7 @@ $TARGET_RGS = $AGENT_JSON | jq -c '
         .scope // "" | capture("/resourceGroups/(?<rg>[^/]+)") | .rg
     ] | unique end'
 
-_log "Target RGs:     $($TARGET_RGS | jq -r 'join(", ") // "<none>"')"
+_log "Target RGs:     $($TARGET_RGS | Invoke-Jq -Raw -Filter 'join(", ") // "<none>"')"
 Write-Host ''
 
 # ═══════════════════════════════════════════════════════════════════
@@ -405,17 +406,19 @@ $RAW_CONNECTORS = Invoke-ArmList 'connectors'
 $CONNECTOR_COUNT = ($RAW_CONNECTORS | jq 'length') -as [int]
 _log "  Found ${CONNECTOR_COUNT} connector(s) from ARM"
 
-$DP_CONNECTORS = Invoke-DpGet '/api/v2/extendedAgent/connectors' | jq -c '.value // []' 2>$null
+$DP_CONNECTORS = Invoke-DpGet '/api/v2/extendedAgent/connectors' | Invoke-Jq -Compact -Filter '.value // []'
 if (-not $DP_CONNECTORS -or $DP_CONNECTORS -eq 'null') { $DP_CONNECTORS = '[]' }
 $DP_COUNT = ($DP_CONNECTORS | jq 'length') -as [int]
 _log "  Found ${DP_COUNT} connector(s) from data-plane"
 
 # Prefer data-plane connectors (ARM redacts secrets)
-$CONNECTORS = $RAW_CONNECTORS | jq -c --argjson dp $DP_CONNECTORS '[.[] |
+$dpTmpFile = [System.IO.Path]::GetTempFileName()
+$DP_CONNECTORS | Set-Content -Path $dpTmpFile -Encoding utf8 -NoNewline
+$CONNECTORS = $RAW_CONNECTORS | Invoke-Jq -Compact -Filter '[.[] |
     . as $arm |
     ($arm.name | split("/") | last) as $cname |
     ($arm.properties.dataConnectorType) as $ctype |
-    ([$dp[] | select(.name == $cname)] | first) as $dpconn |
+    ([$dp[0][] | select(.name == $cname)] | first) as $dpconn |
     if $dpconn then {
         name: $cname,
         properties: {
@@ -433,7 +436,8 @@ $CONNECTORS = $RAW_CONNECTORS | jq -c --argjson dp $DP_CONNECTORS '[.[] |
             identity: ($arm.properties.identity // "system")
         }
     } end
-]'
+]' -ExtraArgs @('--slurpfile', 'dp', $dpTmpFile)
+Remove-Item $dpTmpFile -Force -ErrorAction SilentlyContinue
 $CONNECTORS = Invoke-Sanitize $CONNECTORS
 
 # ── Tools (opaque) ──
@@ -473,13 +477,16 @@ if (-not $DP_HANDLER_COUNT) { $DP_HANDLER_COUNT = 0 }
 _log "  Found ${DP_HANDLER_COUNT} incident handler(s)"
 
 if ($DP_HANDLER_COUNT -gt 0) {
-    $INCIDENT_FILTERS = $INCIDENT_FILTERS | jq -c --argjson handlers $DP_HANDLERS '
+    $handlersTmpFile = [System.IO.Path]::GetTempFileName()
+    $DP_HANDLERS | Set-Content -Path $handlersTmpFile -Encoding utf8 -NoNewline
+    $INCIDENT_FILTERS = $INCIDENT_FILTERS | Invoke-Jq -Compact -Filter '
         [.[] | . as $f |
-            ($handlers | map(select(.incidentFilterId == $f.metadata.name)) | first // null) as $h |
+            ($handlers[0] | map(select(.incidentFilterId == $f.metadata.name)) | first // null) as $h |
             if $h and ($h.customInstructions // "") != "" then
                 .spec.customInstructions = $h.customInstructions
             else . end
-        ]'
+        ]' -ExtraArgs @('--slurpfile', 'handlers', $handlersTmpFile)
+    Remove-Item $handlersTmpFile -Force -ErrorAction SilentlyContinue
     _log '  Merged customInstructions into filters'
 }
 
@@ -538,12 +545,12 @@ _info 'Exporting data-plane configuration'
 _log 'Reading hooks (data-plane)...'
 $RAW_HOOKS_DP = Invoke-DpGet '/api/v2/extendedAgent/hooks'
 if ($RAW_HOOKS_DP -ne 'null') {
-    $HOOKS_DP = $RAW_HOOKS_DP | jq -c '[(.value // . // [])[] | {
+    $HOOKS_DP = $RAW_HOOKS_DP | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {
         name: .name,
         type: (.type // ""),
         tags: (.tags // []),
         properties: (.properties // {})
-    }]' 2>$null
+    }]'
     if (-not $HOOKS_DP) { $HOOKS_DP = '[]' }
 } else {
     $HOOKS_DP = '[]'
@@ -563,12 +570,12 @@ _log "  Found ${HOOK_COUNT} hook(s) total"
 _log 'Reading common prompts (data-plane)...'
 $RAW_PROMPTS_DP = Invoke-DpGet '/api/v2/extendedAgent/commonprompts'
 if ($RAW_PROMPTS_DP -ne 'null') {
-    $PROMPTS_DP = $RAW_PROMPTS_DP | jq -c '[(.value // . // [])[] | {
+    $PROMPTS_DP = $RAW_PROMPTS_DP | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {
         name: .name,
         type: (.type // ""),
         tags: (.tags // []),
         properties: (.properties // {})
-    }]' 2>$null
+    }]'
     if (-not $PROMPTS_DP) { $PROMPTS_DP = '[]' }
 } else {
     $PROMPTS_DP = '[]'
@@ -588,12 +595,12 @@ _log "  Found ${PROMPT_COUNT} common prompt(s) total"
 _log 'Reading plugin configs (data-plane)...'
 $RAW_PLUGINS_DP = Invoke-DpGet '/api/v2/extendedAgent/plugins'
 if ($RAW_PLUGINS_DP -ne 'null') {
-    $PLUGINS_DP = $RAW_PLUGINS_DP | jq -c '[(.value // . // [])[] | {
+    $PLUGINS_DP = $RAW_PLUGINS_DP | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {
         name: .name,
         type: (.type // "plugin"),
         tags: (.tags // []),
         properties: (.properties // {})
-    }]' 2>$null
+    }]'
     if (-not $PLUGINS_DP) { $PLUGINS_DP = '[]' }
 } else {
     $PLUGINS_DP = '[]'
@@ -613,14 +620,14 @@ _log "  Found ${PLUGIN_COUNT} plugin config(s) total"
 _log 'Reading repos...'
 $RAW_REPOS = Invoke-DpGet '/api/v2/repos/'
 if ($RAW_REPOS -ne 'null') {
-    $REPOS = $RAW_REPOS | jq -c '[(.value // . // [])[] | {
+    $REPOS = $RAW_REPOS | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {
         name: .name,
         spec: {
             url: (.properties.url // ""),
             type: ((.properties.type // "GitHub") | ascii_downcase),
             branch: (.properties.branch // "main")
         }
-    }]' 2>$null
+    }]'
     if (-not $REPOS) { $REPOS = '[]' }
 } else {
     $REPOS = '[]'
@@ -631,16 +638,19 @@ _log "  Found ${REPO_COUNT} repo(s)"
 # ── Incident Platforms ──
 _log 'Reading incident platforms...'
 $INCIDENT_PLATFORMS = '[]'
-$IM_TYPE = $AGENT_JSON | jq -r '.properties.incidentManagementConfiguration.type // "None"' 2>$null
+$IM_TYPE = $AGENT_JSON | Invoke-Jq -Raw -Filter '.properties.incidentManagementConfiguration.type // "None"'
 if ($IM_TYPE -and $IM_TYPE -ne 'None' -and $IM_TYPE -ne 'null') {
-    $INCIDENT_PLATFORMS = jq -nc --arg t $IM_TYPE '[{name: ($t | ascii_downcase), spec: {platformType: $t}}]'
+    $INCIDENT_PLATFORMS = Invoke-Jq -Compact -Filter 'null | [{name: ($t | ascii_downcase), spec: {platformType: $t}}]' -ExtraArgs @('--arg', 't', $IM_TYPE)
 }
 foreach ($platformType in @('azmonitor', 'pagerduty', 'servicenow')) {
     $result = Invoke-DpGet "/api/v2/incidents/indexing/${platformType}/configuration" 2>$null
     if ($result -and $result -ne 'null') {
-        $entry = $result | jq -c --arg t $platformType '{name: $t, spec: (.spec // .properties // .)}' 2>$null
+        $entry = $result | Invoke-Jq -Compact -Filter '{name: $t, spec: (.spec // .properties // .)}' -ExtraArgs @('--arg', 't', $platformType)
         if ($entry -and $entry -ne 'null') {
-            $INCIDENT_PLATFORMS = $INCIDENT_PLATFORMS | jq -c --argjson e $entry '. + [$e]'
+            $eTmpFile = [System.IO.Path]::GetTempFileName()
+            $entry | Set-Content -Path $eTmpFile -Encoding utf8 -NoNewline
+            $INCIDENT_PLATFORMS = $INCIDENT_PLATFORMS | Invoke-Jq -Compact -Filter '. + $e' -ExtraArgs @('--slurpfile', 'e', $eTmpFile)
+            Remove-Item $eTmpFile -Force -ErrorAction SilentlyContinue
         }
     }
 }
@@ -651,10 +661,10 @@ _log "  Found ${INCIDENT_PLATFORM_COUNT} incident platform(s)"
 _log 'Reading plugin marketplaces...'
 $RAW_MARKETPLACES = Invoke-DpGet '/api/v2/plugins/marketplaces'
 if ($RAW_MARKETPLACES -ne 'null') {
-    $PLUGIN_MARKETPLACES = $RAW_MARKETPLACES | jq -c '[(.value // . // [])[] | {
+    $PLUGIN_MARKETPLACES = $RAW_MARKETPLACES | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {
         name: (.metadata.name // .name),
         spec: (.spec // .properties // {})
-    }]' 2>$null
+    }]'
     if (-not $PLUGIN_MARKETPLACES) { $PLUGIN_MARKETPLACES = '[]' }
 } else {
     $PLUGIN_MARKETPLACES = '[]'
@@ -664,10 +674,10 @@ _log "  Found $($PLUGIN_MARKETPLACES | jq 'length') marketplace(s)"
 _log 'Reading plugin installations...'
 $RAW_INSTALLATIONS = Invoke-DpGet '/api/v2/plugins/installations'
 if ($RAW_INSTALLATIONS -ne 'null') {
-    $PLUGIN_INSTALLATIONS = $RAW_INSTALLATIONS | jq -c '[(.value // . // [])[] | {
+    $PLUGIN_INSTALLATIONS = $RAW_INSTALLATIONS | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {
         name: (.metadata.name // .name),
         spec: (.spec // .properties // {})
-    }]' 2>$null
+    }]'
     if (-not $PLUGIN_INSTALLATIONS) { $PLUGIN_INSTALLATIONS = '[]' }
 } else {
     $PLUGIN_INSTALLATIONS = '[]'
@@ -679,7 +689,7 @@ _log 'Reading HTTP triggers...'
 $RAW_HTTP_TRIGGERS = Invoke-DpGet '/api/v1/httpTriggers'
 $HTTP_TRIGGER_TYPE = $RAW_HTTP_TRIGGERS | jq -r 'type' 2>$null
 if ($HTTP_TRIGGER_TYPE -eq 'array') {
-    $HTTP_TRIGGERS = $RAW_HTTP_TRIGGERS | jq -c '[.[] | {
+    $HTTP_TRIGGERS = $RAW_HTTP_TRIGGERS | Invoke-Jq -Compact -Filter '[.[] | {
         name: (.name // ""),
         spec: {
             description: (.description // ""),
@@ -687,9 +697,9 @@ if ($HTTP_TRIGGER_TYPE -eq 'array') {
             handlingAgent: (.agent // .handlingAgent // ""),
             agentMode: (.agentMode // "Review")
         }
-    }]' 2>$null
+    }]'
 } elseif ($HTTP_TRIGGER_TYPE -eq 'object') {
-    $HTTP_TRIGGERS = $RAW_HTTP_TRIGGERS | jq -c '[(.value // [])[] | {
+    $HTTP_TRIGGERS = $RAW_HTTP_TRIGGERS | Invoke-Jq -Compact -Filter '[(.value // [])[] | {
         name: (.name // ""),
         spec: {
             description: (.description // ""),
@@ -697,7 +707,7 @@ if ($HTTP_TRIGGER_TYPE -eq 'array') {
             handlingAgent: (.agent // .handlingAgent // ""),
             agentMode: (.agentMode // "Review")
         }
-    }]' 2>$null
+    }]'
 } else {
     $HTTP_TRIGGERS = '[]'
 }
@@ -731,13 +741,13 @@ if ($INCLUDE_KNOWLEDGE) {
     _log 'Reading AgentMemory documents...'
     $RAW_KNOWLEDGE = Invoke-DpGet '/api/v1/AgentMemory/files'
     if ($RAW_KNOWLEDGE -ne 'null') {
-        $KNOWLEDGE = $RAW_KNOWLEDGE | jq -c '[(.files // .value // . // [])[] | {
+        $KNOWLEDGE = $RAW_KNOWLEDGE | Invoke-Jq -Compact -Filter '[(.files // .value // . // [])[] | {
             filename: (.filename // .name // ""),
             mimeType: (.mimeType // .contentType // "application/octet-stream"),
             fileSize: (.fileSize // .size // 0),
             indexStatus: (if .isIndexed == true then "indexed" elif .isIndexed == false then "pending" else (.indexStatus // "unknown") end),
             triggerIndexing: true
-        }]' 2>$null
+        }]'
         if (-not $KNOWLEDGE) { $KNOWLEDGE = '[]' }
     }
     $KNOWLEDGE_COUNT = ($KNOWLEDGE | jq 'length') -as [int]
@@ -774,7 +784,7 @@ if ($INCLUDE_KNOWLEDGE) {
         if ($missing -gt 0) {
             _log "  WARNING: ${missing} file(s) not found locally. Place them in ${Output}/data/knowledge/ before deploy."
         }
-        $KNOWLEDGE = $KNOWLEDGE | jq -c --arg dir $DOCS_DIR '[.[] | . + {localPath: ($dir + "/" + .filename)}]'
+        $KNOWLEDGE = $KNOWLEDGE | Invoke-Jq -Compact -Filter '[.[] | . + {localPath: ($dir + "/" + .filename)}]' -ExtraArgs @('--arg', 'dir', $DOCS_DIR)
     }
 } else {
     _log 'Skipping AgentMemory documents (use -IncludeAll to include)'
@@ -785,7 +795,7 @@ if ($INCLUDE_KNOWLEDGE_ITEMS) {
     _log 'Reading knowledge items from connectors API...'
     $RAW_KNOWLEDGE_ITEMS = Invoke-DpGet '/api/v2/extendedAgent/connectors'
     if ($RAW_KNOWLEDGE_ITEMS -ne 'null') {
-        $KNOWLEDGE_ITEMS = $RAW_KNOWLEDGE_ITEMS | jq -c '[
+        $KNOWLEDGE_ITEMS = $RAW_KNOWLEDGE_ITEMS | Invoke-Jq -Compact -Filter '[
             (.value // . // [])[] |
             select(.properties.dataConnectorType // "" | test("^Knowledge")) |
             {
@@ -796,7 +806,7 @@ if ($INCLUDE_KNOWLEDGE_ITEMS) {
                 metadata: (.properties.metadata // {}),
                 fileSize: (.properties.fileSize // 0)
             }
-        ]' 2>$null
+        ]'
         if (-not $KNOWLEDGE_ITEMS) { $KNOWLEDGE_ITEMS = '[]' }
     }
     $KI_COUNT = ($KNOWLEDGE_ITEMS | jq 'length') -as [int]
@@ -823,7 +833,7 @@ if ($INCLUDE_KNOWLEDGE_ITEMS) {
                 _log "    x ${kiname} (could not download content)"
             }
         }
-        $KNOWLEDGE_ITEMS = $KNOWLEDGE_ITEMS | jq -c --arg dir $KI_DIR '[
+        $KNOWLEDGE_ITEMS = $KNOWLEDGE_ITEMS | Invoke-Jq -Compact -Filter '[
             .[] | . + {
                 localPath: ($dir + "/" + .name + (
                     if .type == "KnowledgeText" then ".md"
@@ -832,7 +842,7 @@ if ($INCLUDE_KNOWLEDGE_ITEMS) {
                     else ".json" end
                 ))
             }
-        ]'
+        ]' -ExtraArgs @('--arg', 'dir', $KI_DIR)
     }
 } else {
     _log 'Skipping knowledge items (use -IncludeAll to include)'
@@ -844,13 +854,13 @@ if ($INCLUDE_MEMORIES) {
     _log 'Reading synthesized knowledge...'
     $RAW_SYNTH = Invoke-DpGet '/api/v1/WorkspaceMemory/list?type=synthesized-knowledge'
     if ($RAW_SYNTH -ne 'null') {
-        $SYNTHESIZED_KNOWLEDGE = $RAW_SYNTH | jq -c '[
+        $SYNTHESIZED_KNOWLEDGE = $RAW_SYNTH | Invoke-Jq -Compact -Filter '[
             (.files // .value // . // [])[] | {
                 path: (.path // ""),
                 size: (.size // 0),
                 lastModified: (.lastModified // "")
             }
-        ]' 2>$null
+        ]'
         if (-not $SYNTHESIZED_KNOWLEDGE) { $SYNTHESIZED_KNOWLEDGE = '[]' }
     }
     $SYNTH_COUNT = ($SYNTHESIZED_KNOWLEDGE | jq 'length') -as [int]
@@ -864,7 +874,7 @@ if ($INCLUDE_MEMORIES) {
     _log 'Reading workspace memory inventory...'
     $RAW_WS_MEM = Invoke-DpGet '/api/v1/WorkspaceMemory/list'
     if ($RAW_WS_MEM -ne 'null') {
-        $WS_MEM_COUNT = ($RAW_WS_MEM | jq '(.files // .value // . // []) | length' 2>$null) -as [int]
+        $WS_MEM_COUNT = ($RAW_WS_MEM | Invoke-Jq -Filter '(.files // .value // . // []) | length') -as [int]
         _log "  Found ${WS_MEM_COUNT} total workspace memory file(s)"
     }
 } else {
@@ -886,21 +896,33 @@ if ($INCLUDE_REPO_INSTRUCTIONS -and $REPO_COUNT -gt 0) {
                 Get-ChildItem -Path $RI_DIR -File -Recurse | ForEach-Object {
                     $relpath = $_.FullName.Substring($RI_DIR.Length + 1)
                     $content = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue
-                    $filesArray = $filesArray | jq -c --arg p $relpath --arg c "$content" '. + [{path: $p, content: $c}]'
+                    $filesArray = $filesArray | Invoke-Jq -Compact -Filter '. + [{path: $p, content: $c}]' -ExtraArgs @('--arg', 'p', $relpath, '--arg', 'c', "$content")
                 }
-                $entry = jq -nc --arg r $rname --argjson f $filesArray '{repo: $r, files: $f}'
-                $REPO_INSTRUCTIONS = $REPO_INSTRUCTIONS | jq -c --argjson e $entry '. + [$e]'
+                $fTmpFile = [System.IO.Path]::GetTempFileName()
+                $filesArray | Set-Content -Path $fTmpFile -Encoding utf8 -NoNewline
+                $entry = Invoke-Jq -Compact -Filter 'null | {repo: $r, files: $f[0]}' -ExtraArgs @('--arg', 'r', $rname, '--slurpfile', 'f', $fTmpFile)
+                Remove-Item $fTmpFile -Force -ErrorAction SilentlyContinue
+                $eTmpFile = [System.IO.Path]::GetTempFileName()
+                $entry | Set-Content -Path $eTmpFile -Encoding utf8 -NoNewline
+                $REPO_INSTRUCTIONS = $REPO_INSTRUCTIONS | Invoke-Jq -Compact -Filter '. + $e' -ExtraArgs @('--slurpfile', 'e', $eTmpFile)
+                Remove-Item $eTmpFile -Force -ErrorAction SilentlyContinue
             }
         } else {
             $encodedRname = [System.Uri]::EscapeDataString($rname)
             $result = Invoke-DpGet "/api/v1/WorkspaceMemory/list?type=repo-instructions&repo=${encodedRname}"
             if ($result -ne 'null') {
-                $files = $result | jq -c '[(.value // . // [])[] | {path: .path, size: .size}]' 2>$null
+                $files = $result | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {path: .path, size: .size}]'
                 if (-not $files) { $files = '[]' }
                 $fileCount = ($files | jq 'length') -as [int]
                 if ($fileCount -gt 0) {
-                    $entry = jq -nc --arg r $rname --argjson f $files '{repo: $r, files: $f, _note: "Content not downloaded — use -DownloadFiles to include"}'
-                    $REPO_INSTRUCTIONS = $REPO_INSTRUCTIONS | jq -c --argjson e $entry '. + [$e]'
+                    $fTmpFile2 = [System.IO.Path]::GetTempFileName()
+                    $files | Set-Content -Path $fTmpFile2 -Encoding utf8 -NoNewline
+                    $entry = Invoke-Jq -Compact -Filter 'null | {repo: $r, files: $f[0], _note: "Content not downloaded \u2014 use -DownloadFiles to include"}' -ExtraArgs @('--arg', 'r', $rname, '--slurpfile', 'f', $fTmpFile2)
+                    Remove-Item $fTmpFile2 -Force -ErrorAction SilentlyContinue
+                    $eTmpFile2 = [System.IO.Path]::GetTempFileName()
+                    $entry | Set-Content -Path $eTmpFile2 -Encoding utf8 -NoNewline
+                    $REPO_INSTRUCTIONS = $REPO_INSTRUCTIONS | Invoke-Jq -Compact -Filter '. + $e' -ExtraArgs @('--slurpfile', 'e', $eTmpFile2)
+                    Remove-Item $eTmpFile2 -Force -ErrorAction SilentlyContinue
                 }
             }
         }
@@ -922,7 +944,7 @@ Write-Host "  Agent:              ${AgentName}"
 Write-Host "  Location:           ${LOCATION}"
 Write-Host "  Access level:       ${ACCESS_LEVEL}"
 Write-Host "  Action mode:        ${ACTION_MODE}"
-Write-Host "  Target RGs:         $($TARGET_RGS | jq -r 'join(", ") // "<none>"')"
+Write-Host "  Target RGs:         $($TARGET_RGS | Invoke-Jq -Raw -Filter 'join(", ") // "<none>"')"
 Write-Host ''
 
 Write-Host "  Connectors:         ${CONNECTOR_COUNT}"
@@ -979,31 +1001,24 @@ for ($i = 0; $i -lt $CONNECTOR_COUNT; $i++) {
     switch ($ctype) {
         'AppInsights' {
             $ENABLE_AI = $true
-            $AI_RESOURCE_ID = $CONNECTORS | jq -r --argjson i $i '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""'
-            $AI_APP_ID = $CONNECTORS | jq -r --argjson i $i '.[$i].properties.extendedProperties.appId // ""'
+            $AI_RESOURCE_ID = $CONNECTORS | Invoke-Jq -Raw -Filter '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""' -ExtraArgs @('--argjson', 'i', "$i")
+            $AI_APP_ID = $CONNECTORS | Invoke-Jq -Raw -Filter '.[$i].properties.extendedProperties.appId // ""' -ExtraArgs @('--argjson', 'i', "$i")
         }
         'LogAnalytics' {
             $ENABLE_LAW = $true
-            $LAW_RESOURCE_ID = $CONNECTORS | jq -r --argjson i $i '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""'
+            $LAW_RESOURCE_ID = $CONNECTORS | Invoke-Jq -Raw -Filter '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""' -ExtraArgs @('--argjson', 'i', "$i")
         }
         'AzureMonitor' {
             $ENABLE_AZMON = $true
-            $AZMON_LOOKBACK = ($CONNECTORS | jq -r --argjson i $i '.[$i].properties.extendedProperties.lookbackDays // 7') -as [int]
+            $AZMON_LOOKBACK = ($CONNECTORS | Invoke-Jq -Raw -Filter '.[$i].properties.extendedProperties.lookbackDays // 7' -ExtraArgs @('--argjson', 'i', "$i")) -as [int]
         }
     }
 }
 
 $bridgeBool = if ($BRIDGE_EXISTS) { 'true' } else { 'false' }
-jq -n `
-    --arg agent $AgentName `
-    --arg rg $ResourceGroup `
-    --arg sub $Subscription `
-    --arg loc $LOCATION `
-    --arg access $ACCESS_LEVEL `
-    --arg action $ACTION_MODE `
-    --argjson targetRgs $TARGET_RGS `
-    --argjson enableBridge $bridgeBool `
-    '{
+$trgTmpFile = [System.IO.Path]::GetTempFileName()
+$TARGET_RGS | Set-Content -Path $trgTmpFile -Encoding utf8 -NoNewline
+Invoke-Jq -Filter '{
         "_description": "SRE Agent configuration — edit these values to clone to a new environment.",
         "_exported_at": (now | todate),
         "identity": {
@@ -1011,7 +1026,7 @@ jq -n `
             "resourceGroup":        $rg,
             "subscription":         $sub,
             "location":             $loc,
-            "targetResourceGroups": $targetRgs
+            "targetResourceGroups": $targetRgs[0]
         },
         "access": {
             "accessLevel":  $access,
@@ -1022,10 +1037,20 @@ jq -n `
         "monthlyAgentUnitLimit": 10000,
         "tags": {},
         "toggles": {
-            "enableWebhookBridge":     $enableBridge,
+            "enableWebhookBridge":     ($enableBridge | test("true")),
             "webhookBridgeTriggerUrl": ""
         }
-    }' | Set-Content -Path (Join-Path $EXPORT_DIR 'agent.json') -Encoding utf8
+    }' -ExtraArgs @(
+        '--arg', 'agent', $AgentName,
+        '--arg', 'rg', $ResourceGroup,
+        '--arg', 'sub', $Subscription,
+        '--arg', 'loc', $LOCATION,
+        '--arg', 'access', $ACCESS_LEVEL,
+        '--arg', 'action', $ACTION_MODE,
+        '--slurpfile', 'targetRgs', $trgTmpFile,
+        '--arg', 'enableBridge', $bridgeBool
+    ) -InputFile '/dev/null' | Set-Content -Path (Join-Path $EXPORT_DIR 'agent.json') -Encoding utf8
+Remove-Item $trgTmpFile -Force -ErrorAction SilentlyContinue
 
 # Apply --set overrides
 if ($SetOverrides.Count -gt 0) {
@@ -1036,32 +1061,32 @@ if ($SetOverrides.Count -gt 0) {
         $tmpFile = [System.IO.Path]::GetTempFileName()
         switch ($key) {
             'agentName' {
-                Get-Content $agentJsonPath -Raw | jq --arg v $val '.identity.agentName = $v' | Set-Content $tmpFile -Encoding utf8
+                Get-Content $agentJsonPath -Raw | Invoke-Jq -Filter '.identity.agentName = $v' -ExtraArgs @('--arg', 'v', $val) | Set-Content $tmpFile -Encoding utf8
                 Move-Item $tmpFile $agentJsonPath -Force
                 _log "  agentName -> $val"
             }
             'resourceGroup' {
-                Get-Content $agentJsonPath -Raw | jq --arg v $val '.identity.resourceGroup = $v' | Set-Content $tmpFile -Encoding utf8
+                Get-Content $agentJsonPath -Raw | Invoke-Jq -Filter '.identity.resourceGroup = $v' -ExtraArgs @('--arg', 'v', $val) | Set-Content $tmpFile -Encoding utf8
                 Move-Item $tmpFile $agentJsonPath -Force
                 _log "  resourceGroup -> $val"
             }
             'location' {
-                Get-Content $agentJsonPath -Raw | jq --arg v $val '.identity.location = $v' | Set-Content $tmpFile -Encoding utf8
+                Get-Content $agentJsonPath -Raw | Invoke-Jq -Filter '.identity.location = $v' -ExtraArgs @('--arg', 'v', $val) | Set-Content $tmpFile -Encoding utf8
                 Move-Item $tmpFile $agentJsonPath -Force
                 _log "  location -> $val"
             }
             'targetRGs' {
-                Get-Content $agentJsonPath -Raw | jq --arg v $val '.identity.targetResourceGroups = $v' | Set-Content $tmpFile -Encoding utf8
+                Get-Content $agentJsonPath -Raw | Invoke-Jq -Filter '.identity.targetResourceGroups = $v' -ExtraArgs @('--arg', 'v', $val) | Set-Content $tmpFile -Encoding utf8
                 Move-Item $tmpFile $agentJsonPath -Force
                 _log "  targetRGs -> $val"
             }
             'accessLevel' {
-                Get-Content $agentJsonPath -Raw | jq --arg v $val '.access.accessLevel = $v' | Set-Content $tmpFile -Encoding utf8
+                Get-Content $agentJsonPath -Raw | Invoke-Jq -Filter '.access.accessLevel = $v' -ExtraArgs @('--arg', 'v', $val) | Set-Content $tmpFile -Encoding utf8
                 Move-Item $tmpFile $agentJsonPath -Force
                 _log "  accessLevel -> $val"
             }
             'actionMode' {
-                Get-Content $agentJsonPath -Raw | jq --arg v $val '.access.actionMode = $v' | Set-Content $tmpFile -Encoding utf8
+                Get-Content $agentJsonPath -Raw | Invoke-Jq -Filter '.access.actionMode = $v' -ExtraArgs @('--arg', 'v', $val) | Set-Content $tmpFile -Encoding utf8
                 Move-Item $tmpFile $agentJsonPath -Force
                 _log "  actionMode -> $val"
             }
@@ -1103,7 +1128,7 @@ $secretLines = @(
 $CONNECTORS_CLEAN = $CONNECTORS
 for ($i = 0; $i -lt $CONNECTOR_COUNT; $i++) {
     $cname = $CONNECTORS | jq -r --argjson i $i '.[$i].name'
-    $dsrc  = $CONNECTORS | jq -r --argjson i $i '.[$i].properties.dataSource // ""'
+    $dsrc  = $CONNECTORS | Invoke-Jq -Raw -Filter '.[$i].properties.dataSource // ""' -ExtraArgs @('--argjson', 'i', "$i")
     $ENV_PREFIX = ($cname -replace '-', '_').ToUpper()
 
     # Extract bearer tokens from connection strings
@@ -1111,17 +1136,15 @@ for ($i = 0; $i -lt $CONNECTOR_COUNT; $i++) {
         $token = $Matches[1]
         $secretLines += "${ENV_PREFIX}_BEARER_TOKEN=${token}"
         $ref = "`${${ENV_PREFIX}_BEARER_TOKEN}"
-        $CONNECTORS_CLEAN = $CONNECTORS_CLEAN | jq --argjson i $i --arg ref $ref `
-            '.[$i].properties.dataSource = (.[$i].properties.dataSource | gsub("BearerToken=[^;]+"; "BearerToken=" + $ref))'
+        $CONNECTORS_CLEAN = $CONNECTORS_CLEAN | Invoke-Jq -Filter '.[$i].properties.dataSource = (.[$i].properties.dataSource | gsub("BearerToken=[^;]+"; "BearerToken=" + $ref))' -ExtraArgs @('--argjson', 'i', "$i", '--arg', 'ref', $ref)
     }
 
     # Extract bearer tokens from extendedProperties
-    $bt = $CONNECTORS | jq -r --argjson i $i '.[$i].properties.extendedProperties.bearerToken // empty'
+    $bt = $CONNECTORS | Invoke-Jq -Raw -Filter '.[$i].properties.extendedProperties.bearerToken // empty' -ExtraArgs @('--argjson', 'i', "$i")
     if ($bt) {
         $secretLines += "${ENV_PREFIX}_BEARER_TOKEN=${bt}"
         $ref = "`${${ENV_PREFIX}_BEARER_TOKEN}"
-        $CONNECTORS_CLEAN = $CONNECTORS_CLEAN | jq --argjson i $i --arg ref $ref `
-            '.[$i].properties.extendedProperties.bearerToken = $ref'
+        $CONNECTORS_CLEAN = $CONNECTORS_CLEAN | Invoke-Jq -Filter '.[$i].properties.extendedProperties.bearerToken = $ref' -ExtraArgs @('--argjson', 'i', "$i", '--arg', 'ref', $ref)
     }
 }
 
@@ -1129,28 +1152,24 @@ $CONNECTORS_CLEAN = Invoke-Sanitize $CONNECTORS_CLEAN
 
 # Separate toggle-managed connectors from array connectors
 $TOGGLE_TYPES = 'AppInsights|LogAnalytics|AzureMonitor'
-$CONNECTORS_ARRAY = $CONNECTORS_CLEAN | jq -c --arg tt $TOGGLE_TYPES '[.[] | select(.properties.dataConnectorType | test("^(\($tt))$") | not)]'
+$CONNECTORS_ARRAY = $CONNECTORS_CLEAN | Invoke-Jq -Compact -Filter '[.[] | select(.properties.dataConnectorType | test("^(\($tt))$") | not)]' -ExtraArgs @('--arg', 'tt', $TOGGLE_TYPES)
 
 $enableAIStr   = if ($ENABLE_AI)    { 'true' } else { 'false' }
 $enableLAWStr  = if ($ENABLE_LAW)   { 'true' } else { 'false' }
 $enableAzMonStr = if ($ENABLE_AZMON) { 'true' } else { 'false' }
 
-$CONNECTORS_ARRAY | jq `
-    --argjson enableAI $enableAIStr --arg aiResId $AI_RESOURCE_ID --arg aiAppId $AI_APP_ID `
-    --argjson enableLAW $enableLAWStr --arg lawResId $LAW_RESOURCE_ID `
-    --argjson enableAzMon $enableAzMonStr --argjson azMonLookback $AZMON_LOOKBACK `
-    '{
+$CONNECTORS_ARRAY | Invoke-Jq -Filter '{
         "toggles": {
-            "enableAppInsightsConnector": $enableAI,
+            "enableAppInsightsConnector": ($enableAI | test("true")),
             "appInsightsResourceId": $aiResId,
             "appInsightsAppId": $aiAppId,
-            "enableLogAnalyticsConnector": $enableLAW,
+            "enableLogAnalyticsConnector": ($enableLAW | test("true")),
             "lawResourceId": $lawResId,
-            "enableAzureMonitorConnector": $enableAzMon,
-            "azureMonitorLookbackDays": $azMonLookback
+            "enableAzureMonitorConnector": ($enableAzMon | test("true")),
+            "azureMonitorLookbackDays": ($azMonLookback | tonumber)
         },
         "connectors": .
-    }' | Set-Content -Path (Join-Path $EXPORT_DIR 'connectors.json') -Encoding utf8
+    }' -ExtraArgs @('--arg', 'enableAI', $enableAIStr, '--arg', 'aiResId', $AI_RESOURCE_ID, '--arg', 'aiAppId', $AI_APP_ID, '--arg', 'enableLAW', $enableLAWStr, '--arg', 'lawResId', $LAW_RESOURCE_ID, '--arg', 'enableAzMon', $enableAzMonStr, '--arg', 'azMonLookback', "$AZMON_LOOKBACK") | Set-Content -Path (Join-Path $EXPORT_DIR 'connectors.json') -Encoding utf8
 
 $CONN_COUNT = ($CONNECTORS_ARRAY | jq 'length') -as [int]
 _log "Wrote connectors.json (${CONN_COUNT} connector(s) + toggles)"
@@ -1159,14 +1178,17 @@ $secretLines | Set-Content -Path $SECRETS_ENV -Encoding utf8
 _log 'Wrote connectors.secrets.env (secrets extracted — DO NOT commit)'
 
 # ── Admin settings ──
-$ADMIN_USERS = $AGENT_JSON | jq -c '.properties.adminUsers // []' 2>$null
+$ADMIN_USERS = $AGENT_JSON | Invoke-Jq -Compact -Filter '.properties.adminUsers // []'
 if (-not $ADMIN_USERS) { $ADMIN_USERS = '[]' }
 $adminCount = ($ADMIN_USERS | jq 'length') -as [int]
 if ($adminCount -gt 0) {
-    jq -n --argjson adminUsers $ADMIN_USERS '{
+    $adminTmpFile = [System.IO.Path]::GetTempFileName()
+    $ADMIN_USERS | Set-Content -Path $adminTmpFile -Encoding utf8 -NoNewline
+    Invoke-Jq -Filter 'null | {
         "_description": "Cross-tenant admin users for portal access.",
-        "adminUsers": $adminUsers
-    }' | Set-Content -Path (Join-Path $EXPORT_DIR 'admin-settings.json') -Encoding utf8
+        "adminUsers": $adminUsers[0]
+    }' -ExtraArgs @('--slurpfile', 'adminUsers', $adminTmpFile) | Set-Content -Path (Join-Path $EXPORT_DIR 'admin-settings.json') -Encoding utf8
+    Remove-Item $adminTmpFile -Force -ErrorAction SilentlyContinue
     _log "Wrote admin-settings.json (${adminCount} admin user(s))"
 }
 
@@ -1186,53 +1208,50 @@ _log 'Wrote .gitignore'
 _log 'Generating expected-config.json'
 
 $EXPECTED_CONNECTORS = '[]'
-if ($ENABLE_LAW)   { $EXPECTED_CONNECTORS = $EXPECTED_CONNECTORS | jq '. + [{"name":"log-analytics","type":"LogAnalytics"}]' }
-if ($ENABLE_AI)    { $EXPECTED_CONNECTORS = $EXPECTED_CONNECTORS | jq '. + [{"name":"app-insights","type":"AppInsights"}]' }
-if ($ENABLE_AZMON)  { $EXPECTED_CONNECTORS = $EXPECTED_CONNECTORS | jq '. + [{"name":"azure-monitor","type":"AzureMonitor"}]' }
+if ($ENABLE_LAW)   { $EXPECTED_CONNECTORS = $EXPECTED_CONNECTORS | Invoke-Jq -Filter '. + [{"name":"log-analytics","type":"LogAnalytics"}]' }
+if ($ENABLE_AI)    { $EXPECTED_CONNECTORS = $EXPECTED_CONNECTORS | Invoke-Jq -Filter '. + [{"name":"app-insights","type":"AppInsights"}]' }
+if ($ENABLE_AZMON)  { $EXPECTED_CONNECTORS = $EXPECTED_CONNECTORS | Invoke-Jq -Filter '. + [{"name":"azure-monitor","type":"AzureMonitor"}]' }
 
 $connArrayCount = ($CONNECTORS_ARRAY | jq 'length') -as [int]
 for ($i = 0; $i -lt $connArrayCount; $i++) {
     $cname = $CONNECTORS_ARRAY | jq -r --argjson i $i '.[$i].name'
     $ctype = $CONNECTORS_ARRAY | jq -r --argjson i $i '.[$i].properties.dataConnectorType'
     if (-not $cname -or $cname -eq 'null') { continue }
-    $EXPECTED_CONNECTORS = $EXPECTED_CONNECTORS | jq --arg n $cname --arg t $ctype '. + [{"name":$n,"type":$t}]'
+    $EXPECTED_CONNECTORS = $EXPECTED_CONNECTORS | Invoke-Jq -Filter '. + [{"name":$n,"type":$t}]' -ExtraArgs @('--arg', 'n', $cname, '--arg', 't', $ctype)
 }
 
-$INC_PLATFORM = ($INCIDENT_PLATFORMS | jq -r '.[0].spec.platformType // "None"' 2>$null)
+$INC_PLATFORM = ($INCIDENT_PLATFORMS | Invoke-Jq -Raw -Filter '.[0].spec.platformType // "None"')
 if (-not $INC_PLATFORM) { $INC_PLATFORM = 'None' }
 
-$EXPECTED_PLANS = $INCIDENT_FILTERS | jq -c '[.[] | {name: (.metadata.name // .name), handlingAgent: (.spec.handlingAgent // .handlingAgent // "")}]' 2>$null
+$EXPECTED_PLANS = $INCIDENT_FILTERS | Invoke-Jq -Compact -Filter '[.[] | {name: (.metadata.name // .name), handlingAgent: (.spec.handlingAgent // .handlingAgent // "")}]'
 if (-not $EXPECTED_PLANS) { $EXPECTED_PLANS = '[]' }
 
 $skillNames   = $SKILLS | jq -c '[.[].metadata.name]' 2>$null
 if (-not $skillNames) { $skillNames = '[]' }
 $saNames      = $SUBAGENTS | jq -c '[.[].metadata.name]' 2>$null
 if (-not $saNames) { $saNames = '[]' }
-$hookNames    = @($HOOKS_FOR_EXTRAS, $HOOKS_FOR_PARAMS) -join "`n" | jq -sc 'add // [] | [.[] | .name // .metadata.name] | unique' 2>$null
+$hookNames    = @($HOOKS_FOR_EXTRAS, $HOOKS_FOR_PARAMS) -join "`n" | Invoke-Jq -Slurp -Compact -Filter 'add // [] | [.[] | .name // .metadata.name] | unique'
 if (-not $hookNames) { $hookNames = '[]' }
-$promptNames  = @($PROMPTS_FOR_EXTRAS, $PROMPTS_FOR_PARAMS) -join "`n" | jq -sc 'add // [] | [.[] | .name // .metadata.name] | unique' 2>$null
+$promptNames  = @($PROMPTS_FOR_EXTRAS, $PROMPTS_FOR_PARAMS) -join "`n" | Invoke-Jq -Slurp -Compact -Filter 'add // [] | [.[] | .name // .metadata.name] | unique'
 if (-not $promptNames) { $promptNames = '[]' }
-$taskNames    = $SCHEDULED_TASKS | jq -c '[.[] | .metadata.name // .name]' 2>$null
+$taskNames    = $SCHEDULED_TASKS | Invoke-Jq -Compact -Filter '[.[] | .metadata.name // .name]'
 if (-not $taskNames) { $taskNames = '[]' }
 $repoNames    = $REPOS | jq -c '[.[].name]' 2>$null
 if (-not $repoNames) { $repoNames = '[]' }
 
-jq -n `
-    --arg scenario 'exported' `
-    --arg accessLevel $ACCESS_LEVEL `
-    --arg actionMode $ACTION_MODE `
-    --arg upgradeChannel $UPGRADE_CHANNEL `
-    --arg modelProvider $DEFAULT_MODEL_PROVIDER `
-    --arg incidentPlatform $INC_PLATFORM `
-    --argjson connectors $EXPECTED_CONNECTORS `
-    --argjson skills $skillNames `
-    --argjson subagents $saNames `
-    --argjson hooks $hookNames `
-    --argjson prompts $promptNames `
-    --argjson tasks $taskNames `
-    --argjson plans $EXPECTED_PLANS `
-    --argjson repos $repoNames `
-    '{
+# Build expected-config via slurpfiles for all JSON arrays
+$ecTmpDir = Join-Path ([System.IO.Path]::GetTempPath()) "export-ec-$(Get-Random)"
+New-Item -ItemType Directory -Path $ecTmpDir -Force | Out-Null
+$EXPECTED_CONNECTORS | Set-Content -Path (Join-Path $ecTmpDir 'conn.json') -Encoding utf8 -NoNewline
+$skillNames | Set-Content -Path (Join-Path $ecTmpDir 'skills.json') -Encoding utf8 -NoNewline
+$saNames | Set-Content -Path (Join-Path $ecTmpDir 'sa.json') -Encoding utf8 -NoNewline
+$hookNames | Set-Content -Path (Join-Path $ecTmpDir 'hooks.json') -Encoding utf8 -NoNewline
+$promptNames | Set-Content -Path (Join-Path $ecTmpDir 'prompts.json') -Encoding utf8 -NoNewline
+$taskNames | Set-Content -Path (Join-Path $ecTmpDir 'tasks.json') -Encoding utf8 -NoNewline
+$EXPECTED_PLANS | Set-Content -Path (Join-Path $ecTmpDir 'plans.json') -Encoding utf8 -NoNewline
+$repoNames | Set-Content -Path (Join-Path $ecTmpDir 'repos.json') -Encoding utf8 -NoNewline
+
+Invoke-Jq -Filter '{
         "_scenario": $scenario,
         "agent": {
             "accessLevel": $accessLevel,
@@ -1241,15 +1260,31 @@ jq -n `
             "defaultModelProvider": $modelProvider,
             "incidentPlatform": $incidentPlatform
         },
-        "connectors": $connectors,
-        "skills": $skills,
-        "subagents": $subagents,
-        "hooks": $hooks,
-        "commonPrompts": $prompts,
-        "scheduledTasks": $tasks,
-        "responsePlans": $plans,
-        "repos": $repos
-    }' | Set-Content -Path (Join-Path $EXPORT_DIR 'expected-config.json') -Encoding utf8
+        "connectors": $connectors[0],
+        "skills": $skills[0],
+        "subagents": $subagents[0],
+        "hooks": $hooks[0],
+        "commonPrompts": $prompts[0],
+        "scheduledTasks": $tasks[0],
+        "responsePlans": $plans[0],
+        "repos": $repos[0]
+    }' -ExtraArgs @(
+        '--arg', 'scenario', 'exported',
+        '--arg', 'accessLevel', $ACCESS_LEVEL,
+        '--arg', 'actionMode', $ACTION_MODE,
+        '--arg', 'upgradeChannel', $UPGRADE_CHANNEL,
+        '--arg', 'modelProvider', $DEFAULT_MODEL_PROVIDER,
+        '--arg', 'incidentPlatform', $INC_PLATFORM,
+        '--slurpfile', 'connectors', (Join-Path $ecTmpDir 'conn.json'),
+        '--slurpfile', 'skills', (Join-Path $ecTmpDir 'skills.json'),
+        '--slurpfile', 'subagents', (Join-Path $ecTmpDir 'sa.json'),
+        '--slurpfile', 'hooks', (Join-Path $ecTmpDir 'hooks.json'),
+        '--slurpfile', 'prompts', (Join-Path $ecTmpDir 'prompts.json'),
+        '--slurpfile', 'tasks', (Join-Path $ecTmpDir 'tasks.json'),
+        '--slurpfile', 'plans', (Join-Path $ecTmpDir 'plans.json'),
+        '--slurpfile', 'repos', (Join-Path $ecTmpDir 'repos.json')
+    ) -InputFile '/dev/null' | Set-Content -Path (Join-Path $EXPORT_DIR 'expected-config.json') -Encoding utf8
+Remove-Item $ecTmpDir -Recurse -Force -ErrorAction SilentlyContinue
 
 _log 'Wrote expected-config.json'
 
@@ -1268,29 +1303,29 @@ if ($skillTotal -gt 0) {
         $SKILL_COUNT_EXP++
 
         # Write skillContent to .md
-        $scontent = $SKILLS | jq -r --argjson i $i '.[$i].skillContent // ""'
+        $scontent = $SKILLS | Invoke-Jq -Raw -Filter '.[$i].skillContent // ""' -ExtraArgs @('--argjson', 'i', "$i")
         if ($scontent) {
             [System.IO.File]::WriteAllText((Join-Path $skillDir "${sname}.md"), $scontent)
         }
 
         # Write additionalFiles
-        $afCount = ($SKILLS | jq --argjson i $i '.[$i].additionalFiles // [] | length') -as [int]
+        $afCount = ($SKILLS | Invoke-Jq -Filter '.[$i].additionalFiles // [] | length' -ExtraArgs @('--argjson', 'i', "$i")) -as [int]
         if ($afCount -gt 0) {
             $afDir = Join-Path $skillDir $sname
             if (-not (Test-Path $afDir)) { New-Item -ItemType Directory -Path $afDir -Force | Out-Null }
             for ($j = 0; $j -lt $afCount; $j++) {
-                $afname = $SKILLS | jq -r --argjson i $i --argjson j $j '.[$i].additionalFiles[$j].name // .[$i].additionalFiles[$j].path // "file-\($j)"'
-                $afcontent = $SKILLS | jq -r --argjson i $i --argjson j $j '.[$i].additionalFiles[$j].content // ""'
+                $afname = $SKILLS | Invoke-Jq -Raw -Filter '.[$i].additionalFiles[$j].name // .[$i].additionalFiles[$j].path // "file-\($j)"' -ExtraArgs @('--argjson', 'i', "$i", '--argjson', 'j', "$j")
+                $afcontent = $SKILLS | Invoke-Jq -Raw -Filter '.[$i].additionalFiles[$j].content // ""' -ExtraArgs @('--argjson', 'i', "$i", '--argjson', 'j', "$j")
                 [System.IO.File]::WriteAllText((Join-Path $afDir $afname), $afcontent)
             }
         }
 
         # Write YAML with file reference for skillContent
-        $skillYaml = $SKILLS | jq --argjson i $i '.[$i] |
+        $skillYaml = $SKILLS | Invoke-Jq -Filter '.[$i] |
             .skillContent = ("skills/" + .metadata.name + ".md") |
             if (.additionalFiles | length) > 0 then
                 .additionalFiles = [.additionalFiles[] | .content = (.metadata.name + "/" + (.name // .path // "file"))]
-            else . end'
+            else . end' -ExtraArgs @('--argjson', 'i', "$i")
         $skillYaml | ConvertTo-Yaml | Set-Content -Path (Join-Path $skillDir "${sname}.yaml") -NoNewline -Encoding utf8
     }
     _log "  skills: ${SKILL_COUNT_EXP} file(s)"
@@ -1306,22 +1341,22 @@ if ($saTotal -gt 0) {
         if (-not (Test-Path $saDir)) { New-Item -ItemType Directory -Path $saDir -Force | Out-Null }
         $SA_COUNT_EXP++
 
-        $instructions = $SUBAGENTS | jq -r --argjson i $i '.[$i].spec.instructions // ""'
+        $instructions = $SUBAGENTS | Invoke-Jq -Raw -Filter '.[$i].spec.instructions // ""' -ExtraArgs @('--argjson', 'i', "$i")
         if ($instructions) {
             [System.IO.File]::WriteAllText((Join-Path $saDir "${saname}.instructions.md"), $instructions)
         }
-        $handoff = $SUBAGENTS | jq -r --argjson i $i '.[$i].spec.handoffDescription // ""'
+        $handoff = $SUBAGENTS | Invoke-Jq -Raw -Filter '.[$i].spec.handoffDescription // ""' -ExtraArgs @('--argjson', 'i', "$i")
         if ($handoff -and $handoff.Length -gt 200) {
             [System.IO.File]::WriteAllText((Join-Path $saDir "${saname}.handoff.md"), $handoff)
         }
 
-        $saYaml = $SUBAGENTS | jq --argjson i $i '.[$i] |
+        $saYaml = $SUBAGENTS | Invoke-Jq -Filter '.[$i] |
             if (.spec.instructions // "" | length) > 0 then
                 .spec.instructions = ("subagents/" + .metadata.name + ".instructions.md")
             else . end |
             if (.spec.handoffDescription // "" | length) > 200 then
                 .spec.handoffDescription = (.metadata.name + ".handoff.md")
-            else . end'
+            else . end' -ExtraArgs @('--argjson', 'i', "$i")
         $saYaml | ConvertTo-Yaml | Set-Content -Path (Join-Path $saDir "${saname}.yaml") -NoNewline -Encoding utf8
     }
     _log "  subagents: ${SA_COUNT_EXP} file(s)"
@@ -1343,13 +1378,13 @@ if ($toolTotal -gt 0) {
 }
 
 # ── Hooks ──
-$ALL_HOOKS = @($HOOKS_FOR_PARAMS, $HOOKS_FOR_EXTRAS) -join "`n" | jq -sc 'add // []'
+$ALL_HOOKS = @($HOOKS_FOR_PARAMS, $HOOKS_FOR_EXTRAS) -join "`n" | Invoke-Jq -Slurp -Compact -Filter 'add // []'
 $allHookCount = ($ALL_HOOKS | jq 'length') -as [int]
 if ($allHookCount -gt 0) {
     $hookDir = Join-Path $EXPORT_DIR 'config/hooks'
     if (-not (Test-Path $hookDir)) { New-Item -ItemType Directory -Path $hookDir -Force | Out-Null }
     for ($i = 0; $i -lt $allHookCount; $i++) {
-        $hname = $ALL_HOOKS | jq -r --argjson i $i '.[$i].metadata.name // .[$i].name'
+        $hname = $ALL_HOOKS | Invoke-Jq -Raw -Filter '.[$i].metadata.name // .[$i].name' -ExtraArgs @('--argjson', 'i', "$i")
         $hookJson = $ALL_HOOKS | jq --argjson i $i '.[$i]'
         $hookJson | ConvertTo-Yaml | Set-Content -Path (Join-Path $hookDir "${hname}.yaml") -NoNewline -Encoding utf8
     }
@@ -1357,14 +1392,14 @@ if ($allHookCount -gt 0) {
 }
 
 # ── Common Prompts ──
-$ALL_PROMPTS = @($PROMPTS_FOR_PARAMS, $PROMPTS_FOR_EXTRAS) -join "`n" | jq -sc 'add // []'
+$ALL_PROMPTS = @($PROMPTS_FOR_PARAMS, $PROMPTS_FOR_EXTRAS) -join "`n" | Invoke-Jq -Slurp -Compact -Filter 'add // []'
 $allPromptCount = ($ALL_PROMPTS | jq 'length') -as [int]
 if ($allPromptCount -gt 0) {
     $promptDir = Join-Path $EXPORT_DIR 'config/common-prompts'
     if (-not (Test-Path $promptDir)) { New-Item -ItemType Directory -Path $promptDir -Force | Out-Null }
     for ($i = 0; $i -lt $allPromptCount; $i++) {
-        $pname = $ALL_PROMPTS | jq -r --argjson i $i '.[$i].metadata.name // .[$i].name'
-        $promptText = $ALL_PROMPTS | jq -r --argjson i $i '.[$i].spec.prompt // .[$i].properties.content // .[$i].properties.prompt // ""'
+        $pname = $ALL_PROMPTS | Invoke-Jq -Raw -Filter '.[$i].metadata.name // .[$i].name' -ExtraArgs @('--argjson', 'i', "$i")
+        $promptText = $ALL_PROMPTS | Invoke-Jq -Raw -Filter '.[$i].spec.prompt // .[$i].properties.content // .[$i].properties.prompt // ""' -ExtraArgs @('--argjson', 'i', "$i")
         if ($promptText) {
             [System.IO.File]::WriteAllText((Join-Path $promptDir "${pname}.md"), $promptText)
         }
@@ -1394,7 +1429,7 @@ if ($httpCount -gt 0) {
 }
 
 # ── Plugin Configs ──
-$ALL_PLUGINS = @($PLUGINS_FOR_PARAMS, $PLUGINS_FOR_EXTRAS) -join "`n" | jq -sc 'add // []'
+$ALL_PLUGINS = @($PLUGINS_FOR_PARAMS, $PLUGINS_FOR_EXTRAS) -join "`n" | Invoke-Jq -Slurp -Compact -Filter 'add // []'
 Write-ConfigItems -Dir 'plugin-configs' -ItemsJson $ALL_PLUGINS -NamePath '.metadata.name // .name'
 
 # ── Incident Platforms ──
@@ -1408,7 +1443,7 @@ if ($ipCount -gt 0) {
         $ipJson | ConvertTo-Yaml | Set-Content -Path (Join-Path $ipDir "${ipname}.yaml") -NoNewline -Encoding utf8
 
         # Check if platform needs connectionKey placeholder
-        $ptype = $INCIDENT_PLATFORMS | jq -r --argjson i $i '.[$i].spec.platformType // .[$i].spec.incidentPlatform // ""'
+        $ptype = $INCIDENT_PLATFORMS | Invoke-Jq -Raw -Filter '.[$i].spec.platformType // .[$i].spec.incidentPlatform // ""' -ExtraArgs @('--argjson', 'i', "$i")
         if ($ptype -in @('PagerDuty', 'ServiceNow')) {
             $yamlPath = Join-Path $ipDir "${ipname}.yaml"
             $hasKey = python3 -c @"

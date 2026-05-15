@@ -50,11 +50,12 @@ $ScriptDir = $PSScriptRoot
 $BinDir = Split-Path $ScriptDir -Parent
 $RecipesDir = Join-Path (Split-Path $BinDir -Parent) "recipes"
 
-# Dot-source prereq checker + telemetry
+# Dot-source prereq checker + telemetry + safe jq wrapper
 . (Join-Path $ScriptDir "Check-Prerequisites.ps1")
 if (-not (Test-Prerequisites -IncludePython)) { exit 1 }
 . (Join-Path $ScriptDir "Telemetry.ps1")
 if ($NoTelemetry) { $script:NoTelemetry = $true }
+. (Join-Path $ScriptDir "Invoke-Jq.ps1")
 
 # ─────────────────────────── Parse -Set into hashtable ───────────────────────────
 
@@ -99,7 +100,7 @@ function Get-Recipes {
     foreach ($d in $dirs) {
         $agentJson = Join-Path $d.FullName "agent.json"
         if (Test-Path $agentJson) {
-            $desc = jq -r '._description // "No description"' $agentJson 2>$null
+            $desc = Invoke-Jq -Raw -Filter '._description // "No description"' -InputFile $agentJson
             $result += [PSCustomObject]@{
                 Name        = $d.Name
                 Path        = $d.FullName
@@ -118,7 +119,7 @@ if ($List) {
     $recipes = Get-Recipes
     foreach ($r in $recipes) {
         $agentJson = Join-Path $r.Path "agent.json"
-        $prereqs = jq -r '._prerequisites // [] | map("    - " + .) | join("\n")' $agentJson 2>$null
+        $prereqs = Invoke-Jq -Raw -Filter '._prerequisites // [] | map("    - " + .) | join("\n")' -InputFile $agentJson
         Write-Host "  $($r.Name)" -ForegroundColor White
         Write-Host "    $($r.Description)"
         if ($prereqs) { Write-Host $prereqs }
@@ -168,15 +169,15 @@ if (-not (Test-Path $RecipeAgentJson)) {
 
 Write-Host ""
 Write-Host "── Recipe: $Recipe ──" -ForegroundColor Cyan
-jq -r '._description // ""' $RecipeAgentJson 2>$null | ForEach-Object { Write-Host $_ }
+Invoke-Jq -Raw -Filter '._description // ""' -InputFile $RecipeAgentJson | ForEach-Object { Write-Host $_ }
 Write-Host ""
 
 # ─────────────────────────── Collect inputs ───────────────────────────
 
-$promptsRaw = jq -c '._prompts // {}' $RecipeAgentJson 2>$null
+$promptsRaw = Invoke-Jq -Compact -Filter '._prompts // {}' -InputFile $RecipeAgentJson
 if (-not $promptsRaw) { $promptsRaw = '{}' }
 $Prompts = $promptsRaw | ConvertFrom-Json
-$PromptKeys = jq -r '._prompts // {} | keys[]' $RecipeAgentJson 2>$null
+$PromptKeys = Invoke-Jq -Raw -Filter '._prompts // {} | keys[]' -InputFile $RecipeAgentJson
 $Values = @{}
 
 foreach ($key in $PromptKeys) {
@@ -257,7 +258,7 @@ Copy-Item -Path (Join-Path $RecipeDir "*") -Destination $Output -Recurse -Force
 
 # Remove metadata fields from agent.json (they're template-only)
 $outAgentJson = Join-Path $Output "agent.json"
-$cleaned = jq 'del(._recipe, ._description, ._prerequisites, ._prompts)' $outAgentJson
+$cleaned = jq 'del(._recipe) | del(._description) | del(._prerequisites) | del(._prompts)' $outAgentJson
 if ($LASTEXITCODE -ne 0 -or -not $cleaned) {
     Write-Error "jq failed processing agent.json"; exit 1
 }
@@ -298,9 +299,11 @@ foreach ($file in $templateFiles) {
 # Handle targetRGs in agent.json — ensure it's a proper JSON array
 if ($Values.ContainsKey("targetRGs") -and $Values["targetRGs"]) {
     $trgItems = $Values["targetRGs"] -split "," | ForEach-Object { $_.Trim() }
-    $trgJson = ($trgItems | ForEach-Object { "`"$_`"" }) -join ","
-    $trgJson = "[$trgJson]"
-    $updated = jq --argjson rgs $trgJson '.identity.targetResourceGroups = $rgs' $outAgentJson
+    $trgJson = ConvertTo-Json @($trgItems) -Compress
+    $tmpRgs = [System.IO.Path]::GetTempFileName()
+    Set-Content -Path $tmpRgs -Value $trgJson -NoNewline
+    $updated = Get-Content $outAgentJson -Raw | jq --slurpfile rgs $tmpRgs '.identity.targetResourceGroups = $rgs[0]'
+    Remove-Item $tmpRgs -ErrorAction SilentlyContinue
     $updated | Set-Content -Path $outAgentJson -Encoding UTF8
 }
 

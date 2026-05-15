@@ -57,6 +57,13 @@ $ExtrasFile = "${Output}.extras.json"
 function Write-Log  { param([string]$Msg) Write-Host "  $Msg" }
 function Write-Info { param([string]$Msg) Write-Host "── $Msg ──" }
 
+# ── Load safe jq wrapper (avoids PS 7.3+ argument mangling) ──
+$InvokeJqPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'bin/ps/Invoke-Jq.ps1'
+if (-not (Test-Path $InvokeJqPath)) {
+    $InvokeJqPath = Join-Path $PSScriptRoot '../bin/ps/Invoke-Jq.ps1'
+}
+. $InvokeJqPath
+
 # ── Resolve Python executable (python3 on Windows may be a Store stub) ──
 $Python = $null
 foreach ($candidate in @('python3', 'python')) {
@@ -163,7 +170,11 @@ print(json.dumps(data))
             try {
                 $item = & $Python -c $pyYaml $f.FullName 2>$null
                 if ($LASTEXITCODE -ne 0 -or -not $item) { continue }
-                $items = $items | jq -c --argjson i $item '. + [$i]'
+                # Use --slurpfile to safely pass JSON without --argjson quoting issues
+                $tmpItem = [System.IO.Path]::GetTempFileName()
+                Set-Content -Path $tmpItem -Value $item -NoNewline -Encoding UTF8
+                $items = $items | Invoke-Jq -Compact -Filter '. + [$i[0]]' -ExtraArgs @('--slurpfile', 'i', $tmpItem)
+                Remove-Item $tmpItem -ErrorAction SilentlyContinue
             } catch { continue }
         }
 
@@ -171,12 +182,12 @@ print(json.dumps(data))
         foreach ($f in (Get-ChildItem $full -File -Filter '*.json' -ErrorAction SilentlyContinue)) {
             try {
                 $item = Get-Content $f.FullName -Raw
-                $items = ($items, $item) | jq -sc 'add // []' 2>$null
+                $items = @($items, $item) -join "`n" | Invoke-Jq -Compact -Slurp -Filter 'add // []'
                 if ($LASTEXITCODE -ne 0) { continue }
             } catch { continue }
         }
 
-        $result = ($result, $items) | jq -sc 'add // []'
+        $result = @($result, $items) -join "`n" | Invoke-Jq -Compact -Slurp -Filter 'add // []'
     }
     return $result
 }
@@ -217,18 +228,18 @@ $agentJson = Get-Content (Join-Path $ConfigDir 'agent.json') -Raw
 
 $agentName      = $agentJson | jq -r '.identity.agentName'
 $agentRg        = $agentJson | jq -r '.identity.resourceGroup'
-$agentSub       = $agentJson | jq -r '.identity.subscription // empty'
+$agentSub       = $agentJson | Invoke-Jq -Raw -Filter '.identity.subscription // empty'
 $agentLoc       = $agentJson | jq -r '.identity.location'
-$targetRgs      = $agentJson | jq -c 'if .identity.targetResourceGroups | type == "array" then .identity.targetResourceGroups elif .identity.targetResourceGroups | type == "string" and length > 0 then [.identity.targetResourceGroups | split(",")[] | gsub("^\\s+|\\s+$"; "")] else [] end'
+$targetRgs      = $agentJson | Invoke-Jq -Compact -Filter 'if .identity.targetResourceGroups | type == "array" then .identity.targetResourceGroups elif .identity.targetResourceGroups | type == "string" and length > 0 then [.identity.targetResourceGroups | split(",")[] | gsub("^\\s+|\\s+$"; "")] else [] end'
 $access         = $agentJson | jq -r '.access.accessLevel'
 $action         = $agentJson | jq -r '.access.actionMode'
-$toggles        = $agentJson | jq -c '.toggles // {}'
-$upgradeChannel = $agentJson | jq -r '.upgradeChannel // "Preview"'
-$modelProvider  = $agentJson | jq -r '.defaultModelProvider // "Anthropic"'
-$monthlyLimit   = $agentJson | jq -r '.monthlyAgentUnitLimit // 10000'
-$tags           = $agentJson | jq -c '.tags // {}'
-$existingUami   = $agentJson | jq -r '.existingUamiId // empty'
-$existingAi     = $agentJson | jq -r '.existingAgentAppInsightsId // empty'
+$toggles        = $agentJson | Invoke-Jq -Compact -Filter '.toggles // {}'
+$upgradeChannel = $agentJson | Invoke-Jq -Raw -Filter '.upgradeChannel // "Preview"'
+$modelProvider  = $agentJson | Invoke-Jq -Raw -Filter '.defaultModelProvider // "Anthropic"'
+$monthlyLimit   = $agentJson | Invoke-Jq -Raw -Filter '.monthlyAgentUnitLimit // 10000'
+$tags           = $agentJson | Invoke-Jq -Compact -Filter '.tags // {}'
+$existingUami   = $agentJson | Invoke-Jq -Raw -Filter '.existingUamiId // empty'
+$existingAi     = $agentJson | Invoke-Jq -Raw -Filter '.existingAgentAppInsightsId // empty'
 
 Write-Log "Agent: $agentName ($agentLoc, $agentRg)"
 
@@ -245,8 +256,8 @@ if (Test-Path $connFile -PathType Leaf) {
     if ($LASTEXITCODE -eq 0) {
         $connectors = $rawConn
     } else {
-        $connectorToggles = $rawConn | jq -c '.toggles // {}'
-        $connectors       = $rawConn | jq -c '.connectors // []'
+        $connectorToggles = $rawConn | Invoke-Jq -Compact -Filter '.toggles // {}'
+        $connectors       = $rawConn | Invoke-Jq -Compact -Filter '.connectors // []'
     }
     $connCount = $connectors | jq 'length'
     Write-Log "$connCount connector(s) from connectors.json"
@@ -399,8 +410,22 @@ if ($mdFiles.Count -gt 0) {
     foreach ($mdf in $mdFiles) {
         $fname   = $mdf.Name
         $content = Get-Content $mdf.FullName -Raw
-        $knowledgeItems = $knowledgeItems | jq -c --arg name $fname --arg content $content `
-            '. + [{"name": $name, "type": "KnowledgeText", "content": $content}]'
+        # Build JSON item via Python to avoid jq --arg quoting issues with large content
+        $tmpContent = [System.IO.Path]::GetTempFileName()
+        Set-Content -Path $tmpContent -Value $content -NoNewline -Encoding UTF8
+        $item = & $Python -c @"
+import json, sys
+with open(sys.argv[1]) as f:
+    content = f.read()
+print(json.dumps({"name": sys.argv[2], "type": "KnowledgeText", "content": content}))
+"@ $tmpContent $fname 2>$null
+        Remove-Item $tmpContent -ErrorAction SilentlyContinue
+        if ($LASTEXITCODE -eq 0 -and $item) {
+            $tmpItem = [System.IO.Path]::GetTempFileName()
+            Set-Content -Path $tmpItem -Value $item -NoNewline -Encoding UTF8
+            $knowledgeItems = $knowledgeItems | Invoke-Jq -Compact -Filter '. + [$i[0]]' -ExtraArgs @('--slurpfile', 'i', $tmpItem)
+            Remove-Item $tmpItem -ErrorAction SilentlyContinue
+        }
     }
 }
 

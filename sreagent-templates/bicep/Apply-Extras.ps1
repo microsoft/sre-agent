@@ -48,7 +48,9 @@
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][string]$Subscription,
+    [Parameter(Mandatory)]
+    [Alias('SubscriptionId')]
+    [string]$Subscription,
     [Parameter(Mandatory)][string]$ResourceGroup,
     [Parameter(Mandatory)][string]$AgentName,
     [string]$ExtrasFile = "extras.parameters.json",
