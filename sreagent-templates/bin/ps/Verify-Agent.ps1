@@ -87,7 +87,7 @@ function Get-Exp {
 function Get-ExpList {
     param([string]$JqPath)
     if ($ExpectedConfig) {
-        return ($ExpectedConfig | Invoke-Jq -Raw -Filter "$JqPath // [] | sort | join(`,`)")
+        return ($ExpectedConfig | Invoke-Jq -Raw -Filter "$JqPath // [] | sort | join(`",`")")
     }
     return ''
 }
