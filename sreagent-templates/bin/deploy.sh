@@ -215,10 +215,16 @@ az deployment sub create \
   --name "$NAME" \
   --template-file "$TEMPLATE" \
   --parameters "@${FILE}" \
-  --output json | tee "$TMP"
+  --output json > "$TMP" 2>&1
+AZ_RC=$?
+cat "$TMP"
 
 # ── Post-deploy: print key links ──
 STATE=$(jq -r '.properties.provisioningState // "?"' "$TMP" 2>/dev/null || echo "Failed")
+# If az exited non-zero but jq can't parse the output, fall back to querying ARM
+if [[ "$STATE" == "?" && $AZ_RC -ne 0 ]]; then
+  STATE=$(az deployment sub show -n "$NAME" --query 'properties.provisioningState' -o tsv 2>/dev/null || echo "Failed")
+fi
 if [[ "$STATE" != "Succeeded" ]]; then
   echo
   echo "══════════ Deployment FAILED ══════════"
