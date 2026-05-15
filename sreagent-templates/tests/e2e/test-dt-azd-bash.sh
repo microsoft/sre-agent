@@ -9,11 +9,11 @@ DT_TENANT="dhu66396"
 DT_TOKEN="${DT_TOKEN:?Set DT_TOKEN}"
 REGION="swedencentral"
 
-AGENT="dt-azd-bash"
-RG="rg-dt-azd-bash"
+AGENT="dt-azd-bash2"
+RG="rg-dt-azd-bash2"
 DIR="/tmp/e2e-dt-azd-bash"
-CLONE_AGENT="dt-azd-bash-cl"
-CLONE_RG="rg-dt-azd-bash-cl"
+CLONE_AGENT="dt-azd-bash2-cl"
+CLONE_RG="rg-dt-azd-bash2-cl"
 LOG="/tmp/e2e-dt-azd-bash.log"
 
 PASS=0; FAIL=0; RESULTS=()
@@ -39,7 +39,6 @@ echo "=== STEP 1: new-agent ==="
   --set lawId="$LAW_CONTOSO" \
   --set dtTenant="$DT_TENANT" \
   --set dtToken="$DT_TOKEN" \
-  --set githubRepo=dm-chelupati/contoso-trading \
   -o "$DIR/"
 record "new-agent" $?
 

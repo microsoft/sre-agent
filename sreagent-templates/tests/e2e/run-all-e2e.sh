@@ -5,7 +5,7 @@ set -o pipefail
 REPORT="/tmp/e2e-all-results.txt"
 > "$REPORT"
 
-SCRIPTS=(
+ALL_SCRIPTS=(
   test-azmon-bicep-bash.sh
   test-azmon-bicep-ps.sh
   test-azmon-tf-bash.sh
@@ -22,6 +22,13 @@ SCRIPTS=(
   test-dt-tf-ps.sh
   test-dt-azd-bash.sh
 )
+
+# Filter: SKIP_PS=1 excludes PowerShell tests
+SCRIPTS=()
+for s in "${ALL_SCRIPTS[@]}"; do
+  if [[ "${SKIP_PS:-0}" == "1" && "$s" == *-ps.sh ]]; then continue; fi
+  SCRIPTS+=("$s")
+done
 
 TOTAL=0; PASS=0; FAIL=0
 declare -a SUMMARY

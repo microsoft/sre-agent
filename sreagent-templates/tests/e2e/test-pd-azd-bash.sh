@@ -7,11 +7,11 @@ SUB="cbf44432-7f45-4906-a85d-d2b14a1e8328"
 LAW_EBC="/subscriptions/$SUB/resourceGroups/rg-ebc-demo3/providers/Microsoft.OperationalInsights/workspaces/law-ebc-demo3"
 REGION="swedencentral"
 
-AGENT="pd-azd-bash"
-RG="rg-pd-azd-bash"
+AGENT="pd-azd-bash2"
+RG="rg-pd-azd-bash2"
 DIR="/tmp/e2e-pd-azd-bash"
-CLONE_AGENT="pd-azd-bash-cl"
-CLONE_RG="rg-pd-azd-bash-cl"
+CLONE_AGENT="pd-azd-bash2-cl"
+CLONE_RG="rg-pd-azd-bash2-cl"
 LOG="/tmp/e2e-pd-azd-bash.log"
 
 PASS=0; FAIL=0; RESULTS=()

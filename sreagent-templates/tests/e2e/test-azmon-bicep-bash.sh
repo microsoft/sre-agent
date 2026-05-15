@@ -9,11 +9,11 @@ AI_ID="/subscriptions/$SUB/resourceGroups/rg-contoso-swe/providers/microsoft.ins
 AI_APPID="3b50188a-a191-4f74-994a-2e7ed8afc018"
 REGION="swedencentral"
 
-AGENT="azmon-bicep-bash"
-RG="rg-azmon-bicep-bash"
+AGENT="azmon-bicep-bash2"
+RG="rg-azmon-bicep-bash2"
 DIR="/tmp/e2e-azmon-bicep-bash"
-CLONE_AGENT="azmon-bicep-bash-cl"
-CLONE_RG="rg-azmon-bicep-bash-cl"
+CLONE_AGENT="azmon-bicep-bash2-cl"
+CLONE_RG="rg-azmon-bicep-bash2-cl"
 LOG="/tmp/e2e-azmon-bicep-bash.log"
 
 PASS=0; FAIL=0; RESULTS=()
@@ -39,7 +39,6 @@ echo "=== STEP 1: new-agent ==="
   --set lawId="$LAW_CONTOSO" \
   --set appInsightsId="$AI_ID" \
   --set appInsightsAppId="$AI_APPID" \
-  --set githubRepo=dm-chelupati/contoso-trading \
   -o "$DIR/"
 record "new-agent" $?
 
