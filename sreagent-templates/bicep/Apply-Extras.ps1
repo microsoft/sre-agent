@@ -210,7 +210,7 @@ function DataPlane-UploadTarball {
             "Content-Type" = "application/gzip"
         }
         $bytes = [System.IO.File]::ReadAllBytes($tarball)
-        $null = Invoke-RestMethod -Uri $Url -Method Post -Headers $headers -Body $bytes
+        $null = Invoke-RestMethod -TimeoutSec 30 -Uri $Url -Method Post -Headers $headers -Body $bytes
         Write-Host "    ok"
     } catch {
         Write-Host "    FAILED - POST $Url"
@@ -254,7 +254,7 @@ function DataPlane-UploadMultipart {
 
         $fullUrl = "${Url}?triggerIndexing=$Trigger"
         $headers = @{ Authorization = "Bearer $token" }
-        $null = Invoke-WebRequest -Uri $fullUrl -Method Post `
+        $null = Invoke-WebRequest -TimeoutSec 30 -Uri $fullUrl -Method Post `
             -Headers $headers `
             -ContentType "multipart/form-data; boundary=$boundary" `
             -Body $bodyArray
@@ -280,7 +280,7 @@ function DataPlane-PostJson {
             "Content-Type" = "application/json"
         }
         $bodyJson = $BodyObj | ConvertTo-Json -Compress -Depth 20
-        $null = Invoke-RestMethod -Uri $Url -Method Post -Headers $headers -Body $bodyJson -ContentType "application/json"
+        $null = Invoke-RestMethod -TimeoutSec 30 -Uri $Url -Method Post -Headers $headers -Body $bodyJson -ContentType "application/json"
         Write-Host "    ok"
     } catch {
         Write-Host "    FAILED - POST $Url"
@@ -304,7 +304,7 @@ function DataPlane-PutExtended {
             Authorization  = "Bearer $token"
             "Content-Type" = "application/json"
         }
-        $null = Invoke-RestMethod -Uri $url -Method Put -Headers $headers -Body $body -ContentType "application/json"
+        $null = Invoke-RestMethod -TimeoutSec 30 -Uri $url -Method Put -Headers $headers -Body $body -ContentType "application/json"
         Write-Host "  ok $Kind/$Name"
     } catch {
         Write-Host "  FAILED - PUT $Kind/$Name"
@@ -408,7 +408,7 @@ if ($ifCount -gt 0) {
                         Authorization  = "Bearer $token"
                         "Content-Type" = "application/json"
                     }
-                    $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/extendedAgent/incidentFilters/$encodedName" `
+                    $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/extendedAgent/incidentFilters/$encodedName" `
                         -Method Put -Headers $headers -Body $body -ContentType "application/json"
                     Write-Host "  data-plane PUT incidentFilters/$name"
                     Write-Host "    ok"
@@ -446,7 +446,7 @@ if ($ifCount -gt 0) {
                             Authorization  = "Bearer $token"
                             "Content-Type" = "application/json"
                         }
-                        $resp = Invoke-WebRequest -Uri "$AgentEndpoint/api/v1/incidentPlayground/handlers/$name" `
+                        $resp = Invoke-WebRequest -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/incidentPlayground/handlers/$name" `
                             -Method Put -Headers $headers -Body $handlerBody -ContentType "application/json" `
                             -UseBasicParsing
                         $httpCode = $resp.StatusCode
@@ -649,7 +649,7 @@ if ($synthDir -and (Test-Path $synthDir -PathType Container)) {
                     "Content-Type" = "application/gzip"
                 }
                 $bytes = [System.IO.File]::ReadAllBytes($tarball)
-                $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/WorkspaceMemory/synthesized-knowledge" `
+                $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/WorkspaceMemory/synthesized-knowledge" `
                     -Method Post -Headers $headers -Body $bytes
                 Write-Host "    ok"
             } catch {
@@ -837,7 +837,7 @@ if ($htCount -gt 0) {
         $token = Get-DpToken
         $headers = @{ Authorization = "Bearer $token" }
         try {
-            $existingTriggers = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/httpTriggers" -Headers $headers
+            $existingTriggers = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/httpTriggers" -Headers $headers
         } catch {
             $existingTriggers = @()
         }
@@ -861,7 +861,7 @@ if ($htCount -gt 0) {
                 if (-not $HttpTriggerUrl) { $HttpTriggerUrl = $existingUrl }
             } else {
                 try {
-                    $resp = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/httptriggers/create" `
+                    $resp = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/httptriggers/create" `
                         -Method Post -Headers $headers -Body $bodyJson -ContentType "application/json"
                     $triggerUrl = if ($resp.triggerUrl) { $resp.triggerUrl } else { "created" }
                     Write-Host "  httpTrigger/${name}: $triggerUrl"
@@ -975,7 +975,7 @@ if ($DpTokenAvailable) {
                 "Content-Type" = "application/json"
             }
             $body = @{ accessToken = $env:GITHUB_PAT } | ConvertTo-Json -Compress
-            $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/Github/auth/pat" `
+            $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/auth/pat" `
                 -Method Post -Headers $headers -Body $body -ContentType "application/json"
             Write-Host "  ok"
         } catch {
@@ -995,7 +995,7 @@ if ($DpTokenAvailable) {
                 "Content-Type" = "application/json"
             }
             $body = @{ accessToken = $env:ADO_PAT } | ConvertTo-Json -Compress
-            $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/AzureDevOps/auth/pat?organization=$($env:ADO_ORG)" `
+            $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/AzureDevOps/auth/pat?organization=$($env:ADO_ORG)" `
                 -Method Post -Headers $headers -Body $body -ContentType "application/json"
             Write-Host "  ok"
         } catch {
@@ -1014,7 +1014,7 @@ if ($DpTokenAvailable) {
                 "Content-Type" = "application/json"
             }
             $body = @{ aadAccessToken = $aadToken } | ConvertTo-Json -Compress
-            $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/AzureDevOps/aadauth/complete?organization=$($env:ADO_ORG)" `
+            $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/AzureDevOps/aadauth/complete?organization=$($env:ADO_ORG)" `
                 -Method Post -Headers $headers -Body $body -ContentType "application/json"
             Write-Host "  ok"
         } catch {
@@ -1028,7 +1028,7 @@ if ($DpTokenAvailable) {
         try {
             $token = Get-DpToken
             $headers = @{ Authorization = "Bearer $token" }
-            $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/AzureDevOps/auth/mi?organization=$($env:ADO_ORG)" `
+            $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/AzureDevOps/auth/mi?organization=$($env:ADO_ORG)" `
                 -Method Post -Headers $headers
             Write-Host "  ok"
         } catch {
@@ -1047,7 +1047,7 @@ if ($DpTokenAvailable) {
         if ($token) {
             try {
                 $headers = @{ Authorization = "Bearer $token" }
-                $ghStatus = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/Github/auth/status" -Headers $headers
+                $ghStatus = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/auth/status" -Headers $headers
                 $ghConfigured = ($ghStatus.isConfigured -eq $true) -or ($ghStatus.hosts[0].isConfigured -eq $true)
             } catch { }
         }
@@ -1076,7 +1076,7 @@ if ($DpTokenAvailable) {
                     Authorization  = "Bearer $token"
                     "Content-Type" = "application/json"
                 }
-                $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
+                $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
                     -Method Put -Headers $headers -Body $connBody -ContentType "application/json"
                 Write-Host "  ok connector/github (GitHubOAuth, identity=$($ident.Split('/')[-1]))"
             } catch {
@@ -1106,7 +1106,7 @@ if ($DpTokenAvailable) {
                 } | ConvertTo-Json -Compress -Depth 10
                 $encodedRname = [uri]::EscapeDataString($rname)
                 try {
-                    $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/repos/$encodedRname" `
+                    $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/repos/$encodedRname" `
                         -Method Put -Headers $headers -Body $rbody -ContentType "application/json"
                     Write-Host "  ok repo/$rname ($rurl)"
                 } catch {
@@ -1122,7 +1122,7 @@ if ($DpTokenAvailable) {
             if ($token) {
                 try {
                     $headers = @{ Authorization = "Bearer $token" }
-                    $ghConfig = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/Github/config" -Headers $headers
+                    $ghConfig = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/config" -Headers $headers
                     $oauthUrl = if ($ghConfig.oAuthUrl) { $ghConfig.oAuthUrl } elseif ($ghConfig.OAuthUrl) { $ghConfig.OAuthUrl } else { $null }
                 } catch { }
             }
@@ -1138,7 +1138,7 @@ if ($DpTokenAvailable) {
                     try {
                         $token = Get-DpToken
                         $headers = @{ Authorization = "Bearer $token" }
-                        $ghCheck = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/Github/auth/status" -Headers $headers
+                        $ghCheck = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/auth/status" -Headers $headers
                         if ($ghCheck.isConfigured -eq $true -or ($ghCheck.hosts -and $ghCheck.hosts[0].isConfigured -eq $true)) {
                             Write-Host "  GitHub authorized!"
                             $authOk = $true
@@ -1164,7 +1164,7 @@ if ($DpTokenAvailable) {
                         properties = @{ dataConnectorType = "GitHubOAuth"; dataSource = "github-oauth"; identity = $ident }
                     } | ConvertTo-Json -Compress -Depth 10
                     try {
-                        $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
+                        $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
                             -Method Put -Headers $headers -Body $connBody -ContentType "application/json"
                         Write-Host "  ok connector/github"
                     } catch {
@@ -1185,7 +1185,7 @@ if ($DpTokenAvailable) {
                         } | ConvertTo-Json -Compress -Depth 10
                         $encodedRname = [uri]::EscapeDataString($rname)
                         try {
-                            $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/repos/$encodedRname" `
+                            $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/repos/$encodedRname" `
                                 -Method Put -Headers $headers -Body $rbody -ContentType "application/json"
                             Write-Host "  ok repo/$rname"
                         } catch {
