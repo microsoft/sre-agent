@@ -184,18 +184,18 @@ $Props = $AgentJson | Invoke-Jq -Compact -Filter '{
 }'
 
 Add-Check 'Agent exists'       'yes'                                             'yes'
-Add-Check 'Access level'       ($Props | jq -r '.accessLevel')                   (Get-Exp '.agent.accessLevel')
-Add-Check 'Action mode'        ($Props | jq -r '.mode')                          (Get-Exp '.agent.actionMode')
-Add-Check 'Upgrade channel'    ($Props | jq -r '.upgradeChannel')                (Get-Exp '.agent.upgradeChannel')
-Add-Check 'Model provider'     ($Props | jq -r '.modelProvider')                 (Get-Exp '.agent.defaultModelProvider')
-Add-Check 'Incident platform'  ($Props | jq -r '.incidentPlatform')              (Get-Exp '.agent.incidentPlatform')
+Add-Check 'Access level'       ($Props | Invoke-Jq -Raw -Filter '.accessLevel')       (Get-Exp '.agent.accessLevel')
+Add-Check 'Action mode'        ($Props | Invoke-Jq -Raw -Filter '.mode')            (Get-Exp '.agent.actionMode')
+Add-Check 'Upgrade channel'    ($Props | Invoke-Jq -Raw -Filter '.upgradeChannel')  (Get-Exp '.agent.upgradeChannel')
+Add-Check 'Model provider'     ($Props | Invoke-Jq -Raw -Filter '.modelProvider')   (Get-Exp '.agent.defaultModelProvider')
+Add-Check 'Incident platform'  ($Props | Invoke-Jq -Raw -Filter '.incidentPlatform') (Get-Exp '.agent.incidentPlatform')
 
 # ─────────────────────────── Connectors (ARM) ───────────────────────────
 
 $Connectors   = Invoke-Arm '/DataConnectors'
-$ConnCt       = $Connectors | jq '.value | length'
+$ConnCt       = $Connectors | Invoke-Jq -Filter '.value | length'
 $ConnHealthy  = $Connectors | Invoke-Jq -Filter '[.value[] | select(.properties.provisioningState == "Succeeded")] | length'
-$ConnNames    = ($Connectors | jq -r '.value[].name' 2>$null | Sort-Object) -join ','
+$ConnNames    = ($Connectors | Invoke-Jq -Raw -Filter '.value[].name' | Sort-Object) -join ','
 $ExpConnCt    = Get-Exp '.connectors | length'
 $ExpConnNames = Get-ExpList '[.connectors[].name]'
 
@@ -226,9 +226,9 @@ if ($ExpSkillNames) {
 # ─────────────────────────── Subagents ───────────────────────────
 
 $Subagents = Invoke-Dp '/api/v2/extendedAgent/agents'
-$SaCt      = $Subagents | jq '.value | length' 2>$null
+$SaCt      = $Subagents | Invoke-Jq -Filter '.value | length'
 if (-not $SaCt) { $SaCt = '0' }
-$SaNames    = ($Subagents | jq -r '.value[].name' 2>$null | Sort-Object) -join ','
+$SaNames    = ($Subagents | Invoke-Jq -Raw -Filter '.value[].name' | Sort-Object) -join ','
 $ExpSaCt    = Get-Exp '.subagents | length'
 $ExpSaNames = Get-ExpList '.subagents'
 
