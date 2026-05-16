@@ -1148,21 +1148,26 @@ if ($DpTokenAvailable) {
                 Write-Host ""
                 Write-Host "  Waiting for GitHub authorization (Ctrl-C to skip)..."
                 $authOk = $false
+                $ident = if ($AgentUami) { $AgentUami } else { "SystemAssigned" }
+                $connBody = @{
+                    name = "github"; type = "AgentConnector"
+                    properties = @{ dataConnectorType = "GitHubOAuth"; dataSource = "github-oauth"; identity = $ident }
+                } | ConvertTo-Json -Compress -Depth 10
                 for ($attempt = 1; $attempt -le 24; $attempt++) {
                     Start-Sleep -Seconds 10
                     try {
                         $token = Get-DpToken
-                        $headers = @{ Authorization = "Bearer $token" }
-                        # Poll /config: before OAuth it returns {oAuthUrl:"..."}; after OAuth oAuthUrl is absent
-                        $ghCfg = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/config" -Headers $headers
-                        $cfgJson = $ghCfg | ConvertTo-Json -Depth 10 -Compress
-                        $hasOAuthUrl = $cfgJson -match '"oAuthUrl"'
-                        $isConfigured = $cfgJson -match '"isConfigured"\s*:\s*true'
-                        if ($isConfigured -or -not $hasOAuthUrl) {
-                            Write-Host "  GitHub authorized!"
-                            $authOk = $true
-                            break
+                        $headers = @{
+                            Authorization  = "Bearer $token"
+                            "Content-Type" = "application/json"
                         }
+                        # Try creating the connector — succeeds once OAuth is done, throws until then
+                        $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
+                            -Method Put -Headers $headers -Body $connBody -ContentType "application/json"
+                        Write-Host "  GitHub authorized!"
+                        Write-Host "  ok connector/github"
+                        $authOk = $true
+                        break
                     } catch { }
                     Write-Host "  ... waiting ($($attempt * 10)/240s)" -NoNewline
                     Write-Host "`r" -NoNewline
@@ -1170,24 +1175,12 @@ if ($DpTokenAvailable) {
                 Write-Host ""
 
                 if ($authOk) {
-                    # Re-enter the OAuth-done path: create connector + repos
-                    Write-Host "-- Wiring GitHub connector + repos --"
-                    $ident = if ($AgentUami) { $AgentUami } else { "SystemAssigned" }
+                    # Connector already created in polling loop — wire repos only
+                    Write-Host "-- Wiring GitHub repos --"
                     $token = Get-DpToken
                     $headers = @{
                         Authorization  = "Bearer $token"
                         "Content-Type" = "application/json"
-                    }
-                    $connBody = @{
-                        name = "github"; type = "AgentConnector"
-                        properties = @{ dataConnectorType = "GitHubOAuth"; dataSource = "github-oauth"; identity = $ident }
-                    } | ConvertTo-Json -Compress -Depth 10
-                    try {
-                        $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
-                            -Method Put -Headers $headers -Body $connBody -ContentType "application/json"
-                        Write-Host "  ok connector/github"
-                    } catch {
-                        Write-Host "  FAILED connector/github"
                     }
                     foreach ($repo in $repos) {
                         $rname = $repo.name
