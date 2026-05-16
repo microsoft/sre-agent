@@ -1153,9 +1153,12 @@ if ($DpTokenAvailable) {
                     try {
                         $token = Get-DpToken
                         $headers = @{ Authorization = "Bearer $token" }
-                        $ghCheck = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/auth/status" -Headers $headers
-                        $ghJson = $ghCheck | ConvertTo-Json -Depth 10 -Compress
-                        if ($ghJson -match '"isConfigured"\s*:\s*true') {
+                        # Poll /config: before OAuth it returns {oAuthUrl:"..."}; after OAuth oAuthUrl is absent
+                        $ghCfg = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/config" -Headers $headers
+                        $cfgJson = $ghCfg | ConvertTo-Json -Depth 10 -Compress
+                        $hasOAuthUrl = $cfgJson -match '"oAuthUrl"'
+                        $isConfigured = $cfgJson -match '"isConfigured"\s*:\s*true'
+                        if ($isConfigured -or -not $hasOAuthUrl) {
                             Write-Host "  GitHub authorized!"
                             $authOk = $true
                             break
