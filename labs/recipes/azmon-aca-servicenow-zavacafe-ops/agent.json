@@ -1,0 +1,107 @@
+{
+  "_scenario": "azmon-aca-servicenow-zavacafe-ops",
+  "_description": "SRE agent for the Zava Café demo workload — an ASP.NET app on Azure Container Apps backed by Azure SQL. The primary subagent is a SQL performance investigator that triages DTU spikes, slow queries, and blocking chains, then applies fixes (CREATE INDEX / KILL) gated by an AI-powered change-risk hook with human-in-the-loop approval. Two deployment-validator subagents validate releases (Azure DevOps and GitHub Actions paths). Native ServiceNow + Azure Monitor incident platforms.",
+  "_prerequisites": [
+    "Azure subscription with SRE Agent RP access",
+    "Azure Container Apps environment running the Zava Café workload",
+    "Azure SQL Database (server FQDN + database name)",
+    "Application Insights resource for the workload",
+    "Log Analytics workspace",
+    "Azure Monitor alert rules (recipe expects: alert-zavacafe-sql-dtu, alert-zavacafe-http-5xx, alert-zavacafe-sql-blocking)",
+    "ServiceNow instance for incident documentation",
+    "(Optional) Azure DevOps org + PAT for AssessChangeRisk + change-risk hook"
+  ],
+  "_prompts": {
+    "agentName": {
+      "ask": "Agent name",
+      "default": "zavacafe-ops-agent"
+    },
+    "resourceGroup": {
+      "ask": "Resource group (where the agent will live)",
+      "default": "rg-zavacafe-ops"
+    },
+    "location": {
+      "ask": "Region",
+      "options": ["eastus2", "swedencentral", "uksouth", "australiaeast"],
+      "default": "eastus2",
+      "required": true
+    },
+    "WORKLOAD_NAME": {
+      "ask": "Workload short name (used in tags + dashboard titles)",
+      "default": "zava-cafe"
+    },
+    "AZURE_RESOURCE_GROUP": {
+      "ask": "Workload resource group (the one running the ACA app + SQL)",
+      "required": true
+    },
+    "AZURE_SQL_SERVER_FQDN": {
+      "ask": "Azure SQL server FQDN (e.g. sql-zavacafe.database.windows.net)",
+      "required": true
+    },
+    "AZURE_SQL_DATABASE": {
+      "ask": "Azure SQL database name",
+      "default": "zava"
+    },
+    "ALERT_EMAIL": {
+      "ask": "Email for high-severity escalations (action group + summary recipient)",
+      "required": true
+    },
+    "appInsightsId": {
+      "ask": "Application Insights resource ID for the workload",
+      "required": true
+    },
+    "appInsightsAppId": {
+      "ask": "Application Insights App ID (GUID)",
+      "required": true
+    },
+    "lawResourceId": {
+      "ask": "Log Analytics workspace resource ID",
+      "required": true
+    },
+    "snowInstance": {
+      "ask": "ServiceNow instance hostname (e.g. dev123456 — without .service-now.com)",
+      "required": true
+    },
+    "ADO_ORG_URL": {
+      "ask": "Azure DevOps org URL for AssessChangeRisk (e.g. https://dev.azure.com/myorg). Leave blank to skip ADO change-risk lookups.",
+      "default": ""
+    },
+    "modelProvider": {
+      "ask": "AI model provider",
+      "options": ["Anthropic", "GitHubCopilot", "MicrosoftFoundry"],
+      "default": "Anthropic"
+    },
+    "existingUamiId": {
+      "ask": "Existing UAMI resource ID (leave blank to create new)",
+      "default": ""
+    },
+    "existingAgentAppInsightsId": {
+      "ask": "Existing App Insights resource ID for agent telemetry (leave blank to create new)",
+      "default": ""
+    }
+  },
+  "identity": {
+    "agentName": "{{agentName}}",
+    "resourceGroup": "{{resourceGroup}}",
+    "subscription": "",
+    "location": "{{location}}",
+    "targetResourceGroups": "{{AZURE_RESOURCE_GROUP}}"
+  },
+  "access": {
+    "accessLevel": "High",
+    "actionMode": "Autonomous"
+  },
+  "upgradeChannel": "Preview",
+  "defaultModelProvider": "{{modelProvider}}",
+  "monthlyAgentUnitLimit": 15000,
+  "tags": {
+    "scenario": "zavacafe-ops",
+    "workload": "{{WORKLOAD_NAME}}"
+  },
+  "toggles": {
+    "enableWebhookBridge": true,
+    "webhookBridgeTriggerUrl": ""
+  },
+  "existingUamiId": "{{existingUamiId}}",
+  "existingAgentAppInsightsId": "{{existingAgentAppInsightsId}}"
+}

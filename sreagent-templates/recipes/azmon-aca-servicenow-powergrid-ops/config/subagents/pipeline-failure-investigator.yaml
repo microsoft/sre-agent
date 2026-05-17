@@ -1,0 +1,15 @@
+metadata:
+  name: pipeline-failure-investigator
+spec:
+  instructions: subagents/pipeline-failure-investigator.instructions.md
+  handoffDescription: Investigates ADO Build/Release pipeline failures with auto-recovery,
+    escalates to SNOW + on-call only when auto-recovery is exhausted.
+  handoffs: []
+  tools:
+  - CreateServiceNowIncident
+  - UpdateServiceNowWorkNotes
+  - LookupServiceNowIncident
+  agentType: Autonomous
+  temperature: 0.2
+  enableSkills: true
+  allowedSkills: []

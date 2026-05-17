@@ -1,0 +1,167 @@
+# ═══════════════════════════════════════════════════════════════
+# Zava Power Limited — Build Pipeline
+# ═══════════════════════════════════════════════════════════════
+# Builds container images and pushes to ACR.
+# Triggered on push to main or manually.
+# SRE Agent tracks this as the BUILD pipeline in Release Management.
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - src/*
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - src/*
+
+parameters:
+  - name: services
+    displayName: 'Services to build (comma-separated, or "all")'
+    type: string
+    default: 'all'
+
+variables:
+  acrName: 'acrpowergrid'
+
+stages:
+  - stage: Build
+    displayName: 'Build Container Images'
+    jobs:
+      - job: BuildImages
+        displayName: 'Build & Push to ACR'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: 'Build outage-api'
+            condition: or(contains('${{ parameters.services }}', 'all'), contains('${{ parameters.services }}', 'outage-api'))
+            inputs:
+              azureSubscription: 'zava-pl-azure'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az acr build --registry $(acrName) \
+                  --image outage-api:$(Build.BuildId) \
+                  --image outage-api:latest \
+                  --file src/outage-api/Dockerfile \
+                  src/outage-api/ --no-logs
+
+          - task: AzureCLI@2
+            displayName: 'Build meter-api'
+            condition: or(contains('${{ parameters.services }}', 'all'), contains('${{ parameters.services }}', 'meter-api'))
+            inputs:
+              azureSubscription: 'zava-pl-azure'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az acr build --registry $(acrName) \
+                  --image meter-api:$(Build.BuildId) \
+                  --image meter-api:latest \
+                  --file src/meter-api/Dockerfile \
+                  src/meter-api/ --no-logs
+
+          - task: AzureCLI@2
+            displayName: 'Build grid-status-api'
+            condition: or(contains('${{ parameters.services }}', 'all'), contains('${{ parameters.services }}', 'grid-status-api'))
+            inputs:
+              azureSubscription: 'zava-pl-azure'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az acr build --registry $(acrName) \
+                  --image grid-status-api:$(Build.BuildId) \
+                  --image grid-status-api:latest \
+                  --file src/grid-status-api/Dockerfile \
+                  src/grid-status-api/ --no-logs
+
+          - task: AzureCLI@2
+            displayName: 'Build notification-svc'
+            condition: or(contains('${{ parameters.services }}', 'all'), contains('${{ parameters.services }}', 'notification-svc'))
+            inputs:
+              azureSubscription: 'zava-pl-azure'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az acr build --registry $(acrName) \
+                  --image notification-svc:$(Build.BuildId) \
+                  --image notification-svc:latest \
+                  --file src/notification-svc/Dockerfile \
+                  src/notification-svc/ --no-logs
+
+          - task: AzureCLI@2
+            displayName: 'Build portal-web'
+            condition: or(contains('${{ parameters.services }}', 'all'), contains('${{ parameters.services }}', 'portal-web'))
+            inputs:
+              azureSubscription: 'zava-pl-azure'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az acr build --registry $(acrName) \
+                  --image portal-web:$(Build.BuildId) \
+                  --image portal-web:latest \
+                  --file src/portal-web/Dockerfile \
+                  src/portal-web/ --no-logs
+
+  - stage: Test
+    displayName: 'Validate Builds'
+    dependsOn: Build
+    jobs:
+      - job: ValidateServices
+        displayName: 'Run Service Tests'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+
+          - task: UsePythonVersion@0
+            displayName: 'Setup Python'
+            inputs:
+              versionSpec: '3.12'
+
+          - script: |
+              cd src/outage-api
+              pip install -r requirements.txt --quiet
+              python -c "
+              from app import app
+              client = app.test_client()
+              r = client.get('/health')
+              assert r.status_code == 200, f'Health failed: {r.status_code}'
+              print('✅ outage-api: health OK')
+              r = client.get('/outages')
+              assert r.status_code == 200, f'Outages failed: {r.status_code}'
+              print('✅ outage-api: outages OK')
+              "
+            displayName: 'Test outage-api'
+
+          - task: UseDotNet@2
+            displayName: 'Setup .NET 8'
+            inputs:
+              packageType: sdk
+              version: '8.0.x'
+
+          - script: |
+              cd src/meter-api
+              dotnet build --configuration Release --nologo -v q
+              echo "✅ meter-api: builds OK"
+            displayName: 'Test meter-api'
+
+          - script: |
+              cd src/grid-status-api
+              npm ci --production --silent
+              echo "✅ grid-status-api: deps OK"
+            displayName: 'Test grid-status-api'
+
+          - script: |
+              cd src/notification-svc
+              go build -o /dev/null .
+              echo "✅ notification-svc: builds OK"
+            displayName: 'Test notification-svc'

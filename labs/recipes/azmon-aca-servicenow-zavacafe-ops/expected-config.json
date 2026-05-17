@@ -1,0 +1,44 @@
+{
+  "_scenario": "azmon-aca-servicenow-zavacafe-ops",
+  "agent": {
+    "accessLevel": "High",
+    "actionMode": "Autonomous",
+    "upgradeChannel": "Preview",
+    "defaultModelProvider": "Anthropic",
+    "incidentPlatform": "AzureMonitor"
+  },
+  "connectors": [
+    { "name": "app-insights", "type": "AppInsights" },
+    { "name": "log-analytics", "type": "LogAnalytics" },
+    { "name": "azure-monitor", "type": "AzureMonitor" }
+  ],
+  "skills": [
+    "sql-blocking-diagnosis",
+    "sql-blocking-fix",
+    "sql-performance-fix",
+    "sql-query-diagnosis"
+  ],
+  "subagents": [
+    "sql-performance-investigator",
+    "deployment-validator",
+    "deployment-validator-gh"
+  ],
+  "hooks": [
+    "change-risk-assessor",
+    "sql-write-guard"
+  ],
+  "tools": [
+    "AssessChangeRisk"
+  ],
+  "commonPrompts": [],
+  "scheduledTasks": [
+    "weekly-cost-report"
+  ],
+  "responsePlans": [
+    {
+      "name": "auto-investigate-azmon",
+      "handlingAgent": "sql-performance-investigator"
+    }
+  ],
+  "repos": []
+}

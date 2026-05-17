@@ -1,0 +1,30 @@
+api: 1
+name: zava-infra-perf-drift
+displayName: Zava Infra — VM + CosmosDB Performance Drift
+description: Linux VM workload talking to CosmosDB with Azure Monitor alerts. Inject VM CPU pressure or DB-side faults; SRE Agent diagnoses and remediates.
+tags:
+  - vm
+  - cosmosdb
+  - perf
+  - azure-monitor
+
+prereqs:
+  - az
+  - azd
+
+prompts: []
+
+scenarios:
+  - id: vm-pressure
+    label: VM CPU/disk pressure
+    description: Drives VM utilization above thresholds; agent investigates via Azure Monitor + VM insights.
+    runner: scripts/break-vm.sh
+    minutes: 6
+    needs: []
+
+  - id: db-fault
+    label: CosmosDB throttling / fault
+    description: Triggers throughput throttling or a config drift on the CosmosDB account; agent diagnoses and proposes scale/config fix.
+    runner: scripts/break-db.sh
+    minutes: 6
+    needs: []

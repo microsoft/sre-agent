@@ -1,0 +1,48 @@
+#requires -Version 7.0
+<#
+preprovision hook for {{LAB_DISPLAY_NAME}}.
+  1. Verify prerequisites declared in lab.yaml
+  2. Collect any prompts declared in lab.yaml that aren't already in azd env
+#>
+$ErrorActionPreference = 'Stop'
+$labRoot = Split-Path $PSScriptRoot -Parent
+$labYaml = Join-Path $labRoot 'lab.yaml'
+$helper  = Join-Path (Split-Path $labRoot -Parent) '_platform/helpers/manifest.py'
+
+if (-not (Test-Path $labYaml)) { Write-Host "  (no lab.yaml — skipping manifest checks)" -ForegroundColor DarkGray; return }
+$manifest = & python $helper read $labRoot | ConvertFrom-Json
+if ($manifest._validationErrors) {
+    Write-Host "`n  ✗ lab.yaml has validation errors:" -ForegroundColor Red
+    $manifest._validationErrors | ForEach-Object { Write-Host "    - $_" -ForegroundColor Red }
+    exit 1
+}
+
+# ── Prerequisites ──
+$missing = @()
+foreach ($t in @($manifest.prereqs)) {
+    if (-not (Get-Command $t -ErrorAction SilentlyContinue)) {
+        Write-Host "  ✗ $t not found" -ForegroundColor Red; $missing += $t
+    } else { Write-Host "  ✓ $t" -ForegroundColor Green }
+}
+if ($missing.Count -gt 0) { Write-Host "`nInstall missing tools and retry.`n" -ForegroundColor Yellow; exit 1 }
+
+if (-not (az account show 2>$null)) { Write-Host "`nRun 'az login' first." -ForegroundColor Yellow; exit 1 }
+
+# ── Prompts ──
+$existing = (azd env get-values --output json 2>$null | ConvertFrom-Json)
+foreach ($p in @($manifest.prompts)) {
+    if ($existing -and $existing.PSObject.Properties[$p.name]) { continue }
+    $msg = "  $($p.text)"
+    if ($p.default) { $msg += " [$($p.default)]" }
+    if ($p.secret) {
+        $val = Read-Host -AsSecureString $msg
+        $val = [System.Net.NetworkCredential]::new('', $val).Password
+    } else {
+        $val = Read-Host $msg
+    }
+    if (-not $val -and $p.default) { $val = $p.default }
+    if (-not $val -and -not $p.optional) { Write-Host "    (skipped $($p.name))" -ForegroundColor DarkYellow; continue }
+    if ($val) { azd env set $p.name $val | Out-Null }
+}
+
+Write-Host "`n  Prereqs OK. azd will provision next.`n" -ForegroundColor Green

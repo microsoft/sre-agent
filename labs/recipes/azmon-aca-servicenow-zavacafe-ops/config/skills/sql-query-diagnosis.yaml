@@ -1,0 +1,11 @@
+metadata:
+  name: sql-query-diagnosis
+  description: Diagnose slow SQL queries by analyzing execution plans and identifying missing indexes. This skill ONLY investigates. Hand off to sql-performance-fix to apply the fix.
+  spec:
+    tools:
+    - zava-mssql_mssql_execute_query
+    - zava-mssql_mssql_run_sql_query
+    - zava-mssql_mssql_get_schema
+    - zava-mssql_mssql_connect_database
+skillContent: skills/sql-query-diagnosis.md
+additionalFiles: []

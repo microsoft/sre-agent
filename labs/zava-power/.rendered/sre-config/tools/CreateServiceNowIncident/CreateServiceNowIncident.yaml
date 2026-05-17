@@ -1,0 +1,71 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgentTool
+metadata:
+  name: CreateServiceNowIncident
+spec:
+  type: PythonTool
+  connector: ''
+  toolMode: Auto
+  description: |-
+    Create a new ServiceNow incident. Returns the incident number (e.g. INC0010042) and sys_id. Use this when an investigation identifies an issue that needs tracking. Set urgency and impact (1=Critical, 2=High, 3=Medium, 4=Low).
+  functionCode: |-
+    import requests
+
+    SERVICENOW_URL = "https://dev385102.service-now.com"
+    SERVICENOW_USER = "admin"
+    SERVICENOW_PASS = "<SET_VIA_SRE_AGENT_PORTAL>"
+
+    def create_servicenow_incident(short_description: str, description: str, urgency: str = "2", impact: str = "2", category: str = "Software") -> dict:
+        try:
+            response = requests.post(
+                f"{SERVICENOW_URL}/api/now/table/incident",
+                auth=(SERVICENOW_USER, SERVICENOW_PASS),
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                json={
+                    "short_description": short_description,
+                    "description": description,
+                    "urgency": urgency,
+                    "impact": impact,
+                    "category": category,
+                    "caller_id": "admin",
+                    "assignment_group": "Service Desk",
+                    "work_notes": "Incident auto-created by Azure SRE Agent during automated investigation."
+                },
+                timeout=15
+            )
+            response.raise_for_status()
+            result = response.json().get("result", {})
+            return {
+                "success": True,
+                "number": result.get("number", ""),
+                "sys_id": result.get("sys_id", ""),
+                "state": result.get("state", ""),
+                "message": f"Incident {result.get('number')} created successfully"
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+  timeoutSeconds: 240
+  dependencies:
+  - requests
+  authScopes:
+  parameters:
+  - name: short_description
+    type: string
+    description: "string:Brief summary of the incident (e.g. 'outage-api returning HTTP 500 errors')"
+    required: true
+  - name: description
+    type: string
+    description: "string:Detailed description including alert details and initial observations"
+    required: true
+  - name: urgency
+    type: string
+    description: "string:Urgency level: 1=Critical, 2=High, 3=Medium, 4=Low (default: 2)"
+    required: false
+  - name: impact
+    type: string
+    description: "string:Impact level: 1=Critical, 2=High, 3=Medium, 4=Low (default: 2)"
+    required: false
+  - name: category
+    type: string
+    description: "string:Incident category (default: Software)"
+    required: false

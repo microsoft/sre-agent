@@ -1,0 +1,10 @@
+metadata:
+  name: require-approval-for-restarts
+spec:
+  eventType: PreToolUse
+  hook:
+    type: prompt
+    prompt: If the tool restarts a Container App revision in production, require human approval.
+    matcher: ^(restart_|az_containerapp_revision_restart).*
+  permissionDecision: review
+  enabled: true

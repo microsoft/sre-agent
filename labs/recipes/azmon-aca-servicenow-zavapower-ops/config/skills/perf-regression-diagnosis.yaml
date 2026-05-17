@@ -1,0 +1,10 @@
+metadata:
+  name: perf-regression-diagnosis
+  description: "Deep-dive diagnosis when deployment-validation has flagged a service\nas a perf regression (sequential or\
+    \ burst p95 > 1500 ms, no errors).\nIdentifies whether the cause is CPU-bound code (e.g. O(n\xB2) loop),\nslow synchronous\
+    \ I/O, blocking dependency, or cold-start. Produces a\none-paragraph root-cause hypothesis suitable for the SNOW work\
+    \ note\nand the fix PR description."
+  spec:
+    tools: []
+skillContent: skills/perf-regression-diagnosis.md
+additionalFiles: []

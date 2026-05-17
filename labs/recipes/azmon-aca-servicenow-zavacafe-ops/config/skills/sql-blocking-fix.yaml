@@ -1,0 +1,12 @@
+metadata:
+  name: sql-blocking-fix
+  description: Resolve SQL blocking by killing the head blocker session. ALWAYS run AssessChangeRisk first and get user approval before killing any session. Use AFTER sql-blocking-diagnosis has identified the blocker.
+  spec:
+    tools:
+    - zava-mssql_mssql_execute_query
+    - zava-mssql_mssql_run_sql_query
+    - zava-mssql_mssql_connect_database
+    - AssessChangeRisk
+    - AskUserQuestion
+skillContent: skills/sql-blocking-fix.md
+additionalFiles: []

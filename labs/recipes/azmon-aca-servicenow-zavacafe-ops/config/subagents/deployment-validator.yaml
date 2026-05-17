@@ -1,0 +1,14 @@
+metadata:
+  name: deployment-validator
+spec:
+  instructions: subagents/deployment-validator.instructions.md
+  handoffDescription: Validates an Azure DevOps release against the deployed Container App, rolls back automatically if the health check fails.
+  tools:
+  - CreateServiceNowIncident
+  - UpdateServiceNowWorkNotes
+  - ResolveServiceNowIncident
+  agentType: Autonomous
+  temperature: 0.2
+  handoffs: []
+  enableSkills: false
+  allowedSkills: []

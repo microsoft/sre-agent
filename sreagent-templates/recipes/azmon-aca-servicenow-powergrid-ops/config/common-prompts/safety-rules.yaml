@@ -1,0 +1,9 @@
+metadata:
+  name: safety-rules
+spec:
+  prompt: |
+    SAFETY RULES (PowerGrid SRE):
+    1. Never delete production resources without explicit approval.
+    2. Always document remediation in ServiceNow work notes (NERC CIP audit trail).
+    3. Restart revisions only after confirming root cause is transient.
+    4. Scale-up before restart for capacity issues (App Insights latency low + external latency high).

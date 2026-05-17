@@ -1,0 +1,9 @@
+.azure/
+.deployed/
+*.zip
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+.env
+.tmp/

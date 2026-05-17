@@ -1,0 +1,62 @@
+schemaVersion: 1
+name: zava-power
+displayName: "Zava Power — ZeroOps"
+subsidiary: "Zava Power"
+description: "ACA + ServiceNow utility-platform demo with 8 break/fix scenarios."
+estimatedMinutes: 25
+tags: [aca, servicenow, ado, github, autoremediation]
+
+prereqs: [az, azd, pwsh, python, docker, srectl]
+
+prompts:
+  - name: SERVICENOW_INSTANCE
+    text: "ServiceNow PDI hostname (e.g. dev123456)"
+  - name: SERVICENOW_USER
+    text: "ServiceNow admin username"
+    default: "admin"
+  - name: SERVICENOW_PASSWORD
+    text: "ServiceNow admin password"
+    secret: true
+  - name: DEMO_EMPLOYEE_EMAIL
+    text: "Demo employee email"
+    default: "demo.user@zavapower.com"
+
+sim:
+  command: python
+  args: [simulator/demo.py]
+  envFromConfig: true
+
+scenarios:
+  - id: vm-disk-pressure
+    label: "VM disk pressure"
+    description: "Arc VM disk fills past 90% — agent cleans temp dirs, updates ServiceNow."
+    minutes: 5
+    needs: [snow]
+  - id: api-perf-regression
+    label: "API performance regression"
+    description: "grid-status-api blocks the event loop — agent detects high-latency, rolls back revision."
+    minutes: 4
+  - id: pod-incident-audit
+    label: "Pod incident audit"
+    description: "OOMKills aggregated into a SNOW deck."
+    minutes: 10
+    needs: [snow]
+  - id: app-crash-on-deploy
+    label: "App crash on deploy"
+    description: "outage-api .upper() on None — agent auto-rolls back, opens fix PR."
+    minutes: 6
+    needs: [github]
+  - id: config-error
+    label: "Config error"
+    description: "Wrong port in environment — agent detects in App Insights, fixes config."
+    minutes: 4
+  - id: pipeline-failure
+    label: "Pipeline failure"
+    description: "ADO build red — pipeline-failure-investigator analyzes logs."
+    minutes: 5
+    needs: [ado]
+  - id: release-orchestration
+    label: "Release orchestration"
+    description: "Manual rollout — release-orchestrator drives canary cutover."
+    minutes: 8
+    needs: [ado]

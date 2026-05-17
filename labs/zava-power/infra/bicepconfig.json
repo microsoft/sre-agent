@@ -1,0 +1,17 @@
+{
+  "experimentalFeaturesEnabled": {
+    "extensibility": true
+  },
+  "analyzers": {
+    "core": {
+      "rules": {
+        "no-unused-params": {
+          "level": "warning"
+        },
+        "no-unused-vars": {
+          "level": "warning"
+        }
+      }
+    }
+  }
+}

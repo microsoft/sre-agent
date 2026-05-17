@@ -1,0 +1,30 @@
+{
+  "_scenario": "azmon-aca-servicenow-zavaitsupport-itsupport",
+  "agent": {
+    "accessLevel": "Low",
+    "actionMode": "Autonomous",
+    "upgradeChannel": "Preview",
+    "defaultModelProvider": "Anthropic",
+    "incidentPlatform": "ServiceNow"
+  },
+  "connectors": [],
+  "skills": [],
+  "subagents": [
+    "it-support-handler"
+  ],
+  "hooks": [],
+  "tools": [
+    "CheckWarranty",
+    "LookupServiceNowIncident"
+  ],
+  "commonPrompts": [],
+  "scheduledTasks": [],
+  "responsePlans": [
+    {
+      "name": "snow-laptop-replacement",
+      "handlingAgent": "it-support-handler"
+    }
+  ],
+  "repos": []
+}
+

@@ -1,0 +1,93 @@
+{
+  "_scenario": "azmon-aca-servicenow-powergrid-ops",
+  "_description": "PowerGrid SRE ops agent \u2014 investigates ACA incidents, correlates AppInsights/LAW, auto-remediates (scale, rollback, fix-PR), syncs to ServiceNow.",
+  "_prerequisites": [
+    "Azure subscription with Container Apps deployed (this lab's azd up)",
+    "Application Insights + Log Analytics workspace",
+    "ServiceNow instance (PDI or paid) with admin credentials",
+    "Optional: GitHub PAT with repo Contents+PRs scope (for fix-PR creation)"
+  ],
+  "_prompts": {
+    "agentName": {
+      "ask": "Agent instance name",
+      "default": "sre-powergrid-ops"
+    },
+    "resourceGroup": {
+      "ask": "Resource group for the agent",
+      "default": "rg-powergrid"
+    },
+    "location": {
+      "ask": "Region",
+      "options": [
+        "eastus2",
+        "swedencentral",
+        "uksouth",
+        "australiaeast"
+      ],
+      "required": true
+    },
+    "targetRGs": {
+      "ask": "Resource groups the agent will monitor",
+      "required": true
+    },
+    "appInsightsId": {
+      "ask": "App Insights resource ID",
+      "default": ""
+    },
+    "appInsightsAppId": {
+      "ask": "App Insights App ID (GUID)",
+      "default": ""
+    },
+    "lawId": {
+      "ask": "Log Analytics workspace resource ID",
+      "default": ""
+    },
+    "serviceNowInstance": {
+      "ask": "ServiceNow instance hostname (e.g. dev12345.service-now.com)",
+      "required": true
+    },
+    "serviceNowUser": {
+      "ask": "ServiceNow admin user",
+      "default": "admin"
+    },
+    "githubRepo": {
+      "ask": "GitHub repo URL (for fix-PR creation, blank to skip)",
+      "default": ""
+    },
+    "existingUamiId": {
+      "ask": "Existing UAMI resource ID (blank = create new)",
+      "default": ""
+    },
+    "modelProvider": {
+      "ask": "AI model provider",
+      "options": [
+        "Anthropic",
+        "Azure OpenAI"
+      ],
+      "default": "Anthropic"
+    }
+  },
+  "identity": {
+    "agentName": "{{agentName}}",
+    "resourceGroup": "{{resourceGroup}}",
+    "subscription": "",
+    "location": "{{location}}",
+    "targetResourceGroups": "{{targetRGs}}"
+  },
+  "access": {
+    "accessLevel": "Medium",
+    "actionMode": "Autonomous"
+  },
+  "upgradeChannel": "Preview",
+  "defaultModelProvider": "{{modelProvider}}",
+  "monthlyAgentUnitLimit": 10000,
+  "tags": {
+    "workload": "powergrid",
+    "industry": "utilities"
+  },
+  "toggles": {
+    "enableWebhookBridge": true,
+    "webhookBridgeTriggerUrl": ""
+  },
+  "existingUamiId": "{{existingUamiId}}"
+}

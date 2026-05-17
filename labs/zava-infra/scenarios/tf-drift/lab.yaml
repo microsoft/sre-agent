@@ -1,0 +1,44 @@
+api: 1
+name: zava-infra-tf-drift
+displayName: Zava Infra — Terraform Drift Detection
+description: Webhook-driven Terraform drift investigation. Logic App + Managed Identity bridges a Terraform Cloud run notification into an Azure SRE Agent HTTP Trigger, which classifies drift (Benign / Risky / Critical) and proposes incident-correlated remediation.
+tags:
+  - terraform
+  - drift
+  - http-trigger
+  - logic-app
+  - iac
+
+prereqs:
+  - az
+  - terraform
+  - pwsh
+
+prompts: []
+
+# This scenario uses Terraform (not azd). See README.md for full deploy steps:
+#   terraform init && terraform apply
+#   pwsh scripts/deploy-app.ps1
+# An existing SRE Agent instance is required (provisioned out of band).
+
+scenarios:
+  - id: induce-drift
+    label: Induce drift + simulate TFC webhook
+    description: Apply 3 drift types (Benign tag, Risky TLS downgrade, Critical SKU change), then POST a fake TFC notification through the Logic App; agent classifies and recommends remediation.
+    runner: scripts/induce-drift.ps1
+    minutes: 8
+    needs: []
+
+  - id: generate-load
+    label: Generate App Insights latency data
+    description: Drives traffic against the demo app to produce telemetry the agent correlates with the SKU drift recommendation.
+    runner: scripts/generate-load.ps1
+    minutes: 4
+    needs: []
+
+  - id: revert
+    label: Revert all drift
+    description: Cleanup script — restores resources to the Terraform-managed baseline.
+    runner: scripts/revert-drift.ps1
+    minutes: 2
+    needs: []

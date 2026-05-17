@@ -1,0 +1,31 @@
+metadata:
+  name: incident-handler
+spec:
+  instructions: subagents/incident-handler.instructions.md
+  handoffDescription: ''
+  tools:
+  - CreateServiceNowIncident
+  - UpdateServiceNowWorkNotes
+  - ResolveServiceNowIncident
+  - LookupServiceNowIncident
+  - UploadChartToServiceNow
+  agentType: Autonomous
+  temperature: 0.2
+  handoffs: []
+  enableSkills: true
+  allowedSkills:
+  - config-regression-diagnosis
+  - crash-regression-diagnosis
+  - deployment-rollback
+  - deployment-validation
+  - disk-pressure-diagnosis
+  - grid-status-diagnosis
+  - meter-api-diagnosis
+  - notification-svc-diagnosis
+  - outage-api-diagnosis
+  - perf-regression-diagnosis
+  - plot-incident-metrics
+  - pod-fleet-audit-deck
+  - release-on-sre-fix
+  - repo-routing
+  - sre-agent-customizer

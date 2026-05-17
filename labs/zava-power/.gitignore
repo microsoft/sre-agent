@@ -1,0 +1,9 @@
+# Local secrets, never commit
+.lab-config.json
+.lab-secrets.json
+.azure/
+*.local.env
+templates/.rendered/
+__pycache__/
+*.pyc
+node_modules/

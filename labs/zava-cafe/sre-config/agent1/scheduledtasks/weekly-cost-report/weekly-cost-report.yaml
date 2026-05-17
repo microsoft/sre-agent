@@ -1,0 +1,20 @@
+﻿api_version: azuresre.ai/v1
+kind: ScheduledTask
+metadata:
+  name: weekly-cost-report
+  owner: 
+  version: 
+  tags: 
+spec:
+  name: weekly-cost-report
+  cron_expression: ''
+  agent_prompt: Analyze Azure costs for the Zava resource group (rg-zava) over the past 7 days. Break down costs by resource type. Identify top 3 cost drivers. Flag anomalies. Provide 3 recommendations to reduce costs. Format as a management report with Executive Summary, Cost Breakdown, Anomalies, Recommendations.
+  description: Weekly Azure cost analysis for Zava
+  agent: 
+  start_time: 2026-04-02T04:23:37.7726020Z
+  end_time: 
+  duration_hours: 
+  thread_id: 
+  max_executions: 
+  notification_channel: 
+  cron: 0 9 * * 1

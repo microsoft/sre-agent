@@ -1,0 +1,30 @@
+api_version: azuresre.ai/v2
+kind: HookV2
+metadata:
+  name: sql-write-guard
+spec:
+  eventType: PostToolUse
+  activationMode: always
+  description: Blocks destructive SQL operations (DROP, DELETE, TRUNCATE) but allows safe DDL (CREATE INDEX) and session management (KILL)
+  hook:
+    type: command
+    matcher: ".*sql.*|.*SQL.*|.*mssql.*"
+    timeout: 30
+    failMode: Allow
+    script: |
+      #!/usr/bin/env python3
+      import sys, json, re
+      context = json.load(sys.stdin)
+      tool_input = context.get('tool_input', {})
+      query = ''
+      if isinstance(tool_input, dict):
+          query = ' '.join(str(v) for v in tool_input.values())
+      elif isinstance(tool_input, str):
+          query = tool_input
+      safe_ops = re.search(r'\b(CREATE\s+INDEX|KILL|UPDATE\s+STATISTICS|SELECT)\b', query, re.IGNORECASE)
+      dangerous = re.search(r'\b(DROP\s+TABLE|DROP\s+DATABASE|TRUNCATE|DELETE\s+FROM|ALTER\s+TABLE)\b', query, re.IGNORECASE)
+      if dangerous and not safe_ops:
+          output = {"decision": "block", "reason": f"Blocked destructive operation: {dangerous.group().upper()}. Only read queries, CREATE INDEX, KILL, and UPDATE STATISTICS are allowed."}
+      else:
+          output = {"decision": "allow"}
+      print(json.dumps(output))

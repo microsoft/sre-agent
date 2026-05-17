@@ -1,0 +1,20 @@
+metadata:
+  name: snow-laptop-replacement
+spec:
+  incidentPlatform: ServiceNow
+  isEnabled: true
+  priorities:
+  - "3"
+  - "4"
+  - "5"
+  incidentType: Request
+  handlingAgent: it-support-handler
+  agentMode: Autonomous
+  deepInvestigationEnabled: false
+  maxAutomatedInvestigationAttempts: 2
+  serviceNowFilterSettings:
+    triggerEvents:
+    - IncidentCreated
+    - IncidentUpdated
+    categoryFilter: hardware
+    shortDescriptionContains: laptop

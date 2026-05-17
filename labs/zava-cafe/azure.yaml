@@ -1,0 +1,43 @@
+# Azure Developer CLI (azd) template for Zava — Zava Café SRE Agent Lab
+# Run: azd up
+name: sre-agent-zava-cafe-lab
+metadata:
+  template: sre-agent-zava-cafe-lab@1.0.0
+
+infra:
+  provider: bicep
+  path: infra
+
+# No services block — the .NET web app is deployed from source by the
+# post-provision hook (az webapp deploy from a zip), so no azd `services` config
+# is needed.
+
+hooks:
+  preprovision:
+    posix:
+      shell: sh
+      run: scripts/prereqs.sh
+      interactive: true
+    windows:
+      shell: pwsh
+      run: |
+        if (-not (Get-Command bash -ErrorAction SilentlyContinue)) {
+          Write-Error "bash not found. Install Git for Windows (https://git-scm.com/download/win)."
+          exit 1
+        }
+        bash scripts/prereqs.sh
+      interactive: true
+  postprovision:
+    posix:
+      shell: sh
+      run: scripts/post-provision.sh
+      interactive: true
+    windows:
+      shell: pwsh
+      run: |
+        if (-not (Get-Command bash -ErrorAction SilentlyContinue)) {
+          Write-Error "bash not found. Install Git for Windows (https://git-scm.com/download/win)."
+          exit 1
+        }
+        bash scripts/post-provision.sh
+      interactive: true

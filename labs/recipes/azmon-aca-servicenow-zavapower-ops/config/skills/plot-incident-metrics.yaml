@@ -1,0 +1,9 @@
+metadata:
+  name: plot-incident-metrics
+  description: "Produce ONE consolidated multi-series chart capturing all incident-relevant\nmetrics for a service, then upload\
+    \ it to the ServiceNow incident.\nUse this skill any time an agent needs to visualize an incident \u2014 never\ngenerate\
+    \ multiple separate charts per incident."
+  spec:
+    tools: []
+skillContent: skills/plot-incident-metrics.md
+additionalFiles: []

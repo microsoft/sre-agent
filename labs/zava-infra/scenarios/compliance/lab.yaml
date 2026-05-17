@@ -1,0 +1,23 @@
+api: 1
+name: zava-infra-compliance
+displayName: Zava Infra — Deployment Compliance Monitoring
+description: Automatically detect and respond to non-compliant Azure Container App deployments using SRE Agent, Activity Logs, and a custom compliance skill.
+tags:
+  - container-apps
+  - activity-logs
+  - compliance
+  - governance
+
+prereqs:
+  - az
+  - azd
+
+prompts: []
+
+scenarios:
+  - id: noncompliant-deploy
+    label: Trigger a non-compliant deployment
+    description: Deploys a Container App revision via Portal/CLI bypassing the compliant pipeline. SRE Agent detects via Activity Log and posts a compliance verdict.
+    runner: scripts/break-compliance.sh
+    minutes: 4
+    needs: []

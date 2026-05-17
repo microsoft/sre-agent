@@ -1,0 +1,5 @@
+name: azure-monitor
+spec:
+  platformType: AzMonitor
+  displayName: Azure Monitor Alerts
+  description: Receives Azure Monitor fired alerts as PowerGrid incidents

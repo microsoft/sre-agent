@@ -1,0 +1,17 @@
+metadata:
+  name: deployment-validation
+  description: 'Authoritative runbook for validating that a just-deployed release did
+
+    NOT introduce a regression. Combines active probing, synthetic burst
+
+    load, and revision-scoped Application Insights queries to produce a
+
+    per-service verdict (PASS / FAIL with category). Replaces the prior
+
+    practice of writing ad-hoc Python in the agent. Always invoke this
+
+    skill at the start of any post-deploy validation flow.'
+  spec:
+    tools: []
+skillContent: skills/deployment-validation.md
+additionalFiles: []

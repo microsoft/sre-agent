@@ -1,0 +1,10 @@
+metadata:
+  name: release-on-sre-fix
+  description: "Authoritative skill for the release-orchestrator agent. When a\nPowerGrid-Build succeeds, this skill decides\
+    \ whether to trigger\nPowerGrid-Release. It triggers ONLY for SRE-Agent-authored fixes\n(identified via ADO build tag\
+    \ 'sre-agent-fix' or service-principal\nrequestedFor). Human developer commits flow through normal CI/CD\ngates and are\
+    \ NOT auto-released by this agent. Uses the runtime's\nbuilt-in ADO MCP tools (delegated OAuth) \u2014 no PAT required."
+  spec:
+    tools: []
+skillContent: skills/release-on-sre-fix.md
+additionalFiles: []

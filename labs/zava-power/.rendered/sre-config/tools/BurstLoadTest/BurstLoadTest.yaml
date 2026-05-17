@@ -1,0 +1,117 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgentTool
+metadata:
+  name: BurstLoadTest
+spec:
+  type: PythonTool
+  connector: ''
+  toolMode: Auto
+  description: |-
+    Generate a short synthetic burst of concurrent HTTPS GET requests
+    against a service endpoint and report p50/p95/p99 latency, error
+    count, and error rate. Use AFTER ProbeServiceLatency to surface
+    concurrency-sensitive regressions (lock contention, connection-pool
+    exhaustion, slow-under-load code paths) that sequential probes
+    cannot detect. ALSO has the side-effect of warming Application
+    Insights so subsequent KQL queries scoped to the new revision will
+    return useful sample counts. Default: 10 concurrent workers for 15
+    seconds — safe against any healthy multi-replica deployment.
+  functionCode: |-
+    import requests
+    import time
+    import statistics
+    import concurrent.futures
+    import threading
+
+    def main(url: str, path: str = "/",
+                        concurrency: int = 10, duration_s: int = 15,
+                        timeout_s: int = 10) -> dict:
+        full_url = url.rstrip("/") + "/" + path.lstrip("/")
+        latencies_ms = []
+        statuses = []
+        errors = 0
+        lock = threading.Lock()
+        deadline = time.time() + duration_s
+        session = requests.Session()
+        session.headers.update({"User-Agent": "sre-agent-burst/1.0"})
+
+        def worker():
+            nonlocal errors
+            while time.time() < deadline:
+                start = time.time()
+                try:
+                    r = session.get(full_url, timeout=timeout_s)
+                    ms = int((time.time() - start) * 1000)
+                    with lock:
+                        latencies_ms.append(ms)
+                        statuses.append(r.status_code)
+                        if not (200 <= r.status_code < 300):
+                            errors += 1
+                except Exception:
+                    ms = int((time.time() - start) * 1000)
+                    with lock:
+                        latencies_ms.append(ms)
+                        statuses.append(0)
+                        errors += 1
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as ex:
+            for _ in range(concurrency):
+                ex.submit(worker)
+
+        total = len(latencies_ms)
+        latencies_sorted = sorted(latencies_ms)
+        def pct(p):
+            if not latencies_sorted:
+                return 0
+            k = max(0, min(len(latencies_sorted) - 1,
+                           int(round((p / 100.0) * (len(latencies_sorted) - 1)))))
+            return latencies_sorted[k]
+        ok = total - errors
+        # Aggregate status code distribution (cap at 20 entries to avoid bloat)
+        status_dist = {}
+        for s in statuses:
+            status_dist[str(s)] = status_dist.get(str(s), 0) + 1
+
+        return {
+            "url": full_url,
+            "concurrency": concurrency,
+            "duration_s": duration_s,
+            "total_requests": total,
+            "ok_count": ok,
+            "error_count": errors,
+            "error_rate": round(errors / total, 4) if total else 0,
+            "p50_ms": pct(50),
+            "p95_ms": pct(95),
+            "p99_ms": pct(99),
+            "max_ms": max(latencies_ms) if latencies_ms else 0,
+            "rps": round(total / duration_s, 1) if duration_s else 0,
+            "status_distribution": status_dist,
+            "verdict": ("PASS" if (errors == 0 and pct(95) < 1500) else
+                        "FAIL_LATENCY" if errors == 0 else
+                        "FAIL_ERRORS"),
+        }
+  timeoutSeconds: 60
+  dependencies:
+  - requests
+  authScopes:
+  parameters:
+  - name: url
+    type: string
+    description: "string:Base URL of the service"
+    required: true
+  - name: path
+    type: string
+    description: "string:Endpoint path to load-test (default '/')"
+    required: false
+  - name: concurrency
+    type: int
+    description: "integer:Number of concurrent workers (default 10)"
+    required: false
+  - name: duration_s
+    type: int
+    description: "integer:Burst duration in seconds (default 15)"
+    required: false
+  - name: timeout_s
+    type: int
+    description: "integer:Per-request timeout in seconds (default 10)"
+    required: false

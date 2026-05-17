@@ -1,0 +1,13 @@
+metadata:
+  name: repo-routing
+  description: 'AUTHORITATIVE contract for which repository the agent reads from and
+
+    writes to, and which tools are allowed for each operation. Replaces
+
+    the legacy create-pr-or-issue skill (which incorrectly mandated the
+
+    `gh` and `git` CLIs that are not available in the agent runtime).'
+  spec:
+    tools: []
+skillContent: skills/repo-routing.md
+additionalFiles: []

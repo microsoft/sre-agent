@@ -1,0 +1,18 @@
+metadata:
+  name: deployment-validator
+spec:
+  instructions: subagents/deployment-validator.instructions.md
+  handoffDescription: Handles post-deployment validation and remediation
+  handoffs: []
+  tools:
+  - CreateServiceNowIncident
+  - UpdateServiceNowWorkNotes
+  - ResolveServiceNowIncident
+  - LookupServiceNowIncident
+  - UploadChartToServiceNow
+  - RollbackContainerAppRevision
+  - GetActiveRevision
+  agentType: Autonomous
+  temperature: 0.2
+  enableSkills: true
+  allowedSkills: []

@@ -1,0 +1,113 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgentTool
+metadata:
+  name: AssessChangeRisk
+spec:
+  type: PythonTool
+  connector: ''
+  toolMode: Auto
+  description: |-
+    Assess the risk of a database change before executing it. Evaluates business hours, table criticality, row count, and operation type. ALWAYS call this tool before making any SQL write operation (CREATE INDEX, UPDATE, DELETE, KILL). The result determines whether human approval is needed.
+  functionCode: |-
+    from datetime import datetime
+
+    CRITICAL_TABLES = ['Orders', 'OrderItems', 'Payments', 'Users', 'Customers']
+    HIGH_RISK_OPS = ['DELETE', 'DROP', 'TRUNCATE', 'ALTER']
+    MEDIUM_RISK_OPS = ['CREATE INDEX', 'UPDATE', 'KILL']
+    LOW_RISK_OPS = ['SELECT', 'INSERT']
+
+    def assess_change_risk(operation: str, table_name: str, row_count: int = 0, description: str = '') -> dict:
+        risks = []
+        risk_score = 0
+
+        # 1. Business hours check
+        hour = datetime.utcnow().hour
+        is_business_hours = 14 <= hour <= 6  # 6AM-10PM Pacific (UTC-8)
+        # Simplified: check if roughly business hours US
+        is_business_hours = 14 <= hour or hour <= 6
+        if is_business_hours:
+            risks.append({'factor': 'Business Hours', 'level': 'WARNING', 'detail': f'Current time is {datetime.utcnow().strftime("%H:%M")} UTC — business hours in US Pacific. Schema changes may impact active users.'})
+            risk_score += 30
+        else:
+            risks.append({'factor': 'Business Hours', 'level': 'OK', 'detail': f'Current time is {datetime.utcnow().strftime("%H:%M")} UTC — outside peak business hours.'})
+
+        # 2. Table criticality
+        table_clean = table_name.replace('[', '').replace(']', '').replace('dbo.', '').strip()
+        is_critical = table_clean in CRITICAL_TABLES
+        if is_critical:
+            risks.append({'factor': 'Table Criticality', 'level': 'HIGH', 'detail': f'{table_clean} is a CRITICAL table — changes directly affect business operations.'})
+            risk_score += 40
+        else:
+            risks.append({'factor': 'Table Criticality', 'level': 'LOW', 'detail': f'{table_clean} is not in the critical tables list.'})
+            risk_score += 5
+
+        # 3. Row count
+        if row_count > 100000:
+            risks.append({'factor': 'Data Volume', 'level': 'HIGH', 'detail': f'{row_count:,} rows — large table, operation may cause locks or high DTU.'})
+            risk_score += 30
+        elif row_count > 10000:
+            risks.append({'factor': 'Data Volume', 'level': 'MEDIUM', 'detail': f'{row_count:,} rows — moderate table size.'})
+            risk_score += 15
+        else:
+            risks.append({'factor': 'Data Volume', 'level': 'LOW', 'detail': f'{row_count:,} rows — small table.'})
+            risk_score += 5
+
+        # 4. Operation type
+        op_upper = operation.upper().strip()
+        if any(op in op_upper for op in HIGH_RISK_OPS):
+            risks.append({'factor': 'Operation Type', 'level': 'HIGH', 'detail': f'{operation} is a destructive operation.'})
+            risk_score += 40
+        elif any(op in op_upper for op in MEDIUM_RISK_OPS):
+            risks.append({'factor': 'Operation Type', 'level': 'MEDIUM', 'detail': f'{operation} is a schema/session change.'})
+            risk_score += 20
+        else:
+            risks.append({'factor': 'Operation Type', 'level': 'LOW', 'detail': f'{operation} is a read/safe operation.'})
+
+        # Overall assessment
+        if risk_score >= 60:
+            overall = 'HIGH'
+            recommendation = 'Human approval required before proceeding. Use AskUserQuestion to present the risk assessment and get explicit approval.'
+            requires_approval = True
+        elif risk_score >= 30:
+            overall = 'MEDIUM'
+            recommendation = 'Human approval recommended. Use AskUserQuestion to present options: approve now or schedule for maintenance window.'
+            requires_approval = True
+        else:
+            overall = 'LOW'
+            recommendation = 'Safe to proceed without approval.'
+            requires_approval = False
+
+        return {
+            'overall_risk': overall,
+            'risk_score': risk_score,
+            'requires_approval': requires_approval,
+            'recommendation': recommendation,
+            'description': description,
+            'assessed_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+            'risk_factors': risks
+        }
+  timeoutSeconds: 240
+  dependencies:
+  - ''
+  authScopes: 
+  parameters:
+  - name: operation
+    type: string
+    description: |-
+      string:The SQL operation to assess (e.g. CREATE INDEX, DELETE, UPDATE, KILL)
+    required: true
+  - name: table_name
+    type: string
+    description: |-
+      string:The target table name (e.g. Products, Orders)
+    required: true
+  - name: row_count
+    type: string
+    description: |-
+      integer:Approximate number of rows affected
+    required: true
+  - name: description
+    type: string
+    description: |-
+      string:Brief description of what this change does
+    required: true

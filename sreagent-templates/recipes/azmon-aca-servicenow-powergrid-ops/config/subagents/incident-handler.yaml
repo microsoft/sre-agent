@@ -1,0 +1,16 @@
+metadata:
+  name: incident-handler
+spec:
+  instructions: subagents/incident-handler.instructions.md
+  handoffDescription: ''
+  handoffs: []
+  tools:
+  - CreateServiceNowIncident
+  - UpdateServiceNowWorkNotes
+  - ResolveServiceNowIncident
+  - LookupServiceNowIncident
+  - UploadChartToServiceNow
+  agentType: Autonomous
+  temperature: 0.2
+  enableSkills: true
+  allowedSkills: []

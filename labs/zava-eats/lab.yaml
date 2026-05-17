@@ -1,0 +1,28 @@
+api: 1
+name: zava-eats
+displayName: Zava Eats — Starter Lab
+description: Newcomer on-ramp. Deploy an Azure SRE Agent, break the Grubify food-ordering sample app, and watch the agent diagnose and remediate. Designed as the first lab for engineers new to the SRE Agent (~40 minutes).
+tags:
+  - starter
+  - tutorial
+
+prereqs:
+  - az
+  - azd
+
+prompts: []
+
+scenarios:
+  - id: break-app
+    label: Break the sample app
+    description: Injects a fault into the sample workload. SRE Agent investigates and proposes a fix.
+    runner: scripts/break-app.sh
+    minutes: 10
+    needs: []
+
+  - id: sample-issues
+    label: Generate sample GitHub issues
+    description: Seeds the linked GitHub repo with a few sample incident issues to drive agent triage flows.
+    runner: scripts/create-sample-issues.sh
+    minutes: 3
+    needs: []

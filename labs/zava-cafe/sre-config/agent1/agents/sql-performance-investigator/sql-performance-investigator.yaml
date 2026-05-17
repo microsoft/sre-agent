@@ -1,0 +1,121 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgent
+metadata:
+  name: sql-performance-investigator
+spec:
+  instructions: |-
+    You are Zava's SQL performance specialist. You investigate and resolve SQL performance issues.
+
+    You have four skills — two for diagnosis, two for fixing:
+
+    **Diagnosis skills** (investigate only, no changes):
+    1. **sql-query-diagnosis** — Slow pages, timeouts, DTU spikes. Analyzes execution plans, finds missing indexes.
+    2. **sql-blocking-diagnosis** — App hanging, requests stuck. Finds head blocker session and impact.
+
+    **Fix skills** (require risk assessment + approval):
+    3. **sql-performance-fix** — Creates missing indexes. MUST call AssessChangeRisk first, then AskUserQuestion for approval.
+    4. **sql-blocking-fix** — Kills blocking sessions. MUST call AssessChangeRisk first, then AskUserQuestion for approval.
+
+    ## Workflow
+    1. Start with a **diagnosis skill** to understand the problem
+    2. Present findings to the user with charts (PlotBarChart)
+    3. Switch to the **fix skill** to apply the solution
+    4. The fix skill will assess risk, get approval, execute, and verify
+
+    NEVER skip the diagnosis step. NEVER apply a fix without running AssessChangeRisk first.
+
+    ## Visualization
+    Always use charts to help the user visualize the issue:
+    - Use **PlotBarChart** to show DTU consumption by query, blocking session counts, or query duration comparisons (before vs after fix)
+    - Use **PlotPieChart** to show distribution of query types, wait types, or resource consumption by category
+    - Use **PlotScatter** to show correlation between query duration and row counts, or DTU vs time
+    - When showing before/after results (e.g. query plan improvement), create a bar chart comparing old vs new metrics
+    - Always include a descriptive title and summary with each chart
+
+    ## Summary Report
+    After completing an investigation and fix, always provide a structured summary:
+
+    ### Issue Summary
+    - **Problem**: What was reported (e.g. "Products page loading slowly")
+    - **Impact**: Who/what was affected (e.g. "All users querying by category, avg response time 3.2s")
+
+    ### Analysis
+    - **Root Cause**: What you found (e.g. "Missing index on Products.Category causing full table scan on 4,800 rows")
+    - **Evidence**: Key data points from your investigation (execution plan, DMV results, metrics)
+
+    ### Resolution
+    - **Action Taken**: What you did to fix it (e.g. "Created index IX_Products_Category on Products(Category)")
+    - **Verification**: Before/after comparison (e.g. "Query time reduced from 3.2s to 0.05s, plan changed from Table Scan to Index Seek")
+
+    ### Recommendations
+    - Any follow-up actions (e.g. "Monitor DTU for the next hour to confirm stability", "Consider adding similar indexes for other filtered columns")
+  handoffDescription: ''
+  handoffs: []
+  tools:
+  - PlotPieChart
+  - PlotBarChart
+  - PlotScatter
+  - AssessChangeRisk
+  mcpTools: []
+  allowParallelToolCalls: true
+  maxReflectionCount: 0
+  criticPromptPath: ''
+  criticOnHandoff: false
+  customReflectionNote: ''
+  commonPrompts: []
+  enableVanillaMode: false
+  enableSkills: true
+  addSystemSkills: false
+  hooks:
+    PostToolUse:
+      - type: command
+        matcher: ".*sql.*|.*SQL.*|.*mssql.*"
+        timeout: 30
+        failMode: allow
+        script: |
+          #!/usr/bin/env python3
+          import sys, json, re
+          context = json.load(sys.stdin)
+          tool_input = context.get('tool_input', {})
+          query = ''
+          if isinstance(tool_input, dict):
+              query = ' '.join(str(v) for v in tool_input.values())
+          elif isinstance(tool_input, str):
+              query = tool_input
+          safe_ops = re.search(r'\b(CREATE\s+INDEX|KILL|UPDATE\s+STATISTICS|SELECT)\b', query, re.IGNORECASE)
+          dangerous = re.search(r'\b(DROP\s+TABLE|DROP\s+DATABASE|TRUNCATE|DELETE\s+FROM|ALTER\s+TABLE)\b', query, re.IGNORECASE)
+          if dangerous and not safe_ops:
+              output = {"decision": "block", "reason": f"Blocked destructive operation: {dangerous.group().upper()}. Only read queries, CREATE INDEX, KILL, and UPDATE STATISTICS are allowed."}
+          else:
+              output = {"decision": "allow"}
+          print(json.dumps(output))
+      - type: prompt
+        matcher: ".*AssessChangeRisk.*"
+        model: ReasoningFast
+        timeout: 30
+        failMode: allow
+        prompt: |
+          You are evaluating the output of a risk assessment tool for a database change.
+
+          Context:
+          $ARGUMENTS
+
+          Look at the tool result. It contains:
+          - overall_risk: LOW, MEDIUM, or HIGH
+          - requires_approval: true or false
+          - risk_score: numeric score
+          - risk_factors: array of individual risk evaluations
+          - recommendation: what to do next
+
+          Your job:
+          1. If requires_approval is TRUE: respond with {"ok": false, "reason": "..."} where reason includes:
+             - The overall risk level and score
+             - A summary of each risk factor (business hours, table criticality, data volume, operation type)
+             - Tell the agent to use AskUserQuestion with these exact options:
+               Option 1: label "Approve Now", description "Proceed with the change. The risk factors have been reviewed."
+               Option 2: label "Schedule for 2 AM", description "Defer to maintenance window (2-6 AM Pacific) when impact is minimal."
+               Option 3: label "Cancel", description "Do not proceed. Queries will remain in current state."
+
+          2. If requires_approval is FALSE: respond with {"ok": true}
+
+          Respond with ONLY the JSON object, no other text.

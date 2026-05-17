@@ -1,0 +1,21 @@
+metadata:
+  name: auto-investigate-azmon
+spec:
+  incidentPlatform: AzureMonitor
+  isEnabled: true
+  priorities:
+  - '1'
+  - '2'
+  - '3'
+  incidentType: LiveSite
+  handlingAgent: incident-handler
+  agentMode: Autonomous
+  deepInvestigationEnabled: false
+  maxAutomatedInvestigationAttempts: 3
+  azureMonitorFilterSettings:
+    alertRules:
+    - alert-powergrid-http-5xx
+    - alert-powergrid-high-latency
+    - alert-powergrid-container-restart
+    triggerEvents:
+    - AlertFired
