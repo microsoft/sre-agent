@@ -114,7 +114,15 @@ if (-not $Token) {
 
 function Invoke-Dp {
     param([string]$Path)
-    (curl -sS "${Endpoint}${Path}" -H "Authorization: Bearer $Token" 2>$null) -join "`n"
+    $raw = (curl -sS "${Endpoint}${Path}" -H "Authorization: Bearer $Token" 2>$null) -join "`n"
+    # Validate response is JSON; return empty object/array fallback if not
+    if ($raw) {
+        try {
+            $null = $raw | jq -e 'type' 2>$null
+            if ($LASTEXITCODE -eq 0) { return $raw }
+        } catch { }
+    }
+    return '{}'
 }
 
 function Invoke-Arm {

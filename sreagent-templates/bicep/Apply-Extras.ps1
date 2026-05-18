@@ -1067,24 +1067,26 @@ if ($DpTokenAvailable) {
             } catch { }
         }
 
-        if ($ghConfigured -or $env:GITHUB_PAT) {
-            # OAuth (or PAT) is in place — wire the connector + repos
-            Write-Host "-- Wiring GitHub connector + repos --"
-            $ident = if ($AgentUami) { $AgentUami } else {
-                Write-Host "  WARN: agent has no user-assigned MI; falling back to SystemAssigned."
-                "SystemAssigned"
+        # Shared identity + connector body (used in both fast-path and OAuth wait)
+        $ident = if ($AgentUami) { $AgentUami } else {
+            Write-Host "  WARN: agent has no user-assigned MI; falling back to SystemAssigned."
+            "SystemAssigned"
+        }
+        $connBody = @{
+            name       = "github"
+            type       = "AgentConnector"
+            properties = @{
+                dataConnectorType = "GitHubOAuth"
+                dataSource        = "github-oauth"
+                identity          = $ident
             }
+        } | ConvertTo-Json -Compress -Depth 10
 
-            # 1) Create the GitHubOAuth connector
-            $connBody = @{
-                name       = "github"
-                type       = "AgentConnector"
-                properties = @{
-                    dataConnectorType = "GitHubOAuth"
-                    dataSource        = "github-oauth"
-                    identity          = $ident
-                }
-            } | ConvertTo-Json -Compress -Depth 10
+        $connectorOk = $false
+
+        # Fast path: if auth/status says configured (or PAT), try the connector PUT immediately
+        if ($ghConfigured -or $env:GITHUB_PAT) {
+            Write-Host "-- Wiring GitHub connector + repos --"
             try {
                 $token = Get-DpToken
                 $headers = @{
@@ -1093,16 +1095,91 @@ if ($DpTokenAvailable) {
                 }
                 $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
                     -Method Put -Headers $headers -Body $connBody -ContentType "application/json"
-                Write-Host "  ok connector/github (GitHubOAuth, identity=$($ident.Split('/')[-1]))"
+                # Verify the connector is actually healthy (not just metadata)
+                Start-Sleep -Seconds 3
+                try {
+                    $connCheck = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
+                        -Method Get -Headers @{ Authorization = "Bearer $token" }
+                    $provState = $connCheck.properties.provisioningState
+                    if ($provState -eq 'Succeeded') {
+                        Write-Host "  ok connector/github (GitHubOAuth, identity=$($ident.Split('/')[-1]))"
+                        $connectorOk = $true
+                    } else {
+                        Write-Host "  WARN: connector created but state=$provState — falling back to OAuth wait..."
+                    }
+                } catch {
+                    Write-Host "  ok connector/github (GitHubOAuth, identity=$($ident.Split('/')[-1]))"
+                    $connectorOk = $true
+                }
             } catch {
-                Write-Host "  FAILED - PUT /api/v2/extendedAgent/connectors/github"
+                Write-Host "  WARN: connector PUT failed (stale auth?) — falling back to OAuth wait..."
             }
+        }
 
-            # 2) Attach each repo
+        # OAuth wait: if connector not yet created, show URL and poll until user completes auth
+        if (-not $connectorOk -and -not $env:GITHUB_PAT) {
+            Write-Host "-- GitHub OAuth sign-in required --"
+            Write-Host "Repos waiting: $($oauthRepos -join ' ')"
+            $oauthUrl = $null
+            try { $token = Get-DpToken } catch { $token = $null }
+            if ($token) {
+                try {
+                    $headers = @{ Authorization = "Bearer $token" }
+                    $ghConfig = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/config" -Headers $headers
+                    $oauthUrl = if ($ghConfig.oAuthUrl) { $ghConfig.oAuthUrl } elseif ($ghConfig.OAuthUrl) { $ghConfig.OAuthUrl } else { $null }
+                } catch { }
+            }
+            if ($oauthUrl) {
+                Write-Host "  1. Open this URL in a browser:"
+                Write-Host "     $oauthUrl"
+                Write-Host "  2. Sign in to GitHub and approve the SRE Agent app."
+                Write-Host ""
+                Write-Host "  Waiting for GitHub authorization (Ctrl-C to skip)..."
+                for ($attempt = 1; $attempt -le 24; $attempt++) {
+                    Start-Sleep -Seconds 10
+                    try {
+                        $token = Get-DpToken
+                        $headers = @{
+                            Authorization  = "Bearer $token"
+                            "Content-Type" = "application/json"
+                        }
+                        # Check auth/status — only trust isConfigured, not connector PUT success
+                        $ghCheck = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/auth/status" -Headers $headers
+                        $isAuth = ($ghCheck.isConfigured -eq $true) -or ($ghCheck.hosts -and $ghCheck.hosts[0].isConfigured -eq $true)
+                        if ($isAuth) {
+                            $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
+                                -Method Put -Headers $headers -Body $connBody -ContentType "application/json"
+                            Write-Host "  GitHub authorized!"
+                            Write-Host "  ok connector/github"
+                            $connectorOk = $true
+                            break
+                        }
+                    } catch { }
+                    Write-Host "  ... waiting ($($attempt * 10)/240s)" -NoNewline
+                    Write-Host "`r" -NoNewline
+                }
+                Write-Host ""
+                if (-not $connectorOk) {
+                    Write-Host "  Timed out. Re-run Apply-Extras after authorizing."
+                    Write-Host "  Headless alternative: `$env:GITHUB_PAT='ghp_xxx' && re-run"
+                }
+            } else {
+                Write-Host "  Could not fetch OAuth URL from $AgentEndpoint/api/v1/Github/config."
+                Write-Host "  Fallback: Azure portal -> agent -> Repos -> 'Authorize' next to each repo."
+            }
+        }
+
+        # Wire repos (only if connector succeeded)
+        if ($connectorOk) {
+            Write-Host "-- Wiring GitHub repos --"
+            $token = Get-DpToken
+            $headers = @{
+                Authorization  = "Bearer $token"
+                "Content-Type" = "application/json"
+            }
             foreach ($repo in $repos) {
                 $rname = $repo.name
                 $rurl = $repo.spec.url
-                # Normalize short "org/repo" to full URL (API requires https://...)
                 if ($rurl -and $rurl -notmatch '^https?://' -and $rurl -match '/') {
                     $rurl = "https://github.com/$rurl"
                 }
@@ -1127,90 +1204,6 @@ if ($DpTokenAvailable) {
                 } catch {
                     Write-Host "  FAILED - PUT /api/v2/repos/$rname (try the portal Repos blade)"
                 }
-            }
-            Write-Host ""
-        } else {
-            # OAuth not done — print sign-in URL
-            Write-Host "-- GitHub OAuth sign-in required --"
-            Write-Host "Repos waiting: $($oauthRepos -join ' ')"
-            $oauthUrl = $null
-            if ($token) {
-                try {
-                    $headers = @{ Authorization = "Bearer $token" }
-                    $ghConfig = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/config" -Headers $headers
-                    $oauthUrl = if ($ghConfig.oAuthUrl) { $ghConfig.oAuthUrl } elseif ($ghConfig.OAuthUrl) { $ghConfig.OAuthUrl } else { $null }
-                } catch { }
-            }
-            if ($oauthUrl) {
-                Write-Host "  1. Open this URL in a browser:"
-                Write-Host "     $oauthUrl"
-                Write-Host "  2. Sign in to GitHub and approve the SRE Agent app."
-                Write-Host ""
-                Write-Host "  Waiting for GitHub authorization (Ctrl-C to skip)..."
-                $authOk = $false
-                $ident = if ($AgentUami) { $AgentUami } else { "SystemAssigned" }
-                $connBody = @{
-                    name = "github"; type = "AgentConnector"
-                    properties = @{ dataConnectorType = "GitHubOAuth"; dataSource = "github-oauth"; identity = $ident }
-                } | ConvertTo-Json -Compress -Depth 10
-                for ($attempt = 1; $attempt -le 24; $attempt++) {
-                    Start-Sleep -Seconds 10
-                    try {
-                        $token = Get-DpToken
-                        $headers = @{
-                            Authorization  = "Bearer $token"
-                            "Content-Type" = "application/json"
-                        }
-                        # Try creating the connector — succeeds once OAuth is done, throws until then
-                        $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
-                            -Method Put -Headers $headers -Body $connBody -ContentType "application/json"
-                        Write-Host "  GitHub authorized!"
-                        Write-Host "  ok connector/github"
-                        $authOk = $true
-                        break
-                    } catch { }
-                    Write-Host "  ... waiting ($($attempt * 10)/240s)" -NoNewline
-                    Write-Host "`r" -NoNewline
-                }
-                Write-Host ""
-
-                if ($authOk) {
-                    # Connector already created in polling loop — wire repos only
-                    Write-Host "-- Wiring GitHub repos --"
-                    $token = Get-DpToken
-                    $headers = @{
-                        Authorization  = "Bearer $token"
-                        "Content-Type" = "application/json"
-                    }
-                    foreach ($repo in $repos) {
-                        $rname = $repo.name
-                        $rurl = $repo.spec.url
-                        # Normalize short "org/repo" to full URL (API requires https://...)
-                        if ($rurl -and $rurl -notmatch '^https?://' -and $rurl -match '/') {
-                            $rurl = "https://github.com/$rurl"
-                        }
-                        $rtypeIn = if ($repo.spec.type) { $repo.spec.type } else { "github" }
-                        $rtype = if ($rtypeIn.ToLower() -match '^(ado|azuredevops|azure-devops)$') { "AzureDevOps" } else { "GitHub" }
-                        $rbody = @{
-                            name = $rname; type = "CodeRepo"
-                            properties = @{ url = $rurl; type = $rtype }
-                        } | ConvertTo-Json -Compress -Depth 10
-                        $encodedRname = [uri]::EscapeDataString($rname)
-                        try {
-                            $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/repos/$encodedRname" `
-                                -Method Put -Headers $headers -Body $rbody -ContentType "application/json"
-                            Write-Host "  ok repo/$rname"
-                        } catch {
-                            Write-Host "  FAILED repo/$rname"
-                        }
-                    }
-                } else {
-                    Write-Host "  Timed out. Re-run Apply-Extras after authorizing."
-                    Write-Host "  Headless alternative: `$env:GITHUB_PAT='ghp_xxx' && re-run"
-                }
-            } else {
-                Write-Host "  Could not fetch OAuth URL from $AgentEndpoint/api/v1/Github/config."
-                Write-Host "  Fallback: Azure portal -> agent -> Repos -> 'Authorize' next to each repo."
             }
             Write-Host ""
         }

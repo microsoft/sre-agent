@@ -917,10 +917,15 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
       for attempt in $(seq 1 24); do
         sleep 10
         TOKEN=$(_dp_token 2>/dev/null || true)
-        # Try creating the connector — succeeds once OAuth is done, fails until then
-        if curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
-            -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" \
-            --data "$conn_body" >/dev/null 2>&1; then
+        # Check auth/status — only trust isConfigured, not connector PUT success
+        GH_CHECK=$(curl -sS -H "Authorization: Bearer ${TOKEN}" \
+          "${AGENT_ENDPOINT}/api/v1/Github/auth/status" 2>/dev/null || echo '{}')
+        IS_AUTH=$(echo "$GH_CHECK" | jq -r '.isConfigured // .hosts[0].isConfigured // false')
+        if [[ "$IS_AUTH" == "true" ]]; then
+          # Auth confirmed — now create the connector
+          curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
+              -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" \
+              --data "$conn_body" >/dev/null 2>&1 || true
           echo "  GitHub authorized!"
           echo "  ok connector/github"
           auth_ok=true

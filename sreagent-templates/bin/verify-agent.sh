@@ -68,7 +68,16 @@ if [[ -z "$TOKEN" ]]; then
   exit 1
 fi
 
-dp_get() { curl -sS "$ENDPOINT$1" -H "Authorization: Bearer $TOKEN" 2>/dev/null; }
+dp_get() {
+  local raw
+  raw=$(curl -sS "$ENDPOINT$1" -H "Authorization: Bearer $TOKEN" 2>/dev/null)
+  # Validate JSON; return empty object if response is HTML/error
+  if echo "$raw" | jq -e 'type' >/dev/null 2>&1; then
+    echo "$raw"
+  else
+    echo '{}'
+  fi
+}
 arm_get() { az rest -m GET --url "${ARM_BASE}$1?api-version=${API_VERSION}" -o json 2>/dev/null || echo "{}"; }
 
 PASS=0

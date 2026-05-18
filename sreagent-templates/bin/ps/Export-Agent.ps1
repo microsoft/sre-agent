@@ -257,25 +257,34 @@ function Invoke-DpDownload {
 
 # ── Data-plane download tarball ──
 function Invoke-DpDownloadTarball {
-    param([string]$Path, [string]$DestDir, [string]$Label)
-    $token = Get-DpToken
-    $tmpfile = [System.IO.Path]::GetTempFileName() + '.tar.gz'
+    param([string]$Path, [string]$DestDir, [string]$Label, [int]$Retries = 3)
     $ok = $false
-    try {
-        curl -sS -f -H "Authorization: Bearer $token" -o $tmpfile "${AGENT_ENDPOINT}${Path}" 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            if (-not (Test-Path $DestDir)) { New-Item -ItemType Directory -Path $DestDir -Force | Out-Null }
-            tar -xzf $tmpfile -C $DestDir 2>$null
-            $count = (Get-ChildItem -Path $DestDir -File -Recurse -ErrorAction SilentlyContinue | Measure-Object).Count
-            _log "  Downloaded ${Label}: ${count} file(s) → ${DestDir}"
-            $ok = $true
-        } else {
-            _log "  WARN: Could not download ${Label}"
+    for ($attempt = 1; $attempt -le $Retries; $attempt++) {
+        $token = Get-DpToken
+        $tmpfile = [System.IO.Path]::GetTempFileName() + '.tar.gz'
+        try {
+            curl -sS -f -H "Authorization: Bearer $token" -o $tmpfile "${AGENT_ENDPOINT}${Path}" 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                if (-not (Test-Path $DestDir)) { New-Item -ItemType Directory -Path $DestDir -Force | Out-Null }
+                tar -xzf $tmpfile -C $DestDir 2>$null
+                $count = (Get-ChildItem -Path $DestDir -File -Recurse -ErrorAction SilentlyContinue | Measure-Object).Count
+                _log "    Downloaded ${Label}: ${count} file(s) → ${DestDir}"
+                $ok = $true
+                break
+            }
+        } catch { }
+        finally {
+            Remove-Item $tmpfile -Force -ErrorAction SilentlyContinue
         }
-    } catch {
-        _log "  WARN: Could not download ${Label}"
-    } finally {
-        Remove-Item $tmpfile -Force -ErrorAction SilentlyContinue
+        if ($attempt -lt $Retries) {
+            _log "    Retry ${attempt}/${Retries} for ${Label} download..."
+            Start-Sleep -Seconds (5 * $attempt)
+            # Refresh token on retry
+            $script:DpTokenCache = ''
+        }
+    }
+    if (-not $ok) {
+        _log "    WARN: Could not download ${Label} after ${Retries} attempts"
     }
     return $ok
 }
@@ -1165,13 +1174,20 @@ $enableAIStr   = if ($ENABLE_AI)    { 'true' } else { 'false' }
 $enableLAWStr  = if ($ENABLE_LAW)   { 'true' } else { 'false' }
 $enableAzMonStr = if ($ENABLE_AZMON) { 'true' } else { 'false' }
 
+# PowerShell drops empty-string arguments when calling native commands, which
+# misaligns jq --arg pairs.  Default to a single space so the arg is preserved;
+# the values are only used when their toggle is true.
+if ([string]::IsNullOrEmpty($AI_RESOURCE_ID)) { $AI_RESOURCE_ID = ' ' }
+if ([string]::IsNullOrEmpty($AI_APP_ID))      { $AI_APP_ID      = ' ' }
+if ([string]::IsNullOrEmpty($LAW_RESOURCE_ID)) { $LAW_RESOURCE_ID = ' ' }
+
 $CONNECTORS_ARRAY | Invoke-Jq -Filter '{
         "toggles": {
             "enableAppInsightsConnector": ($enableAI | test("true")),
-            "appInsightsResourceId": $aiResId,
-            "appInsightsAppId": $aiAppId,
+            "appInsightsResourceId": ($aiResId | ltrimstr(" ")),
+            "appInsightsAppId": ($aiAppId | ltrimstr(" ")),
             "enableLogAnalyticsConnector": ($enableLAW | test("true")),
-            "lawResourceId": $lawResId,
+            "lawResourceId": ($lawResId | ltrimstr(" ")),
             "enableAzureMonitorConnector": ($enableAzMon | test("true")),
             "azureMonitorLookbackDays": ($azMonLookback | tonumber)
         },
