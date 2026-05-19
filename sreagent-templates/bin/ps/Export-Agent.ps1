@@ -61,7 +61,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [Alias('s')]
+    [Alias('s', 'SubscriptionId')]
     [string]$Subscription,
 
     [Parameter(Mandatory)]
@@ -159,7 +159,11 @@ function _fail { param([string]$Msg) Write-Host "  ERROR: $Msg" -ForegroundColor
 # ── JSON → YAML via python3 ──
 function ConvertTo-Yaml {
     param([Parameter(ValueFromPipeline)][string]$Json)
-    $result = $Json | python3 -c @"
+    begin   { $inputLines = [System.Collections.Generic.List[string]]::new() }
+    process { if ($Json) { $inputLines.Add($Json) } }
+    end {
+        $fullJson = $inputLines -join "`n"
+        $result = $fullJson | python3 -c @"
 import sys, json, yaml
 
 def strip_nulls(obj):
@@ -173,10 +177,13 @@ data = json.load(sys.stdin)
 data = strip_nulls(data)
 yaml.dump(data, sys.stdout, default_flow_style=False, sort_keys=False, allow_unicode=True)
 "@
-    if ($LASTEXITCODE -ne 0 -or -not $result) {
-        throw "python3 YAML conversion failed (exit code: $LASTEXITCODE)"
+        if ($LASTEXITCODE -ne 0 -or -not $result) {
+            throw "python3 YAML conversion failed (exit code: $LASTEXITCODE)"
+        }
+        # PS captures native-command stdout as string[] (one per line).
+        # Join with newlines so Set-Content -NoNewline writes proper YAML.
+        return ($result -join "`n")
     }
-    return $result
 }
 
 function Write-Yaml {
@@ -188,7 +195,7 @@ function Write-Yaml {
 function Invoke-ArmGet {
     param([string]$Url)
     try {
-        $result = az rest -m GET --url "${Url}?api-version=${API_VERSION}" -o json 2>$null
+        $result = (az rest -m GET --url "${Url}?api-version=${API_VERSION}" -o json 2>$null) -join "`n"
         if ($LASTEXITCODE -ne 0 -or -not $result) { return 'null' }
         return $result
     } catch {
@@ -201,7 +208,7 @@ function Invoke-ArmList {
     param([string]$ChildType)
     $url = "${ARM_BASE}/${ChildType}?api-version=${API_VERSION}"
     try {
-        $result = az rest -m GET --url $url -o json 2>$null
+        $result = (az rest -m GET --url $url -o json 2>$null) -join "`n"
         if ($LASTEXITCODE -ne 0 -or -not $result) { return '[]' }
         return ($result | Invoke-Jq -Compact -Filter '.value // []')
     } catch {
@@ -230,7 +237,7 @@ function Invoke-DpGet {
     param([string]$Path)
     $token = Get-DpToken
     try {
-        $result = curl -sS -f -H "Authorization: Bearer $token" "${AGENT_ENDPOINT}${Path}" 2>$null
+        $result = (curl -sS -f --max-time 10 -H "Authorization: Bearer $token" "${AGENT_ENDPOINT}${Path}" 2>$null) -join "`n"
         if ($LASTEXITCODE -ne 0 -or -not $result) { return 'null' }
         return $result
     } catch {
@@ -250,25 +257,34 @@ function Invoke-DpDownload {
 
 # ── Data-plane download tarball ──
 function Invoke-DpDownloadTarball {
-    param([string]$Path, [string]$DestDir, [string]$Label)
-    $token = Get-DpToken
-    $tmpfile = [System.IO.Path]::GetTempFileName() + '.tar.gz'
+    param([string]$Path, [string]$DestDir, [string]$Label, [int]$Retries = 3)
     $ok = $false
-    try {
-        curl -sS -f -H "Authorization: Bearer $token" -o $tmpfile "${AGENT_ENDPOINT}${Path}" 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            if (-not (Test-Path $DestDir)) { New-Item -ItemType Directory -Path $DestDir -Force | Out-Null }
-            tar -xzf $tmpfile -C $DestDir 2>$null
-            $count = (Get-ChildItem -Path $DestDir -File -Recurse -ErrorAction SilentlyContinue | Measure-Object).Count
-            _log "  Downloaded ${Label}: ${count} file(s) → ${DestDir}"
-            $ok = $true
-        } else {
-            _log "  WARN: Could not download ${Label}"
+    for ($attempt = 1; $attempt -le $Retries; $attempt++) {
+        $token = Get-DpToken
+        $tmpfile = [System.IO.Path]::GetTempFileName() + '.tar.gz'
+        try {
+            curl -sS -f -H "Authorization: Bearer $token" -o $tmpfile "${AGENT_ENDPOINT}${Path}" 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                if (-not (Test-Path $DestDir)) { New-Item -ItemType Directory -Path $DestDir -Force | Out-Null }
+                tar -xzf $tmpfile -C $DestDir 2>$null
+                $count = (Get-ChildItem -Path $DestDir -File -Recurse -ErrorAction SilentlyContinue | Measure-Object).Count
+                _log "    Downloaded ${Label}: ${count} file(s) → ${DestDir}"
+                $ok = $true
+                break
+            }
+        } catch { }
+        finally {
+            Remove-Item $tmpfile -Force -ErrorAction SilentlyContinue
         }
-    } catch {
-        _log "  WARN: Could not download ${Label}"
-    } finally {
-        Remove-Item $tmpfile -Force -ErrorAction SilentlyContinue
+        if ($attempt -lt $Retries) {
+            _log "    Retry ${attempt}/${Retries} for ${Label} download..."
+            Start-Sleep -Seconds (5 * $attempt)
+            # Refresh token on retry
+            $script:DpTokenCache = ''
+        }
+    }
+    if (-not $ok) {
+        _log "    WARN: Could not download ${Label} after ${Retries} attempts"
     }
     return $ok
 }
@@ -720,7 +736,7 @@ _log 'Checking for webhook bridge (Logic App)...'
 $BRIDGE_EXISTS = $false
 $bridgeId = "/subscriptions/${Subscription}/resourceGroups/${ResourceGroup}/providers/Microsoft.Logic/workflows/${AgentName}-webhook-bridge"
 try {
-    $BRIDGE_JSON = az resource show --ids $bridgeId -o json 2>$null
+    $BRIDGE_JSON = (az resource show --ids $bridgeId -o json 2>$null) -join "`n"
     if ($LASTEXITCODE -eq 0 -and $BRIDGE_JSON -and $BRIDGE_JSON -ne 'null') {
         $BRIDGE_EXISTS = $true
         _log "  Found webhook bridge: ${AgentName}-webhook-bridge"
@@ -1049,7 +1065,7 @@ Invoke-Jq -Filter '{
         '--arg', 'action', $ACTION_MODE,
         '--slurpfile', 'targetRgs', $trgTmpFile,
         '--arg', 'enableBridge', $bridgeBool
-    ) -InputFile '/dev/null' | Set-Content -Path (Join-Path $EXPORT_DIR 'agent.json') -Encoding utf8
+    ) | Set-Content -Path (Join-Path $EXPORT_DIR 'agent.json') -Encoding utf8
 Remove-Item $trgTmpFile -Force -ErrorAction SilentlyContinue
 
 # Apply --set overrides
@@ -1158,13 +1174,20 @@ $enableAIStr   = if ($ENABLE_AI)    { 'true' } else { 'false' }
 $enableLAWStr  = if ($ENABLE_LAW)   { 'true' } else { 'false' }
 $enableAzMonStr = if ($ENABLE_AZMON) { 'true' } else { 'false' }
 
+# PowerShell drops empty-string arguments when calling native commands, which
+# misaligns jq --arg pairs.  Default to a single space so the arg is preserved;
+# the values are only used when their toggle is true.
+if ([string]::IsNullOrEmpty($AI_RESOURCE_ID)) { $AI_RESOURCE_ID = ' ' }
+if ([string]::IsNullOrEmpty($AI_APP_ID))      { $AI_APP_ID      = ' ' }
+if ([string]::IsNullOrEmpty($LAW_RESOURCE_ID)) { $LAW_RESOURCE_ID = ' ' }
+
 $CONNECTORS_ARRAY | Invoke-Jq -Filter '{
         "toggles": {
             "enableAppInsightsConnector": ($enableAI | test("true")),
-            "appInsightsResourceId": $aiResId,
-            "appInsightsAppId": $aiAppId,
+            "appInsightsResourceId": ($aiResId | ltrimstr(" ")),
+            "appInsightsAppId": ($aiAppId | ltrimstr(" ")),
             "enableLogAnalyticsConnector": ($enableLAW | test("true")),
-            "lawResourceId": $lawResId,
+            "lawResourceId": ($lawResId | ltrimstr(" ")),
             "enableAzureMonitorConnector": ($enableAzMon | test("true")),
             "azureMonitorLookbackDays": ($azMonLookback | tonumber)
         },
@@ -1283,7 +1306,7 @@ Invoke-Jq -Filter '{
         '--slurpfile', 'tasks', (Join-Path $ecTmpDir 'tasks.json'),
         '--slurpfile', 'plans', (Join-Path $ecTmpDir 'plans.json'),
         '--slurpfile', 'repos', (Join-Path $ecTmpDir 'repos.json')
-    ) -InputFile '/dev/null' | Set-Content -Path (Join-Path $EXPORT_DIR 'expected-config.json') -Encoding utf8
+    ) | Set-Content -Path (Join-Path $EXPORT_DIR 'expected-config.json') -Encoding utf8
 Remove-Item $ecTmpDir -Recurse -Force -ErrorAction SilentlyContinue
 
 _log 'Wrote expected-config.json'

@@ -135,7 +135,10 @@ print(json.dumps(resolve(data)))
 '@
 
     try {
-        $result = $Json | & $Python -c $pyScript $BaseDir 2>$null
+        $pyTmp = [System.IO.Path]::GetTempFileName() + '.py'
+        Set-Content -Path $pyTmp -Value $pyScript -Encoding UTF8
+        $result = $Json | & $Python $pyTmp $BaseDir 2>$null
+        Remove-Item $pyTmp -Force -ErrorAction SilentlyContinue
         if ($LASTEXITCODE -eq 0 -and $result) { return $result }
     } catch {}
     return $Json
@@ -168,7 +171,10 @@ with open(sys.argv[1]) as fh:
 print(json.dumps(data))
 '@
             try {
-                $item = & $Python -c $pyYaml $f.FullName 2>$null
+                $pyTmp = [System.IO.Path]::GetTempFileName() + '.py'
+                Set-Content -Path $pyTmp -Value $pyYaml -Encoding UTF8
+                $item = & $Python $pyTmp $f.FullName 2>$null
+                Remove-Item $pyTmp -Force -ErrorAction SilentlyContinue
                 if ($LASTEXITCODE -ne 0 -or -not $item) { continue }
                 # Use --slurpfile to safely pass JSON without --argjson quoting issues
                 $tmpItem = [System.IO.Path]::GetTempFileName()
@@ -215,7 +221,10 @@ print(json.dumps(sub(data)))
 '@
 
     try {
-        $result = $Json | & $Python -c $pyScript 2>$null
+        $pyTmp = [System.IO.Path]::GetTempFileName() + '.py'
+        Set-Content -Path $pyTmp -Value $pyScript -Encoding UTF8
+        $result = $Json | & $Python $pyTmp 2>$null
+        Remove-Item $pyTmp -Force -ErrorAction SilentlyContinue
         if ($LASTEXITCODE -eq 0 -and $result) { return $result }
     } catch {}
     return $Json
@@ -413,12 +422,16 @@ if ($mdFiles.Count -gt 0) {
         # Build JSON item via Python to avoid jq --arg quoting issues with large content
         $tmpContent = [System.IO.Path]::GetTempFileName()
         Set-Content -Path $tmpContent -Value $content -NoNewline -Encoding UTF8
-        $item = & $Python -c @"
+        $pyKnowledge = @'
 import json, sys
 with open(sys.argv[1]) as f:
     content = f.read()
 print(json.dumps({"name": sys.argv[2], "type": "KnowledgeText", "content": content}))
-"@ $tmpContent $fname 2>$null
+'@
+        $pyTmp = [System.IO.Path]::GetTempFileName() + '.py'
+        Set-Content -Path $pyTmp -Value $pyKnowledge -Encoding UTF8
+        $item = & $Python $pyTmp $tmpContent $fname 2>$null
+        Remove-Item $pyTmp -Force -ErrorAction SilentlyContinue
         Remove-Item $tmpContent -ErrorAction SilentlyContinue
         if ($LASTEXITCODE -eq 0 -and $item) {
             $tmpItem = [System.IO.Path]::GetTempFileName()

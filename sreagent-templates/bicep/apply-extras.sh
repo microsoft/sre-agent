@@ -30,7 +30,9 @@
 #   ADO — set $ADO_PAT, $ADO_USE_AAD=1, or $ADO_USE_MI=1 (with $ADO_ORG).
 #
 # Usage:
-#   ./apply-extras.sh <subscription-id> <resource-group> <agent-name> [extras-file]
+#   ./apply-extras.sh <subscription-id> <resource-group> <agent-name> [extras-file-or-config-dir]
+#
+# If the 4th argument is a directory (agent config dir), extras are auto-assembled from it.
 
 set -euo pipefail
 
@@ -41,7 +43,16 @@ FILE="${4:-extras.parameters.json}"
 FORCE=""
 for arg in "$@"; do [[ "$arg" == "--force" ]] && FORCE="true"; done
 
-[[ -f "$FILE" ]] || { echo "extras file not found: $FILE" >&2; exit 1; }
+# Auto-assemble if a config directory was passed instead of a file
+if [[ -d "$FILE" ]]; then
+  CONFIG_DIR="$FILE"
+  ASSEMBLE_TMP="$(mktemp -d)/assembled"
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  bash "${SCRIPT_DIR}/assemble-agent.sh" "$CONFIG_DIR" --output "$ASSEMBLE_TMP"
+  FILE="${ASSEMBLE_TMP}.extras.json"
+fi
+
+[[ -f "$FILE" ]] || { echo "extras file not found: $FILE (pass a config dir or pre-assembled extras.json)" >&2; exit 1; }
 command -v jq    >/dev/null || { echo "jq is required"    >&2; exit 1; }
 command -v tar   >/dev/null || { echo "tar is required"   >&2; exit 1; }
 command -v curl  >/dev/null || { echo "curl is required"  >&2; exit 1; }
@@ -900,14 +911,23 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
       echo "  2. Sign in to GitHub and approve the SRE Agent app."
       echo
       echo "  Waiting for GitHub authorization (Ctrl-C to skip)..."
+      if [[ -z "$AGENT_UAMI" ]]; then IDENT="SystemAssigned"; else IDENT="$AGENT_UAMI"; fi
+      conn_body=$(jq -nc --arg id "$IDENT" '{name:"github",type:"AgentConnector",properties:{dataConnectorType:"GitHubOAuth",dataSource:"github-oauth",identity:$id}}')
       auth_ok=false
       for attempt in $(seq 1 24); do
         sleep 10
         TOKEN=$(_dp_token 2>/dev/null || true)
+        # Check auth/status — only trust isConfigured, not connector PUT success
         GH_CHECK=$(curl -sS -H "Authorization: Bearer ${TOKEN}" \
           "${AGENT_ENDPOINT}/api/v1/Github/auth/status" 2>/dev/null || echo '{}')
-        if echo "$GH_CHECK" | jq -e '.isConfigured // .hosts[0].isConfigured' 2>/dev/null | grep -q 'true'; then
+        IS_AUTH=$(echo "$GH_CHECK" | jq -r '.isConfigured // .hosts[0].isConfigured // false')
+        if [[ "$IS_AUTH" == "true" ]]; then
+          # Auth confirmed — now create the connector
+          curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
+              -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" \
+              --data "$conn_body" >/dev/null 2>&1 || true
           echo "  GitHub authorized!"
+          echo "  ok connector/github"
           auth_ok=true
           break
         fi
@@ -916,14 +936,9 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
       echo
 
       if [[ "$auth_ok" == "true" ]]; then
-        # Re-enter the OAuth-done path: create connector + repos
-        echo "── Wiring GitHub connector + repos ──"
-        if [[ -z "$AGENT_UAMI" ]]; then IDENT="SystemAssigned"; else IDENT="$AGENT_UAMI"; fi
+        # Connector already created in polling loop — wire repos only
+        echo "── Wiring GitHub repos ──"
         TOKEN=$(_dp_token)
-        body=$(jq -nc --arg id "$IDENT" '{name:"github",type:"AgentConnector",properties:{dataConnectorType:"GitHubOAuth",dataSource:"github-oauth",identity:$id}}')
-        curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
-          -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" --data "$body" >/dev/null && \
-          echo "  ok connector/github" || echo "  FAILED connector/github"
         count=$(jq '.repos // [] | length' "$FILE")
         for i in $(seq 0 $((count - 1))); do
           rname=$(jq -r --argjson i "$i" '.repos[$i].name' "$FILE")

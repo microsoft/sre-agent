@@ -150,7 +150,7 @@ dp_get() {
   local path="$1"
   local token
   token=$(_dp_token)
-  curl -sS -f -H "Authorization: Bearer ${token}" "${AGENT_ENDPOINT}${path}" 2>/dev/null || echo "null"
+  curl -sS -f --max-time 10 -H "Authorization: Bearer ${token}" "${AGENT_ENDPOINT}${path}" 2>/dev/null || echo "null"
 }
 
 # Download a file from data-plane to local path

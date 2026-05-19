@@ -54,11 +54,13 @@ param(
     [string]$Source,
     [string]$FromAgent,
     [string]$FromResourceGroup,
+    [Alias('FromSubscriptionId')]
     [string]$FromSubscription,
     [Parameter(Mandatory)][string]$AgentName,
     [Parameter(Mandatory)][string]$ResourceGroup,
     [string]$Location,
     [string]$TargetResourceGroups,
+    [Alias('SubscriptionId')]
     [string]$Subscription,
     [switch]$ValidateOnly,
     [switch]$SkipExtras,

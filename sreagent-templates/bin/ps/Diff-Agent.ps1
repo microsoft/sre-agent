@@ -29,7 +29,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [Alias('s')]
+    [Alias('s', 'SubscriptionId')]
     [string]$Subscription,
 
     [Parameter(Mandatory)]
@@ -77,7 +77,7 @@ $ARM_BASE    = "https://management.azure.com/subscriptions/${Subscription}/resou
 
 # ─────────────────────────── Check if agent exists ───────────────────────────
 
-$AgentJson = az rest -m GET --url "${ARM_BASE}?api-version=${API_VERSION}" -o json 2>$null
+$AgentJson = (az rest -m GET --url "${ARM_BASE}?api-version=${API_VERSION}" -o json 2>$null) -join "`n"
 if (-not $AgentJson) { $AgentJson = '{}' }
 
 $Endpoint = $AgentJson | Invoke-Jq -Raw -Filter '.properties.agentEndpoint // empty'
@@ -154,7 +154,7 @@ if (-not $Token) {
 
 function Invoke-Dp {
     param([string]$Path)
-    curl -sS "${Endpoint}${Path}" -H "Authorization: Bearer $Token" 2>$null
+    (curl -sS "${Endpoint}${Path}" -H "Authorization: Bearer $Token" 2>$null) -join "`n"
 }
 
 # ─────────────────────────── Results tracking ───────────────────────────

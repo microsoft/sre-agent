@@ -53,7 +53,10 @@ param(
     [string]$Subscription,
     [Parameter(Mandatory)][string]$ResourceGroup,
     [Parameter(Mandatory)][string]$AgentName,
-    [string]$ExtrasFile = "extras.parameters.json",
+    # Either supply a pre-assembled extras JSON OR a config directory — Apply-Extras
+    # will auto-assemble from the directory if ExtrasFile is not found.
+    [string]$ExtrasFile = "",
+    [string]$ConfigDir  = "",
     [switch]$Force
 )
 
@@ -73,8 +76,20 @@ if (Test-Path $PrereqScript) {
     }
 }
 
+# ── Auto-assemble from ConfigDir if ExtrasFile not supplied/found ───────────
+if (($ExtrasFile -eq "" -or -not (Test-Path $ExtrasFile)) -and $ConfigDir -ne "" -and (Test-Path $ConfigDir -PathType Container)) {
+    Write-Host "No extras file supplied — assembling from config dir: $ConfigDir"
+    $AssembleScript = Join-Path $PSScriptRoot 'Assemble-Agent.ps1'
+    $AssembleTmp = Join-Path ([System.IO.Path]::GetTempPath()) "assembled-$(New-Guid)"
+    & $AssembleScript -ConfigDir $ConfigDir -Output $AssembleTmp
+    $ExtrasFile = "${AssembleTmp}.extras.json"
+} elseif ($ExtrasFile -eq "") {
+    # Default: look for <AgentName>.extras.json next to the script caller's cwd
+    $ExtrasFile = "extras.parameters.json"
+}
+
 if (-not (Test-Path $ExtrasFile)) {
-    Write-Error "extras file not found: $ExtrasFile"
+    Write-Error "extras file not found: $ExtrasFile`nTip: pass -ConfigDir <agent-dir> to auto-assemble."
     return
 }
 
@@ -87,7 +102,7 @@ $ArmBase = "https://management.azure.com/subscriptions/$Subscription/resourceGro
 
 # ── Resolve agent endpoint and UAMI ────────────────────────────────────────
 try {
-    $agentRaw = az rest -m GET --url "$ArmBase`?api-version=$ApiVersion" -o json 2>$null
+    $agentRaw = (az rest -m GET --url "$ArmBase`?api-version=$ApiVersion" -o json 2>$null) -join "`n"
     $agentObj = $agentRaw | ConvertFrom-Json
 } catch {
     $agentObj = $null
@@ -210,7 +225,7 @@ function DataPlane-UploadTarball {
             "Content-Type" = "application/gzip"
         }
         $bytes = [System.IO.File]::ReadAllBytes($tarball)
-        $null = Invoke-RestMethod -Uri $Url -Method Post -Headers $headers -Body $bytes
+        $null = Invoke-RestMethod -TimeoutSec 30 -Uri $Url -Method Post -Headers $headers -Body $bytes
         Write-Host "    ok"
     } catch {
         Write-Host "    FAILED - POST $Url"
@@ -254,7 +269,7 @@ function DataPlane-UploadMultipart {
 
         $fullUrl = "${Url}?triggerIndexing=$Trigger"
         $headers = @{ Authorization = "Bearer $token" }
-        $null = Invoke-WebRequest -Uri $fullUrl -Method Post `
+        $null = Invoke-WebRequest -TimeoutSec 30 -Uri $fullUrl -Method Post `
             -Headers $headers `
             -ContentType "multipart/form-data; boundary=$boundary" `
             -Body $bodyArray
@@ -280,7 +295,7 @@ function DataPlane-PostJson {
             "Content-Type" = "application/json"
         }
         $bodyJson = $BodyObj | ConvertTo-Json -Compress -Depth 20
-        $null = Invoke-RestMethod -Uri $Url -Method Post -Headers $headers -Body $bodyJson -ContentType "application/json"
+        $null = Invoke-RestMethod -TimeoutSec 30 -Uri $Url -Method Post -Headers $headers -Body $bodyJson -ContentType "application/json"
         Write-Host "    ok"
     } catch {
         Write-Host "    FAILED - POST $Url"
@@ -304,7 +319,7 @@ function DataPlane-PutExtended {
             Authorization  = "Bearer $token"
             "Content-Type" = "application/json"
         }
-        $null = Invoke-RestMethod -Uri $url -Method Put -Headers $headers -Body $body -ContentType "application/json"
+        $null = Invoke-RestMethod -TimeoutSec 30 -Uri $url -Method Put -Headers $headers -Body $body -ContentType "application/json"
         Write-Host "  ok $Kind/$Name"
     } catch {
         Write-Host "  FAILED - PUT $Kind/$Name"
@@ -408,7 +423,7 @@ if ($ifCount -gt 0) {
                         Authorization  = "Bearer $token"
                         "Content-Type" = "application/json"
                     }
-                    $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/extendedAgent/incidentFilters/$encodedName" `
+                    $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/extendedAgent/incidentFilters/$encodedName" `
                         -Method Put -Headers $headers -Body $body -ContentType "application/json"
                     Write-Host "  data-plane PUT incidentFilters/$name"
                     Write-Host "    ok"
@@ -446,7 +461,7 @@ if ($ifCount -gt 0) {
                             Authorization  = "Bearer $token"
                             "Content-Type" = "application/json"
                         }
-                        $resp = Invoke-WebRequest -Uri "$AgentEndpoint/api/v1/incidentPlayground/handlers/$name" `
+                        $resp = Invoke-WebRequest -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/incidentPlayground/handlers/$name" `
                             -Method Put -Headers $headers -Body $handlerBody -ContentType "application/json" `
                             -UseBasicParsing
                         $httpCode = $resp.StatusCode
@@ -649,7 +664,7 @@ if ($synthDir -and (Test-Path $synthDir -PathType Container)) {
                     "Content-Type" = "application/gzip"
                 }
                 $bytes = [System.IO.File]::ReadAllBytes($tarball)
-                $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/WorkspaceMemory/synthesized-knowledge" `
+                $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/WorkspaceMemory/synthesized-knowledge" `
                     -Method Post -Headers $headers -Body $bytes
                 Write-Host "    ok"
             } catch {
@@ -837,7 +852,7 @@ if ($htCount -gt 0) {
         $token = Get-DpToken
         $headers = @{ Authorization = "Bearer $token" }
         try {
-            $existingTriggers = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/httpTriggers" -Headers $headers
+            $existingTriggers = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/httpTriggers" -Headers $headers
         } catch {
             $existingTriggers = @()
         }
@@ -861,7 +876,7 @@ if ($htCount -gt 0) {
                 if (-not $HttpTriggerUrl) { $HttpTriggerUrl = $existingUrl }
             } else {
                 try {
-                    $resp = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/httptriggers/create" `
+                    $resp = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/httptriggers/create" `
                         -Method Post -Headers $headers -Body $bodyJson -ContentType "application/json"
                     $triggerUrl = if ($resp.triggerUrl) { $resp.triggerUrl } else { "created" }
                     Write-Host "  httpTrigger/${name}: $triggerUrl"
@@ -975,7 +990,7 @@ if ($DpTokenAvailable) {
                 "Content-Type" = "application/json"
             }
             $body = @{ accessToken = $env:GITHUB_PAT } | ConvertTo-Json -Compress
-            $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/Github/auth/pat" `
+            $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/auth/pat" `
                 -Method Post -Headers $headers -Body $body -ContentType "application/json"
             Write-Host "  ok"
         } catch {
@@ -995,7 +1010,7 @@ if ($DpTokenAvailable) {
                 "Content-Type" = "application/json"
             }
             $body = @{ accessToken = $env:ADO_PAT } | ConvertTo-Json -Compress
-            $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/AzureDevOps/auth/pat?organization=$($env:ADO_ORG)" `
+            $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/AzureDevOps/auth/pat?organization=$($env:ADO_ORG)" `
                 -Method Post -Headers $headers -Body $body -ContentType "application/json"
             Write-Host "  ok"
         } catch {
@@ -1014,7 +1029,7 @@ if ($DpTokenAvailable) {
                 "Content-Type" = "application/json"
             }
             $body = @{ aadAccessToken = $aadToken } | ConvertTo-Json -Compress
-            $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/AzureDevOps/aadauth/complete?organization=$($env:ADO_ORG)" `
+            $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/AzureDevOps/aadauth/complete?organization=$($env:ADO_ORG)" `
                 -Method Post -Headers $headers -Body $body -ContentType "application/json"
             Write-Host "  ok"
         } catch {
@@ -1028,7 +1043,7 @@ if ($DpTokenAvailable) {
         try {
             $token = Get-DpToken
             $headers = @{ Authorization = "Bearer $token" }
-            $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/AzureDevOps/auth/mi?organization=$($env:ADO_ORG)" `
+            $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/AzureDevOps/auth/mi?organization=$($env:ADO_ORG)" `
                 -Method Post -Headers $headers
             Write-Host "  ok"
         } catch {
@@ -1047,47 +1062,124 @@ if ($DpTokenAvailable) {
         if ($token) {
             try {
                 $headers = @{ Authorization = "Bearer $token" }
-                $ghStatus = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/Github/auth/status" -Headers $headers
+                $ghStatus = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/auth/status" -Headers $headers
                 $ghConfigured = ($ghStatus.isConfigured -eq $true) -or ($ghStatus.hosts[0].isConfigured -eq $true)
             } catch { }
         }
 
-        if ($ghConfigured -or $env:GITHUB_PAT) {
-            # OAuth (or PAT) is in place — wire the connector + repos
-            Write-Host "-- Wiring GitHub connector + repos --"
-            $ident = if ($AgentUami) { $AgentUami } else {
-                Write-Host "  WARN: agent has no user-assigned MI; falling back to SystemAssigned."
-                "SystemAssigned"
+        # Shared identity + connector body (used in both fast-path and OAuth wait)
+        $ident = if ($AgentUami) { $AgentUami } else {
+            Write-Host "  WARN: agent has no user-assigned MI; falling back to SystemAssigned."
+            "SystemAssigned"
+        }
+        $connBody = @{
+            name       = "github"
+            type       = "AgentConnector"
+            properties = @{
+                dataConnectorType = "GitHubOAuth"
+                dataSource        = "github-oauth"
+                identity          = $ident
             }
+        } | ConvertTo-Json -Compress -Depth 10
 
-            # 1) Create the GitHubOAuth connector
-            $connBody = @{
-                name       = "github"
-                type       = "AgentConnector"
-                properties = @{
-                    dataConnectorType = "GitHubOAuth"
-                    dataSource        = "github-oauth"
-                    identity          = $ident
-                }
-            } | ConvertTo-Json -Compress -Depth 10
+        $connectorOk = $false
+
+        # Fast path: if auth/status says configured (or PAT), try the connector PUT immediately
+        if ($ghConfigured -or $env:GITHUB_PAT) {
+            Write-Host "-- Wiring GitHub connector + repos --"
             try {
                 $token = Get-DpToken
                 $headers = @{
                     Authorization  = "Bearer $token"
                     "Content-Type" = "application/json"
                 }
-                $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
+                $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
                     -Method Put -Headers $headers -Body $connBody -ContentType "application/json"
-                Write-Host "  ok connector/github (GitHubOAuth, identity=$($ident.Split('/')[-1]))"
+                # Verify the connector is actually healthy (not just metadata)
+                Start-Sleep -Seconds 3
+                try {
+                    $connCheck = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
+                        -Method Get -Headers @{ Authorization = "Bearer $token" }
+                    $provState = $connCheck.properties.provisioningState
+                    if ($provState -eq 'Succeeded') {
+                        Write-Host "  ok connector/github (GitHubOAuth, identity=$($ident.Split('/')[-1]))"
+                        $connectorOk = $true
+                    } else {
+                        Write-Host "  WARN: connector created but state=$provState — falling back to OAuth wait..."
+                    }
+                } catch {
+                    Write-Host "  ok connector/github (GitHubOAuth, identity=$($ident.Split('/')[-1]))"
+                    $connectorOk = $true
+                }
             } catch {
-                Write-Host "  FAILED - PUT /api/v2/extendedAgent/connectors/github"
+                Write-Host "  WARN: connector PUT failed (stale auth?) — falling back to OAuth wait..."
             }
+        }
 
-            # 2) Attach each repo
+        # OAuth wait: if connector not yet created, show URL and poll until user completes auth
+        if (-not $connectorOk -and -not $env:GITHUB_PAT) {
+            Write-Host "-- GitHub OAuth sign-in required --"
+            Write-Host "Repos waiting: $($oauthRepos -join ' ')"
+            $oauthUrl = $null
+            try { $token = Get-DpToken } catch { $token = $null }
+            if ($token) {
+                try {
+                    $headers = @{ Authorization = "Bearer $token" }
+                    $ghConfig = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/config" -Headers $headers
+                    $oauthUrl = if ($ghConfig.oAuthUrl) { $ghConfig.oAuthUrl } elseif ($ghConfig.OAuthUrl) { $ghConfig.OAuthUrl } else { $null }
+                } catch { }
+            }
+            if ($oauthUrl) {
+                Write-Host "  1. Open this URL in a browser:"
+                Write-Host "     $oauthUrl"
+                Write-Host "  2. Sign in to GitHub and approve the SRE Agent app."
+                Write-Host ""
+                Write-Host "  Waiting for GitHub authorization (Ctrl-C to skip)..."
+                for ($attempt = 1; $attempt -le 24; $attempt++) {
+                    Start-Sleep -Seconds 10
+                    try {
+                        $token = Get-DpToken
+                        $headers = @{
+                            Authorization  = "Bearer $token"
+                            "Content-Type" = "application/json"
+                        }
+                        # Check auth/status — only trust isConfigured, not connector PUT success
+                        $ghCheck = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/auth/status" -Headers $headers
+                        $isAuth = ($ghCheck.isConfigured -eq $true) -or ($ghCheck.hosts -and $ghCheck.hosts[0].isConfigured -eq $true)
+                        if ($isAuth) {
+                            $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
+                                -Method Put -Headers $headers -Body $connBody -ContentType "application/json"
+                            Write-Host "  GitHub authorized!"
+                            Write-Host "  ok connector/github"
+                            $connectorOk = $true
+                            break
+                        }
+                    } catch { }
+                    Write-Host "  ... waiting ($($attempt * 10)/240s)" -NoNewline
+                    Write-Host "`r" -NoNewline
+                }
+                Write-Host ""
+                if (-not $connectorOk) {
+                    Write-Host "  Timed out. Re-run Apply-Extras after authorizing."
+                    Write-Host "  Headless alternative: `$env:GITHUB_PAT='ghp_xxx' && re-run"
+                }
+            } else {
+                Write-Host "  Could not fetch OAuth URL from $AgentEndpoint/api/v1/Github/config."
+                Write-Host "  Fallback: Azure portal -> agent -> Repos -> 'Authorize' next to each repo."
+            }
+        }
+
+        # Wire repos (only if connector succeeded)
+        if ($connectorOk) {
+            Write-Host "-- Wiring GitHub repos --"
+            $token = Get-DpToken
+            $headers = @{
+                Authorization  = "Bearer $token"
+                "Content-Type" = "application/json"
+            }
             foreach ($repo in $repos) {
                 $rname = $repo.name
                 $rurl = $repo.spec.url
-                # Normalize short "org/repo" to full URL (API requires https://...)
                 if ($rurl -and $rurl -notmatch '^https?://' -and $rurl -match '/') {
                     $rurl = "https://github.com/$rurl"
                 }
@@ -1106,99 +1198,12 @@ if ($DpTokenAvailable) {
                 } | ConvertTo-Json -Compress -Depth 10
                 $encodedRname = [uri]::EscapeDataString($rname)
                 try {
-                    $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/repos/$encodedRname" `
+                    $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/repos/$encodedRname" `
                         -Method Put -Headers $headers -Body $rbody -ContentType "application/json"
                     Write-Host "  ok repo/$rname ($rurl)"
                 } catch {
                     Write-Host "  FAILED - PUT /api/v2/repos/$rname (try the portal Repos blade)"
                 }
-            }
-            Write-Host ""
-        } else {
-            # OAuth not done — print sign-in URL
-            Write-Host "-- GitHub OAuth sign-in required --"
-            Write-Host "Repos waiting: $($oauthRepos -join ' ')"
-            $oauthUrl = $null
-            if ($token) {
-                try {
-                    $headers = @{ Authorization = "Bearer $token" }
-                    $ghConfig = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/Github/config" -Headers $headers
-                    $oauthUrl = if ($ghConfig.oAuthUrl) { $ghConfig.oAuthUrl } elseif ($ghConfig.OAuthUrl) { $ghConfig.OAuthUrl } else { $null }
-                } catch { }
-            }
-            if ($oauthUrl) {
-                Write-Host "  1. Open this URL in a browser:"
-                Write-Host "     $oauthUrl"
-                Write-Host "  2. Sign in to GitHub and approve the SRE Agent app."
-                Write-Host ""
-                Write-Host "  Waiting for GitHub authorization (Ctrl-C to skip)..."
-                $authOk = $false
-                for ($attempt = 1; $attempt -le 24; $attempt++) {
-                    Start-Sleep -Seconds 10
-                    try {
-                        $token = Get-DpToken
-                        $headers = @{ Authorization = "Bearer $token" }
-                        $ghCheck = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/Github/auth/status" -Headers $headers
-                        if ($ghCheck.isConfigured -eq $true -or ($ghCheck.hosts -and $ghCheck.hosts[0].isConfigured -eq $true)) {
-                            Write-Host "  GitHub authorized!"
-                            $authOk = $true
-                            break
-                        }
-                    } catch { }
-                    Write-Host "  ... waiting ($($attempt * 10)/240s)" -NoNewline
-                    Write-Host "`r" -NoNewline
-                }
-                Write-Host ""
-
-                if ($authOk) {
-                    # Re-enter the OAuth-done path: create connector + repos
-                    Write-Host "-- Wiring GitHub connector + repos --"
-                    $ident = if ($AgentUami) { $AgentUami } else { "SystemAssigned" }
-                    $token = Get-DpToken
-                    $headers = @{
-                        Authorization  = "Bearer $token"
-                        "Content-Type" = "application/json"
-                    }
-                    $connBody = @{
-                        name = "github"; type = "AgentConnector"
-                        properties = @{ dataConnectorType = "GitHubOAuth"; dataSource = "github-oauth"; identity = $ident }
-                    } | ConvertTo-Json -Compress -Depth 10
-                    try {
-                        $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
-                            -Method Put -Headers $headers -Body $connBody -ContentType "application/json"
-                        Write-Host "  ok connector/github"
-                    } catch {
-                        Write-Host "  FAILED connector/github"
-                    }
-                    foreach ($repo in $repos) {
-                        $rname = $repo.name
-                        $rurl = $repo.spec.url
-                        # Normalize short "org/repo" to full URL (API requires https://...)
-                        if ($rurl -and $rurl -notmatch '^https?://' -and $rurl -match '/') {
-                            $rurl = "https://github.com/$rurl"
-                        }
-                        $rtypeIn = if ($repo.spec.type) { $repo.spec.type } else { "github" }
-                        $rtype = if ($rtypeIn.ToLower() -match '^(ado|azuredevops|azure-devops)$') { "AzureDevOps" } else { "GitHub" }
-                        $rbody = @{
-                            name = $rname; type = "CodeRepo"
-                            properties = @{ url = $rurl; type = $rtype }
-                        } | ConvertTo-Json -Compress -Depth 10
-                        $encodedRname = [uri]::EscapeDataString($rname)
-                        try {
-                            $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/repos/$encodedRname" `
-                                -Method Put -Headers $headers -Body $rbody -ContentType "application/json"
-                            Write-Host "  ok repo/$rname"
-                        } catch {
-                            Write-Host "  FAILED repo/$rname"
-                        }
-                    }
-                } else {
-                    Write-Host "  Timed out. Re-run Apply-Extras after authorizing."
-                    Write-Host "  Headless alternative: `$env:GITHUB_PAT='ghp_xxx' && re-run"
-                }
-            } else {
-                Write-Host "  Could not fetch OAuth URL from $AgentEndpoint/api/v1/Github/config."
-                Write-Host "  Fallback: Azure portal -> agent -> Repos -> 'Authorize' next to each repo."
             }
             Write-Host ""
         }

@@ -26,7 +26,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [Alias('s')]
+    [Alias('s', 'SubscriptionId')]
     [string]$Subscription,
 
     [Parameter(Mandatory)]
@@ -87,7 +87,7 @@ function Get-Exp {
 function Get-ExpList {
     param([string]$JqPath)
     if ($ExpectedConfig) {
-        return ($ExpectedConfig | Invoke-Jq -Raw -Filter "$JqPath // [] | sort | join(`,`)")
+        return ($ExpectedConfig | Invoke-Jq -Raw -Filter "$JqPath // [] | sort | join(`",`")")
     }
     return ''
 }
@@ -97,7 +97,7 @@ function Get-ExpList {
 $API_VERSION = '2025-05-01-preview'
 $ARM_BASE    = "https://management.azure.com/subscriptions/${Subscription}/resourceGroups/${ResourceGroup}/providers/Microsoft.App/agents/${AgentName}"
 
-$AgentJson = az rest -m GET --url "${ARM_BASE}?api-version=${API_VERSION}" -o json 2>$null
+$AgentJson = (az rest -m GET --url "${ARM_BASE}?api-version=${API_VERSION}" -o json 2>$null) -join "`n"
 if (-not $AgentJson) { $AgentJson = '{}' }
 
 $Endpoint = $AgentJson | Invoke-Jq -Raw -Filter '.properties.agentEndpoint // empty'
@@ -114,12 +114,20 @@ if (-not $Token) {
 
 function Invoke-Dp {
     param([string]$Path)
-    curl -sS "${Endpoint}${Path}" -H "Authorization: Bearer $Token" 2>$null
+    $raw = (curl -sS "${Endpoint}${Path}" -H "Authorization: Bearer $Token" 2>$null) -join "`n"
+    # Validate response is JSON; return empty object/array fallback if not
+    if ($raw) {
+        try {
+            $null = $raw | jq -e 'type' 2>$null
+            if ($LASTEXITCODE -eq 0) { return $raw }
+        } catch { }
+    }
+    return '{}'
 }
 
 function Invoke-Arm {
     param([string]$Path)
-    $result = az rest -m GET --url "${ARM_BASE}${Path}?api-version=${API_VERSION}" -o json 2>$null
+    $result = (az rest -m GET --url "${ARM_BASE}${Path}?api-version=${API_VERSION}" -o json 2>$null) -join "`n"
     if (-not $result) { return '{}' }
     return $result
 }
@@ -184,20 +192,20 @@ $Props = $AgentJson | Invoke-Jq -Compact -Filter '{
 }'
 
 Add-Check 'Agent exists'       'yes'                                             'yes'
-Add-Check 'Access level'       ($Props | jq -r '.accessLevel')                   (Get-Exp '.agent.accessLevel')
-Add-Check 'Action mode'        ($Props | jq -r '.mode')                          (Get-Exp '.agent.actionMode')
-Add-Check 'Upgrade channel'    ($Props | jq -r '.upgradeChannel')                (Get-Exp '.agent.upgradeChannel')
-Add-Check 'Model provider'     ($Props | jq -r '.modelProvider')                 (Get-Exp '.agent.defaultModelProvider')
-Add-Check 'Incident platform'  ($Props | jq -r '.incidentPlatform')              (Get-Exp '.agent.incidentPlatform')
+Add-Check 'Access level'       ($Props | Invoke-Jq -Raw -Filter '.accessLevel')       (Get-Exp '.agent.accessLevel')
+Add-Check 'Action mode'        ($Props | Invoke-Jq -Raw -Filter '.mode')            (Get-Exp '.agent.actionMode')
+Add-Check 'Upgrade channel'    ($Props | Invoke-Jq -Raw -Filter '.upgradeChannel')  (Get-Exp '.agent.upgradeChannel')
+Add-Check 'Model provider'     ($Props | Invoke-Jq -Raw -Filter '.modelProvider')   (Get-Exp '.agent.defaultModelProvider')
+Add-Check 'Incident platform'  ($Props | Invoke-Jq -Raw -Filter '.incidentPlatform') (Get-Exp '.agent.incidentPlatform')
 
 # ─────────────────────────── Connectors (ARM) ───────────────────────────
 
 $Connectors   = Invoke-Arm '/DataConnectors'
-$ConnCt       = $Connectors | jq '.value | length'
+$ConnCt       = $Connectors | Invoke-Jq -Filter '.value | length'
 $ConnHealthy  = $Connectors | Invoke-Jq -Filter '[.value[] | select(.properties.provisioningState == "Succeeded")] | length'
-$ConnNames    = ($Connectors | jq -r '.value[].name' 2>$null | Sort-Object) -join ','
+$ConnNames    = ($Connectors | Invoke-Jq -Raw -Filter '.value[].name' | Sort-Object) -join ','
 $ExpConnCt    = Get-Exp '.connectors | length'
-$ExpConnNames = Get-ExpList '.connectors[].name'
+$ExpConnNames = Get-ExpList '[.connectors[].name]'
 
 Add-Check 'Connectors (total)'   $ConnCt      $ExpConnCt
 Add-Check 'Connectors (healthy)' $ConnHealthy  $ConnCt
@@ -226,9 +234,9 @@ if ($ExpSkillNames) {
 # ─────────────────────────── Subagents ───────────────────────────
 
 $Subagents = Invoke-Dp '/api/v2/extendedAgent/agents'
-$SaCt      = $Subagents | jq '.value | length' 2>$null
+$SaCt      = $Subagents | Invoke-Jq -Filter '.value | length'
 if (-not $SaCt) { $SaCt = '0' }
-$SaNames    = ($Subagents | jq -r '.value[].name' 2>$null | Sort-Object) -join ','
+$SaNames    = ($Subagents | Invoke-Jq -Raw -Filter '.value[].name' | Sort-Object) -join ','
 $ExpSaCt    = Get-Exp '.subagents | length'
 $ExpSaNames = Get-ExpList '.subagents'
 
@@ -276,7 +284,7 @@ if ($ExpPromptNames) {
 $Tasks      = Invoke-Dp '/api/v1/scheduledtasks'
 $TaskCt     = $Tasks | Invoke-Jq -Filter 'if type == "array" then length else 0 end'
 if (-not $TaskCt) { $TaskCt = '0' }
-$TaskUnique = $Tasks | jq '[.[].name] | unique | length' 2>$null
+$TaskUnique = $Tasks | Invoke-Jq -Filter '[.[].name] | unique | length'
 if (-not $TaskUnique) { $TaskUnique = '0' }
 $TaskNames    = $Tasks | Invoke-Jq -Raw -Filter '[.[].name] | unique | sort | join(",")'
 $ExpTaskCt    = Get-Exp '.scheduledTasks | length'
@@ -295,9 +303,9 @@ if ($TaskCt -ne $TaskUnique) {
 $Filters   = Invoke-Dp '/api/v1/incidentPlayground/filters'
 $FilterCt  = $Filters | Invoke-Jq -Filter 'if type == "array" then length else 0 end'
 if (-not $FilterCt) { $FilterCt = '0' }
-$FilterNames    = ($Filters | jq -r '.[].id' 2>$null | Sort-Object) -join ','
+$FilterNames    = ($Filters | Invoke-Jq -Raw -Filter '[.[].id] | sort | join(",")' )
 $ExpFilterCt    = Get-Exp '.responsePlans | length'
-$ExpFilterNames = Get-ExpList '.responsePlans[].name'
+$ExpFilterNames = Get-ExpList '[.responsePlans[].name]'
 
 Add-Check 'Response Plans' $FilterCt $ExpFilterCt
 if ($ExpFilterNames) {
