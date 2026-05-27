@@ -836,7 +836,7 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
   TOKEN=$(_dp_token 2>/dev/null || true)
   GH_STATUS=$(curl -sS -H "Authorization: Bearer ${TOKEN}" \
     "${AGENT_ENDPOINT}/api/v1/Github/auth/status" 2>/dev/null || echo '{}')
-  GH_CONFIGURED=$(echo "$GH_STATUS" | jq -r '.isConfigured // .hosts[0].isConfigured // false')
+  GH_CONFIGURED=$(echo "$GH_STATUS" | jq -r '.isConfigured // .hosts[0].isConfigured // false' 2>/dev/null || echo 'false')
 
   if [[ "$GH_CONFIGURED" == "true" || -n "${GITHUB_PAT:-}" ]]; then
     # ── OAuth (or PAT) is in place — wire the connector + repos ──
@@ -926,7 +926,7 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
         # Check auth/status — only trust isConfigured, not connector PUT success
         GH_CHECK=$(curl -sS -H "Authorization: Bearer ${TOKEN}" \
           "${AGENT_ENDPOINT}/api/v1/Github/auth/status" 2>/dev/null || echo '{}')
-        IS_AUTH=$(echo "$GH_CHECK" | jq -r '.isConfigured // .hosts[0].isConfigured // false')
+        IS_AUTH=$(echo "$GH_CHECK" | jq -r '.isConfigured // .hosts[0].isConfigured // false' 2>/dev/null || echo 'false')
         if [[ "$IS_AUTH" == "true" ]]; then
           # Auth confirmed — now create the connector
           curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
