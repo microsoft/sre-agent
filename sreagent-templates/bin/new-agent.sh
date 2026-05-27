@@ -223,14 +223,14 @@ done < "$VALUES_FILE"
 mv "$MAPPED_FILE" "$VALUES_FILE"
 
 # Replace {{placeholders}} with user values in all JSON and YAML files
-for file in $(find "$OUTPUT" -name '*.json' -o -name '*.yaml' -type f); do
+for file in $(find "$OUTPUT" -type f \( -name '*.json' -o -name '*.yaml' \)); do
   content=$(cat "$file")
   while IFS="=" read -r key val || [[ -n "$key" ]]; do
     # Handle {{key:bool}} — converts non-empty to true, empty to false
     content=$(echo "$content" | sed "s|\"{{${key}:bool}}\"|$(if [[ -n "$val" ]]; then echo "true"; else echo "false"; fi)|g")
     # Handle {{key}} that's a comma-separated list → JSON array
     if [[ "$key" == "targetRGs" && "$val" == *,* ]]; then
-      json_array=$(echo "$val" | tr ',' '\n' | sed 's/^ */"/;s/ *$/"/;' | paste -sd, | sed 's/^/[/;s/$/]/')
+      json_array=$(echo "$val" | tr ',' '\n' | sed 's/^ */"/;s/ *$/"/;' | paste -s -d, - | sed 's/^/[/;s/$/]/')
       content=$(echo "$content" | sed "s|\"{{${key}}}\"| ${json_array}|g")
     else
       content=$(echo "$content" | sed "s|{{${key}}}|${val}|g")
