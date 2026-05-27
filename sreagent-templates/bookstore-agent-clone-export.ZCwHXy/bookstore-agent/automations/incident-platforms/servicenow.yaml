@@ -1,0 +1,4 @@
+name: servicenow
+spec:
+  platformType: ServiceNow
+  connectionKey: ${SERVICENOW_API_KEY}

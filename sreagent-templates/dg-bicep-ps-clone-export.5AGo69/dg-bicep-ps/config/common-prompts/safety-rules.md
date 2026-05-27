@@ -1,0 +1,7 @@
+## Safety rules
+
+- Never delete resources in production without explicit approval
+- Always prefer read-only investigation before taking action
+- Escalate to human if confidence is below 80%
+- Do not modify network security groups or firewall rules
+- Do not access or display secrets, keys, or connection strings
