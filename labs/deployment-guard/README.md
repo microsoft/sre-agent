@@ -4,7 +4,7 @@ Shift-left reliability with SRE Agent: catch breaking changes in PRs **before** 
 
 ## What You'll Learn
 
-1. Deploy an SRE Agent with the `law-dynatrace-httptrigger` recipe
+1. Deploy an SRE Agent with the `law-dynatrace-github-httptrigger-prvalidation` recipe
 2. Wire a GitHub repo to the agent via Logic App webhook bridge
 3. Create a PR with a subtle breaking change and watch the agent catch it
 4. Understand how deployment guard analysis works end-to-end
@@ -79,12 +79,12 @@ After both environments are running, note:
 
 ## Step 1 — Deploy the SRE Agent
 
-Use the `law-dynatrace-httptrigger` recipe from the templates:
+Use the `law-dynatrace-github-httptrigger-prvalidation` recipe from the templates:
 
 ```bash
 cd sreagent-templates
 
-./bin/new-agent.sh --recipe law-dynatrace-httptrigger --non-interactive \
+./bin/new-agent.sh --recipe law-dynatrace-github-httptrigger-prvalidation --non-interactive \
   --set agentName=deployment-guard-lab \
   --set resourceGroup=rg-deployment-guard-lab \
   --set location=eastus2 \
@@ -135,7 +135,7 @@ bash scripts/setup-github-workflow.sh \
 1. Copy the workflow to your contoso-trading fork:
 
 ```bash
-cp sreagent-templates/recipes/law-dynatrace-httptrigger/data/sample-github-workflow.yml \
+cp sreagent-templates/recipes/law-dynatrace-github-httptrigger-prvalidation/data/sample-github-workflow.yml \
   /path/to/contoso-trading/.github/workflows/sre-agent-pr-guard.yml
 cd /path/to/contoso-trading
 git add .github/workflows/sre-agent-pr-guard.yml

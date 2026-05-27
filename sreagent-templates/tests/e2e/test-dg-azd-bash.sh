@@ -32,7 +32,7 @@ echo ""
 echo "=== STEP 1: new-agent ==="
 rm -rf "$DIR"
 ./bin/new-agent.sh \
-  --recipe law-dynatrace-httptrigger \
+  --recipe law-dynatrace-github-httptrigger-prvalidation \
   --non-interactive \
   --set agentName="$AGENT" \
   --set resourceGroup="$RG" \

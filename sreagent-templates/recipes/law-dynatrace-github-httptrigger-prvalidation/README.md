@@ -1,10 +1,8 @@
-# law-dynatrace-httptrigger
+# law-dynatrace-github-httptrigger-prvalidation
 
-SRE Agent with Log Analytics + Dynatrace MCP connectors, GitHub repo integration, and an HTTP trigger that enables **PR deployment guard** — automated PR reviews that deploy to staging, run canary tests, and post risk assessments as PR comments.
+PR Deployment Guard: an SRE Agent that reviews every pull request by deploying changes to staging, running canary tests against production baselines via Log Analytics + Dynatrace, and posting a risk assessment as a PR comment — before the code is merged.
 
-## Use Case
-
-Shift-left reliability: instead of catching production issues after deployment, the agent reviews every PR by deploying changes to a staging environment, comparing health metrics against production baselines, and flagging regressions before merge.
+The agent receives PR events from GitHub via an HTTP trigger (Logic App webhook bridge), analyzes the diff, deploys to staging, sends synthetic traffic, compares health metrics, and comments on the PR with a LOW / MEDIUM / HIGH / CRITICAL risk rating.
 
 ## Prerequisites
 
@@ -19,7 +17,7 @@ Shift-left reliability: instead of catching production issues after deployment, 
 ### Step 1 — Generate agent config
 
 ```bash
-./bin/new-agent.sh --recipe law-dynatrace-httptrigger --non-interactive \
+./bin/new-agent.sh --recipe law-dynatrace-github-httptrigger-prvalidation --non-interactive \
   --set agentName=contoso-sre \
   --set resourceGroup=rg-sre-contoso \
   --set location=eastus2 \

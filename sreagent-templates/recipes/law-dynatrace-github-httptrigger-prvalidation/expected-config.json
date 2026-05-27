@@ -1,7 +1,6 @@
 {
   "_description": "Expected configuration for law-dynatrace-httptrigger recipe. Used by verify-agent.sh to validate deployments.",
-  "_scenario": "law-dynatrace-httptrigger",
-
+  "_scenario": "law-dynatrace-github-httptrigger-prvalidation",
   "agent": {
     "accessLevel": "High",
     "actionMode": "Review",
@@ -9,39 +8,39 @@
     "defaultModelProvider": "Anthropic",
     "incidentPlatform": "None"
   },
-
   "connectors": [
-    { "name": "log-analytics", "type": "LogAnalytics" },
-    { "name": "dynatrace", "type": "Mcp" }
+    {
+      "name": "log-analytics",
+      "type": "LogAnalytics"
+    },
+    {
+      "name": "dynatrace",
+      "type": "Mcp"
+    }
   ],
-
   "skills": [
     "deployment-guard-analysis",
     "investigate-app-errors"
   ],
-
   "subagents": [
     "deployment-guard",
     "error-investigator"
   ],
-
   "hooks": [
     "deny-prod-deletes",
     "require-approval-for-restarts"
   ],
-
   "commonPrompts": [
     "investigation-guidelines",
     "safety-rules"
   ],
-
   "scheduledTasks": [],
-
   "responsePlans": [],
-
   "httpTriggers": [
-    { "name": "pr-deployment-guard", "handlingAgent": "deployment-guard" }
+    {
+      "name": "pr-deployment-guard",
+      "handlingAgent": "deployment-guard"
+    }
   ],
-
   "repos": []
 }

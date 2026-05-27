@@ -32,7 +32,7 @@ echo ""
 echo "=== STEP 1: new-agent (PS) ==="
 rm -rf "$DIR"
 pwsh -NoProfile -Command "& './bin/ps/New-Agent.ps1' \
-  -Recipe 'law-dynatrace-httptrigger' \
+  -Recipe 'law-dynatrace-github-httptrigger-prvalidation' \
   -NonInteractive \
   -Set @{ \
     agentName='$AGENT'; \

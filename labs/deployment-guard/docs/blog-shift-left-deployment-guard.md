@@ -100,12 +100,12 @@ The deployment guard complements CI — it doesn't replace it. CI validates corr
 
 ## Setting It Up
 
-### Step 1 — Deploy an agent with the `law-dynatrace-httptrigger` recipe
+### Step 1 — Deploy an agent with the `law-dynatrace-github-httptrigger-prvalidation` recipe
 
 ```bash
 cd sreagent-templates
 
-./bin/new-agent.sh --recipe law-dynatrace-httptrigger --non-interactive \
+./bin/new-agent.sh --recipe law-dynatrace-github-httptrigger-prvalidation --non-interactive \
   --set agentName=my-deployment-guard \
   --set resourceGroup=rg-sre-guard \
   --set location=eastus2 \
@@ -155,7 +155,7 @@ Every PR on the app repo now triggers the deployment guard. The agent posts its 
 
 | Resource | Description |
 |---|---|
-| [law-dynatrace-httptrigger recipe](https://github.com/microsoft/sre-agent/tree/main/sreagent-templates/recipes/law-dynatrace-httptrigger) | Deploy an agent with LAW + Dynatrace + HTTP trigger + deployment guard pre-configured |
+| [law-dynatrace-github-httptrigger-prvalidation recipe](https://github.com/microsoft/sre-agent/tree/main/sreagent-templates/recipes/law-dynatrace-github-httptrigger-prvalidation) | Deploy an agent with LAW + Dynatrace + HTTP trigger + deployment guard pre-configured |
 | [deployment-guard lab](https://github.com/microsoft/sre-agent/tree/main/labs/deployment-guard) | End-to-end walkthrough using [contoso-trading](https://github.com/dm-chelupati/contoso-trading) as the target app — includes a demo script that creates a risky PR and shows the agent's response |
 | [Inside SRE Agent Live](https://www.youtube.com/@InsideSREAgent) | Live demo recordings |
 

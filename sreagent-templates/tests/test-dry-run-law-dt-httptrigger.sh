@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 REPORT="/tmp/test-dry-run-law-dt-httptrigger.txt"; > "$REPORT"
 source tests/lib/test-helpers.sh
 
-RECIPE="law-dynatrace-httptrigger"
+RECIPE="law-dynatrace-github-httptrigger-prvalidation"
 EXTRA_SETS="lawId=/sub/fake;dtTenant=fake;dtToken=fake;githubRepo=https://github.com/fake/repo"
 EXP_SKILLS=2 EXP_SA=2 EXP_HOOKS=2 EXP_PROMPTS=2 EXP_SCHED=0 EXP_FILTERS=0 EXP_PLAT=0 EXP_HT=1
 OUT="/tmp/dryrun-${RECIPE}"
