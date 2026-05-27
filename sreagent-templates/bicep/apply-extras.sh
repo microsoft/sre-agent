@@ -738,12 +738,6 @@ if [[ -n "$HTTP_TRIGGER_URL" ]]; then
         WH_CALLBACK=$(echo "$LA_RESULT" | jq -r '.properties.outputs.logicAppCallbackUrl.value // empty')
         echo "  ✅ Webhook bridge deployed"
         echo "  Callback URL: ${WH_CALLBACK}"
-        echo
-        echo "  To wire a GitHub repo to this agent's HTTP trigger:"
-        echo "    1. Copy sample-github-workflow.yml to your app repo:"
-        echo "       cp <agent-dir>/sample-github-workflow.yml <app-repo>/.github/workflows/sre-agent-pr-guard.yml"
-        echo "    2. Set the webhook URL as a GitHub secret:"
-        echo "       gh secret set SRE_AGENT_WEBHOOK_URL --repo <org>/<repo> --body '${WH_CALLBACK}'"
       else
         echo "  ❌ Webhook bridge deployment failed"
         echo "$LA_RESULT" | head -10
@@ -836,7 +830,7 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
   TOKEN=$(_dp_token 2>/dev/null || true)
   GH_STATUS=$(curl -sS -H "Authorization: Bearer ${TOKEN}" \
     "${AGENT_ENDPOINT}/api/v1/Github/auth/status" 2>/dev/null || echo '{}')
-  GH_CONFIGURED=$(echo "$GH_STATUS" | jq -r '.isConfigured // .hosts[0].isConfigured // false' 2>/dev/null || echo 'false')
+  GH_CONFIGURED=$(echo "$GH_STATUS" | jq -r '.isConfigured // .hosts[0].isConfigured // false')
 
   if [[ "$GH_CONFIGURED" == "true" || -n "${GITHUB_PAT:-}" ]]; then
     # ── OAuth (or PAT) is in place — wire the connector + repos ──
@@ -907,9 +901,9 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
     echo "Repos waiting: ${oauth_repos[*]}"
     OAUTH_URL=""
     if [[ -n "$TOKEN" ]]; then
-      _gh_config=$(curl -sS -f -H "Authorization: Bearer ${TOKEN}" \
-        "${AGENT_ENDPOINT}/api/v1/Github/config" 2>/dev/null || echo '{}')
-      OAUTH_URL=$(echo "$_gh_config" | jq -r '.oAuthUrl // .OAuthUrl // empty' 2>/dev/null || echo '')
+      OAUTH_URL=$(curl -sS -f -H "Authorization: Bearer ${TOKEN}" \
+        "${AGENT_ENDPOINT}/api/v1/Github/config" 2>/dev/null \
+        | jq -r '.oAuthUrl // .OAuthUrl // empty')
     fi
     if [[ -n "${OAUTH_URL:-}" ]]; then
       echo "  1. Open this URL in a browser:"
@@ -926,7 +920,7 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
         # Check auth/status — only trust isConfigured, not connector PUT success
         GH_CHECK=$(curl -sS -H "Authorization: Bearer ${TOKEN}" \
           "${AGENT_ENDPOINT}/api/v1/Github/auth/status" 2>/dev/null || echo '{}')
-        IS_AUTH=$(echo "$GH_CHECK" | jq -r '.isConfigured // .hosts[0].isConfigured // false' 2>/dev/null || echo 'false')
+        IS_AUTH=$(echo "$GH_CHECK" | jq -r '.isConfigured // .hosts[0].isConfigured // false')
         if [[ "$IS_AUTH" == "true" ]]; then
           # Auth confirmed — now create the connector
           curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
