@@ -98,6 +98,13 @@ cd sreagent-templates
 ./bin/deploy.sh deployment-guard-lab/
 ```
 
+After deployment completes, it will print a GitHub OAuth URL. Open it in your browser, sign in to GitHub, and approve the SRE Agent app. This connects your fork of contoso-trading to the agent so it can read PR diffs and post comments.
+
+If you missed the URL or it timed out, go to the agent portal and connect GitHub manually:
+1. Open https://sre.azure.com → select your agent
+2. Go to **Settings → Repos**
+3. Click **Authorize** next to your GitHub repo
+
 ## Step 2 — Get the Webhook URL
 
 After deployment, the agent has a Logic App webhook bridge. Get the trigger URL:
