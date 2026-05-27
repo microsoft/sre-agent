@@ -1,5 +1,0 @@
-name: github-repo
-spec:
-  url: "dm-chelupati/contoso-trading"
-  branch: main
-  description: Connected GitHub repository
