@@ -4,6 +4,14 @@ metadata:
     diffs, capturing baselines, deploying to staging, running canary tests, validating
     response correctness, and comparing health metrics.
   spec:
-    tools: []
+    tools:
+    - RunAzCliReadCommands
+    - RunAzCliWriteCommands
+    - ExecutePythonCode
+    - PlotAreaChartWithCorrelation
+    - PlotBarChart
+    - CreateGithubIssue
+    - FindConnectedGitHubRepo
+    - QueryLogAnalyticsByWorkspaceId
 skillContent: skills/deployment-guard-analysis.md
 additionalFiles: []
