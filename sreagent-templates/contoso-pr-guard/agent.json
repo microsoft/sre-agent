@@ -1,0 +1,27 @@
+{
+  "_scenario": "law-dynatrace-github-httptrigger-prvalidation",
+  "identity": {
+    "agentName": "contoso-pr-guard",
+    "resourceGroup": "rg-contoso-pr-guard",
+    "subscription": "cbf44432-7f45-4906-a85d-d2b14a1e8328",
+    "location": "swedencentral",
+    "targetResourceGroups": [
+      "rg-contoso-prod",
+      "rg-contoso-staging"
+    ]
+  },
+  "access": {
+    "accessLevel": "High",
+    "actionMode": "Review"
+  },
+  "upgradeChannel": "Preview",
+  "defaultModelProvider": "Anthropic",
+  "monthlyAgentUnitLimit": 10000,
+  "tags": {},
+  "toggles": {
+    "enableWebhookBridge": true,
+    "webhookBridgeTriggerUrl": ""
+  },
+  "existingUamiId": "",
+  "existingAgentAppInsightsId": ""
+}

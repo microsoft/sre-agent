@@ -5,9 +5,6 @@ spec:
   handoffDescription: Analyzes PRs by deploying to staging, comparing health against
     production via Dynatrace + LAW, and posting risk assessment as a PR comment
   handoffs: []
-  allowedSkills:
-  - deployment-guard-analysis
-  - investigate-app-errors
   tools:
   - RunAzCliReadCommands
   - RunAzCliWriteCommands

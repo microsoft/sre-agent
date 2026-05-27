@@ -5,8 +5,6 @@ spec:
   handoffDescription: Investigates application errors by correlating Dynatrace metrics,
     LAW logs, and deployment history to identify root cause
   handoffs: []
-  allowedSkills:
-  - investigate-app-errors
   tools:
   - RunAzCliReadCommands
   - QueryLogAnalyticsByWorkspaceId
