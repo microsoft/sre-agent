@@ -740,8 +740,8 @@ if [[ -n "$HTTP_TRIGGER_URL" ]]; then
         echo "  Callback URL: ${WH_CALLBACK}"
         echo
         echo "  To wire a GitHub repo to this agent's HTTP trigger:"
-        echo "    1. Copy docs/sample-github-workflow.yml to your app repo:"
-        echo "       cp <agent-dir>/docs/sample-github-workflow.yml <app-repo>/.github/workflows/sre-agent-pr-guard.yml"
+        echo "    1. Copy sample-github-workflow.yml to your app repo:"
+        echo "       cp <agent-dir>/sample-github-workflow.yml <app-repo>/.github/workflows/sre-agent-pr-guard.yml"
         echo "    2. Set the webhook URL as a GitHub secret:"
         echo "       gh secret set SRE_AGENT_WEBHOOK_URL --repo <org>/<repo> --body '${WH_CALLBACK}'"
       else

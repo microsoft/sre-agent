@@ -52,7 +52,7 @@ Then redeploy or run `./bin/deploy.sh contoso-sre/` to apply.
 Copy the sample workflow to your app repo:
 
 ```bash
-cp contoso-sre/docs/sample-github-workflow.yml \
+cp contoso-sre/sample-github-workflow.yml \
   /path/to/your-app/.github/workflows/sre-agent-pr-guard.yml
 ```
 
