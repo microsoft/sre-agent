@@ -901,9 +901,9 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
     echo "Repos waiting: ${oauth_repos[*]}"
     OAUTH_URL=""
     if [[ -n "$TOKEN" ]]; then
-      OAUTH_URL=$(curl -sS -f -H "Authorization: Bearer ${TOKEN}" \
-        "${AGENT_ENDPOINT}/api/v1/Github/config" 2>/dev/null \
-        | jq -r '.oAuthUrl // .OAuthUrl // empty')
+      _gh_config=$(curl -sS -f -H "Authorization: Bearer ${TOKEN}" \
+        "${AGENT_ENDPOINT}/api/v1/Github/config" 2>/dev/null || echo '{}')
+      OAUTH_URL=$(echo "$_gh_config" | jq -r '.oAuthUrl // .OAuthUrl // empty' 2>/dev/null || echo '')
     fi
     if [[ -n "${OAUTH_URL:-}" ]]; then
       echo "  1. Open this URL in a browser:"

@@ -61,7 +61,8 @@ azd up --no-prompt
 record "deploy-azd" $?
 
 echo ""
-echo "=== STEP 3: verify ==="
+echo "=== STEP 3: verify (waiting 15s for data-plane) ==="
+sleep 15
 ./bin/verify-agent.sh "$SUB" "$RG" "$AGENT" --expected "$DIR/"
 record "verify" $?
 

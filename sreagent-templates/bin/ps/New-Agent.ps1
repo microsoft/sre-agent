@@ -378,7 +378,7 @@ $configDirs = @("skills", "subagents", "tools", "hooks", "common-prompts", "plug
 foreach ($d in $configDirs) {
     $configPath = Join-Path $Output "config/$d"
     if (Test-Path $configPath -PathType Container) {
-        $count = @(Get-ChildItem -Path "$configPath/*" -Include "*.json", "*.yaml" -File -ErrorAction SilentlyContinue).Count
+        $count = @(Get-ChildItem -Path $configPath -Include "*.json", "*.yaml" -File -Recurse -ErrorAction SilentlyContinue).Count
         if ($count -gt 0) {
             Write-Host ("      {0,-24} <- {1} file(s)" -f "$d/", $count)
         }

@@ -51,7 +51,8 @@ echo "=== STEP 2: deploy (terraform) ==="
 record "deploy-tf" $?
 
 echo ""
-echo "=== STEP 3: verify ==="
+echo "=== STEP 3: verify (waiting 15s for data-plane) ==="
+sleep 15
 ./bin/verify-agent.sh "$SUB" "$RG" "$AGENT" --expected "$DIR/"
 record "verify" $?
 
