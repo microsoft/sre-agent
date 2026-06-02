@@ -71,6 +71,17 @@ Deep-dive Build session covering end-to-end SRE Agent capabilities: automated in
 
 ## Blogs
 
+### //Build 2026 (May 2026)
+
+- **[Azure SRE Agent at Microsoft //Build 2026](https://aka.ms/Build26/blog/SREAgent)** — Headline //Build announcement and roadmap for what's next in Azure SRE Agent.
+- **[VNet Integration for Azure SRE Agent](https://aka.ms/sreagent/blog/VNET)** — Secure private network connectivity so the agent can investigate workloads in locked-down VNets.
+- **[Hooks and Tool Permissions](https://aka.ms/sreagent/blog/HooksAndToolPermissions)** — New governance controls to customize agent behavior and gate which tools it can use.
+- **[Private Plugin Marketplace](https://aka.ms/sreagent/blog/privatepluginmarketplace)** — Publish and distribute internal plugins to your organization with full lifecycle management.
+- **[GitHub Enterprise Support](https://aka.ms/sreagent/blog/githubenterprise)** — Native integration for GitHub Enterprise Cloud and GHE Server customers.
+- **[Connectors v2](https://aka.ms/sreagent/blog/connectorsv2)** — Next-generation connector framework with improved auth, schema, and lifecycle.
+
+**//Build Session:** [Using autonomous SRE to move from alerts to action (OD800)](https://build.microsoft.com/en-US/sessions/OD800)
+
 ### Post-GA (April 2026)
 
 - **[Event-Driven IaC Operations: Terraform Drift Detection via HTTP Triggers](https://techcommunity.microsoft.com/blog/appsonazureblog/event-driven-iac-operations-with-azure-sre-agent-terraform-drift-detection-via-h/4512233)** — Vineela Suri · 10 min read. End-to-end pipeline: Terraform Cloud webhook triggers SRE Agent to classify drift as benign/risky/critical, correlate with incidents, and ship a fix — including a "DO NOT revert" recommendation that prevents turning a mitigated incident into an outage.
