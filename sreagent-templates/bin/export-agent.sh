@@ -481,8 +481,19 @@ fi
 _log "Reading subagents..."
 RAW_SUBAGENTS=$(arm_list "subagents")
 SUBAGENT_COUNT=$(echo "$RAW_SUBAGENTS" | jq 'length')
-_log "  Found ${SUBAGENT_COUNT} subagent(s)"
-SUBAGENTS=$(decode_opaque "$RAW_SUBAGENTS")
+if [[ "$SUBAGENT_COUNT" -gt 0 ]]; then
+  _log "  Found ${SUBAGENT_COUNT} subagent(s) from ARM"
+  SUBAGENTS=$(decode_opaque "$RAW_SUBAGENTS")
+else
+  DP_SUBAGENTS=$(dp_list "/api/v2/extendedAgent/agents")
+  DP_SUBAGENT_COUNT=$(echo "$DP_SUBAGENTS" | jq 'length')
+  _log "  Found ${DP_SUBAGENT_COUNT} subagent(s) from data-plane"
+  SUBAGENTS=$(echo "$DP_SUBAGENTS" | jq -c '[.[] | {
+    metadata: { name: .name },
+    spec: (.properties // .spec // {})
+  }]')
+  SUBAGENT_COUNT=$(echo "$SUBAGENTS" | jq 'length')
+fi
 
 # Hooks (opaque — try ARM first; public Bicep deploys these via ARM now)
 _log "Reading hooks (ARM)..."
