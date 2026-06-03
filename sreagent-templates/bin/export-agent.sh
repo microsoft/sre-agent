@@ -87,7 +87,7 @@ done
 command -v jq >/dev/null || { echo "Error: jq is required" >&2; exit 1; }
 command -v az >/dev/null || { echo "Error: az CLI is required" >&2; exit 1; }
 
-API_VERSION="2025-05-01-preview"
+API_VERSION="2026-01-01"
 ARM_BASE="https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.App/agents/${AGENT}"
 
 # ─────────────────────────── Helpers ───────────────────────────
