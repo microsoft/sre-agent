@@ -1,0 +1,1 @@
+C:\Users\loreaa\VS_CODE\sre-agent\labs\zava-aks-postgres>  "C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\\..\python.exe" -IBm azure.cli aks command invoke -g rg-zava-aks-postgres -n aks-Zava-sqzlc6 --command "kubectl exec -n zava-demo deploy/zava-api -- node -e "fetch('http://127.0.0.1:3001/api/health').then(r=,e.message))"" -o json

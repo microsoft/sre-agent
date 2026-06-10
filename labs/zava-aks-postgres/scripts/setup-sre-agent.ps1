@@ -5,7 +5,7 @@
 .DESCRIPTION
     Most agent configuration is now declarative in Bicep
     (infra/modules/sre-agent.bicep): autonomous mode, AzMonitor incident
-    platform, connectors (app-insights, log-analytics, azure-monitor, microsoft-learn),
+    platform, connectors (app-insights, log-analytics, azure-monitor, ntt-demo),
     custom skills, and incident filters / response plans all flow through
     Microsoft.App/agents/* ARM resources.
 
@@ -190,9 +190,9 @@ function Get-AgentChildren {
 }
 
 $connectors = @(Get-AgentChildren -Kind "connectors")
-$expectedConnectors = @("app-insights","log-analytics","azure-monitor","microsoft-learn")
+$expectedConnectors = @("app-insights","log-analytics","azure-monitor","ntt-demo")
 $missingConnectors = $expectedConnectors | Where-Object { $_ -notin $connectors.name }
-if (-not $missingConnectors) { Write-Host "  [OK] Connectors: $($connectors.Count) (app-insights, log-analytics, azure-monitor, microsoft-learn)" -ForegroundColor Green }
+if (-not $missingConnectors) { Write-Host "  [OK] Connectors: $($connectors.Count) (app-insights, log-analytics, azure-monitor, ntt-demo)" -ForegroundColor Green }
 else { Write-Host "  [MISSING] Connectors: $($missingConnectors -join ', ') — re-run azd provision" -ForegroundColor Red; $allGood = $false }
 
 $skills = @(Get-AgentChildren -Kind "skills")
@@ -249,7 +249,7 @@ Write-Host "========================================`n" -ForegroundColor Cyan
 Write-Host "  DEPLOYED BY BICEP (verified above, not done by this script):" -ForegroundColor DarkGray
 Write-Host "  [x] Agent: autonomous mode + High access"
 Write-Host "  [x] Incident platform: Azure Monitor"
-Write-Host "  [x] Connectors: app-insights, log-analytics, azure-monitor, microsoft-learn"
+Write-Host "  [x] Connectors: app-insights, log-analytics, azure-monitor, ntt-demo"
 Write-Host "  [x] Custom skills: db-incident-investigation, proactive-health-check"
 Write-Host "  [x] Response plans: zava-db-response, zava-app-response"
 Write-Host "`n  DONE BY THIS SCRIPT (data plane — no ARM API yet):" -ForegroundColor Cyan

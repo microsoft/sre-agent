@@ -1,0 +1,23 @@
+az feature register --namespace Microsoft.App --name SREAgentInternal
+
+az feature show --namespace Microsoft.App --name SREAgentInternal --query "properties.state" -o tsv
+
+az provider register --namespace Microsoft.App
+
+Missing (expected — since we disabled Bicep extensions):
+
+Connectors: app-insights, azure-monitor (you already created log-analytics and ntt-demo via portal)
+
+Skills: db-incident-investigation, proactive-health-check
+
+Response plans: zava-db-response, zava-app-response
+
+az role assignment create \
+  --assignee 229672db-7e7c-4534-91e3-a4f73e899732 \
+  --role "Azure Kubernetes Service RBAC Reader" \
+  --scope /subscriptions/325177b6-ea0e-4cae-9862-db57a44eee60/resourceGroups/rg-zava-aks-postgres/providers/Microsoft.ContainerService/managedClusters/aks-Zava-sqzlc6
+
+  az role assignment create \
+  --assignee 229672db-7e7c-4534-91e3-a4f73e899732 \
+  --role "Azure Kubernetes Service RBAC Reader" \
+  --scope /subscriptions/325177b6-ea0e-4cae-9862-db57a44eee60/resourceGroups/rg-zava-aks-postgres/providers/Microsoft.ContainerService/managedClusters/aks-Zava-sqzlc6

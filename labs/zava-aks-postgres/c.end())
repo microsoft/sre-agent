@@ -1,0 +1,1 @@
+C:\Users\loreaa\VS_CODE\sre-agent\labs\zava-aks-postgres>  "C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\\..\python.exe" -IBm azure.cli aks command invoke -g rg-zava-aks-postgres -n aks-Zava-sqzlc6 --command "kubectl exec deploy/zava-api -n zava-demo -- node -e "const {Client}=require('pg'); const c=new Client(); c.connect().then(()= 1 as ok')).then(r= -o json

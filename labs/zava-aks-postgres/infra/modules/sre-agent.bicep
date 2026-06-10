@@ -43,6 +43,9 @@ param upgradeChannel string = 'Preview'
 @description('Enables workspace tools / early-access experimental features (paired with upgradeChannel: Preview)')
 param enableEarlyAccessFeatures bool = true
 
+@description('Deploy agent extensions (connectors, skills, incident filters) via ARM. Set to false if SREAgentInternal feature flag is not registered.')
+param deployExtensions bool = false
+
 var sreAgentAdminRoleId = 'e79298df-d852-4c6d-84f9-5d13249d1e55'
 
 #disable-next-line BCP081
@@ -160,7 +163,7 @@ var rgName = resourceGroup().name
 // --- Connectors ------------------------------------------------------------
 
 #disable-next-line BCP081
-resource appInsightsConnector 'Microsoft.App/agents/connectors@2025-05-01-preview' = {
+resource appInsightsConnector 'Microsoft.App/agents/connectors@2025-05-01-preview' = if (deployExtensions) {
   parent: sreAgent
   name: 'app-insights'
   properties: {
@@ -177,7 +180,7 @@ resource appInsightsConnector 'Microsoft.App/agents/connectors@2025-05-01-previe
 }
 
 #disable-next-line BCP081
-resource logAnalyticsConnector 'Microsoft.App/agents/connectors@2025-05-01-preview' = {
+resource logAnalyticsConnector 'Microsoft.App/agents/connectors@2025-05-01-preview' = if (deployExtensions) {
   parent: sreAgent
   name: 'log-analytics'
   properties: {
@@ -194,12 +197,12 @@ resource logAnalyticsConnector 'Microsoft.App/agents/connectors@2025-05-01-previ
 }
 
 #disable-next-line BCP081
-resource microsoftLearnConnector 'Microsoft.App/agents/connectors@2025-05-01-preview' = {
+resource microsoftLearnConnector 'Microsoft.App/agents/connectors@2025-05-01-preview' = if (deployExtensions) {
   parent: sreAgent
-  name: 'microsoft-learn'
+  name: 'ntt-demo'
   properties: {
     dataConnectorType: 'Mcp'
-    dataSource: 'zava-aks-postgres-microsoft-learn-mcp'
+    dataSource: 'zava-aks-postgres-ntt-demo-mcp'
     extendedProperties: {
       type: 'http'
       endpoint: 'https://learn.microsoft.com/api/mcp'
@@ -214,7 +217,7 @@ resource microsoftLearnConnector 'Microsoft.App/agents/connectors@2025-05-01-pre
 // resource id. Reachable resources are gated by the agent MSI's existing
 // Reader + Monitoring Reader RG-scoped role assignments.
 #disable-next-line BCP081
-resource azureMonitorConnector 'Microsoft.App/agents/connectors@2025-05-01-preview' = {
+resource azureMonitorConnector 'Microsoft.App/agents/connectors@2025-05-01-preview' = if (deployExtensions) {
   parent: sreAgent
   name: 'azure-monitor'
   properties: {
@@ -236,9 +239,9 @@ var dbIncidentSkill = {
     'RunAzCliReadCommands'
     'RunAzCliWriteCommands'
     'SearchMemory'
-    'microsoft-learn_microsoft_code_sample_search'
-    'microsoft-learn_microsoft_docs_fetch'
-    'microsoft-learn_microsoft_docs_search'
+    'ntt-demo_microsoft_code_sample_search'
+    'ntt-demo_microsoft_docs_fetch'
+    'ntt-demo_microsoft_docs_search'
   ]
   skillContent: '''
 ## Zava Incident Runbook
@@ -300,9 +303,9 @@ var proactiveHealthSkill = {
     'RunAzCliWriteCommands'
     'SearchMemory'
     'ExecutePythonCode'
-    'microsoft-learn_microsoft_code_sample_search'
-    'microsoft-learn_microsoft_docs_fetch'
-    'microsoft-learn_microsoft_docs_search'
+    'ntt-demo_microsoft_code_sample_search'
+    'ntt-demo_microsoft_docs_fetch'
+    'ntt-demo_microsoft_docs_search'
   ]
   skillContent: '''
 ## Proactive Health Check
@@ -332,7 +335,7 @@ If any of those is missed, hand off to the `db-incident-investigation` skill. If
 // storefront before/after a break/fix scenario.
 
 #disable-next-line BCP081
-resource skillDbIncident 'Microsoft.App/agents/skills@2025-05-01-preview' = {
+resource skillDbIncident 'Microsoft.App/agents/skills@2025-05-01-preview' = if (deployExtensions) {
   parent: sreAgent
   name: 'db-incident-investigation'
   properties: {
@@ -343,7 +346,7 @@ resource skillDbIncident 'Microsoft.App/agents/skills@2025-05-01-preview' = {
 }
 
 #disable-next-line BCP081
-resource skillProactiveHealth 'Microsoft.App/agents/skills@2025-05-01-preview' = {
+resource skillProactiveHealth 'Microsoft.App/agents/skills@2025-05-01-preview' = if (deployExtensions) {
   parent: sreAgent
   name: 'proactive-health-check'
   properties: {
@@ -443,7 +446,7 @@ var appResponseFilter = {
 }
 
 #disable-next-line BCP081
-resource filterDbResponse 'Microsoft.App/agents/incidentFilters@2025-05-01-preview' = {
+resource filterDbResponse 'Microsoft.App/agents/incidentFilters@2025-05-01-preview' = if (deployExtensions) {
   parent: sreAgent
   name: 'zava-db-response'
   properties: {
@@ -452,7 +455,7 @@ resource filterDbResponse 'Microsoft.App/agents/incidentFilters@2025-05-01-previ
 }
 
 #disable-next-line BCP081
-resource filterAppResponse 'Microsoft.App/agents/incidentFilters@2025-05-01-preview' = {
+resource filterAppResponse 'Microsoft.App/agents/incidentFilters@2025-05-01-preview' = if (deployExtensions) {
   parent: sreAgent
   name: 'zava-app-response'
   properties: {
