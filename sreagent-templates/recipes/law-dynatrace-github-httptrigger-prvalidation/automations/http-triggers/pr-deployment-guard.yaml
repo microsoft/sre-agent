@@ -1,10 +1,6 @@
 name: pr-deployment-guard
 spec:
-  description: Receives PR webhooks from GitHub and triggers the deployment guard
-    to analyze changes for production safety.
-  prompt: A PR webhook has been received from the connected GitHub repo. Use the deployment-guard-analysis
-    skill to read the PR diff, deploy changes to the staging environment, monitor
-    health for 5 minutes comparing against production, then post a risk assessment
-    comment on the PR.
+  description: Receives PR webhooks from GitHub and triggers the deployment guard to analyze changes for production safety.
+  prompt: A PR webhook has been received from the connected GitHub repo. Follow the deployment-guard-analysis skill.
   handlingAgent: deployment-guard
   agentMode: autonomous

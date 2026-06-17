@@ -1,0 +1,5 @@
+name: servicenow
+spec:
+  platformType: ServiceNow
+  connectionUrl: "{{snowInstance}}"
+  connectionKey: '{"endpoint":"{{snowInstance}}","username":"{{snowUser}}","password":"{{snowPassword}}"}'

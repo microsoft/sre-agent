@@ -392,18 +392,87 @@ if ($WhatIf_) {
     exit $whatIfExit
 }
 
+# ── Pre-deploy: auto-create VNet subnet with delegation if networkConfiguration.type=vnet ──
+if ($IsDirectory) {
+    $AgentJsonFile = Join-Path $InputPath 'agent.json'
+    if (Test-Path $AgentJsonFile) {
+        $agentCfg = Get-Content $AgentJsonFile -Raw | ConvertFrom-Json
+        $netType = if ($agentCfg.PSObject.Properties['networkConfiguration'] -and $agentCfg.networkConfiguration.type) {
+            $agentCfg.networkConfiguration.type.ToLower()
+        } else { 'unrestricted' }
+
+        if ($netType -eq 'vnet' -or $netType -eq 'azurevnet') {
+            $netCfg = $agentCfg.networkConfiguration
+            $netSubnetId = if ($netCfg.subnetId) { $netCfg.subnetId } else { '' }
+            $netRg = if ($netCfg.resourceGroup) { $netCfg.resourceGroup } else { '' }
+            $netVnet = if ($netCfg.vnetName) { $netCfg.vnetName } else { '' }
+            $netSubnetName = if ($netCfg.subnetName) { $netCfg.subnetName } else { 'agent-subnet' }
+            $netSubnetPrefix = if ($netCfg.subnetPrefix) { $netCfg.subnetPrefix } else { '10.2.0.0/28' }
+
+            # Resolve subnet ID from broken-out fields if not given directly
+            if (-not $netSubnetId -and $netVnet -and $netRg) {
+                $netSubnetId = "/subscriptions/$SubscriptionId/resourceGroups/$netRg/providers/Microsoft.Network/virtualNetworks/$netVnet/subnets/$netSubnetName"
+            }
+
+            if ($netSubnetId) {
+                # Extract components from subnet ID
+                $parts = $netSubnetId -split '/'
+                $vnetRgIdx = [array]::IndexOf($parts, 'resourceGroups') + 1
+                $vnetIdx = [array]::IndexOf($parts, 'virtualNetworks') + 1
+                $subnetIdx = [array]::IndexOf($parts, 'subnets') + 1
+                $_vnet_rg = $parts[$vnetRgIdx]
+                $_vnet_name = $parts[$vnetIdx]
+                $_subnet_name = $parts[$subnetIdx]
+
+                $subnetExists = az network vnet subnet show -g $_vnet_rg --vnet-name $_vnet_name -n $_subnet_name 2>$null
+                if (-not $subnetExists) {
+                    Write-Header "── Creating VNet subnet with Microsoft.App/environments delegation ──"
+                    Write-Host "  VNet: $_vnet_name  Subnet: $_subnet_name  Prefix: $netSubnetPrefix"
+                    az network vnet subnet create -g $_vnet_rg --vnet-name $_vnet_name -n $_subnet_name `
+                        --address-prefixes $netSubnetPrefix --delegations 'Microsoft.App/environments' --output none 2>&1
+                    if ($LASTEXITCODE -ne 0) { Write-Host '  ⚠ Failed to create subnet — VNet integration may fail' }
+                    else { Write-Host '  ✅ Subnet created' }
+                } else {
+                    $delegation = az network vnet subnet show -g $_vnet_rg --vnet-name $_vnet_name -n $_subnet_name `
+                        --query 'delegations[0].serviceName' -o tsv 2>$null
+                    if ($delegation -ne 'Microsoft.App/environments') {
+                        Write-Host "  ⚠ Subnet $_subnet_name exists but missing Microsoft.App/environments delegation"
+                        Write-Host '    Adding delegation...'
+                        az network vnet subnet update -g $_vnet_rg --vnet-name $_vnet_name -n $_subnet_name `
+                            --delegations 'Microsoft.App/environments' --output none 2>&1
+                    } else {
+                        Write-Host "  VNet subnet $_subnet_name ready (delegation: Microsoft.App/environments)"
+                    }
+                }
+            }
+        }
+    }
+}
+
+# ── Auto-detect redeploy: skip role assignments to avoid RoleAssignmentExists ──
+$SkipRbacParam = ''
+$agentExistsCheck = az resource show -g $ResourceGroup --resource-type 'Microsoft.App/agents' -n $AgentName --query 'name' -o tsv 2>$null
+if ($agentExistsCheck) {
+    Write-Host "  Agent '$AgentName' already exists — skipping role assignments on redeploy."
+    $SkipRbacParam = 'skipRoleAssignments=true'
+}
+
 # ── Run the deployment ──
 Write-Host 'Starting deployment (this typically takes 3-5 min)...'
 Write-Host "Tip: open another terminal and run 'az deployment operation sub list -n $DeploymentName -o table' to watch progress."
 Write-Host ''
 
 # Capture stdout (JSON) cleanly; let stderr (warnings/errors) flow to console
-$deployJson = az deployment sub create `
-    --location $Location `
-    --name $DeploymentName `
-    --template-file $Template `
-    --parameters "@$ParametersFile" `
-    --output json | Out-String
+$deployArgs = @(
+    'deployment', 'sub', 'create',
+    '--location', $Location,
+    '--name', $DeploymentName,
+    '--template-file', $Template,
+    '--parameters', "@$ParametersFile",
+    '--output', 'json'
+)
+if ($SkipRbacParam) { $deployArgs += @('--parameters', $SkipRbacParam) }
+$deployJson = & az @deployArgs | Out-String
 
 Write-Host $deployJson
 

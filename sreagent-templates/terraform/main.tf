@@ -171,6 +171,21 @@ resource "azapi_resource" "sre_agent" {
         EnableHttpTriggers   = true
         EnableV2AgentLoop    = true
       }
+      vnetConfiguration = var.vnet_subnet_id != "" ? {
+        subnetResourceId = var.vnet_subnet_id
+      } : null
+      sandboxConfiguration = var.egress_mode != "Unrestricted" ? {
+        egress = {
+          mode                           = var.egress_mode
+          allowedHosts                   = var.allowed_hosts
+          allowedRegistries              = var.allowed_registries
+          allowedCodeRepositories        = var.allowed_code_repositories
+          allowHttpMcpServerNetworkAccess = var.allow_http_mcp_server_network_access
+          vnetConfiguration = var.egress_mode == "AzureVNet" ? {
+            usePrivateDnsResolution = var.use_private_dns_resolution
+          } : null
+        }
+      } : null
     }
   }
 
@@ -217,6 +232,7 @@ resource "azapi_resource" "connector" {
 # ── Monitoring Reader on agent RG ──
 
 resource "azurerm_role_assignment" "monitoring_reader" {
+  count                = var.skip_role_assignments || !local.create_identity ? 0 : 1
   scope                = azurerm_resource_group.agent.id
   role_definition_name = "Monitoring Reader"
   principal_id         = local.effective_principal_id
@@ -226,6 +242,7 @@ resource "azurerm_role_assignment" "monitoring_reader" {
 # ── SRE Agent Administrator — deployer on the agent ──
 
 resource "azurerm_role_assignment" "deployer_admin" {
+  count              = var.skip_role_assignments ? 0 : 1
   scope              = azapi_resource.sre_agent.id
   role_definition_id = "/subscriptions/${data.azurerm_subscription.current.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/${local.sre_agent_admin_role_id}"
   principal_id       = data.azurerm_client_config.current.object_id
@@ -235,6 +252,7 @@ resource "azurerm_role_assignment" "deployer_admin" {
 # ── SRE Agent Administrator — UAMI on the agent ──
 
 resource "azurerm_role_assignment" "uami_admin" {
+  count              = var.skip_role_assignments ? 0 : 1
   scope              = azapi_resource.sre_agent.id
   role_definition_id = "/subscriptions/${data.azurerm_subscription.current.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/${local.sre_agent_admin_role_id}"
   principal_id       = local.effective_principal_id
@@ -244,7 +262,7 @@ resource "azurerm_role_assignment" "uami_admin" {
 # ── Target RG: Reader ──
 
 resource "azurerm_role_assignment" "target_reader" {
-  for_each             = toset(var.target_resource_groups)
+  for_each             = var.skip_role_assignments || !local.create_identity ? toset([]) : toset(var.target_resource_groups)
   scope                = "/subscriptions/${data.azurerm_subscription.current.subscription_id}/resourceGroups/${each.value}"
   role_definition_name = "Reader"
   principal_id         = local.effective_principal_id
@@ -254,7 +272,7 @@ resource "azurerm_role_assignment" "target_reader" {
 # ── Target RG: Log Analytics Reader ──
 
 resource "azurerm_role_assignment" "target_log_reader" {
-  for_each             = toset(var.target_resource_groups)
+  for_each             = var.skip_role_assignments || !local.create_identity ? toset([]) : toset(var.target_resource_groups)
   scope                = "/subscriptions/${data.azurerm_subscription.current.subscription_id}/resourceGroups/${each.value}"
   role_definition_name = "Log Analytics Reader"
   principal_id         = local.effective_principal_id
@@ -264,7 +282,7 @@ resource "azurerm_role_assignment" "target_log_reader" {
 # ── Target RG: Contributor (High access only) ──
 
 resource "azurerm_role_assignment" "target_contributor" {
-  for_each             = var.access_level == "High" ? toset(var.target_resource_groups) : toset([])
+  for_each             = !var.skip_role_assignments && local.create_identity && var.access_level == "High" ? toset(var.target_resource_groups) : toset([])
   scope                = "/subscriptions/${data.azurerm_subscription.current.subscription_id}/resourceGroups/${each.value}"
   role_definition_name = "Contributor"
   principal_id         = local.effective_principal_id
@@ -276,7 +294,7 @@ resource "azurerm_role_assignment" "target_contributor" {
 # Same roles as UAMI: Reader + Log Analytics Reader + Contributor (if High).
 
 resource "azurerm_role_assignment" "smi_target_reader" {
-  for_each             = toset(var.target_resource_groups)
+  for_each             = var.skip_role_assignments ? toset([]) : toset(var.target_resource_groups)
   scope                = "/subscriptions/${data.azurerm_subscription.current.subscription_id}/resourceGroups/${each.value}"
   role_definition_name = "Reader"
   principal_id         = azapi_resource.sre_agent.identity[0].principal_id
@@ -284,7 +302,7 @@ resource "azurerm_role_assignment" "smi_target_reader" {
 }
 
 resource "azurerm_role_assignment" "smi_target_log_reader" {
-  for_each             = toset(var.target_resource_groups)
+  for_each             = var.skip_role_assignments ? toset([]) : toset(var.target_resource_groups)
   scope                = "/subscriptions/${data.azurerm_subscription.current.subscription_id}/resourceGroups/${each.value}"
   role_definition_name = "Log Analytics Reader"
   principal_id         = azapi_resource.sre_agent.identity[0].principal_id
@@ -292,7 +310,7 @@ resource "azurerm_role_assignment" "smi_target_log_reader" {
 }
 
 resource "azurerm_role_assignment" "smi_target_contributor" {
-  for_each             = var.access_level == "High" ? toset(var.target_resource_groups) : toset([])
+  for_each             = !var.skip_role_assignments && var.access_level == "High" ? toset(var.target_resource_groups) : toset([])
   scope                = "/subscriptions/${data.azurerm_subscription.current.subscription_id}/resourceGroups/${each.value}"
   role_definition_name = "Contributor"
   principal_id         = azapi_resource.sre_agent.identity[0].principal_id

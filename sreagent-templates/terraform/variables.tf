@@ -109,6 +109,63 @@ variable "existing_agent_app_insights_id" {
   default     = ""
 }
 
+# ── RBAC ──
+
+variable "skip_role_assignments" {
+  description = "Skip all role assignments. Set to true when RBAC is pre-configured or on redeploy to avoid RoleAssignmentExists errors."
+  type        = bool
+  default     = false
+}
+
+# ── Network / VNet ──
+
+variable "vnet_subnet_id" {
+  description = "Full ARM resource ID of a delegated subnet (Microsoft.App/environments) for VNet integration. Leave empty for no VNet."
+  type        = string
+  default     = ""
+}
+
+variable "egress_mode" {
+  description = "Sandbox egress mode: Unrestricted (default), Limited, or AzureVNet."
+  type        = string
+  default     = "Unrestricted"
+
+  validation {
+    condition     = contains(["Unrestricted", "Limited", "AzureVNet"], var.egress_mode)
+    error_message = "egress_mode must be Unrestricted, Limited, or AzureVNet."
+  }
+}
+
+variable "allowed_hosts" {
+  description = "Additional hosts the sandbox may reach (e.g. *.contoso.com). Only used in Limited/AzureVNet modes."
+  type        = list(string)
+  default     = []
+}
+
+variable "allowed_registries" {
+  description = "Registry catalog IDs (pypi, npmjs, nuget-org) whose hosts are allowed. Only used in Limited/AzureVNet modes."
+  type        = list(string)
+  default     = []
+}
+
+variable "allowed_code_repositories" {
+  description = "Code-repo providers (Github, AzureDevOps) whose hosts are allowed. Only used in Limited/AzureVNet modes."
+  type        = list(string)
+  default     = []
+}
+
+variable "allow_http_mcp_server_network_access" {
+  description = "Allow remote HTTP MCP server endpoints in sandbox egress."
+  type        = bool
+  default     = true
+}
+
+variable "use_private_dns_resolution" {
+  description = "Use VNet private DNS resolver instead of platform default. Only for AzureVNet mode."
+  type        = bool
+  default     = false
+}
+
 # ── Connector toggles ──
 
 variable "enable_app_insights_connector" {

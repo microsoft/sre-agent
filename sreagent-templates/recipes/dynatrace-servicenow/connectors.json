@@ -1,0 +1,30 @@
+{
+  "toggles": {
+    "enableAppInsightsConnector": false,
+    "appInsightsResourceId": "",
+    "appInsightsAppId": "",
+    "enableLogAnalyticsConnector": "{{lawId:bool}}",
+    "lawResourceId": "{{lawId}}",
+    "enableAzureMonitorConnector": false,
+    "azureMonitorLookbackDays": 7,
+    "grafanaUrl": "",
+    "grafanaApiKey": ""
+  },
+  "connectors": [
+    {
+      "name": "dynatrace",
+      "properties": {
+        "dataConnectorType": "Mcp",
+        "dataSource": "placeholder",
+        "extendedProperties": {
+          "type": "http",
+          "endpoint": "https://{{dtTenant}}.apps.dynatrace.com/platform-reserved/mcp-gateway/v0.1/servers/dynatrace-mcp/mcp",
+          "authType": "BearerToken",
+          "bearerToken": "${DYNATRACE_BEARER_TOKEN}",
+          "partnerType": "DynatraceMcp"
+        },
+        "identity": "system"
+      }
+    }
+  ]
+}
