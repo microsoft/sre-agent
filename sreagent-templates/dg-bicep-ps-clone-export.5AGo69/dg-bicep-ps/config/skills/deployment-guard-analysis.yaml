@@ -1,7 +1,0 @@
-metadata:
-  name: deployment-guard-analysis
-  description: ''
-  spec:
-    tools: []
-skillContent: skills/deployment-guard-analysis.md
-additionalFiles: []
