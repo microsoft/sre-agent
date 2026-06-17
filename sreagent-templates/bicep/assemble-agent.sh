@@ -171,6 +171,31 @@ TAGS=$(echo "$AGENT_JSON"            | jq -c '.tags // {}')
 EXISTING_UAMI=$(echo "$AGENT_JSON"   | jq -r '.existingUamiId // ""')
 EXISTING_AI=$(echo "$AGENT_JSON"    | jq -r '.existingAgentAppInsightsId // ""')
 
+# ── Network configuration ──
+NET_TYPE=$(echo "$AGENT_JSON" | jq -r '.networkConfiguration.type // "unrestricted"' | tr '[:upper:]' '[:lower:]')
+NET_SUBNET_ID=$(echo "$AGENT_JSON" | jq -r '.networkConfiguration.subnetId // ""')
+NET_RG=$(echo "$AGENT_JSON" | jq -r '.networkConfiguration.resourceGroup // ""')
+NET_VNET=$(echo "$AGENT_JSON" | jq -r '.networkConfiguration.vnetName // ""')
+NET_SUBNET_NAME=$(echo "$AGENT_JSON" | jq -r '.networkConfiguration.subnetName // "agent-subnet"')
+NET_SUBNET_PREFIX=$(echo "$AGENT_JSON" | jq -r '.networkConfiguration.subnetPrefix // "10.2.0.0/28"')
+NET_ALLOWED_HOSTS=$(echo "$AGENT_JSON" | jq -c '.networkConfiguration.allowedHosts // []')
+NET_ALLOWED_REGISTRIES=$(echo "$AGENT_JSON" | jq -c '.networkConfiguration.allowedRegistries // []')
+NET_ALLOWED_CODE_REPOS=$(echo "$AGENT_JSON" | jq -c '.networkConfiguration.allowedCodeRepositories // []')
+NET_ALLOW_MCP=$(echo "$AGENT_JSON" | jq -r '.networkConfiguration.allowHttpMcpServerNetworkAccess // true')
+NET_PRIVATE_DNS=$(echo "$AGENT_JSON" | jq -r '.networkConfiguration.usePrivateDnsResolution // false')
+
+# Map type to Bicep egressMode
+case "$NET_TYPE" in
+  vnet|azurevnet) EGRESS_MODE="AzureVNet" ;;
+  limited)        EGRESS_MODE="Limited" ;;
+  *)              EGRESS_MODE="Unrestricted" ;;
+esac
+
+# If broken-out VNet fields provided (not subnetId), resolve to full subnet ID
+if [[ -z "$NET_SUBNET_ID" && -n "$NET_VNET" && -n "$NET_RG" ]]; then
+  NET_SUBNET_ID="/subscriptions/${AGENT_SUB}/resourceGroups/${NET_RG}/providers/Microsoft.Network/virtualNetworks/${NET_VNET}/subnets/${NET_SUBNET_NAME}"
+fi
+
 _log "Agent: ${AGENT_NAME} (${AGENT_LOC}, ${AGENT_RG})"
 
 # ═══════ Read connectors.json ═══════
@@ -235,6 +260,21 @@ _log "incident-platforms: $(echo "$INCIDENT_PLATFORMS" | jq 'length')"
 REPOS=$(collect_config "repos")
 _log "repos: $(echo "$REPOS" | jq 'length')"
 
+# Tool permissions — single file (not a collection)
+TOOL_PERMISSIONS='{}'
+if [[ -f "${DIR}/tool-permissions.json" ]]; then
+  TOOL_PERMISSIONS=$(cat "${DIR}/tool-permissions.json")
+  _log "tool-permissions: loaded"
+fi
+
+# GitHub domains (BYO App / PAT auth) — config/github-domains/*.yaml
+GITHUB_DOMAINS=$(resolve_env_vars "$(collect_config "github-domains")")
+_log "github-domains: $(echo "$GITHUB_DOMAINS" | jq 'length')"
+
+# ConnectorV2 (Jira, Slack, etc.) — config/connectorv2/*.yaml
+CONNECTORV2=$(collect_config "connectorv2")
+_log "connectorv2: $(echo "$CONNECTORV2" | jq 'length')"
+
 MARKETPLACES="[]"
 [[ -d "${DIR}/config/plugins/marketplaces" ]] && MARKETPLACES=$(collect_config "plugins/marketplaces")
 INSTALLATIONS="[]"
@@ -293,6 +333,13 @@ jq -n \
   --argjson tags "$TAGS" \
   --arg existingUami "$EXISTING_UAMI" \
   --arg existingAi "$EXISTING_AI" \
+  --arg vnetSubnetId "$NET_SUBNET_ID" \
+  --arg egressMode "$EGRESS_MODE" \
+  --argjson allowedHosts "$NET_ALLOWED_HOSTS" \
+  --argjson allowedRegistries "$NET_ALLOWED_REGISTRIES" \
+  --argjson allowedCodeRepositories "$NET_ALLOWED_CODE_REPOS" \
+  --argjson allowMcp "$NET_ALLOW_MCP" \
+  --argjson privateDns "$NET_PRIVATE_DNS" \
   --argjson targetRgs "$TARGET_RGS" \
   --argjson toggles "$TOGGLES" \
   --argjson ctog "$CONNECTOR_TOGGLES" \
@@ -320,6 +367,13 @@ jq -n \
       "tags":                            { "value": $tags },
       "existingManagedIdentityId":     { "value": $existingUami },
       "existingAgentAppInsightsId":    { "value": $existingAi },
+      "vnetSubnetId":                  { "value": $vnetSubnetId },
+      "egressMode":                    { "value": $egressMode },
+      "allowedHosts":                  { "value": $allowedHosts },
+      "allowedRegistries":             { "value": $allowedRegistries },
+      "allowedCodeRepositories":       { "value": $allowedCodeRepositories },
+      "allowHttpMcpServerNetworkAccess": { "value": $allowMcp },
+      "usePrivateDnsResolution":       { "value": $privateDns },
       "enableAppInsightsConnector":    { "value": ($ctog.enableAppInsightsConnector // false) },
       "appInsightsResourceId":         { "value": ($ctog.appInsightsResourceId // "") },
       "appInsightsAppId":              { "value": ($ctog.appInsightsAppId // "") },
@@ -369,6 +423,9 @@ jq -n \
   --argjson subagents "$SUBAGENTS" \
   --argjson tools "$TOOLS" \
   --argjson pluginConfigs "$PLUGIN_CONFIGS" \
+  --argjson toolPermissions "$TOOL_PERMISSIONS" \
+  --argjson githubDomains "$GITHUB_DOMAINS" \
+  --argjson connectorV2 "$CONNECTORV2" \
   '{
     "repos": $repos,
     "incidentPlatforms": $incidentPlatforms,
@@ -390,7 +447,10 @@ jq -n \
     "skills": $skills,
     "subagents": $subagents,
     "tools": $tools,
-    "pluginConfigs": [($pluginConfigs // [])[] | {name: (.metadata.name // .name), type: (.type // "Plugin"), tags: (.tags // []), properties: (.spec // .properties // {})}]
+    "pluginConfigs": [($pluginConfigs // [])[] | {name: (.metadata.name // .name), type: (.type // "Plugin"), tags: (.tags // []), properties: (.spec // .properties // {})}],
+    "toolPermissions": $toolPermissions,
+    "githubDomains": $githubDomains,
+    "connectorV2": $connectorV2
   }' > "$EXTRAS_FILE"
 
 # Merge admin settings if present (adminUsers for cross-tenant access)

@@ -1,0 +1,10 @@
+metadata:
+  name: diagnose-onprem
+  description: Diagnoses on-prem application issues by reading health, metrics, and
+    log endpoints.
+  spec:
+    tools:
+    - ExecutePythonCode
+    - FetchWebpage
+skillContent: skills/diagnose-onprem.md
+additionalFiles: []

@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: deployment-guard-demo
+metadata:
+  template: deployment-guard-demo@1.0.0
+
+# This lab uses an existing application repo (contoso-trading) and deploys
+# an SRE Agent configured with the law-dynatrace-httptrigger recipe.
+# The agent's HTTP trigger receives GitHub PR webhooks via a Logic App bridge
+# and runs deployment guard analysis on every PR.
+#
+# Prerequisites:
+#   - Fork or clone https://github.com/dm-chelupati/contoso-trading
+#   - Dynatrace environment with MCP gateway access
+#
+# The lab does NOT provision the app infrastructure (contoso-trading has its own).
+# It provisions only the SRE Agent + webhook bridge.

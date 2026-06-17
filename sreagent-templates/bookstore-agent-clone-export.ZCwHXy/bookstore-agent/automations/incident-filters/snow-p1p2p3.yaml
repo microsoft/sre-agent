@@ -1,0 +1,26 @@
+metadata:
+  name: snow-p1p2p3
+spec:
+  incidentPlatform: ServiceNow
+  impactedService: ''
+  priorities:
+  - '1'
+  - '2'
+  - '3'
+  incidentType: ''
+  alertId: ''
+  titleContains: ''
+  titleContainsAll: []
+  titleContainsAny: []
+  titleNotContains: []
+  agentMode: Autonomous
+  handlingAgent: onprem-investigator
+  owningTeamId: ''
+  owningTeamIds: []
+  maxAutomatedInvestigationAttempts: 3
+  deepInvestigationEnabled: false
+  mergeEnabled: true
+  mergeWindowHours: 3
+  createdAt: '2026-05-13T17:52:10.2627347Z'
+  updatedAt: '2026-05-13T17:52:10.2627495Z'
+  isEnabled: true

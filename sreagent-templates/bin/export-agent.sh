@@ -900,17 +900,26 @@ for i in $(seq 0 $((CONNECTOR_COUNT - 1))); do
   ctype=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.dataConnectorType')
   case "$ctype" in
     AppInsights)
-      ENABLE_AI=true
-      AI_RESOURCE_ID=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""')
-      AI_APP_ID=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.extendedProperties.appId // ""')
+      # Only capture the FIRST AppInsights connector for the toggle
+      if [[ "$ENABLE_AI" == "false" ]]; then
+        ENABLE_AI=true
+        AI_RESOURCE_ID=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""')
+        AI_APP_ID=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.extendedProperties.appId // ""')
+      fi
       ;;
     LogAnalytics)
-      ENABLE_LAW=true
-      LAW_RESOURCE_ID=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""')
+      # Only capture the FIRST LogAnalytics connector for the toggle
+      if [[ "$ENABLE_LAW" == "false" ]]; then
+        ENABLE_LAW=true
+        LAW_RESOURCE_ID=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""')
+      fi
       ;;
     AzureMonitor)
-      ENABLE_AZMON=true
-      AZMON_LOOKBACK=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.extendedProperties.lookbackDays // 7')
+      # Only capture the FIRST AzureMonitor connector for the toggle
+      if [[ "$ENABLE_AZMON" == "false" ]]; then
+        ENABLE_AZMON=true
+        AZMON_LOOKBACK=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.extendedProperties.lookbackDays // 7')
+      fi
       ;;
   esac
 done
@@ -1050,10 +1059,29 @@ done
 CONNECTORS_CLEAN=$(sanitize "$CONNECTORS_CLEAN")
 
 # ── Write connectors.json ──
-# Toggle-managed types (AppInsights, LogAnalytics, AzureMonitor) go into toggles.
-# All other connectors (MCP, Kusto, etc.) go into the connectors array.
-TOGGLE_TYPES="AppInsights|LogAnalytics|AzureMonitor"
-CONNECTORS_ARRAY=$(echo "$CONNECTORS_CLEAN" | jq -c --arg tt "$TOGGLE_TYPES" '[.[] | select(.properties.dataConnectorType | test("^(\($tt))$") | not)]')
+# Toggle-managed types (AppInsights, LogAnalytics, AzureMonitor) map to Bicep
+# parameters that create ARM resources. The FIRST connector of each toggle type
+# goes into toggles; any ADDITIONAL connectors of the same type (e.g. a second
+# LAW workspace) stay in the connectors array (deployed via data-plane).
+TOGGLE_NAMES=""
+[[ "$ENABLE_AI" == "true" ]] && {
+  first_ai=$(echo "$CONNECTORS_CLEAN" | jq -r '[.[] | select(.properties.dataConnectorType == "AppInsights")][0].name')
+  [[ "$first_ai" != "null" ]] && TOGGLE_NAMES="${TOGGLE_NAMES}${first_ai}|"
+}
+[[ "$ENABLE_LAW" == "true" ]] && {
+  first_law=$(echo "$CONNECTORS_CLEAN" | jq -r '[.[] | select(.properties.dataConnectorType == "LogAnalytics")][0].name')
+  [[ "$first_law" != "null" ]] && TOGGLE_NAMES="${TOGGLE_NAMES}${first_law}|"
+}
+[[ "$ENABLE_AZMON" == "true" ]] && {
+  first_azmon=$(echo "$CONNECTORS_CLEAN" | jq -r '[.[] | select(.properties.dataConnectorType == "AzureMonitor")][0].name')
+  [[ "$first_azmon" != "null" ]] && TOGGLE_NAMES="${TOGGLE_NAMES}${first_azmon}|"
+}
+TOGGLE_NAMES="${TOGGLE_NAMES%|}"  # strip trailing |
+if [[ -n "$TOGGLE_NAMES" ]]; then
+  CONNECTORS_ARRAY=$(echo "$CONNECTORS_CLEAN" | jq -c --arg tn "$TOGGLE_NAMES" '[.[] | select(.name | test("^(\($tn))$") | not)]')
+else
+  CONNECTORS_ARRAY=$(echo "$CONNECTORS_CLEAN" | jq -c '.')
+fi
 
 echo "$CONNECTORS_ARRAY" | jq --argjson enableAI "$ENABLE_AI" --arg aiResId "$AI_RESOURCE_ID" --arg aiAppId "$AI_APP_ID" \
   --argjson enableLAW "$ENABLE_LAW" --arg lawResId "$LAW_RESOURCE_ID" \
@@ -1071,7 +1099,7 @@ echo "$CONNECTORS_ARRAY" | jq --argjson enableAI "$ENABLE_AI" --arg aiResId "$AI
     "connectors": .
   }' > "${EXPORT_DIR}/connectors.json"
 CONN_COUNT=$(echo "$CONNECTORS_ARRAY" | jq 'length')
-_log "Wrote connectors.json (${CONN_COUNT} connector(s) + toggles)"
+_log "Wrote connectors.json (${CONN_COUNT} extra connector(s) + toggles)"
 
 _log "Wrote connectors.secrets.env (secrets extracted — DO NOT commit)"
 
@@ -1093,9 +1121,8 @@ cat > "${EXPORT_DIR}/.gitignore" << 'GITIGNORE'
 # Secrets — never commit
 connectors.secrets.env
 *.secrets.env
-
-# Downloaded data (can be large)
-data/
+# Generated verification spec
+expected-config.json
 GITIGNORE
 _log "Wrote .gitignore"
 
@@ -1114,7 +1141,7 @@ fi
 if [[ "$ENABLE_AZMON" == "true" ]]; then
   EXPECTED_CONNECTORS=$(echo "$EXPECTED_CONNECTORS" | jq '. + [{"name":"azure-monitor","type":"AzureMonitor"}]')
 fi
-# Array connectors (MCP, Kusto, etc.) — skip null/empty entries
+# Array connectors (MCP, extra LAW/AI/AzMon, Kusto, etc.)
 for i in $(seq 0 $(($(echo "$CONNECTORS_ARRAY" | jq 'length') - 1))); do
   cname=$(echo "$CONNECTORS_ARRAY" | jq -r --argjson i "$i" '.[$i].name')
   ctype=$(echo "$CONNECTORS_ARRAY" | jq -r --argjson i "$i" '.[$i].properties.dataConnectorType')

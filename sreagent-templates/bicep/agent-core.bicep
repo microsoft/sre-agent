@@ -24,6 +24,31 @@ param existingManagedIdentityId string = ''
 @description('Optional. Resource ID of an existing Application Insights for agent telemetry. If provided, skips creating a new one.')
 param existingAgentAppInsightsId string = ''
 
+@description('Optional. Skip all role assignments. Set to true when RBAC is pre-configured or on redeploy to avoid RoleAssignmentExists errors.')
+param skipRoleAssignments bool = false
+
+@description('Optional. Full ARM resource ID of a delegated subnet (Microsoft.App/environments) for VNet integration. Leave empty for no VNet.')
+param vnetSubnetId string = ''
+
+@description('Optional. Sandbox egress mode: Unrestricted (default), Limited, or AzureVNet.')
+@allowed(['Unrestricted', 'Limited', 'AzureVNet'])
+param egressMode string = 'Unrestricted'
+
+@description('Optional. Additional hosts the sandbox may reach (e.g. *.contoso.com). Only used in Limited/AzureVNet modes.')
+param allowedHosts array = []
+
+@description('Optional. Registry catalog IDs (pypi, npmjs, nuget-org) whose hosts are allowed. Only used in Limited/AzureVNet modes.')
+param allowedRegistries array = []
+
+@description('Optional. Code-repo providers (Github, AzureDevOps) whose hosts are allowed. Only used in Limited/AzureVNet modes.')
+param allowedCodeRepositories array = []
+
+@description('Optional. Allow remote HTTP MCP server endpoints in sandbox egress.')
+param allowHttpMcpServerNetworkAccess bool = true
+
+@description('Optional. Use VNet private DNS resolver instead of platform default. Only for AzureVNet mode.')
+param usePrivateDnsResolution bool = false
+
 // ── Observability ──
 
 resource law 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
@@ -73,7 +98,7 @@ var effectivePrincipalId = empty(existingManagedIdentityId) ? identity.propertie
 
 // ── RBAC on target resource groups ──
 
-module targetRbac 'role-assignments-target.bicep' = [for (rg, i) in targetResourceGroups: {
+module targetRbac 'role-assignments-target.bicep' = [for (rg, i) in targetResourceGroups: if (!skipRoleAssignments && empty(existingManagedIdentityId)) {
   name: 'rbac-${i}-${uniqueString(deployment().name)}'
   scope: resourceGroup(subscriptionId, rg)
   params: {
@@ -84,7 +109,7 @@ module targetRbac 'role-assignments-target.bicep' = [for (rg, i) in targetResour
 
 // ── Monitoring Reader on deployment RG ──
 
-resource monitoringReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource monitoringReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!skipRoleAssignments && empty(existingManagedIdentityId)) {
   name: guid(resourceGroup().id, effectiveIdentityId, '43d0d8ad-25c7-4714-9337-8ba259a9fe05')
   properties: {
     roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', '43d0d8ad-25c7-4714-9337-8ba259a9fe05')
@@ -132,6 +157,21 @@ resource sreAgent 'Microsoft.App/agents@2025-05-01-preview' = {
       EnableHttpTriggers: true
       EnableV2AgentLoop: true
     }
+    vnetConfiguration: !empty(vnetSubnetId) ? {
+      subnetResourceId: vnetSubnetId
+    } : null
+    sandboxConfiguration: egressMode != 'Unrestricted' ? {
+      egress: {
+        mode: egressMode
+        allowedHosts: allowedHosts
+        allowedRegistries: allowedRegistries
+        allowedCodeRepositories: allowedCodeRepositories
+        allowHttpMcpServerNetworkAccess: allowHttpMcpServerNetworkAccess
+        vnetConfiguration: egressMode == 'AzureVNet' ? {
+          usePrivateDnsResolution: usePrivateDnsResolution
+        } : null
+      }
+    } : null
   }
   dependsOn: [ targetRbac, monitoringReader ]
 }
@@ -151,7 +191,7 @@ module targetRbacSystemMi 'role-assignments-target.bicep' = [for (rg, i) in targ
 
 // ── SRE Agent Administrator for deployer ──
 
-resource adminRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource adminRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!skipRoleAssignments) {
   name: guid(sreAgent.id, deployer().objectId, 'e79298df-d852-4c6d-84f9-5d13249d1e55')
   scope: sreAgent
   properties: {
@@ -163,7 +203,7 @@ resource adminRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 
 // ── SRE Agent Administrator for UAMI (needed for Logic App webhook bridge to call HTTP triggers) ──
 
-resource uamiAdminRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource uamiAdminRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!skipRoleAssignments) {
   name: guid(sreAgent.id, effectiveIdentityId, 'e79298df-d852-4c6d-84f9-5d13249d1e55')
   scope: sreAgent
   properties: {

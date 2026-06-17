@@ -1,0 +1,14 @@
+metadata:
+  name: snow-p1p2
+spec:
+  incidentPlatform: ServiceNow
+  isEnabled: true
+  priorities:
+  - "1"
+  - "2"
+  handlingAgent: dynatrace-investigator
+  agentMode: autonomous
+  deepInvestigationEnabled: false
+  maxAutomatedInvestigationAttempts: 3
+  mergeEnabled: true
+  mergeWindowHours: 1

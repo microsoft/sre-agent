@@ -1,0 +1,12 @@
+name: deny-prod-deletes
+type: GlobalHook
+tags: []
+properties:
+  eventType: PreToolUse
+  activationMode: always
+  hook:
+    type: prompt
+    prompt: If the tool targets a production resource (name contains 'prod' or 'prd'),
+      deny.
+    matcher: ^(delete_|remove_).*
+    timeout: 30

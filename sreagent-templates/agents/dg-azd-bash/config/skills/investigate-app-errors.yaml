@@ -1,0 +1,16 @@
+metadata:
+  name: investigate-app-errors
+  description: Investigate application errors using Dynatrace DQL and Log Analytics
+    to correlate errors with deployments, infrastructure changes, and dependencies.
+  spec:
+    tools:
+    - RunAzCliReadCommands
+    - QueryLogAnalyticsByWorkspaceId
+    - dynatrace_execute-dql
+    - dynatrace_create-dql
+    - dynatrace_query-problems
+    - dynatrace_get-entity-id
+    - ExecutePythonCode
+    - PlotAreaChartWithCorrelation
+skillContent: skills/investigate-app-errors.md
+additionalFiles: []

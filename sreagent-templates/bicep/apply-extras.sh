@@ -231,13 +231,41 @@ dataplane_put_extended() {
   body=$(jq -nc --arg n "$name" --arg t "$type" --argjson tags "$tags_json" --argjson props "$props_json" \
     '{name:$n, type:$t, tags:$tags, properties:$props}')
   url="${AGENT_ENDPOINT}/api/v2/extendedAgent/${kind}/$(printf %s "$name" | jq -sRr @uri)"
-  if curl -sS -f -X PUT "$url" \
+  # Try PUT first. If the resource exists and the API doesn't update immutable
+  # fields (e.g. hook type), fall back to DELETE + PUT.
+  local put_result existing_type desired_type
+  put_result=$(curl -sS -w "\n%{http_code}" -X PUT "$url" \
        -H "Authorization: Bearer ${TOKEN}" \
        -H "Content-Type: application/json" \
-       --data "$body" >/dev/null; then
+       --data "$body" 2>&1)
+  local http_code
+  http_code=$(echo "$put_result" | tail -1)
+  if [[ "$http_code" =~ ^2 ]]; then
+    # PUT succeeded — verify the update actually took effect for hooks
+    if [[ "$kind" == "hooks" ]]; then
+      desired_type=$(echo "$props_json" | jq -r '.hook.type // empty')
+      if [[ -n "$desired_type" ]]; then
+        existing_type=$(curl -sS "$url" -H "Authorization: Bearer ${TOKEN}" 2>/dev/null \
+          | jq -r '.properties.hook.type // empty')
+        if [[ -n "$existing_type" && "$existing_type" != "$desired_type" ]]; then
+          echo "  ${kind}/${name}: type mismatch (want=${desired_type}, got=${existing_type}) — recreating"
+          curl -sS -X DELETE "$url" -H "Authorization: Bearer ${TOKEN}" >/dev/null 2>&1
+          TOKEN=$(_dp_token)
+          if curl -sS -f -X PUT "$url" \
+               -H "Authorization: Bearer ${TOKEN}" \
+               -H "Content-Type: application/json" \
+               --data "$body" >/dev/null 2>&1; then
+            echo "  ok ${kind}/${name} (recreated as ${desired_type})"
+          else
+            echo "  FAILED — recreate ${kind}/${name}"
+          fi
+          return
+        fi
+      fi
+    fi
     echo "  ok ${kind}/${name}"
   else
-    echo "  FAILED — PUT ${kind}/${name}"
+    echo "  FAILED — PUT ${kind}/${name} (HTTP ${http_code})"
   fi
 }
 
@@ -270,21 +298,34 @@ if [[ "$count" -gt 0 ]]; then
   if [[ -n "$platform_type" ]]; then
     # Check for connectionKey (PagerDuty/ServiceNow need API key)
     conn_key=$(jq -r '.incidentPlatforms[0].spec.connectionKey // empty' "$FILE")
+    conn_url=$(jq -r '.incidentPlatforms[0].spec.connectionUrl // empty' "$FILE")
     echo "  ARM PATCH → incidentManagementConfiguration.type=${platform_type}"
-    patch_body=""
+    conn_name=$(echo "$platform_type" | tr '[:upper:]' '[:lower:]')
+    _patch_file=$(mktemp)
     if [[ -n "$conn_key" ]]; then
-      patch_body="{\"properties\":{\"incidentManagementConfiguration\":{\"type\":\"${platform_type}\",\"connectionKey\":\"${conn_key}\",\"connectionName\":\"$(echo "$platform_type" | tr '[:upper:]' '[:lower:]')\"}}}"
+      jq -n \
+        --arg pt "$platform_type" \
+        --arg ck "$conn_key" \
+        --arg cn "$conn_name" \
+        --arg cu "$conn_url" \
+        '{properties:{incidentManagementConfiguration:{type:$pt, connectionKey:$ck, connectionName:$cn, connectionUrl:$cu}}}' > "$_patch_file"
     else
-      patch_body="{\"properties\":{\"incidentManagementConfiguration\":{\"type\":\"${platform_type}\",\"connectionName\":\"$(echo "$platform_type" | tr '[:upper:]' '[:lower:]')\"}}}"
+      jq -n \
+        --arg pt "$platform_type" \
+        --arg cn "$conn_name" \
+        --arg cu "$conn_url" \
+        '{properties:{incidentManagementConfiguration:{type:$pt, connectionName:$cn, connectionUrl:$cu}}}' > "$_patch_file"
     fi
     if az rest --method PATCH \
       --url "${ARM_BASE}?api-version=${API_VERSION}" \
-      --body "$patch_body" \
+      --headers "Content-Type=application/json" \
+      --body @"$_patch_file" \
       --output none 2>&1; then
       echo "    ok"
     else
       echo "    FAILED — could not set incident platform"
     fi
+    rm -f "$_patch_file"
     # Wait for platform to initialize
     echo "  Waiting 30s for platform to initialize..."
     sleep 30
@@ -372,15 +413,37 @@ if [[ "$count" -gt 0 ]]; then
 fi
 
 # 2. repos — data-plane only (requires azuresre.dev token)
+# Split repos into two buckets:
+#   - byoapp_repos: domain has a GitHubApp entry in githubDomains → push directly after githubDomains are applied
+#   - oauth_repos:  domain uses OAuth/PAT → pushed in the OAuth sign-in block (step 5)
 count=$(jq '[.repos // [] | .[] | select(.spec.url // "" | length > 0)] | length' "$FILE")
 oauth_repos=()
+byoapp_repos=()
+# Build a set of domains that use GitHubApp auth (BYO App)
+_byoapp_domains=$(jq -r '[.githubDomains // [] | .[] | select(.spec.authType == "GitHubApp") | .metadata.name // .name] | join("|")' "$FILE" 2>/dev/null)
 if [[ "$count" -gt 0 ]]; then
   if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
     for i in $(seq 0 $((count - 1))); do
-    name=$(jq -r --argjson i "$i" '[.repos[] | select(.spec.url // "" | length > 0)][$i].name' "$FILE")
-    oauth_repos+=("$name")
-  done
-  echo "repos: ${count} (will be wired up after GitHub sign-in below)"
+      name=$(jq -r --argjson i "$i" '[.repos[] | select(.spec.url // "" | length > 0)][$i].name' "$FILE")
+      rurl=$(jq -r --argjson i "$i" '[.repos[] | select(.spec.url // "" | length > 0)][$i].spec.url' "$FILE")
+      # Determine the domain: full URL → extract host; short "org/repo" → github.com
+      if [[ "$rurl" == http* ]]; then
+        rdomain=$(echo "$rurl" | sed 's|https\?://||' | cut -d/ -f1)
+      else
+        rdomain="github.com"
+      fi
+      if [[ -n "$_byoapp_domains" ]] && echo "$rdomain" | grep -qE "^(${_byoapp_domains})$"; then
+        byoapp_repos+=("$name")
+      else
+        oauth_repos+=("$name")
+      fi
+    done
+    if [[ ${#byoapp_repos[@]} -gt 0 ]]; then
+      echo "repos: ${#byoapp_repos[@]} via BYO App (will be wired after githubDomains)"
+    fi
+    if [[ ${#oauth_repos[@]} -gt 0 ]]; then
+      echo "repos: ${#oauth_repos[@]} via OAuth (will be wired after GitHub sign-in below)"
+    fi
   else
     echo "repos: ${count} — ⚠ skipped (no data-plane token)"
     for i in $(seq 0 $((count - 1))); do
@@ -577,6 +640,184 @@ if [[ "$count" -gt 0 ]]; then
   fi
 fi
 
+# 4f-2. toolPermissions — data-plane PUT /api/v2/agent/settings/global
+# Body: { permissions: { allow: [...], ask: [...], deny: [...] } }
+# Requires If-Match header (optimistic concurrency) — GET first to get etag.
+# If no global-settings doc exists yet (bootstrap), use If-Match: *
+tp_has=$(jq 'has("toolPermissions") and (.toolPermissions | length > 0)' "$FILE")
+if [[ "$tp_has" == "true" ]]; then
+  if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
+    echo "toolPermissions: configuring"
+    TOKEN=$(_dp_token)
+    # GET current to capture etag
+    tp_resp=$(curl -sS -D- -o /tmp/tp_body.json "${AGENT_ENDPOINT}/api/v2/agent/settings/global" \
+      -H "Authorization: Bearer ${TOKEN}" 2>/dev/null)
+    tp_etag=$(echo "$tp_resp" | grep -i '^etag:' | tr -d '\r' | awk '{print $2}' || true)
+    if [[ -z "$tp_etag" ]]; then
+      tp_etag="*"  # bootstrap: no doc exists yet
+    fi
+    # Build body
+    tp_body=$(jq -c '{permissions: .toolPermissions}' "$FILE")
+    tp_result=$(curl -sS -w "\n%{http_code}" -X PUT "${AGENT_ENDPOINT}/api/v2/agent/settings/global" \
+      -H "Authorization: Bearer ${TOKEN}" \
+      -H "Content-Type: application/json" \
+      -H "If-Match: ${tp_etag}" \
+      --data "$tp_body" 2>&1)
+    tp_code=$(echo "$tp_result" | tail -1)
+    if [[ "$tp_code" =~ ^2 ]]; then
+      echo "  ok toolPermissions"
+    else
+      echo "  FAILED — PUT settings/global (HTTP ${tp_code})"
+    fi
+    rm -f /tmp/tp_body.json
+  else
+    echo "toolPermissions — ⚠ skipped (no data-plane token)"
+    DP_SKIPPED_ITEMS+=("toolPermissions")
+  fi
+fi
+
+# 4f-3. githubDomains — data-plane PUT /api/v2/github/domains/{domain}
+# Supports authType: Pat (github.com only) and GitHubApp (BYO App for GHE)
+# Each entry: { metadata: { name: "github.com" }, spec: { authType, pat?, clientId?, privateKeySecretUri?, keyVaultManagedIdentityId? } }
+count=$(jq '.githubDomains // [] | length' "$FILE")
+if [[ "$count" -gt 0 ]]; then
+  if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
+    echo "githubDomains: ${count}"
+    for i in $(seq 0 $((count - 1))); do
+      domain=$(jq -r --argjson i "$i" '.githubDomains[$i].metadata.name // .githubDomains[$i].name' "$FILE")
+      spec=$(jq -c --argjson i "$i" '.githubDomains[$i].spec // .githubDomains[$i]' "$FILE")
+      # Resolve env vars in spec (secrets like clientId, privateKeySecretUri)
+      auth_type=$(echo "$spec" | jq -r '.authType // "Pat"')
+      # Encode domain for URL: github.com → github_com (dots to underscores)
+      domain_encoded=$(echo "$domain" | tr '.' '_')
+      TOKEN=$(_dp_token)
+      ghd_result=$(curl -sS -w "\n%{http_code}" -X PUT \
+        "${AGENT_ENDPOINT}/api/v2/github/domains/${domain_encoded}" \
+        -H "Authorization: Bearer ${TOKEN}" \
+        -H "Content-Type: application/json" \
+        --data "$spec" 2>&1)
+      ghd_code=$(echo "$ghd_result" | tail -1)
+      if [[ "$ghd_code" =~ ^2 ]]; then
+        echo "  ok githubDomains/${domain} (${auth_type})"
+      else
+        echo "  FAILED — PUT github/domains/${domain_encoded} (HTTP ${ghd_code})"
+        echo "    $(echo "$ghd_result" | sed '$d' | head -2)"
+      fi
+    done
+  else
+    echo "githubDomains: ${count} — ⚠ skipped (no data-plane token)"
+    for i in $(seq 0 $((count - 1))); do
+      gd=$(jq -r --argjson i "$i" '.githubDomains[$i].metadata.name // .githubDomains[$i].name' "$FILE")
+      DP_SKIPPED_ITEMS+=("githubDomain/${gd}")
+    done
+  fi
+fi
+
+# 4f-3b. BYO App repos — push repos that use GitHubApp auth directly (no OAuth needed)
+# These were identified in step 2 above. The githubDomains PUT above already configured
+# the BYO App auth, so the agent can access repos using the app's installation token.
+if [[ ${#byoapp_repos[@]} -gt 0 && "$DP_TOKEN_AVAILABLE" == "true" ]]; then
+  echo "byoapp repos: ${#byoapp_repos[@]}"
+  TOKEN=$(_dp_token)
+  repo_count=$(jq '.repos // [] | length' "$FILE")
+  for rname in "${byoapp_repos[@]}"; do
+    rurl=$(jq -r --arg n "$rname" '[.repos[] | select(.name == $n)][0].spec.url' "$FILE")
+    rdesc=$(jq -r --arg n "$rname" '[.repos[] | select(.name == $n)][0].spec.description // ""' "$FILE")
+    rtype_in=$(jq -r --arg n "$rname" '[.repos[] | select(.name == $n)][0].spec.type // "github"' "$FILE")
+    case "$(printf %s "$rtype_in" | tr "[:upper:]" "[:lower:]")" in
+      ado|azuredevops|azure-devops) rtype="AzureDevOps" ;;
+      *)                            rtype="GitHub" ;;
+    esac
+    # Normalize short "org/repo" to full URL
+    if [[ "$rurl" != http* && "$rurl" == */* ]]; then
+      rurl="https://github.com/${rurl}"
+    fi
+    rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg t "$rtype" --arg d "$rdesc" '{
+      name: $n,
+      type: "CodeRepo",
+      properties: ({ url: $u, type: $t } + (if $d == "" then {} else { description: $d } end))
+    }')
+    if curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/repos/$(printf %s "$rname" | jq -sRr @uri)" \
+         -H "Authorization: Bearer ${TOKEN}" \
+         -H "Content-Type: application/json" \
+         --data "$rbody" >/dev/null 2>&1; then
+      echo "  ok repo/${rname} (${rurl}) [BYO App]"
+    else
+      echo "  FAILED — PUT /api/v2/repos/${rname} (try the portal Repos blade)"
+    fi
+  done
+fi
+
+# 4f-4. connectorV2 — data-plane multi-step setup via /api/v2/connectorV2
+# Each entry: { metadata: { name }, spec: { apiName, displayName, connectionName?,
+#   parameterValueSet?: { name, values }, requireApprovalTools?: [...] } }
+# Flow: 1) PUT connection  2) list consent links  3) print consent URL  4) PUT mcpserver config
+count=$(jq '.connectorV2 // [] | length' "$FILE")
+if [[ "$count" -gt 0 ]]; then
+  if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
+    echo "connectorV2: ${count}"
+    for i in $(seq 0 $((count - 1))); do
+      cv2_name=$(jq -r --argjson i "$i" '.connectorV2[$i].metadata.name // .connectorV2[$i].name' "$FILE")
+      cv2_spec=$(jq -c --argjson i "$i" '.connectorV2[$i].spec // .connectorV2[$i]' "$FILE")
+      cv2_api=$(echo "$cv2_spec" | jq -r '.apiName')
+      cv2_display=$(echo "$cv2_spec" | jq -r '.displayName // .apiName')
+      cv2_conn=$(echo "$cv2_spec" | jq -r '.connectionName // .apiName | ascii_downcase')
+      cv2_pvs=$(echo "$cv2_spec" | jq -c '.parameterValueSet // null')
+      cv2_pv=$(echo "$cv2_spec" | jq -c '.parameterValues // null')
+      cv2_rat=$(echo "$cv2_spec" | jq -c '.requireApprovalTools // null')
+
+      TOKEN=$(_dp_token)
+
+      # Step 1: Create the connection
+      conn_body=$(jq -nc --arg dn "$cv2_display" --arg cn "$cv2_api" \
+        --argjson pvs "$cv2_pvs" --argjson pv "$cv2_pv" \
+        '{displayName: $dn, connectorName: $cn} + (if $pvs != null then {parameterValueSet: $pvs} else {} end) + (if $pv != null then {parameterValues: $pv} else {} end)')
+      conn_result=$(curl -sS -w "\n%{http_code}" -X PUT \
+        "${AGENT_ENDPOINT}/api/v2/connectorV2/connections/${cv2_conn}" \
+        -H "Authorization: Bearer ${TOKEN}" \
+        -H "Content-Type: application/json" \
+        --data "$conn_body" 2>&1)
+      conn_code=$(echo "$conn_result" | tail -1)
+      if [[ "$conn_code" =~ ^2 ]]; then
+        echo "  ok connectorV2/connection/${cv2_conn}"
+      else
+        echo "  WARN — PUT connection/${cv2_conn} (HTTP ${conn_code}) — may need OAuth consent in portal"
+      fi
+
+      # Step 2: Create MCP server config (links connection to MCP tools)
+      mcp_body=$(jq -nc --arg desc "$cv2_display" --arg cn "$cv2_conn" --arg api "$cv2_api" \
+        --argjson rat "$cv2_rat" \
+        '{properties: {description: $desc, connectors: [{name: $api, connectionName: $cn}]}} + (if $rat != null then {runtimeMcpConfiguration: {requireApprovalTools: $rat}} else {} end)')
+      TOKEN=$(_dp_token)
+      mcp_result=$(curl -sS -w "\n%{http_code}" -X PUT \
+        "${AGENT_ENDPOINT}/api/v2/connectorV2/mcpservers/${cv2_conn}" \
+        -H "Authorization: Bearer ${TOKEN}" \
+        -H "Content-Type: application/json" \
+        --data "$mcp_body" 2>&1)
+      mcp_code=$(echo "$mcp_result" | tail -1)
+      if [[ "$mcp_code" =~ ^2 ]]; then
+        echo "  ok connectorV2/mcpserver/${cv2_conn}"
+      else
+        echo "  FAILED — PUT mcpservers/${cv2_conn} (HTTP ${mcp_code})"
+        echo "    $(echo "$mcp_result" | sed '$d' | head -2)"
+      fi
+
+      # Step 3: Print consent link if connection needs OAuth
+      conn_status=$(echo "$conn_result" | sed '$d' | jq -r '.properties.overallStatus // "Unknown"' 2>/dev/null)
+      if [[ "$conn_status" == "Error" || "$conn_status" == "Unauthenticated" ]]; then
+        echo "  ⚠ Connection ${cv2_conn} needs OAuth consent. Complete in the portal:"
+        echo "    https://sre.azure.com → Connectors → ${cv2_display} → Authorize"
+      fi
+    done
+  else
+    echo "connectorV2: ${count} — ⚠ skipped (no data-plane token)"
+    for i in $(seq 0 $((count - 1))); do
+      cn=$(jq -r --argjson i "$i" '.connectorV2[$i].metadata.name // .connectorV2[$i].name' "$FILE")
+      DP_SKIPPED_ITEMS+=("connectorV2/${cn}")
+    done
+  fi
+fi
+
 # 4g. httpTriggers — data-plane only
 count=$(jq '.httpTriggers // [] | length' "$FILE")
 HTTP_TRIGGER_URL=""
@@ -761,13 +1002,13 @@ if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
 if [[ -n "${GITHUB_PAT:-}" ]]; then
   echo "GitHub auth: installing PAT (no browser needed)"
   TOKEN=$(_dp_token)
-  if curl -sS -f -X POST "${AGENT_ENDPOINT}/api/v1/Github/auth/pat" \
+  if curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/github/domains/github.com" \
        -H "Authorization: Bearer ${TOKEN}" \
        -H "Content-Type: application/json" \
-       --data "{\"accessToken\":\"${GITHUB_PAT}\"}" >/dev/null; then
+       --data "{\"AuthType\":\"Pat\",\"Pat\":\"${GITHUB_PAT}\"}" >/dev/null; then
     echo "  ok"
   else
-    echo "  FAILED — POST /api/v1/Github/auth/pat"
+    echo "  FAILED — PUT /api/v2/github/domains/github.com"
   fi
 elif [[ ${#oauth_repos[@]} -gt 0 ]]; then
   echo "GitHub auth: will use OAuth (browser sign-in) — see URL below"
@@ -828,9 +1069,22 @@ echo
 # ---------------------------------------------------------------------------
 if [[ ${#oauth_repos[@]} -gt 0 ]]; then
   TOKEN=$(_dp_token 2>/dev/null || true)
+  # Check if OAuth is configured via domains endpoint
   GH_STATUS=$(curl -sS -H "Authorization: Bearer ${TOKEN}" \
-    "${AGENT_ENDPOINT}/api/v1/Github/auth/status" 2>/dev/null || echo '{}')
-  GH_CONFIGURED=$(echo "$GH_STATUS" | jq -r '.isConfigured // .hosts[0].isConfigured // false')
+    "${AGENT_ENDPOINT}/api/v2/github/domains" 2>/dev/null || echo '{}')
+  if echo "$GH_STATUS" | jq empty 2>/dev/null; then
+    GH_CONFIGURED=$(echo "$GH_STATUS" | jq -r 'if (.values // []) | length > 0 then "true" else "false" end')
+  else
+    GH_CONFIGURED="false"
+  fi
+  # Also check if the github connector already exists (OAuth was done in a prior deploy)
+  if [[ "$GH_CONFIGURED" == "false" ]]; then
+    _connectors=$(curl -sS -H "Authorization: Bearer ${TOKEN}" -H "Accept: application/json" \
+      "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors" 2>/dev/null || echo '{}')
+    if echo "$_connectors" | jq -e '[.value // [] | .[] | select(.name == "github")] | length > 0' >/dev/null 2>&1; then
+      GH_CONFIGURED="true"
+    fi
+  fi
 
   if [[ "$GH_CONFIGURED" == "true" || -n "${GITHUB_PAT:-}" ]]; then
     # ── OAuth (or PAT) is in place — wire the connector + repos ──
@@ -901,9 +1155,11 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
     echo "Repos waiting: ${oauth_repos[*]}"
     OAUTH_URL=""
     if [[ -n "$TOKEN" ]]; then
-      OAUTH_URL=$(curl -sS -f -H "Authorization: Bearer ${TOKEN}" \
-        "${AGENT_ENDPOINT}/api/v1/Github/config" 2>/dev/null \
-        | jq -r '.oAuthUrl // .OAuthUrl // empty')
+      _gh_config=$(curl -sS -f -H "Authorization: Bearer ${TOKEN}" \
+        "${AGENT_ENDPOINT}/api/v2/github/oauth/config" 2>/dev/null || echo '{}')
+      if echo "$_gh_config" | jq empty 2>/dev/null; then
+        OAUTH_URL=$(echo "$_gh_config" | jq -r '.oAuthUrl // .OAuthUrl // empty')
+      fi
     fi
     if [[ -n "${OAUTH_URL:-}" ]]; then
       echo "  1. Open this URL in a browser:"
@@ -911,23 +1167,22 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
       echo "  2. Sign in to GitHub and approve the SRE Agent app."
       echo
       echo "  Waiting for GitHub authorization (Ctrl-C to skip)..."
-      if [[ -z "$AGENT_UAMI" ]]; then IDENT="SystemAssigned"; else IDENT="$AGENT_UAMI"; fi
-      conn_body=$(jq -nc --arg id "$IDENT" '{name:"github",type:"AgentConnector",properties:{dataConnectorType:"GitHubOAuth",dataSource:"github-oauth",identity:$id}}')
       auth_ok=false
       for attempt in $(seq 1 24); do
         sleep 10
         TOKEN=$(_dp_token 2>/dev/null || true)
-        # Check auth/status — only trust isConfigured, not connector PUT success
-        GH_CHECK=$(curl -sS -H "Authorization: Bearer ${TOKEN}" \
-          "${AGENT_ENDPOINT}/api/v1/Github/auth/status" 2>/dev/null || echo '{}')
-        IS_AUTH=$(echo "$GH_CHECK" | jq -r '.isConfigured // .hosts[0].isConfigured // false')
-        if [[ "$IS_AUTH" == "true" ]]; then
-          # Auth confirmed — now create the connector
+        # Poll domains endpoint — non-empty means OAuth callback was received
+        _poll=$(curl -sS -H "Authorization: Bearer ${TOKEN}" \
+          "${AGENT_ENDPOINT}/api/v2/github/domains" 2>/dev/null || echo '{}')
+        _has_domain=$(echo "$_poll" | jq -r 'if (.values // []) | length > 0 then "true" else "false" end' 2>/dev/null)
+        if [[ "$_has_domain" == "true" ]]; then
+          echo "  GitHub authorized!"
+          # Now create the connector
+          if [[ -z "$AGENT_UAMI" ]]; then IDENT="SystemAssigned"; else IDENT="$AGENT_UAMI"; fi
+          conn_body=$(jq -nc --arg id "$IDENT" '{name:"github",type:"AgentConnector",properties:{dataConnectorType:"GitHubOAuth",dataSource:"github-oauth",identity:$id}}')
           curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
               -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" \
-              --data "$conn_body" >/dev/null 2>&1 || true
-          echo "  GitHub authorized!"
-          echo "  ok connector/github"
+              --data "$conn_body" >/dev/null 2>&1 && echo "  ok connector/github" || echo "  WARN connector/github PUT failed"
           auth_ok=true
           break
         fi
@@ -959,7 +1214,7 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
         echo "  Headless alternative: export GITHUB_PAT=ghp_xxx && re-run"
       fi
     else
-      echo "  Could not fetch OAuth URL from ${AGENT_ENDPOINT}/api/v1/Github/config."
+      echo "  Could not fetch OAuth URL from ${AGENT_ENDPOINT}/api/v2/github/oauth/config."
       echo "  Fallback: Azure portal → agent → Repos → 'Authorize' next to each repo."
     fi
     echo

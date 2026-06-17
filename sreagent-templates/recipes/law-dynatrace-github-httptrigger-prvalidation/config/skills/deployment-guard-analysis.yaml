@@ -1,0 +1,28 @@
+metadata:
+  name: deployment-guard-analysis
+  description: Deployment guard that assesses PR safety for production by analyzing
+    diffs, capturing baselines, deploying to staging, running canary tests, validating
+    response correctness, and comparing health metrics.
+  spec:
+    tools:
+    - RunAzCliReadCommands
+    - RunAzCliWriteCommands
+    - ExecutePythonCode
+    - PlotAreaChartWithCorrelation
+    - PlotBarChart
+    - CreateGithubIssue
+    - FindConnectedGitHubRepo
+    - QueryLogAnalyticsByWorkspaceId
+    - dynatrace_adaptive-anomaly-detector
+    - dynatrace_create-dql
+    - dynatrace_execute-dql
+    - dynatrace_explain-dql
+    - dynatrace_get-entity-id
+    - dynatrace_get-entity-name
+    - dynatrace_query-problems
+    - dynatrace_seasonal-baseline-anomaly-detector
+    - dynatrace_static-threshold-analyzer
+    - dynatrace_timeseries-forecast
+    - dynatrace_timeseries-novelty-detection
+skillContent: skills/deployment-guard-analysis.md
+additionalFiles: []

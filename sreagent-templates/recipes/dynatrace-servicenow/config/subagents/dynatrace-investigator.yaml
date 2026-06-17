@@ -1,0 +1,35 @@
+metadata:
+  name: dynatrace-investigator
+spec:
+  instructions: subagents/dynatrace-investigator.instructions.md
+  handoffDescription: Investigates Dynatrace alerts using distributed traces, metrics,
+    logs, and source code analysis.
+  tools:
+  - SearchMemory
+  - RunAzCliReadCommands
+  - RunAzCliWriteCommands
+  - ExecutePythonCode
+  - CreateGithubIssue
+  - FetchGithubIssues
+  - FindConnectedGitHubRepo
+  - PlotAreaChartWithCorrelation
+  - PlotBarChart
+  - PlotHeatmap
+  - dynatrace_create-dql
+  - dynatrace_execute-dql
+  - dynatrace_explain-dql
+  - dynatrace_query-problems
+  - dynatrace_get-problem-by-id
+  - dynatrace_get-entity-id
+  - dynatrace_get-entity-name
+  - dynatrace_find-troubleshooting-guides
+  - dynatrace_adaptive-anomaly-detector
+  - dynatrace_seasonal-baseline-anomaly-detector
+  - dynatrace_static-threshold-analyzer
+  - dynatrace_timeseries-forecast
+  agentType: Autonomous
+  temperature: 0.2
+  handoffs: []
+  enableSkills: true
+  allowedSkills:
+  - investigate-app-errors

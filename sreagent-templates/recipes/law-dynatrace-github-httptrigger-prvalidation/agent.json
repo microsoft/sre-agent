@@ -1,0 +1,89 @@
+{
+  "_scenario": "law-dynatrace-github-httptrigger-prvalidation",
+  "_description": "PR Deployment Guard: SRE Agent that reviews every PR by deploying to staging, comparing health against production via LAW + Dynatrace, and posting risk assessments as PR comments.",
+  "_prerequisites": [
+    "Azure subscription with production and staging resource groups",
+    "Log Analytics workspace connected to your Container Apps or App Services",
+    "Dynatrace environment with MCP gateway access and API token",
+    "GitHub repo with app source code",
+    "GitHub Actions or equivalent CI/CD to send PR webhooks"
+  ],
+  "_prompts": {
+    "agentName": {
+      "ask": "Agent name (lowercase, hyphens ok)",
+      "default": "my-sre-agent"
+    },
+    "resourceGroup": {
+      "ask": "Resource group for the agent",
+      "default": "sre-agent-rg"
+    },
+    "location": {
+      "ask": "Region",
+      "options": [
+        "eastus2",
+        "swedencentral",
+        "uksouth",
+        "australiaeast"
+      ],
+      "required": true
+    },
+    "targetRGs": {
+      "ask": "Resource groups the agent can access (comma-separated). Include your app's prod and staging RGs \u2014 the agent needs these to deploy to staging and read container app config. The LAW/AppInsights RG is NOT needed here if you provided the full resource ID above.",
+      "required": true
+    },
+    "lawId": {
+      "ask": "Log Analytics workspace resource ID",
+      "required": true
+    },
+    "dtTenant": {
+      "ask": "Dynatrace tenant ID (e.g. abc12345)",
+      "required": true
+    },
+    "dtToken": {
+      "ask": "Dynatrace API token",
+      "required": true,
+      "secret": true
+    },
+    "githubRepo": {
+      "ask": "GitHub repo (org/repo format, e.g. contoso/trading-app)",
+      "required": true
+    },
+    "existingUamiId": {
+      "ask": "Existing UAMI resource ID (leave blank to create new)",
+      "default": ""
+    },
+    "modelProvider": {
+      "ask": "AI model provider",
+      "options": [
+        "Anthropic",
+        "Azure OpenAI"
+      ],
+      "default": "Anthropic"
+    },
+    "existingAgentAppInsightsId": {
+      "ask": "Existing App Insights resource ID for agent telemetry (leave blank to create new)",
+      "default": ""
+    }
+  },
+  "identity": {
+    "agentName": "{{agentName}}",
+    "resourceGroup": "{{resourceGroup}}",
+    "subscription": "",
+    "location": "{{location}}",
+    "targetResourceGroups": "{{targetRGs}}"
+  },
+  "access": {
+    "accessLevel": "High",
+    "actionMode": "Review"
+  },
+  "upgradeChannel": "Preview",
+  "defaultModelProvider": "{{modelProvider}}",
+  "monthlyAgentUnitLimit": 10000,
+  "tags": {},
+  "toggles": {
+    "enableWebhookBridge": true,
+    "webhookBridgeTriggerUrl": ""
+  },
+  "existingUamiId": "{{existingUamiId}}",
+  "existingAgentAppInsightsId": "{{existingAgentAppInsightsId}}"
+}

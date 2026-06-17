@@ -208,15 +208,76 @@ fi
 # ── Run the deployment with progress visible ──
 TMP=$(mktemp)
 
+# ── Pre-deploy: auto-create VNet subnet with delegation if networkConfiguration.type=vnet ──
+AGENT_JSON_FILE="${INPUT}/agent.json"
+if [[ -f "$AGENT_JSON_FILE" ]]; then
+  NET_TYPE=$(jq -r '.networkConfiguration.type // "unrestricted"' "$AGENT_JSON_FILE" | tr '[:upper:]' '[:lower:]')
+  if [[ "$NET_TYPE" == "vnet" || "$NET_TYPE" == "azurevnet" ]]; then
+    NET_SUBNET_ID=$(jq -r '.networkConfiguration.subnetId // ""' "$AGENT_JSON_FILE")
+    NET_RG=$(jq -r '.networkConfiguration.resourceGroup // ""' "$AGENT_JSON_FILE")
+    NET_VNET=$(jq -r '.networkConfiguration.vnetName // ""' "$AGENT_JSON_FILE")
+    NET_SUBNET_NAME=$(jq -r '.networkConfiguration.subnetName // "agent-subnet"' "$AGENT_JSON_FILE")
+    NET_SUBNET_PREFIX=$(jq -r '.networkConfiguration.subnetPrefix // "10.2.0.0/28"' "$AGENT_JSON_FILE")
+
+    # Resolve subnet ID from broken-out fields if not given directly
+    if [[ -z "$NET_SUBNET_ID" && -n "$NET_VNET" && -n "$NET_RG" ]]; then
+      NET_SUBNET_ID="/subscriptions/${SUB}/resourceGroups/${NET_RG}/providers/Microsoft.Network/virtualNetworks/${NET_VNET}/subnets/${NET_SUBNET_NAME}"
+    fi
+
+    if [[ -n "$NET_SUBNET_ID" ]]; then
+      # Extract components from subnet ID (macOS-compatible)
+      _vnet_rg=$(echo "$NET_SUBNET_ID" | sed 's|.*/resourceGroups/||' | sed 's|/.*||')
+      _vnet_name=$(echo "$NET_SUBNET_ID" | sed 's|.*/virtualNetworks/||' | sed 's|/.*||')
+      _subnet_name=$(echo "$NET_SUBNET_ID" | sed 's|.*/subnets/||')
+
+      # Check if subnet exists
+      if ! az network vnet subnet show -g "$_vnet_rg" --vnet-name "$_vnet_name" -n "$_subnet_name" &>/dev/null; then
+        echo "── Creating VNet subnet with Microsoft.App/environments delegation ──"
+        echo "  VNet: $_vnet_name  Subnet: $_subnet_name  Prefix: $NET_SUBNET_PREFIX"
+        az network vnet subnet create \
+          -g "$_vnet_rg" \
+          --vnet-name "$_vnet_name" \
+          -n "$_subnet_name" \
+          --address-prefixes "$NET_SUBNET_PREFIX" \
+          --delegations "Microsoft.App/environments" \
+          --output none 2>&1 || { echo "  ⚠ Failed to create subnet — VNet integration may fail"; }
+        echo "  ✅ Subnet created"
+      else
+        # Verify delegation exists
+        _delegation=$(az network vnet subnet show -g "$_vnet_rg" --vnet-name "$_vnet_name" -n "$_subnet_name" --query "delegations[0].serviceName" -o tsv 2>/dev/null)
+        if [[ "$_delegation" != "Microsoft.App/environments" ]]; then
+          echo "  ⚠ Subnet $_subnet_name exists but missing Microsoft.App/environments delegation"
+          echo "    Adding delegation..."
+          az network vnet subnet update \
+            -g "$_vnet_rg" \
+            --vnet-name "$_vnet_name" \
+            -n "$_subnet_name" \
+            --delegations "Microsoft.App/environments" \
+            --output none 2>&1 || echo "  ⚠ Failed to add delegation"
+        else
+          echo "  VNet subnet $_subnet_name ready (delegation: Microsoft.App/environments)"
+        fi
+      fi
+    fi
+  fi
+fi
+
 echo "Starting deployment (this typically takes 3-5 min)..."
 echo "Tip: open another terminal and run 'az deployment operation sub list -n $NAME -o table' to watch progress."
 echo
+
+# Auto-detect redeploy: if agent already exists, skip role assignments to avoid RoleAssignmentExists
+SKIP_RBAC=""
+if az resource show -g "$RG" --resource-type "Microsoft.App/agents" -n "$AG" --query "name" -o tsv &>/dev/null; then
+  echo "  Agent '$AG' already exists — skipping role assignments on redeploy."
+  SKIP_RBAC="skipRoleAssignments=true"
+fi
 
 az deployment sub create \
   --location "$LOC" \
   --name "$NAME" \
   --template-file "$TEMPLATE" \
-  --parameters "@${FILE}" \
+  --parameters "@${FILE}" ${SKIP_RBAC:+--parameters $SKIP_RBAC} \
   --output json > "$TMP" 2>&1
 AZ_RC=$?
 cat "$TMP"
@@ -269,19 +330,33 @@ check_connector_health() {
 }
 
 if [[ "$STATE" != "Succeeded" ]]; then
-  echo
-  echo -e "${RED}${BOLD}══════════ Deployment FAILED ══════════${NC}"
-  # Extract the most useful error message
-  ERR_MSG=$(jq -r '.. | .message? // empty' "$TMP" 2>/dev/null | grep -v "^At least" | head -3)
-  if [[ -n "$ERR_MSG" ]]; then
+  # Check if this is a non-fatal RoleAssignmentExists error (common on redeploy)
+  ROLE_ERR=$(jq -r '.. | .code? // empty' "$TMP" 2>/dev/null | grep -c "RoleAssignmentExists" || true)
+  AGENT_EXISTS=$(az resource list -g "$RG" --resource-type "Microsoft.App/agents" --query "[?name=='$AG'].name" -o tsv 2>/dev/null)
+
+  if [[ "$ROLE_ERR" -gt 0 && -n "$AGENT_EXISTS" ]]; then
     echo
-    echo -e "  ${RED}Root cause:${NC}"
-    echo "$ERR_MSG" | sed 's/^/    /'
+    echo -e "${YELLOW}${BOLD}── Deployment partially failed (RoleAssignmentExists) ──${NC}"
+    echo -e "  ${YELLOW}Role assignments already exist — this is safe on redeploy.${NC}"
+    echo -e "  Agent ${CYAN}${AG}${NC} exists. Continuing to apply-extras..."
+    echo
+    # Override STATE so the rest of the script continues
+    STATE="Succeeded"
+  else
+    echo
+    echo -e "${RED}${BOLD}══════════ Deployment FAILED ══════════${NC}"
+    # Extract the most useful error message
+    ERR_MSG=$(jq -r '.. | .message? // empty' "$TMP" 2>/dev/null | grep -v "^At least" | head -3)
+    if [[ -n "$ERR_MSG" ]]; then
+      echo
+      echo -e "  ${RED}Root cause:${NC}"
+      echo "$ERR_MSG" | sed 's/^/    /'
+    fi
+    echo
+    echo "  Debug: az deployment operation sub list -n $NAME -o table"
+    echo
+    exit 1
   fi
-  echo
-  echo "  Debug: az deployment operation sub list -n $NAME -o table"
-  echo
-  exit 1
 fi
 
 echo

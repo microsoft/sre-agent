@@ -1,0 +1,11 @@
+metadata:
+  name: require-approval-for-restarts
+spec:
+  eventType: PreToolUse
+  hook:
+    type: prompt
+    prompt: If this action will restart or scale a resource, require human approval
+      before proceeding.
+    matcher: ^(restart_|scale_).*
+  permissionDecision: allow
+  enabled: true

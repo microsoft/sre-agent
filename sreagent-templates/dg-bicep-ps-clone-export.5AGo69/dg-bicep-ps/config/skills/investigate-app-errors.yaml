@@ -1,0 +1,7 @@
+metadata:
+  name: investigate-app-errors
+  description: ''
+  spec:
+    tools: []
+skillContent: skills/investigate-app-errors.md
+additionalFiles: []

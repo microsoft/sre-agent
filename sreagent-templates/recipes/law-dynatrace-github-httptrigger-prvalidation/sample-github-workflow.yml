@@ -1,0 +1,40 @@
+# Sample GitHub Actions workflow for your application repo.
+# This sends PR events to the SRE Agent via the Logic App webhook bridge,
+# which triggers the deployment-guard-analysis skill.
+#
+# Setup:
+#   1. Copy this file to your app repo: .github/workflows/sre-agent-pr-guard.yml
+#   2. Add a repo secret SRE_AGENT_WEBHOOK_URL with the Logic App trigger URL
+#      (find it in the Azure portal under the Logic App's trigger settings,
+#       or run: az resource show ... to get the callback URL)
+
+name: SRE Agent — PR Deployment Guard
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  notify-sre-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger SRE Agent via webhook bridge
+        env:
+          WEBHOOK_URL: ${{ secrets.SRE_AGENT_WEBHOOK_URL }}
+        run: |
+          curl -s -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "event": "pull_request",
+              "action": "${{ github.event.action }}",
+              "pr_number": ${{ github.event.pull_request.number }},
+              "pr_title": "${{ github.event.pull_request.title }}",
+              "pr_url": "${{ github.event.pull_request.html_url }}",
+              "pr_diff_url": "${{ github.event.pull_request.diff_url }}",
+              "pr_author": "${{ github.event.pull_request.user.login }}",
+              "repo": "${{ github.repository }}",
+              "head_ref": "${{ github.event.pull_request.head.ref }}",
+              "base_ref": "${{ github.event.pull_request.base.ref }}",
+              "head_sha": "${{ github.event.pull_request.head.sha }}"
+            }'
+          echo "Webhook sent to SRE Agent"

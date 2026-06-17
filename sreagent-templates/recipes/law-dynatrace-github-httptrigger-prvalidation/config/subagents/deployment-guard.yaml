@@ -1,0 +1,34 @@
+metadata:
+  name: deployment-guard
+spec:
+  instructions: subagents/deployment-guard.instructions.md
+  handoffDescription: Analyzes PRs by deploying to staging, comparing health against
+    production via Dynatrace + LAW, and posting risk assessment as a PR comment
+  handoffs: []
+  allowedSkills:
+  - deployment-guard-analysis
+  - investigate-app-errors
+  tools:
+  - RunAzCliReadCommands
+  - RunAzCliWriteCommands
+  - ExecutePythonCode
+  - PlotAreaChartWithCorrelation
+  - PlotBarChart
+  - CreateGithubIssue
+  - FindConnectedGitHubRepo
+  - QueryLogAnalyticsByWorkspaceId
+  - dynatrace_adaptive-anomaly-detector
+  - dynatrace_create-dql
+  - dynatrace_execute-dql
+  - dynatrace_explain-dql
+  - dynatrace_get-entity-id
+  - dynatrace_get-entity-name
+  - dynatrace_query-problems
+  - dynatrace_seasonal-baseline-anomaly-detector
+  - dynatrace_static-threshold-analyzer
+  - dynatrace_timeseries-forecast
+  - dynatrace_timeseries-novelty-detection
+  maxReflectionCount: 0
+  customReflectionNote: ''
+  commonPrompts: []
+  enableVanillaMode: false

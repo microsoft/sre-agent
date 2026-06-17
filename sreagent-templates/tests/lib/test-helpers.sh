@@ -59,8 +59,8 @@ validate_config_dir() {
   assert_eq "incident-platforms" "$(count_yaml "$OUT/automations/incident-platforms")" "$exp_platforms"
   assert_eq "http-triggers" "$(count_yaml "$OUT/automations/http-triggers")" "$exp_httptrig"
 
-  # No unreplaced placeholders
-  local leftover=$(grep -rc '{{' "$OUT/" 2>/dev/null | awk -F: '{s+=$2}END{print s+0}')
+  # No unreplaced placeholders (exclude ${{ which is GitHub Actions syntax)
+  local leftover=$(grep -r '{{' "$OUT/" 2>/dev/null | grep -v '\${{' | grep -vc '^$' 2>/dev/null || echo 0)
   assert_eq "no {{placeholders}}" "$leftover" "0"
 
   # connectors.json exists

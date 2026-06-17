@@ -64,8 +64,32 @@ param tags object = {}
 @description('Optional. Resource ID of an existing UAMI. If provided, skips creating a new one.')
 param existingManagedIdentityId string = ''
 
+@description('Optional. Skip all role assignments. Use on redeploy or when RBAC is pre-configured to avoid RoleAssignmentExists errors.')
+param skipRoleAssignments bool = false
+
 @description('Optional. Resource ID of an existing Application Insights for agent telemetry. If provided, skips creating a new one.')
 param existingAgentAppInsightsId string = ''
+
+@description('Optional. Full ARM resource ID of a delegated subnet for VNet integration.')
+param vnetSubnetId string = ''
+
+@description('Optional. Sandbox egress mode: Unrestricted (default), Limited, or AzureVNet.')
+param egressMode string = 'Unrestricted'
+
+@description('Optional. Additional hosts the sandbox may reach.')
+param allowedHosts array = []
+
+@description('Optional. Registry catalog IDs (pypi, npmjs, nuget-org) to allow.')
+param allowedRegistries array = []
+
+@description('Optional. Code-repo providers (Github, AzureDevOps) to allow.')
+param allowedCodeRepositories array = []
+
+@description('Optional. Allow remote HTTP MCP server endpoints in sandbox egress.')
+param allowHttpMcpServerNetworkAccess bool = true
+
+@description('Optional. Use VNet private DNS resolver. Only for AzureVNet mode.')
+param usePrivateDnsResolution bool = false
 
 // ═════════ FEATURE TOGGLES — common starter features ═════════
 // Flip a toggle to true, fill the conditional strings below it.
@@ -176,6 +200,14 @@ module core './agent-core.bicep' = {
     tags: tags
     existingManagedIdentityId: existingManagedIdentityId
     existingAgentAppInsightsId: existingAgentAppInsightsId
+    skipRoleAssignments: skipRoleAssignments
+    vnetSubnetId: vnetSubnetId
+    egressMode: egressMode
+    allowedHosts: allowedHosts
+    allowedRegistries: allowedRegistries
+    allowedCodeRepositories: allowedCodeRepositories
+    allowHttpMcpServerNetworkAccess: allowHttpMcpServerNetworkAccess
+    usePrivateDnsResolution: usePrivateDnsResolution
   }
 }
 
