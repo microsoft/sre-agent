@@ -1,0 +1,18 @@
+metadata:
+  name: pod-incident-remediator
+spec:
+  instructions: subagents/pod-incident-remediator.instructions.md
+  handoffDescription: Single-incident pod remediator (HTTP-triggered, one fix + one
+    SNOW ticket)
+  handoffs: []
+  tools:
+  - CreateServiceNowIncident
+  - UpdateServiceNowWorkNotes
+  - ResolveServiceNowIncident
+  - LookupServiceNowIncident
+  - GetActiveRevision
+  - RemediateContainerApp
+  agentType: Autonomous
+  temperature: 0.2
+  enableSkills: true
+  allowedSkills: []

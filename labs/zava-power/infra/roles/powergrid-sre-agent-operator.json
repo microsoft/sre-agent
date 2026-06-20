@@ -1,0 +1,24 @@
+{
+  "Name": "PowerGrid SRE Agent Operator",
+  "Description": "Least-privilege write actions for the PowerGrid SRE Agent in this lab. Combined with built-in Reader, Monitoring Reader, and Log Analytics Reader (read paths), this is everything the agent needs across all demo scenarios: rollback/restart Container App revisions and run remediation commands on the Arc-enabled disk-pressure VM.",
+  "IsCustom": true,
+  "Actions": [
+    "Microsoft.App/containerApps/write",
+    "Microsoft.App/containerApps/listSecrets/action",
+    "Microsoft.App/containerApps/revisions/activate/action",
+    "Microsoft.App/containerApps/revisions/deactivate/action",
+    "Microsoft.App/containerApps/revisions/restart/action",
+    "Microsoft.Compute/virtualMachines/runCommand/action",
+    "Microsoft.Compute/virtualMachines/runCommands/write",
+    "Microsoft.Compute/virtualMachines/runCommands/delete",
+    "Microsoft.Compute/virtualMachines/restart/action",
+    "Microsoft.HybridCompute/machines/runCommands/write",
+    "Microsoft.HybridCompute/machines/runCommands/delete"
+  ],
+  "NotActions": [],
+  "DataActions": [],
+  "NotDataActions": [],
+  "AssignableScopes": [
+    "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<RESOURCE_GROUP>"
+  ]
+}

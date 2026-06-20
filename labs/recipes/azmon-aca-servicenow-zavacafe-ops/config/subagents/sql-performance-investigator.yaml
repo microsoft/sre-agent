@@ -1,0 +1,23 @@
+metadata:
+  name: sql-performance-investigator
+spec:
+  instructions: subagents/sql-performance-investigator.instructions.md
+  handoffDescription: ''
+  tools:
+  - PlotPieChart
+  - PlotBarChart
+  - PlotScatter
+  - AssessChangeRisk
+  - CreateServiceNowIncident
+  - UpdateServiceNowWorkNotes
+  - ResolveServiceNowIncident
+  - LookupServiceNowIncident
+  agentType: Autonomous
+  temperature: 0.2
+  handoffs: []
+  enableSkills: true
+  allowedSkills:
+  - sql-blocking-diagnosis
+  - sql-blocking-fix
+  - sql-performance-fix
+  - sql-query-diagnosis

@@ -1,0 +1,40 @@
+# ─────────────────────────────────────────────────────────────
+# Datadog MCP Connector — Template
+# ─────────────────────────────────────────────────────────────
+# Connects SRE Agent to Datadog for querying metrics, logs,
+# traces, and monitors alongside Azure-native observability.
+#
+# Setup:
+#   1. Log in to your Datadog account at https://app.datadoghq.com
+#   2. Navigate to Organization Settings → API Keys → create a new key
+#   3. Navigate to Organization Settings → Application Keys → create a new key
+#   4. Replace the placeholder values below with your keys
+#   5. Update the site to match your Datadog region (e.g., datadoghq.com, datadoghq.eu)
+#   6. Add this connector in the SRE Agent portal under Builder → Connectors
+#
+# Docs: https://sre.azure.com/docs/connectors/datadog
+# ─────────────────────────────────────────────────────────────
+
+name: datadog
+description: Datadog observability connector for cross-platform monitoring
+
+# Transport type — streamable-http connects to a hosted MCP endpoint
+transport: streamable-http
+
+# Datadog MCP server endpoint
+# Update the subdomain if you self-host the MCP server
+url: "https://<YOUR_DATADOG_MCP_HOST>/mcp"
+
+# Headers sent with every request to the MCP server
+headers:
+  # Datadog API key — required for authentication
+  # Generate at: Organization Settings → API Keys
+  DD-API-KEY: "<YOUR_DATADOG_API_KEY>"
+
+  # Datadog Application key — required for read access to dashboards and monitors
+  # Generate at: Organization Settings → Application Keys
+  DD-APPLICATION-KEY: "<YOUR_DATADOG_APP_KEY>"
+
+# Optional configuration
+# site: "datadoghq.com"          # Datadog site (datadoghq.com | datadoghq.eu | us3.datadoghq.com | us5.datadoghq.com)
+# timeout: 30                    # Request timeout in seconds

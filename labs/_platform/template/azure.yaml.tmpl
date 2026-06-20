@@ -1,0 +1,34 @@
+# Azure Developer CLI (azd) template for {{LAB_DISPLAY_NAME}}
+# Single-command deploy: from this directory run `azd up`.
+name: {{LAB_NAME}}
+metadata:
+  template: {{LAB_NAME}}@1.0.0
+
+infra:
+  provider: bicep
+  path: infra
+
+hooks:
+  preprovision:
+    windows:
+      shell: pwsh
+      run: scripts/check-environment.ps1
+      interactive: true
+    posix:
+      shell: sh
+      run: |
+        if ! command -v pwsh >/dev/null 2>&1; then
+          echo "ERROR: pwsh (PowerShell 7+) required for {{LAB_NAME}}." >&2
+          exit 1
+        fi
+        pwsh -NoProfile -File scripts/check-environment.ps1
+      interactive: true
+  postprovision:
+    windows:
+      shell: pwsh
+      run: scripts/post-provision.ps1
+      interactive: true
+    posix:
+      shell: sh
+      run: pwsh -NoProfile -File scripts/post-provision.ps1
+      interactive: true

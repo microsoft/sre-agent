@@ -1,0 +1,103 @@
+{
+  "_scenario": "azmon-aca-servicenow-zavapower-ops",
+  "_description": "Production-ops SRE agent for Zava Power's microservices platform on Azure Container Apps. Handles 5xx alerts, latency, container restarts, deployment validation, VM disk pressure, pipeline failures, and pod fleet audits — across 5 services. Native ServiceNow + Azure Monitor incident platforms; optional Datadog and Dynatrace MCP connectors.",
+  "_prerequisites": [
+    "Azure subscription with SRE Agent RP access",
+    "Azure Container Apps environment running the 5 PowerGrid services (or another ACA workload)",
+    "Application Insights resource for the workload",
+    "Log Analytics workspace",
+    "Azure Monitor alert rules (the recipe expects: alert-powergrid-http-5xx, alert-powergrid-high-latency, alert-powergrid-container-restart)",
+    "ServiceNow instance for incident documentation",
+    "(Optional) Datadog API key",
+    "(Optional) Dynatrace tenant + token"
+  ],
+  "_prompts": {
+    "agentName": {
+      "ask": "Agent name",
+      "default": "zavapower-ops-agent"
+    },
+    "resourceGroup": {
+      "ask": "Resource group (where the agent will live)",
+      "default": "rg-zavapower-ops"
+    },
+    "location": {
+      "ask": "Region",
+      "options": ["eastus2", "swedencentral", "uksouth", "australiaeast"],
+      "default": "eastus2",
+      "required": true
+    },
+    "targetRGs": {
+      "ask": "Workload resource groups to monitor (comma-separated)",
+      "required": true
+    },
+    "appInsightsId": {
+      "ask": "Application Insights resource ID for the workload",
+      "required": true
+    },
+    "appInsightsAppId": {
+      "ask": "Application Insights App ID (GUID)",
+      "required": true
+    },
+    "lawResourceId": {
+      "ask": "Log Analytics workspace resource ID",
+      "required": true
+    },
+    "snowInstance": {
+      "ask": "ServiceNow instance hostname (e.g. dev123456 — without .service-now.com)",
+      "required": true
+    },
+    "containerAppPrefix": {
+      "ask": "Container App name prefix (used in az CLI calls — e.g. powergrid)",
+      "default": "powergrid"
+    },
+    "workloadName": {
+      "ask": "Workload short name (used in tags + dashboard titles)",
+      "default": "zavapower"
+    },
+    "datadogApiKey": {
+      "ask": "Datadog API key (leave blank to skip Datadog integration)",
+      "default": ""
+    },
+    "dynatraceTenantUrl": {
+      "ask": "Dynatrace tenant URL (e.g. https://abc12345.live.dynatrace.com — leave blank to skip)",
+      "default": ""
+    },
+    "modelProvider": {
+      "ask": "AI model provider",
+      "options": ["Anthropic", "GitHubCopilot", "MicrosoftFoundry"],
+      "default": "Anthropic"
+    },
+    "existingUamiId": {
+      "ask": "Existing UAMI resource ID (leave blank to create new)",
+      "default": ""
+    },
+    "existingAgentAppInsightsId": {
+      "ask": "Existing App Insights resource ID for agent telemetry (leave blank to create new)",
+      "default": ""
+    }
+  },
+  "identity": {
+    "agentName": "{{agentName}}",
+    "resourceGroup": "{{resourceGroup}}",
+    "subscription": "",
+    "location": "{{location}}",
+    "targetResourceGroups": "{{targetRGs}}"
+  },
+  "access": {
+    "accessLevel": "High",
+    "actionMode": "Autonomous"
+  },
+  "upgradeChannel": "Preview",
+  "defaultModelProvider": "{{modelProvider}}",
+  "monthlyAgentUnitLimit": 25000,
+  "tags": {
+    "scenario": "zavapower-ops",
+    "workload": "{{workloadName}}"
+  },
+  "toggles": {
+    "enableWebhookBridge": true,
+    "webhookBridgeTriggerUrl": ""
+  },
+  "existingUamiId": "{{existingUamiId}}",
+  "existingAgentAppInsightsId": "{{existingAgentAppInsightsId}}"
+}

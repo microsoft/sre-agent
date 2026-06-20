@@ -1,0 +1,21 @@
+metadata:
+  name: auto-investigate-azmon
+spec:
+  incidentPlatform: AzureMonitor
+  isEnabled: true
+  priorities:
+  - '1'
+  - '2'
+  - '3'
+  incidentType: LiveSite
+  handlingAgent: sql-performance-investigator
+  agentMode: Autonomous
+  deepInvestigationEnabled: false
+  maxAutomatedInvestigationAttempts: 3
+  azureMonitorFilterSettings:
+    alertRules:
+    - alert-zavacafe-sql-dtu
+    - alert-zavacafe-sql-blocking
+    - alert-zavacafe-http-5xx
+    triggerEvents:
+    - AlertFired

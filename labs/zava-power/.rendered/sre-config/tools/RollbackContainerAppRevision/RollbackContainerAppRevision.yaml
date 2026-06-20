@@ -1,0 +1,122 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgentTool
+metadata:
+  name: RollbackContainerAppRevision
+spec:
+  type: PythonTool
+  connector: ''
+  toolMode: Auto
+  description: |-
+    Roll a Container App back to a previous image tag in Single-revision
+    mode (the lab default). Uses the agent's Managed Identity directly
+    via the Azure ARM REST API — there is no human-approval prompt
+    (unlike the system Azure tools). This is the autonomous mitigation
+    path used by the deployment-validator agent in Phase 3 (immediate
+    rollback after a regression is confirmed).
+
+    The tool PATCHes the Container App with a new image reference. ACA
+    automatically creates a new revision, deactivates the old one, and
+    routes 100% traffic to the new revision (Single mode behavior).
+    Returns the new revision name and provisioning status.
+
+    Choose target_image_tag from the ACR repository — the previous
+    known-healthy tag (e.g. ":49"). The tool resolves the full image
+    reference from the currently-deployed container's registry+repo.
+  functionCode: |-
+    from azure.identity import DefaultAzureCredential
+    import requests
+    import time
+
+    SUBSCRIPTION_ID = "e964602f-6afc-4cc7-ba6b-3a796008e254"
+    API_VERSION = "2024-03-01"
+
+    def main(app_name: str, resource_group: str, target_image_tag: str) -> dict:
+        try:
+            cred = DefaultAzureCredential()
+            token = cred.get_token("https://management.azure.com/.default").token
+            headers = {"Authorization": f"Bearer {token}",
+                       "Content-Type": "application/json"}
+            base = (f"https://management.azure.com/subscriptions/{SUBSCRIPTION_ID}"
+                    f"/resourceGroups/{resource_group}"
+                    f"/providers/Microsoft.App/containerApps/{app_name}"
+                    f"?api-version={API_VERSION}")
+
+            # 1. GET current spec
+            r = requests.get(base, headers=headers, timeout=20)
+            r.raise_for_status()
+            app = r.json()
+            containers = app["properties"]["template"]["containers"]
+            if not containers:
+                return {"success": False, "error": "no containers in template"}
+            current_image = containers[0].get("image", "")
+            if ":" not in current_image:
+                return {"success": False, "error": f"current image has no tag: {current_image}"}
+            registry_repo = current_image.rsplit(":", 1)[0]
+            tag = target_image_tag.lstrip(":")
+            new_image = f"{registry_repo}:{tag}"
+
+            if new_image == current_image:
+                return {"success": False, "error": f"target tag '{tag}' equals current image"}
+
+            # 2. PATCH with new image
+            patch_body = {
+                "properties": {
+                    "template": {
+                        "containers": [
+                            {**containers[0], "image": new_image}
+                        ]
+                    }
+                }
+            }
+            r = requests.patch(base, headers=headers, json=patch_body, timeout=60)
+            r.raise_for_status()
+
+            # 3. Poll until provisioning is Succeeded (or up to ~60s)
+            new_revision_name = None
+            provisioning_state = None
+            for _ in range(20):
+                time.sleep(3)
+                r = requests.get(base, headers=headers, timeout=20)
+                if r.status_code != 200:
+                    continue
+                provisioning_state = r.json().get("properties", {}).get("provisioningState")
+                if provisioning_state in ("Succeeded", "Failed", "Canceled"):
+                    new_revision_name = r.json().get("properties", {}).get("latestRevisionName")
+                    break
+
+            return {
+                "success": provisioning_state == "Succeeded",
+                "app_name": app_name,
+                "previous_image": current_image,
+                "new_image": new_image,
+                "new_revision_name": new_revision_name or "",
+                "provisioning_state": provisioning_state or "Unknown",
+                "message": (f"Rolled back {app_name} to {new_image}; "
+                            f"new revision {new_revision_name}"
+                            if provisioning_state == "Succeeded"
+                            else f"Rollback PATCH submitted but provisioningState={provisioning_state}"),
+            }
+        except requests.HTTPError as e:
+            return {"success": False,
+                    "error": f"HTTP {e.response.status_code}: {e.response.text[:300]}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)[:300]}
+  timeoutSeconds: 120
+  dependencies:
+  - azure-identity
+  - requests
+  authScopes:
+  - https://management.azure.com/.default
+  parameters:
+  - name: app_name
+    type: string
+    description: "string:Container App name (e.g. ca-powergrid-grid)"
+    required: true
+  - name: resource_group
+    type: string
+    description: "string:Resource group name (e.g. rg-powergrid)"
+    required: true
+  - name: target_image_tag
+    type: string
+    description: "string:Target image tag to roll back to (e.g. '49' or ':49' or 'stable'). Registry and repository are inherited from the currently-deployed image."
+    required: true

@@ -1,0 +1,13 @@
+metadata:
+  name: PowerGrid Fleet Audit Deck (daily)
+spec:
+  description: Daily executive PowerPoint audit of the PowerGrid Container Apps fleet.
+    Looks back 48 hours across all 5 services, classifies every pod-level incident,
+    and emits ONE .pptx deck (issues / mitigation / impact / recommendations). NO
+    ServiceNow tickets are created. NO remediation is performed — this task is read-only
+    and report-only. The actual incident response in the lab is driven by sim Scenario
+    3 calling `pod-incident-remediator` directly via `srectl thread new`.
+  schedule: 0 8 * * *
+  prompt: ''
+  enabled: true
+  mode: Review

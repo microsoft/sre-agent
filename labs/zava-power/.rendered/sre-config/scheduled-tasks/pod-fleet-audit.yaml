@@ -1,0 +1,33 @@
+api_version: azuresre.ai/v1
+kind: ScheduledTask
+metadata:
+  name: PowerGrid Fleet Audit Deck (daily)
+spec:
+  name: PowerGrid Fleet Audit Deck (daily)
+  description: >-
+    Daily executive PowerPoint audit of the PowerGrid Container Apps fleet.
+    Looks back 48 hours across all 5 services, classifies every pod-level
+    incident, and emits ONE .pptx deck (issues / mitigation / impact /
+    recommendations). NO ServiceNow tickets are created. NO remediation
+    is performed — this task is read-only and report-only. The actual
+    incident response in the lab is driven by sim Scenario 3 calling
+    `pod-incident-remediator` directly via `srectl thread new`.
+  agent: utility-ops-agent
+  cron_expression: '0 8 * * *'
+  cron: '0 8 * * *'
+  agent_prompt: >-
+    Run the **pod-fleet-audit-deck** skill end-to-end.
+
+    Window: the last 48 hours (UTC).
+    Scope: all 5 Container Apps in rg-powergrid (outage-api, meter-api,
+    grid-status-api, notification-svc, portal-web).
+    Output: ONE .pptx deck attached to this thread, plus a one-paragraph
+    executive summary in your final assistant message linking to it.
+
+    HARD CONSTRAINTS:
+    - Do NOT create or modify ServiceNow incidents.
+    - Do NOT call `az containerapp update` or any remediation tool.
+    - Do NOT run any of the agent's Phases 1–4 — only the deck workflow
+      defined in the pod-fleet-audit-deck skill.
+    - If a data source is unavailable, render the affected slide with
+      "data unavailable" and continue — never fail the whole deck.

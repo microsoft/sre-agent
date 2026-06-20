@@ -1,0 +1,67 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgentTool
+metadata:
+  name: ResolveServiceNowIncident
+spec:
+  type: PythonTool
+  connector: ''
+  toolMode: Auto
+  description: |-
+    Resolve a ServiceNow incident with resolution notes. Sets the incident state to Resolved (6) with close code and notes. Use this after remediation is validated and the issue is confirmed fixed. Accepts either an incident number (e.g. INC0010042) or a sys_id.
+  functionCode: |-
+    import requests
+
+    SERVICENOW_URL = "https://{{SN_INSTANCE}}.service-now.com"
+    SERVICENOW_USER = "admin"
+    SERVICENOW_PASS = "<SET_VIA_SRE_AGENT_PORTAL>"
+
+    def resolve_servicenow_incident(incident_id: str, resolution_notes: str, close_code: str = "Solved (Permanently)") -> dict:
+        try:
+            sys_id = incident_id
+            if incident_id.startswith("INC"):
+                lookup = requests.get(
+                    f"{SERVICENOW_URL}/api/now/table/incident",
+                    params={"sysparm_query": f"number={incident_id}", "sysparm_limit": "1", "sysparm_fields": "sys_id"},
+                    auth=(SERVICENOW_USER, SERVICENOW_PASS),
+                    headers={"Accept": "application/json"},
+                    timeout=10
+                )
+                lookup.raise_for_status()
+                results = lookup.json().get("result", [])
+                if not results:
+                    return {"success": False, "error": f"Incident {incident_id} not found"}
+                sys_id = results[0]["sys_id"]
+
+            response = requests.patch(
+                f"{SERVICENOW_URL}/api/now/table/incident/{sys_id}",
+                auth=(SERVICENOW_USER, SERVICENOW_PASS),
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                json={
+                    "state": "6",
+                    "close_code": close_code,
+                    "close_notes": resolution_notes,
+                    "work_notes": f"[SRE Agent] Incident resolved: {resolution_notes}"
+                },
+                timeout=10
+            )
+            response.raise_for_status()
+            return {"success": True, "message": f"Incident {incident_id} resolved"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+  timeoutSeconds: 240
+  dependencies:
+  - requests
+  authScopes:
+  parameters:
+  - name: incident_id
+    type: string
+    description: "string:ServiceNow incident number (e.g. INC0010042) or sys_id"
+    required: true
+  - name: resolution_notes
+    type: string
+    description: "string:Resolution notes explaining root cause and fix"
+    required: true
+  - name: close_code
+    type: string
+    description: "string:Close code (default: 'Solved (Permanently)')"
+    required: false

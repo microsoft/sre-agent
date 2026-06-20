@@ -1,0 +1,59 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgentTool
+metadata:
+  name: UpdateServiceNowWorkNotes
+spec:
+  type: PythonTool
+  connector: ''
+  toolMode: Auto
+  description: |-
+    Add a work note to an existing ServiceNow incident. Use this to document investigation steps, findings, remediation actions, and validation results. Work notes form the audit trail. Accepts either an incident number (e.g. INC0010042) or a sys_id.
+  functionCode: |-
+    import requests
+
+    SERVICENOW_URL = "https://dev385102.service-now.com"
+    SERVICENOW_USER = "admin"
+    SERVICENOW_PASS = "<SET_VIA_SRE_AGENT_PORTAL>"
+
+    def update_servicenow_work_notes(incident_id: str, work_note: str) -> dict:
+        try:
+            # If incident_id looks like INC number, resolve to sys_id first
+            sys_id = incident_id
+            if incident_id.startswith("INC"):
+                lookup = requests.get(
+                    f"{SERVICENOW_URL}/api/now/table/incident",
+                    params={"sysparm_query": f"number={incident_id}", "sysparm_limit": "1", "sysparm_fields": "sys_id"},
+                    auth=(SERVICENOW_USER, SERVICENOW_PASS),
+                    headers={"Accept": "application/json"},
+                    timeout=10
+                )
+                lookup.raise_for_status()
+                results = lookup.json().get("result", [])
+                if not results:
+                    return {"success": False, "error": f"Incident {incident_id} not found"}
+                sys_id = results[0]["sys_id"]
+
+            response = requests.patch(
+                f"{SERVICENOW_URL}/api/now/table/incident/{sys_id}",
+                auth=(SERVICENOW_USER, SERVICENOW_PASS),
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                json={"work_notes": f"[SRE Agent] {work_note}"},
+                timeout=10
+            )
+            response.raise_for_status()
+            return {"success": True, "message": f"Work note added to {incident_id}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+  timeoutSeconds: 240
+  dependencies:
+  - requests
+  authScopes:
+  parameters:
+  - name: incident_id
+    type: string
+    description: "string:ServiceNow incident number (e.g. INC0010042) or sys_id"
+    required: true
+  - name: work_note
+    type: string
+    description: "string:The work note text to add (investigation finding, action taken, etc.)"
+    required: true

@@ -1,0 +1,26 @@
+// {{LAB_DISPLAY_NAME}} infrastructure.
+// TODO: replace with your actual resources.
+targetScope = 'subscription'
+
+@description('Azure region for all resources.')
+param location string
+
+@description('Workload name — used as prefix for naming.')
+param workloadName string = '{{LAB_NAME}}'
+
+resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
+  name: 'rg-${workloadName}'
+  location: location
+}
+
+// Add modules here, e.g.:
+// module observability 'modules/observability.bicep' = {
+//   name: 'observability'
+//   scope: rg
+//   params: { location: location, workloadName: workloadName }
+// }
+
+// ── Outputs (azd auto-promotes ALL_CAPS outputs to env vars) ──
+output AZURE_RESOURCE_GROUP string = rg.name
+output AZURE_LOCATION string = location
+output WORKLOAD_NAME string = workloadName

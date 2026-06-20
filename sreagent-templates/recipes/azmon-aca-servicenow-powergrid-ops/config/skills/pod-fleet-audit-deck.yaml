@@ -1,0 +1,15 @@
+metadata:
+  name: pod-fleet-audit-deck
+  description: 'Generate ONE polished executive PowerPoint deck summarizing pod-level
+
+    health across all 5 PowerGrid Container Apps over a configurable
+
+    lookback window (default 48h). Read-only. NEVER creates SNOW tickets.
+
+    NEVER calls remediation tools. Used by the daily "PowerGrid Fleet
+
+    Audit Deck" scheduled task.'
+  spec:
+    tools: []
+skillContent: skills/pod-fleet-audit-deck.md
+additionalFiles: []

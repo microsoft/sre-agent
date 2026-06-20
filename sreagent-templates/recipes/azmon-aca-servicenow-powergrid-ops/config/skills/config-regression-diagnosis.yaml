@@ -1,0 +1,13 @@
+metadata:
+  name: config-regression-diagnosis
+  description: 'Deep-dive diagnosis when deployment-validation has flagged a service
+
+    with elevated 5xx errors but NO exceptions in App Insights — the
+
+    classic shape of a missing-env-var or bad-downstream-URL regression
+
+    where the app returns a clean 5xx without crashing.'
+  spec:
+    tools: []
+skillContent: skills/config-regression-diagnosis.md
+additionalFiles: []

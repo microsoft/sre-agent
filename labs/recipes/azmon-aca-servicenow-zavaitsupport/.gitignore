@@ -1,0 +1,8 @@
+# Local secrets — never commit
+connectors.secrets.env
+
+# Local data assets
+data/
+
+# Generated agent configs (output of bin/new-agent.sh)
+output/

@@ -1,0 +1,33 @@
+# {{LAB_DISPLAY_NAME}}
+
+> Part of the [Zava Unlimited](../README.md) SRE Agent demo platform.
+
+{{LAB_DESCRIPTION}}
+
+## Quick start
+
+```bash
+# From the labs/ root:
+./lab.sh -Labs {{LAB_NAME}}     # deploy this lab
+./sim.sh -Lab {{LAB_NAME}}      # open the simulator after deploy
+```
+
+Or from this lab's directory: `azd up`.
+
+## Scenarios
+
+See `lab.yaml` for the canonical list. Each scenario has a runner script in
+`scripts/scenarios/`. To run one directly:
+
+```bash
+../sim.sh -Scenario {{LAB_NAME}}/<scenario-id>
+```
+
+## Architecture
+
+TODO: add a brief architecture description and diagram.
+
+## Contributing scenarios
+
+Drop a new runner script in `scripts/scenarios/` and add an entry to `lab.yaml`
+under `scenarios:`. The meta-sim auto-discovers it on next run.

@@ -1,0 +1,86 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgentTool
+metadata:
+  name: GetActiveRevision
+spec:
+  type: PythonTool
+  connector: ''
+  toolMode: Auto
+  description: |-
+    Look up the currently-active revision of an Azure Container App and
+    return its name, creation timestamp (UTC), traffic weight, image
+    reference, and replica count. Use IMMEDIATELY after a release to
+    obtain the new revision name and deploy_time, then pass these to
+    every Application Insights / Log Analytics query so telemetry is
+    scoped to ONLY the new revision (mixed-revision aggregates are the
+    #1 cause of false-pass deployment validations).
+  functionCode: |-
+    from azure.identity import DefaultAzureCredential
+    import requests
+
+    # ===== LAB-SPECIFIC CONFIG — edit for your environment =====
+    # See sre-config/tools/README.md for the full list of values.
+    SUBSCRIPTION_ID = "e964602f-6afc-4cc7-ba6b-3a796008e254"
+    # ============================================================
+    API_VERSION = "2024-03-01"
+
+    def main(app_name: str, resource_group: str) -> dict:
+        try:
+            cred = DefaultAzureCredential()
+            token = cred.get_token("https://management.azure.com/.default").token
+            url = (f"https://management.azure.com/subscriptions/{SUBSCRIPTION_ID}"
+                   f"/resourceGroups/{resource_group}"
+                   f"/providers/Microsoft.App/containerApps/{app_name}"
+                   f"/revisions?api-version={API_VERSION}")
+            r = requests.get(url, headers={"Authorization": f"Bearer {token}"},
+                             timeout=20)
+            r.raise_for_status()
+            revisions = r.json().get("value", [])
+            # Active revisions: traffic weight > 0 OR active=true; pick the most
+            # recent by createdTime to surface the new revision after a deploy.
+            active = [
+                rev for rev in revisions
+                if rev.get("properties", {}).get("active") is True
+            ]
+            if not active:
+                return {"success": False, "error": "no active revisions found"}
+            active.sort(
+                key=lambda r: r.get("properties", {}).get("createdTime", ""),
+                reverse=True
+            )
+            top = active[0]
+            props = top.get("properties", {})
+            template = props.get("template", {})
+            containers = template.get("containers", [])
+            image = containers[0].get("image", "") if containers else ""
+            return {
+                "success": True,
+                "app_name": app_name,
+                "revision_name": top.get("name", ""),
+                "created_time_utc": props.get("createdTime", ""),
+                "traffic_weight": props.get("trafficWeight", 0),
+                "active": props.get("active", False),
+                "replicas": props.get("replicas", 0),
+                "running_state": props.get("runningState", ""),
+                "provisioning_state": props.get("provisioningState", ""),
+                "health_state": props.get("healthState", ""),
+                "image": image,
+                "all_active_revisions": [r.get("name") for r in active],
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)[:200]}
+  timeoutSeconds: 60
+  dependencies:
+  - azure-identity
+  - requests
+  authScopes:
+  - https://management.azure.com/.default
+  parameters:
+  - name: app_name
+    type: string
+    description: "string:Container App name (e.g. ca-powergrid-grid)"
+    required: true
+  - name: resource_group
+    type: string
+    description: "string:Resource group name (e.g. rg-powergrid)"
+    required: true

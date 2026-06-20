@@ -1,0 +1,3 @@
+# BUG: Flask 3.x — incompatible with the import in app.py
+flask>=3.0
+gunicorn

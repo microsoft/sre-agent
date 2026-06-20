@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────
+# Dynatrace MCP Connector — Template
+# ─────────────────────────────────────────────────────────────
+# Connects SRE Agent to Dynatrace for querying metrics, logs,
+# problems, and smartscape topology data.
+#
+# Setup:
+#   1. Log in to your Dynatrace environment
+#   2. Navigate to Access Tokens (Settings → Integration → Access tokens)
+#   3. Create a token with the following scopes:
+#      - Read metrics (metrics.read)
+#      - Read log data (logs.read)
+#      - Read problems (problems.read)
+#      - Read entities (entities.read)
+#   4. Replace the placeholder values below with your tenant and token
+#   5. Add this connector in the SRE Agent portal under Builder → Connectors
+#
+# Docs: https://sre.azure.com/docs/connectors/dynatrace
+# ─────────────────────────────────────────────────────────────
+
+name: dynatrace
+description: Dynatrace full-stack observability connector
+
+# Transport type — streamable-http connects to the Dynatrace MCP endpoint
+transport: streamable-http
+
+# Dynatrace MCP server endpoint
+# Replace <YOUR_TENANT> with your Dynatrace environment ID
+# (e.g., abc12345 from https://abc12345.live.dynatrace.com)
+url: "https://<YOUR_TENANT>.live.dynatrace.com/platform/mcp/sse"
+
+# Headers sent with every request to the MCP server
+headers:
+  # Dynatrace platform access token
+  # Required scopes: metrics.read, logs.read, problems.read, entities.read
+  Authorization: "Api-Token <YOUR_PLATFORM_TOKEN>"
+
+# Optional configuration
+# timeout: 30                    # Request timeout in seconds

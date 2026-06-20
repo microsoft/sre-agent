@@ -1,0 +1,19 @@
+metadata:
+  name: utility-ops-agent
+spec:
+  instructions: subagents/utility-ops-agent.instructions.md
+  handoffDescription: Scheduled pod health audit + safe auto-remediation + executive
+    report
+  handoffs:
+  - deployment-validator
+  tools:
+  - CreateServiceNowIncident
+  - UpdateServiceNowWorkNotes
+  - ResolveServiceNowIncident
+  - LookupServiceNowIncident
+  - UploadChartToServiceNow
+  - GetActiveRevision
+  agentType: Autonomous
+  temperature: 0.2
+  enableSkills: true
+  allowedSkills: []

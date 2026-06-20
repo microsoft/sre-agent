@@ -1,0 +1,15 @@
+metadata:
+  name: weekly-cost-report
+spec:
+  agent: sql-performance-investigator
+  cronExpression: 0 9 * * 1
+  isEnabled: true
+  agentPrompt: |-
+    Analyze Azure costs for resource group ${AZURE_RESOURCE_GROUP} (workload ${WORKLOAD_NAME}) over the past 7 days.
+    Break down costs by resource type. Identify the top 3 cost drivers. Flag anomalies vs the prior week.
+    Provide 3 concrete recommendations to reduce costs (e.g. SQL DTU tier right-sizing, ACA replica scale rules,
+    Log Analytics retention).
+    Format as a management report with sections: Executive Summary, Cost Breakdown, Anomalies, Recommendations.
+    Email the report to ${ALERT_EMAIL} when complete.
+    HARD CONSTRAINTS: read-only — do NOT create/modify ServiceNow incidents, do NOT run any SQL fix skill,
+    do NOT mutate any Azure resource.

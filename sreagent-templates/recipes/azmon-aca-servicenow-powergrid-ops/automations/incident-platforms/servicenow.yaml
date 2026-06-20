@@ -1,0 +1,5 @@
+name: servicenow
+spec:
+  platformType: ServiceNow
+  displayName: ServiceNow Incidents
+  description: Bi-directional ServiceNow integration for incident lifecycle

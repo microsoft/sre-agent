@@ -1,0 +1,10 @@
+metadata:
+  name: disk-pressure-diagnosis
+  description: Diagnose and remediate disk pressure on Windows Azure VMs. Investigates
+    disk usage, identifies large files, old backups, runaway logs, and recommends
+    cleanup or disk expansion. Use when disk utilization alerts fire or a VM reports
+    low free space.
+  spec:
+    tools: []
+skillContent: skills/disk-pressure-diagnosis.md
+additionalFiles: []

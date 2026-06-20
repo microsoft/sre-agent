@@ -1,0 +1,43 @@
+# ─────────────────────────────────────────────────────────────
+# Response Plan: Auto-Investigate Azure Monitor Alerts
+# ─────────────────────────────────────────────────────────────
+# Routes PowerGrid Azure Monitor alerts to the incident-handler
+# agent for autonomous investigation and remediation.
+#
+# This response plan matches on the three alert rules deployed
+# by the lab's Bicep templates (see infra/modules/alerts.bicep).
+# ─────────────────────────────────────────────────────────────
+
+name: auto-investigate
+description: Automatically investigate PowerGrid alerts using the incident-handler agent
+
+# Trigger — match incoming Azure Monitor alerts by rule name
+trigger:
+  source: azure-monitor
+  alert_rules:
+    - "alert-powergrid-http-5xx"
+    - "alert-powergrid-high-latency"
+    - "alert-powergrid-container-restart"
+
+# Agent to invoke when an alert matches
+agent: incident-handler
+
+# Instructions appended to the agent's base instructions for this plan
+instructions: |
+  An Azure Monitor alert has fired. Investigate autonomously:
+  1. Parse the alert payload to identify the affected service and severity
+  2. Query ContainerAppConsoleLogs and App Insights for the time window around the alert
+  3. Correlate with recent deployments or configuration changes
+  4. Consult the relevant runbook from the knowledge base
+  5. If a known remediation exists, execute it immediately
+  6. Create a ServiceNow incident if the servicenow connector is available
+  7. Validate recovery and update the incident with findings
+
+  Severity mapping from Azure Monitor:
+    - Sev 0/1 → Critical: investigate immediately, escalate if no fix in 5 min
+    - Sev 2   → High: investigate immediately
+    - Sev 3   → Warning: investigate, may be transient
+    - Sev 4   → Informational: log for review
+
+# Run in autonomous mode — agent can execute remediations without approval
+mode: autonomous

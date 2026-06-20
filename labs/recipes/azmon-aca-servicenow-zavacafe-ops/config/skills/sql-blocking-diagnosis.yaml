@@ -1,0 +1,11 @@
+metadata:
+  name: sql-blocking-diagnosis
+  description: Diagnose SQL blocking chains that cause application hangs. Identifies head blocker, blocked sessions, wait times. This skill ONLY investigates. Hand off to sql-blocking-fix to resolve.
+  spec:
+    tools:
+    - zava-mssql_mssql_execute_query
+    - zava-mssql_mssql_run_sql_query
+    - zava-mssql_mssql_connect_database
+    - PlotBarChart
+skillContent: skills/sql-blocking-diagnosis.md
+additionalFiles: []

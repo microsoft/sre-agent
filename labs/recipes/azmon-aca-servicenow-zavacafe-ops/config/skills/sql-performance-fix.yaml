@@ -1,0 +1,13 @@
+metadata:
+  name: sql-performance-fix
+  description: Apply a fix for a diagnosed SQL performance issue. ALWAYS run AssessChangeRisk first and get user approval before making changes. Use AFTER sql-query-diagnosis has identified the root cause.
+  spec:
+    tools:
+    - zava-mssql_mssql_execute_query
+    - zava-mssql_mssql_run_sql_query
+    - zava-mssql_mssql_connect_database
+    - AssessChangeRisk
+    - AskUserQuestion
+    - PlotBarChart
+skillContent: skills/sql-performance-fix.md
+additionalFiles: []

@@ -1,0 +1,21 @@
+metadata:
+  name: sre-agent-customizer
+  description: ''
+  spec:
+    tools:
+    - sreagent-runtime-mcp_agent_tools
+    - sreagent-runtime-mcp_agents
+    - sreagent-runtime-mcp_connectors
+    - sreagent-runtime-mcp_get_documentation
+    - sreagent-runtime-mcp_hooks
+    - sreagent-runtime-mcp_incidents
+    - sreagent-runtime-mcp_investigate_with_agent
+    - sreagent-runtime-mcp_investigate_with_agent_yolo
+    - sreagent-runtime-mcp_memory
+    - sreagent-runtime-mcp_plan_agent_architecture
+    - sreagent-runtime-mcp_scheduled_tasks
+    - sreagent-runtime-mcp_skills
+    - sreagent-runtime-mcp_threads
+    - sreagent-runtime-mcp_yaml
+skillContent: skills/sre-agent-customizer.md
+additionalFiles: []

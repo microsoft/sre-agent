@@ -1,0 +1,857 @@
+{
+  "location": "westus2",
+  "tags": {
+    "hidden-title": "Zava Operations Dashboard"
+  },
+  "properties": {
+    "lenses": [
+      {
+        "order": 0,
+        "parts": [
+          {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "colSpan": 16,
+              "rowSpan": 2
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MarkdownPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "content": "## Zava Operations Dashboard\n**Real-time monitoring** for SQL Database, App Service, and Application Insights.\n\n_Subscription:_ `<SUBSCRIPTION_ID>` &nbsp;|&nbsp; _Resource Group:_ `rg-zava` &nbsp;|&nbsp; _Region:_ `westus2`",
+                  "title": "Zava Operations Dashboard",
+                  "subtitle": "Enterprise Monitoring",
+                  "markdownSource": 1,
+                  "markdownUri": null
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": 16,
+              "y": 0,
+              "colSpan": 4,
+              "rowSpan": 2
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MarkdownPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "content": "[> Resource Group](https://portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-zava/overview)\n\n[> SQL Database](https://portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-zava/providers/Microsoft.Sql/servers/sql-zava/databases/sqldb-zava/overview)",
+                  "title": "Quick Links",
+                  "subtitle": "",
+                  "markdownSource": 1,
+                  "markdownUri": null
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": 0,
+              "y": 2,
+              "colSpan": 20,
+              "rowSpan": 1
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MarkdownPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "content": "### SQL Database Health",
+                  "title": "",
+                  "subtitle": "",
+                  "markdownSource": 1,
+                  "markdownUri": null
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": 0,
+              "y": 3,
+              "colSpan": 5,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MonitorChartPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "options": {
+                    "chart": {
+                      "metrics": [
+                        {
+                          "resourceMetadata": {
+                            "id": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-zava/providers/Microsoft.Sql/servers/sql-zava/databases/sqldb-zava"
+                          },
+                          "name": "dtu_consumption_percent",
+                          "aggregationType": 4,
+                          "namespace": "Microsoft.Sql/servers/databases",
+                          "metricVisualization": {
+                            "displayName": "DTU %",
+                            "resourceDisplayName": "sqldb-zava"
+                          }
+                        }
+                      ],
+                      "title": "SQL DTU Consumption %",
+                      "titleKind": 1,
+                      "visualization": {
+                        "chartType": 2,
+                        "legendVisualization": {
+                          "isVisible": true,
+                          "position": 2,
+                          "hideSubtitle": false
+                        },
+                        "axisVisualization": {
+                          "x": {
+                            "isVisible": true,
+                            "axisType": 2
+                          },
+                          "y": {
+                            "isVisible": true,
+                            "axisType": 2
+                          }
+                        },
+                        "disablePinning": true
+                      },
+                      "timespan": {
+                        "relative": {
+                          "duration": 3600000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": 5,
+              "y": 3,
+              "colSpan": 5,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MonitorChartPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "options": {
+                    "chart": {
+                      "metrics": [
+                        {
+                          "resourceMetadata": {
+                            "id": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-zava/providers/Microsoft.Sql/servers/sql-zava/databases/sqldb-zava"
+                          },
+                          "name": "cpu_percent",
+                          "aggregationType": 4,
+                          "namespace": "Microsoft.Sql/servers/databases",
+                          "metricVisualization": {
+                            "displayName": "CPU %",
+                            "resourceDisplayName": "sqldb-zava"
+                          }
+                        }
+                      ],
+                      "title": "SQL CPU Percentage",
+                      "titleKind": 1,
+                      "visualization": {
+                        "chartType": 2,
+                        "legendVisualization": {
+                          "isVisible": true,
+                          "position": 2,
+                          "hideSubtitle": false
+                        },
+                        "axisVisualization": {
+                          "x": {
+                            "isVisible": true,
+                            "axisType": 2
+                          },
+                          "y": {
+                            "isVisible": true,
+                            "axisType": 2
+                          }
+                        },
+                        "disablePinning": true
+                      },
+                      "timespan": {
+                        "relative": {
+                          "duration": 3600000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": 10,
+              "y": 3,
+              "colSpan": 5,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MonitorChartPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "options": {
+                    "chart": {
+                      "metrics": [
+                        {
+                          "resourceMetadata": {
+                            "id": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-zava/providers/Microsoft.Sql/servers/sql-zava/databases/sqldb-zava"
+                          },
+                          "name": "physical_data_read_percent",
+                          "aggregationType": 4,
+                          "namespace": "Microsoft.Sql/servers/databases",
+                          "metricVisualization": {
+                            "displayName": "Data IO %",
+                            "resourceDisplayName": "sqldb-zava"
+                          }
+                        }
+                      ],
+                      "title": "SQL Data IO Percentage",
+                      "titleKind": 1,
+                      "visualization": {
+                        "chartType": 2,
+                        "legendVisualization": {
+                          "isVisible": true,
+                          "position": 2,
+                          "hideSubtitle": false
+                        },
+                        "axisVisualization": {
+                          "x": {
+                            "isVisible": true,
+                            "axisType": 2
+                          },
+                          "y": {
+                            "isVisible": true,
+                            "axisType": 2
+                          }
+                        },
+                        "disablePinning": true
+                      },
+                      "timespan": {
+                        "relative": {
+                          "duration": 3600000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": 15,
+              "y": 3,
+              "colSpan": 5,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MonitorChartPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "options": {
+                    "chart": {
+                      "metrics": [
+                        {
+                          "resourceMetadata": {
+                            "id": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-zava/providers/Microsoft.Sql/servers/sql-zava/databases/sqldb-zava"
+                          },
+                          "name": "connection_successful",
+                          "aggregationType": 1,
+                          "namespace": "Microsoft.Sql/servers/databases",
+                          "metricVisualization": {
+                            "displayName": "Connections",
+                            "resourceDisplayName": "sqldb-zava"
+                          }
+                        }
+                      ],
+                      "title": "SQL Successful Connections",
+                      "titleKind": 1,
+                      "visualization": {
+                        "chartType": 2,
+                        "legendVisualization": {
+                          "isVisible": true,
+                          "position": 2,
+                          "hideSubtitle": false
+                        },
+                        "axisVisualization": {
+                          "x": {
+                            "isVisible": true,
+                            "axisType": 2
+                          },
+                          "y": {
+                            "isVisible": true,
+                            "axisType": 2
+                          }
+                        },
+                        "disablePinning": true
+                      },
+                      "timespan": {
+                        "relative": {
+                          "duration": 3600000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": 0,
+              "y": 7,
+              "colSpan": 20,
+              "rowSpan": 1
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MarkdownPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "content": "### App Service Performance",
+                  "title": "",
+                  "subtitle": "",
+                  "markdownSource": 1,
+                  "markdownUri": null
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": 0,
+              "y": 8,
+              "colSpan": 5,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MonitorChartPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "options": {
+                    "chart": {
+                      "metrics": [
+                        {
+                          "resourceMetadata": {
+                            "id": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-zava/providers/Microsoft.Web/sites/app-zava"
+                          },
+                          "name": "HttpResponseTime",
+                          "aggregationType": 4,
+                          "namespace": "Microsoft.Web/sites",
+                          "metricVisualization": {
+                            "displayName": "Avg Response Time",
+                            "resourceDisplayName": "app-zava"
+                          }
+                        }
+                      ],
+                      "title": "HTTP Response Time",
+                      "titleKind": 1,
+                      "visualization": {
+                        "chartType": 2,
+                        "legendVisualization": {
+                          "isVisible": true,
+                          "position": 2,
+                          "hideSubtitle": false
+                        },
+                        "axisVisualization": {
+                          "x": {
+                            "isVisible": true,
+                            "axisType": 2
+                          },
+                          "y": {
+                            "isVisible": true,
+                            "axisType": 2
+                          }
+                        },
+                        "disablePinning": true
+                      },
+                      "timespan": {
+                        "relative": {
+                          "duration": 3600000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": 5,
+              "y": 8,
+              "colSpan": 5,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MonitorChartPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "options": {
+                    "chart": {
+                      "metrics": [
+                        {
+                          "resourceMetadata": {
+                            "id": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-zava/providers/Microsoft.Web/sites/app-zava"
+                          },
+                          "name": "Http2xx",
+                          "aggregationType": 1,
+                          "namespace": "Microsoft.Web/sites",
+                          "metricVisualization": {
+                            "displayName": "2xx",
+                            "resourceDisplayName": "app-zava"
+                          }
+                        },
+                        {
+                          "resourceMetadata": {
+                            "id": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-zava/providers/Microsoft.Web/sites/app-zava"
+                          },
+                          "name": "Http4xx",
+                          "aggregationType": 1,
+                          "namespace": "Microsoft.Web/sites",
+                          "metricVisualization": {
+                            "displayName": "4xx",
+                            "resourceDisplayName": "app-zava"
+                          }
+                        },
+                        {
+                          "resourceMetadata": {
+                            "id": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-zava/providers/Microsoft.Web/sites/app-zava"
+                          },
+                          "name": "Http5xx",
+                          "aggregationType": 1,
+                          "namespace": "Microsoft.Web/sites",
+                          "metricVisualization": {
+                            "displayName": "5xx",
+                            "resourceDisplayName": "app-zava"
+                          }
+                        }
+                      ],
+                      "title": "HTTP Status Codes",
+                      "titleKind": 1,
+                      "visualization": {
+                        "chartType": 3,
+                        "legendVisualization": {
+                          "isVisible": true,
+                          "position": 2,
+                          "hideSubtitle": false
+                        },
+                        "axisVisualization": {
+                          "x": {
+                            "isVisible": true,
+                            "axisType": 2
+                          },
+                          "y": {
+                            "isVisible": true,
+                            "axisType": 2
+                          }
+                        },
+                        "disablePinning": true
+                      },
+                      "timespan": {
+                        "relative": {
+                          "duration": 3600000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": 10,
+              "y": 8,
+              "colSpan": 5,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MonitorChartPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "options": {
+                    "chart": {
+                      "metrics": [
+                        {
+                          "resourceMetadata": {
+                            "id": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-zava/providers/Microsoft.Web/serverfarms/plan-zava"
+                          },
+                          "name": "CpuPercentage",
+                          "aggregationType": 4,
+                          "namespace": "Microsoft.Web/serverfarms",
+                          "metricVisualization": {
+                            "displayName": "CPU %",
+                            "resourceDisplayName": "plan-zava"
+                          }
+                        }
+                      ],
+                      "title": "App Service Plan \u2014 CPU %",
+                      "titleKind": 1,
+                      "visualization": {
+                        "chartType": 2,
+                        "legendVisualization": {
+                          "isVisible": true,
+                          "position": 2,
+                          "hideSubtitle": false
+                        },
+                        "axisVisualization": {
+                          "x": {
+                            "isVisible": true,
+                            "axisType": 2
+                          },
+                          "y": {
+                            "isVisible": true,
+                            "axisType": 2
+                          }
+                        },
+                        "disablePinning": true
+                      },
+                      "timespan": {
+                        "relative": {
+                          "duration": 3600000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": 15,
+              "y": 8,
+              "colSpan": 5,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MonitorChartPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "options": {
+                    "chart": {
+                      "metrics": [
+                        {
+                          "resourceMetadata": {
+                            "id": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-zava/providers/Microsoft.Web/serverfarms/plan-zava"
+                          },
+                          "name": "MemoryPercentage",
+                          "aggregationType": 4,
+                          "namespace": "Microsoft.Web/serverfarms",
+                          "metricVisualization": {
+                            "displayName": "Memory %",
+                            "resourceDisplayName": "plan-zava"
+                          }
+                        }
+                      ],
+                      "title": "App Service Plan \u2014 Memory %",
+                      "titleKind": 1,
+                      "visualization": {
+                        "chartType": 2,
+                        "legendVisualization": {
+                          "isVisible": true,
+                          "position": 2,
+                          "hideSubtitle": false
+                        },
+                        "axisVisualization": {
+                          "x": {
+                            "isVisible": true,
+                            "axisType": 2
+                          },
+                          "y": {
+                            "isVisible": true,
+                            "axisType": 2
+                          }
+                        },
+                        "disablePinning": true
+                      },
+                      "timespan": {
+                        "relative": {
+                          "duration": 3600000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": 0,
+              "y": 12,
+              "colSpan": 20,
+              "rowSpan": 1
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MarkdownPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "content": "### Application Insights",
+                  "title": "",
+                  "subtitle": "",
+                  "markdownSource": 1,
+                  "markdownUri": null
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": 0,
+              "y": 13,
+              "colSpan": 5,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MonitorChartPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "options": {
+                    "chart": {
+                      "metrics": [
+                        {
+                          "resourceMetadata": {
+                            "id": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-zava/providers/microsoft.insights/components/ai-zava"
+                          },
+                          "name": "requests/duration",
+                          "aggregationType": 4,
+                          "namespace": "microsoft.insights/components",
+                          "metricVisualization": {
+                            "displayName": "Avg Response Time",
+                            "resourceDisplayName": "ai-zava"
+                          }
+                        }
+                      ],
+                      "title": "Server Response Time",
+                      "titleKind": 1,
+                      "visualization": {
+                        "chartType": 2,
+                        "legendVisualization": {
+                          "isVisible": true,
+                          "position": 2,
+                          "hideSubtitle": false
+                        },
+                        "axisVisualization": {
+                          "x": {
+                            "isVisible": true,
+                            "axisType": 2
+                          },
+                          "y": {
+                            "isVisible": true,
+                            "axisType": 2
+                          }
+                        },
+                        "disablePinning": true
+                      },
+                      "timespan": {
+                        "relative": {
+                          "duration": 3600000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": 5,
+              "y": 13,
+              "colSpan": 5,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MonitorChartPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "options": {
+                    "chart": {
+                      "metrics": [
+                        {
+                          "resourceMetadata": {
+                            "id": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-zava/providers/microsoft.insights/components/ai-zava"
+                          },
+                          "name": "requests/failed",
+                          "aggregationType": 1,
+                          "namespace": "microsoft.insights/components",
+                          "metricVisualization": {
+                            "displayName": "Failed Requests",
+                            "resourceDisplayName": "ai-zava"
+                          }
+                        }
+                      ],
+                      "title": "Failed Requests",
+                      "titleKind": 1,
+                      "visualization": {
+                        "chartType": 2,
+                        "legendVisualization": {
+                          "isVisible": true,
+                          "position": 2,
+                          "hideSubtitle": false
+                        },
+                        "axisVisualization": {
+                          "x": {
+                            "isVisible": true,
+                            "axisType": 2
+                          },
+                          "y": {
+                            "isVisible": true,
+                            "axisType": 2
+                          }
+                        },
+                        "disablePinning": true
+                      },
+                      "timespan": {
+                        "relative": {
+                          "duration": 3600000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": 10,
+              "y": 13,
+              "colSpan": 5,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MonitorChartPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "options": {
+                    "chart": {
+                      "metrics": [
+                        {
+                          "resourceMetadata": {
+                            "id": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-zava/providers/microsoft.insights/components/ai-zava"
+                          },
+                          "name": "dependencies/failed",
+                          "aggregationType": 1,
+                          "namespace": "microsoft.insights/components",
+                          "metricVisualization": {
+                            "displayName": "Failed Dependencies",
+                            "resourceDisplayName": "ai-zava"
+                          }
+                        }
+                      ],
+                      "title": "Dependency Failures",
+                      "titleKind": 1,
+                      "visualization": {
+                        "chartType": 2,
+                        "legendVisualization": {
+                          "isVisible": true,
+                          "position": 2,
+                          "hideSubtitle": false
+                        },
+                        "axisVisualization": {
+                          "x": {
+                            "isVisible": true,
+                            "axisType": 2
+                          },
+                          "y": {
+                            "isVisible": true,
+                            "axisType": 2
+                          }
+                        },
+                        "disablePinning": true
+                      },
+                      "timespan": {
+                        "relative": {
+                          "duration": 3600000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": 15,
+              "y": 13,
+              "colSpan": 5,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "type": "Extension/HubsExtension/PartType/MarkdownPart",
+              "inputs": [],
+              "settings": {
+                "content": {
+                  "content": "### Active Alert Rules\n\n| Alert | Target | Sev |\n|-------|--------|-----|\n| **SQL DTU > 80%** | sqldb-zava | 2 |\n| **HTTP 5xx > 10** | app-zava | 1 |\n| **Response > 5s** | ai-zava | 2 |\n\n_[Manage Alerts](https://portal.azure.com/#blade/Microsoft_Azure_Monitoring/AzureMonitoringBrowseBlade/alertsV2)_",
+                  "title": "Active Alert Rules",
+                  "subtitle": "Configured Monitors",
+                  "markdownSource": 1,
+                  "markdownUri": null
+                }
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "model": {
+        "timeRange": {
+          "value": {
+            "relative": {
+              "duration": 24,
+              "timeUnit": 1
+            }
+          },
+          "type": "MsPortalFx.Composition.Configuration.ValueTypes.TimeRange"
+        },
+        "filterLocale": {
+          "value": "en-us"
+        },
+        "filters": {
+          "value": {
+            "MsPortalFx_TimeRange": {
+              "model": {
+                "format": "utc",
+                "granularity": "auto",
+                "relative": "1h"
+              },
+              "displayCache": {
+                "name": "UTC Time",
+                "value": "Past hour"
+              },
+              "filteredPartIds": []
+            }
+          }
+        }
+      }
+    }
+  }
+}

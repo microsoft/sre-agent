@@ -1,0 +1,13 @@
+metadata:
+  name: deployment-validator-gh
+spec:
+  instructions: subagents/deployment-validator-gh.instructions.md
+  handoffDescription: Validates a GitHub Actions deployment, rolls back broken config, files a fix PR + Issue.
+  tools: []
+  mcpTools:
+  - github-mcp.*
+  agentType: Autonomous
+  temperature: 0.2
+  handoffs: []
+  enableSkills: false
+  allowedSkills: []

@@ -1,0 +1,52 @@
+#requires -Version 7.0
+<#
+postprovision hook for {{LAB_DISPLAY_NAME}}.
+
+Customize the steps below for your lab. The required final step is writing
+the .deployed/<name>.json record so the Zava Unlimited meta-sim discovers it.
+#>
+$ErrorActionPreference = 'Stop'
+$labRoot = Split-Path $PSScriptRoot -Parent
+Push-Location $labRoot
+try {
+    Write-Host "`n═══ {{LAB_DISPLAY_NAME}} post-provision ═══" -ForegroundColor Cyan
+
+    $env_obj = azd env get-values --output json | ConvertFrom-Json
+    function Env([string]$k, [string]$default = '') {
+        if ($env_obj.PSObject.Properties[$k] -and $env_obj.$k) { return $env_obj.$k }
+        return $default
+    }
+    $sub = Env 'AZURE_SUBSCRIPTION_ID'
+    $rg  = Env 'AZURE_RESOURCE_GROUP'
+    $loc = Env 'AZURE_LOCATION'
+
+    # ── TODO: customize these steps for your lab ──
+    # Examples:
+    #   az acr build --registry $acr --image foo:latest src/foo
+    #   srectl init --resource-url "$endpoint"   # endpoint = az resource show --ids <agent-id> --query properties.endpoint -o tsv
+    #   srectl apply-yaml --file sre-config/agents/handler.yaml
+    Write-Host "  (no custom steps yet — edit scripts/post-provision.ps1)" -ForegroundColor DarkGray
+
+    # ── Required: write .deployed/<name>.json so the meta-sim sees you ──
+    $deployedDir = Join-Path (Split-Path $labRoot -Parent) '.deployed'
+    if (-not (Test-Path $deployedDir)) { New-Item -ItemType Directory -Path $deployedDir -Force | Out-Null }
+    $record = [ordered]@{
+        name           = '{{LAB_NAME}}'
+        deployedAt     = (Get-Date).ToString('o')
+        subscriptionId = $sub
+        resourceGroup  = $rg
+        region         = $loc
+        # Add anything else your sim needs to know:
+        # sreAgentName  = $agent
+        # portalUrl     = $portalUrl
+    }
+    $record | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $deployedDir '{{LAB_NAME}}.json') -Encoding utf8
+    Write-Host "  ✓ recorded in .deployed/{{LAB_NAME}}.json"
+
+    if ($env:LAB_NO_AUTOLAUNCH) {
+        Write-Host "`n═══ Done — sim NOT auto-launched ═══" -ForegroundColor Green
+    } else {
+        Write-Host "`n═══ All set — launching simulator ═══" -ForegroundColor Green
+        # & python (Join-Path $labRoot 'simulator/demo.py')
+    }
+} finally { Pop-Location }

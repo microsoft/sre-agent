@@ -1,0 +1,56 @@
+# lab.yaml — Zava Unlimited lab manifest (example, fully annotated)
+# Validate with:  python labs/_platform/helpers/validate-manifest.py <lab-dir>/lab.yaml
+schemaVersion: 1
+
+# Stable identifier (must equal the lab's directory name)
+name: zava-power
+
+# Human-readable name shown in pickers
+displayName: "Zava Power — ZeroOps"
+subsidiary: "Zava Power"
+description: "ACA + ServiceNow utility-platform demo with 8 break/fix scenarios."
+estimatedMinutes: 25
+tags: [aca, servicenow, ado, github, autoremediation]
+
+# Tools that must be on PATH (preprovision check)
+prereqs: [az, azd, pwsh, python, docker, srectl]
+
+# Values azd can't infer — launcher prompts before deploy, stashes in azd env
+prompts:
+  - name: SERVICENOW_INSTANCE
+    text: "ServiceNow PDI hostname (e.g. dev123456)"
+  - name: SERVICENOW_USER
+    text: "ServiceNow admin username"
+    default: "admin"
+  - name: SERVICENOW_PASSWORD
+    text: "ServiceNow admin password"
+    secret: true
+  - name: DEMO_EMPLOYEE_EMAIL
+    text: "Demo employee email"
+    default: "demo.user@zavapower.com"
+
+# How the meta-sim launches this lab's own rich sim UI
+sim:
+  command: python
+  args: [simulator/demo.py]
+  envFromConfig: true
+
+# Scenarios surfaced in the meta-sim's unified picker
+scenarios:
+  - id: vm-disk-pressure
+    label: "VM disk pressure"
+    description: "Arc VM disk fills past 90% — agent cleans temp dirs."
+    runner: scripts/scenarios/vm-disk.ps1
+    minutes: 5
+    needs: [snow]
+  - id: api-perf-regression
+    label: "API performance regression"
+    description: "grid-status-api blocks the event loop — agent rolls back."
+    runner: scripts/scenarios/api-perf.ps1
+    minutes: 4
+  - id: pod-incident-audit
+    label: "Pod incident audit"
+    description: "OOMKills aggregated into a SNOW deck."
+    runner: scripts/scenarios/pod-audit.ps1
+    minutes: 10
+    needs: [snow]
