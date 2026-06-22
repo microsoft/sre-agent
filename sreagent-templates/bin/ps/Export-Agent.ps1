@@ -828,37 +828,50 @@ if ($INCLUDE_KNOWLEDGE_ITEMS) {
     $KI_COUNT = ($KNOWLEDGE_ITEMS | jq 'length') -as [int]
     _log "  Found ${KI_COUNT} knowledge item(s)"
 
+    # Download knowledge item content; KnowledgeText → .md in data/ (AgentMemory path on redeploy)
     if ($DOWNLOAD_FILES -and $KI_COUNT -gt 0) {
         _log '  Downloading knowledge item content...'
         $KI_DIR = Join-Path $FILES_DIR 'knowledge-items'
         if (-not (Test-Path $KI_DIR)) { New-Item -ItemType Directory -Path $KI_DIR -Force | Out-Null }
+        $KI_TEXT_EXPORTED = 0
+        $KI_OTHER_ITEMS = '[]'
         for ($i = 0; $i -lt $KI_COUNT; $i++) {
             $kiname = $KNOWLEDGE_ITEMS | jq -r --argjson i $i '.[$i].name'
             $kitype = $KNOWLEDGE_ITEMS | jq -r --argjson i $i '.[$i].type'
-            $ext = switch ($kitype) {
-                'KnowledgeText'    { '.md' }
-                'KnowledgeWebPage' { '.html' }
-                'KnowledgeFile'    { '' }
-                default            { '.json' }
-            }
             $encodedName = [System.Uri]::EscapeDataString($kiname)
-            $ok = Invoke-DpDownload "/api/v2/extendedAgent/connectors/${encodedName}/content" (Join-Path $KI_DIR "${kiname}${ext}")
-            if ($ok) {
-                _log "    + ${kiname} (${kitype})"
+            if ($kitype -eq 'KnowledgeText') {
+                # Export as .md file in data/ → will be uploaded via AgentMemory on redeploy
+                $fname = "${kiname}.md"
+                if ($kiname -match '-md$') { $fname = ($kiname -replace '-md$', '') + '.md' }
+                $ok = Invoke-DpDownload "/api/v2/extendedAgent/connectors/${encodedName}/content" (Join-Path $KI_DIR $fname)
+                if ($ok) {
+                    _log "    + ${kiname} -> data/${fname} (will use AgentMemory on redeploy)"
+                    $KI_TEXT_EXPORTED++
+                } else {
+                    _log "    x ${kiname} (could not download content)"
+                }
             } else {
-                _log "    x ${kiname} (could not download content)"
+                # Non-text items (WebPage, File, Repository) stay as knowledgeItems
+                $ext = switch ($kitype) {
+                    'KnowledgeWebPage' { '.html' }
+                    'KnowledgeFile'    { '' }
+                    default            { '.json' }
+                }
+                $ok = Invoke-DpDownload "/api/v2/extendedAgent/connectors/${encodedName}/content" (Join-Path $KI_DIR "${kiname}${ext}")
+                if ($ok) {
+                    _log "    + ${kiname} (${kitype})"
+                } else {
+                    _log "    x ${kiname} (could not download content)"
+                }
+                $KI_OTHER_ITEMS = $KI_OTHER_ITEMS | Invoke-Jq -Compact -Filter '. + [$item + {localPath: ($dir + "/" + $item.name + $ext)}]' `
+                    -ExtraArgs @('--argjson', 'item', ($KNOWLEDGE_ITEMS | jq --argjson i $i '.[$i]'), '--arg', 'dir', $KI_DIR, '--arg', 'ext', $ext)
             }
         }
-        $KNOWLEDGE_ITEMS = $KNOWLEDGE_ITEMS | Invoke-Jq -Compact -Filter '[
-            .[] | . + {
-                localPath: ($dir + "/" + .name + (
-                    if .type == "KnowledgeText" then ".md"
-                    elif .type == "KnowledgeWebPage" then ".html"
-                    elif .type == "KnowledgeFile" then ""
-                    else ".json" end
-                ))
-            }
-        ]' -ExtraArgs @('--arg', 'dir', $KI_DIR)
+        # Only keep non-text items in KNOWLEDGE_ITEMS (text ones became .md files)
+        $KNOWLEDGE_ITEMS = $KI_OTHER_ITEMS
+        if ($KI_TEXT_EXPORTED -gt 0) {
+            _log "  Migrated ${KI_TEXT_EXPORTED} KnowledgeText item(s) to data/ .md files (AgentMemory path)"
+        }
     }
 } else {
     _log 'Skipping knowledge items (use -IncludeAll to include)'
@@ -1567,12 +1580,29 @@ if ($riTotal -gt 0) {
 
 # Move downloaded files into data/
 if ($DOWNLOAD_FILES -and (Test-Path $FILES_DIR)) {
-    foreach ($subdir in @('knowledge', 'knowledge-items', 'synthesized-knowledge', 'repo-instructions')) {
+    foreach ($subdir in @('knowledge', 'synthesized-knowledge', 'repo-instructions')) {
         $srcDir = Join-Path $FILES_DIR $subdir
         if (Test-Path $srcDir) {
             $destDir = Join-Path $DATA_DIR $subdir
             if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null }
             Copy-Item -Path (Join-Path $srcDir '*') -Destination $destDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    # KnowledgeText .md files go to data/ root so assemble auto-discovers them
+    # for AgentMemory upload (not back into knowledge-items which creates ARM connectors)
+    $kiSrcDir = Join-Path $FILES_DIR 'knowledge-items'
+    if (Test-Path $kiSrcDir) {
+        foreach ($f in Get-ChildItem -Path $kiSrcDir -Filter '*.md' -File -ErrorAction SilentlyContinue) {
+            Copy-Item $f.FullName (Join-Path $DATA_DIR $f.Name) -Force
+        }
+        # Non-.md files (WebPage, File) stay in knowledge-items/
+        $nonMdFiles = Get-ChildItem -Path $kiSrcDir -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -ne '.md' }
+        if ($nonMdFiles) {
+            $kiDestDir = Join-Path $DATA_DIR 'knowledge-items'
+            if (-not (Test-Path $kiDestDir)) { New-Item -ItemType Directory -Path $kiDestDir -Force | Out-Null }
+            foreach ($f in $nonMdFiles) {
+                Copy-Item $f.FullName (Join-Path $kiDestDir $f.Name) -Force
+            }
         }
     }
     if ($FILES_DIR -ne $DATA_DIR -and $FILES_DIR -ne (Join-Path $EXPORT_DIR 'data')) {
