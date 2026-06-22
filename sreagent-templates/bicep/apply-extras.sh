@@ -1058,14 +1058,14 @@ fi
 echo
 
 # ---------------------------------------------------------------------------
-# GitHub: OAuth sign-in + connector + repo wiring.
+# GitHub: OAuth sign-in + repo wiring.
 # Three-state flow:
 #   - No repos requested              → skip
 #   - Repos requested, OAuth NOT done → print sign-in URL, instruct re-run
-#   - Repos requested, OAuth DONE     → create GitHubOAuth connector + PUT repos
-# Repo PUT body and connector body shapes come from sreagent-investigation:
-#   src/Agent/Agent.Web/Client/src/src/Common/Clients/ExtendedAgentClient.ts
-#   src/Agent/Agent.Web/Client/src/src/Space/Settings/Connectors/Wizard/Common/DialogHelper.tsx
+#   - Repos requested, OAuth DONE     → PUT repos
+# NOTE: The old GitHubOAuth connector type was deprecated in platform build
+#   26.4.216.0 (April 2026). Auth is now stored via /api/v2/github/domains.
+#   We no longer PUT /api/v2/extendedAgent/connectors/github.
 # ---------------------------------------------------------------------------
 if [[ ${#oauth_repos[@]} -gt 0 ]]; then
   TOKEN=$(_dp_token 2>/dev/null || true)
@@ -1077,46 +1077,25 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
   else
     GH_CONFIGURED="false"
   fi
-  # Also check if the github connector already exists (OAuth was done in a prior deploy)
-  if [[ "$GH_CONFIGURED" == "false" ]]; then
-    _connectors=$(curl -sS -H "Authorization: Bearer ${TOKEN}" -H "Accept: application/json" \
-      "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors" 2>/dev/null || echo '{}')
-    if echo "$_connectors" | jq -e '[.value // [] | .[] | select(.name == "github")] | length > 0' >/dev/null 2>&1; then
-      GH_CONFIGURED="true"
-    fi
-  fi
 
   if [[ "$GH_CONFIGURED" == "true" || -n "${GITHUB_PAT:-}" ]]; then
-    # ── OAuth (or PAT) is in place — wire the connector + repos ──
-    echo "── Wiring GitHub connector + repos ──"
+    # ── OAuth (or PAT) is in place — wire repos ──
+    echo "── Wiring GitHub repos ──"
 
-    if [[ -z "$AGENT_UAMI" ]]; then
-      echo "  WARN: agent has no user-assigned MI; falling back to SystemAssigned."
-      IDENT="SystemAssigned"
-    else
-      IDENT="$AGENT_UAMI"
+    # If GITHUB_PAT is provided, store it via the domains API so the agent
+    # can use it for GitHub API calls (replaces deprecated connector PUT).
+    if [[ -n "${GITHUB_PAT:-}" && "$GH_CONFIGURED" != "true" ]]; then
+      if curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/github/domains/github_com" \
+           -H "Authorization: Bearer ${TOKEN}" \
+           -H "Content-Type: application/json" \
+           --data "{\"AuthType\":\"Pat\",\"Pat\":\"${GITHUB_PAT}\"}" >/dev/null; then
+        echo "  ok github/domains/github_com (PAT)"
+      else
+        echo "  FAILED — PUT /api/v2/github/domains/github_com"
+      fi
     fi
 
-    # 1) Create the GitHubOAuth connector (named 'github')
-    body=$(jq -nc --arg id "$IDENT" '{
-      name: "github",
-      type: "AgentConnector",
-      properties: {
-        dataConnectorType: "GitHubOAuth",
-        dataSource: "github-oauth",
-        identity: $id
-      }
-    }')
-    if curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
-         -H "Authorization: Bearer ${TOKEN}" \
-         -H "Content-Type: application/json" \
-         --data "$body" >/dev/null; then
-      echo "  ok connector/github (GitHubOAuth, identity=${IDENT##*/})"
-    else
-      echo "  FAILED — PUT /api/v2/extendedAgent/connectors/github"
-    fi
-
-    # 2) Attach each repo via the v2 repos dataplane (CodeRepoApiController).
+    # Attach each repo via the v2 repos dataplane (CodeRepoApiController).
     # Route: PUT /api/v2/repos/{name}
     # Body : { name, type:"CodeRepo", properties:{ url, type:"GitHub"|"AzureDevOps", description? } }
     count=$(jq '.repos // [] | length' "$FILE")
@@ -1177,12 +1156,6 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
         _has_domain=$(echo "$_poll" | jq -r 'if (.values // []) | length > 0 then "true" else "false" end' 2>/dev/null)
         if [[ "$_has_domain" == "true" ]]; then
           echo "  GitHub authorized!"
-          # Now create the connector
-          if [[ -z "$AGENT_UAMI" ]]; then IDENT="SystemAssigned"; else IDENT="$AGENT_UAMI"; fi
-          conn_body=$(jq -nc --arg id "$IDENT" '{name:"github",type:"AgentConnector",properties:{dataConnectorType:"GitHubOAuth",dataSource:"github-oauth",identity:$id}}')
-          curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
-              -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" \
-              --data "$conn_body" >/dev/null 2>&1 && echo "  ok connector/github" || echo "  WARN connector/github PUT failed"
           auth_ok=true
           break
         fi
@@ -1191,7 +1164,7 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
       echo
 
       if [[ "$auth_ok" == "true" ]]; then
-        # Connector already created in polling loop — wire repos only
+        # OAuth token stored by platform callback — wire repos
         echo "── Wiring GitHub repos ──"
         TOKEN=$(_dp_token)
         count=$(jq '.repos // [] | length' "$FILE")

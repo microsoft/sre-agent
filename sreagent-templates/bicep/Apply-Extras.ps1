@@ -1062,61 +1062,40 @@ if ($DpTokenAvailable) {
         if ($token) {
             try {
                 $headers = @{ Authorization = "Bearer $token" }
-                $ghStatus = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/auth/status" -Headers $headers
-                $ghConfigured = ($ghStatus.isConfigured -eq $true) -or ($ghStatus.hosts[0].isConfigured -eq $true)
+                $ghStatus = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/github/domains" -Headers $headers
+                $ghConfigured = ($ghStatus.values -and $ghStatus.values.Count -gt 0)
             } catch { }
         }
 
-        # Shared identity + connector body (used in both fast-path and OAuth wait)
-        $ident = if ($AgentUami) { $AgentUami } else {
-            Write-Host "  WARN: agent has no user-assigned MI; falling back to SystemAssigned."
-            "SystemAssigned"
-        }
-        $connBody = @{
-            name       = "github"
-            type       = "AgentConnector"
-            properties = @{
-                dataConnectorType = "GitHubOAuth"
-                dataSource        = "github-oauth"
-                identity          = $ident
-            }
-        } | ConvertTo-Json -Compress -Depth 10
+        # NOTE: The old GitHubOAuth connector type was deprecated in platform build
+        # 26.4.216.0 (April 2026). Auth is now stored via /api/v2/github/domains.
+        # We no longer PUT /api/v2/extendedAgent/connectors/github.
 
         $connectorOk = $false
 
-        # Fast path: if auth/status says configured (or PAT), try the connector PUT immediately
+        # Fast path: if domains shows configured (or PAT), go straight to repo wiring
         if ($ghConfigured -or $env:GITHUB_PAT) {
-            Write-Host "-- Wiring GitHub connector + repos --"
-            try {
-                $token = Get-DpToken
-                $headers = @{
-                    Authorization  = "Bearer $token"
-                    "Content-Type" = "application/json"
-                }
-                $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
-                    -Method Put -Headers $headers -Body $connBody -ContentType "application/json"
-                # Verify the connector is actually healthy (not just metadata)
-                Start-Sleep -Seconds 3
+            Write-Host "-- Wiring GitHub repos --"
+            # If GITHUB_PAT is provided and domains not yet configured, store PAT via domains API
+            if ($env:GITHUB_PAT -and -not $ghConfigured) {
                 try {
-                    $connCheck = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
-                        -Method Get -Headers @{ Authorization = "Bearer $token" }
-                    $provState = $connCheck.properties.provisioningState
-                    if ($provState -eq 'Succeeded') {
-                        Write-Host "  ok connector/github (GitHubOAuth, identity=$($ident.Split('/')[-1]))"
-                        $connectorOk = $true
-                    } else {
-                        Write-Host "  WARN: connector created but state=$provState — falling back to OAuth wait..."
+                    $token = Get-DpToken
+                    $headers = @{
+                        Authorization  = "Bearer $token"
+                        "Content-Type" = "application/json"
                     }
+                    $patBody = @{ AuthType = "Pat"; Pat = $env:GITHUB_PAT } | ConvertTo-Json -Compress
+                    $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/github/domains/github_com" `
+                        -Method Put -Headers $headers -Body $patBody -ContentType "application/json"
+                    Write-Host "  ok github/domains/github_com (PAT)"
                 } catch {
-                    Write-Host "  ok connector/github (GitHubOAuth, identity=$($ident.Split('/')[-1]))"
-                    $connectorOk = $true
+                    Write-Host "  FAILED -- PUT /api/v2/github/domains/github_com"
                 }
-            } catch {
-                Write-Host "  WARN: connector PUT failed (stale auth?) — falling back to OAuth wait..."
             }
+            $connectorOk = $true
         }
 
-        # OAuth wait: if connector not yet created, show URL and poll until user completes auth
+        # OAuth wait: if not configured yet, show URL and poll until user completes auth
         if (-not $connectorOk -and -not $env:GITHUB_PAT) {
             Write-Host "-- GitHub OAuth sign-in required --"
             Write-Host "Repos waiting: $($oauthRepos -join ' ')"
@@ -1125,7 +1104,7 @@ if ($DpTokenAvailable) {
             if ($token) {
                 try {
                     $headers = @{ Authorization = "Bearer $token" }
-                    $ghConfig = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/config" -Headers $headers
+                    $ghConfig = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/github/oauth/config" -Headers $headers
                     $oauthUrl = if ($ghConfig.oAuthUrl) { $ghConfig.oAuthUrl } elseif ($ghConfig.OAuthUrl) { $ghConfig.OAuthUrl } else { $null }
                 } catch { }
             }
@@ -1139,18 +1118,11 @@ if ($DpTokenAvailable) {
                     Start-Sleep -Seconds 10
                     try {
                         $token = Get-DpToken
-                        $headers = @{
-                            Authorization  = "Bearer $token"
-                            "Content-Type" = "application/json"
-                        }
-                        # Check auth/status — only trust isConfigured, not connector PUT success
-                        $ghCheck = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/Github/auth/status" -Headers $headers
-                        $isAuth = ($ghCheck.isConfigured -eq $true) -or ($ghCheck.hosts -and $ghCheck.hosts[0].isConfigured -eq $true)
+                        $headers = @{ Authorization = "Bearer $token" }
+                        $ghCheck = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/github/domains" -Headers $headers
+                        $isAuth = ($ghCheck.values -and $ghCheck.values.Count -gt 0)
                         if ($isAuth) {
-                            $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v2/extendedAgent/connectors/github" `
-                                -Method Put -Headers $headers -Body $connBody -ContentType "application/json"
                             Write-Host "  GitHub authorized!"
-                            Write-Host "  ok connector/github"
                             $connectorOk = $true
                             break
                         }
@@ -1164,7 +1136,7 @@ if ($DpTokenAvailable) {
                     Write-Host "  Headless alternative: `$env:GITHUB_PAT='ghp_xxx' && re-run"
                 }
             } else {
-                Write-Host "  Could not fetch OAuth URL from $AgentEndpoint/api/v1/Github/config."
+                Write-Host "  Could not fetch OAuth URL from $AgentEndpoint/api/v2/github/oauth/config."
                 Write-Host "  Fallback: Azure portal -> agent -> Repos -> 'Authorize' next to each repo."
             }
         }
