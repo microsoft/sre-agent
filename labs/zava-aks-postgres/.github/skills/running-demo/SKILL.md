@@ -131,6 +131,42 @@ If the script aborts with "Telemetry pipeline is dead", the api pods stopped sen
    (mirrors the direct-state checks used in Scenario 1 (`az postgres flexible-server show --query state`) and Scenario 2 (`kubectl get networkpolicy`)).
 2. Navigate to `$storeUrl` — fast loading
 
+## Scenario 4: Bad Deploy / Rollback
+
+### Step 1: Show healthy state
+1. Navigate to `$storeUrl` — confirm healthy, products load
+2. Take screenshot
+
+### Step 2: Break it
+```powershell
+# Ships a bad config rollout: kubectl set env deployment/zava-api FAULT_INJECT=500.
+# This mutates the pod template -> a NEW rollout revision (the deployment signal),
+# and GET /api/products starts returning HTTP 500. Liveness (/livez) and readiness
+# (/api/health) are untouched, so pods stay Running and only the app route regresses.
+# The 1Hz in-cluster self-probe hits /api/products, so the 5xx signal builds with no
+# external load. Verifies AppRequests telemetry is flowing first (-SkipTelemetryCheck
+# to bypass on a brand-new deploy).
+.\.github\skills\running-demo\scripts\break-bad-deploy.ps1
+```
+If the script aborts with "Telemetry pipeline is dead", the api pods stopped sending AppRequests; `kubectl rollout restart deploy/zava-api -n zava-demo` normally fixes it, or pass `-SkipTelemetryCheck`.
+
+### Step 3: Show the break
+1. Navigate to `$storeUrl/api/products` — returns HTTP 500
+2. Navigate to `$storeUrl/api/health` — still `"status":"healthy","db_connected":true` (the deploy regressed the app route, not the DB). Take a screenshot to make the point: platform-healthy, app-broken.
+
+### Step 4: Watch the agent
+1. Check the SRE Agent portal for a new incident from `Zava-http-5xx-errors`
+2. The agent should rule out the DB/network/slow-query conditions, then correlate the 5xx spike with the recent rollout and roll back:
+   ```powershell
+   Invoke-AksCommand -ResourceGroup $rg -ClusterName $aks -Command "kubectl rollout history deployment/zava-api -n zava-demo"
+   ```
+3. Remediation is `kubectl rollout undo deployment/zava-api -n zava-demo` (rollback to the previous good revision)
+4. Do not run `fix-bad-deploy.ps1` as part of the demo — same rule as the other scenarios: the script is post-demo cleanup, not an agent-failure fallback.
+
+### Step 5: Show recovery
+1. Navigate to `$storeUrl/api/products` — returns 200 again
+2. Navigate to `$storeUrl` — products load; take screenshot
+
 ## Watching the SRE Agent
 
 In a separate shell, tail the agent's reasoning live via its data-plane API:
@@ -144,6 +180,7 @@ In a separate shell, tail the agent's reasoning live via its data-plane API:
 - S1 (PG stop): typically 3–5 min
 - S2 (NetworkPolicy): can take 30 min to 3+ hours (it has to investigate the NSG red-herring + pods)
 - S3 (missing index): typically 20–40 min
+- S4 (bad deploy): typically 5–15 min (correlate 5xx with rollout history, then `rollout undo`)
 
 Polling "is the symptom gone yet?" is NOT a valid stall signal. The agent may be deep in investigation. Use `-Tail` to see what it is actually doing — only declare a stall if you see repeated re-investigation with no new actions for a long stretch.
 

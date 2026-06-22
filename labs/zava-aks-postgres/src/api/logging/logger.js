@@ -9,10 +9,18 @@ const { useAzureMonitor } = require('@azure/monitor-opentelemetry');
 const { resourceFromAttributes } = require('@opentelemetry/resources');
 const { ATTR_SERVICE_NAME } = require('@opentelemetry/semantic-conventions');
 const { logs } = require('@opentelemetry/api-logs');
+const { metrics } = require('@opentelemetry/api');
 
 const aiConnStr = process.env.APPLICATIONINSIGHTS_CONNECTION_STRING;
 
+// Mirror alertProductsSlow's 30 ms latency threshold so the custom metric and
+// the log-based alert tell the same story (healthy category query ~3 ms; a
+// dropped index pushes the 120k-row scan well past 30 ms).
+const SLOW_QUERY_THRESHOLD_MS = 30;
+
 let logger = null;
+let categoryQueryDuration = null;
+let slowQueryCount = null;
 
 if (aiConnStr && aiConnStr.startsWith('InstrumentationKey=')) {
   useAzureMonitor({
@@ -29,6 +37,37 @@ if (aiConnStr && aiConnStr.startsWith('InstrumentationKey=')) {
   });
 
   logger = logs.getLogger('zava-api');
+
+  // Custom OTel app metrics. `useAzureMonitor` registers a global MeterProvider
+  // whose PeriodicExportingMetricReader ships to the Azure Monitor breeze
+  // endpoint — so instruments created off `metrics.getMeter(...)` land in this
+  // workspace-based App Insights component's `AppMetrics` table (a.k.a.
+  // `customMetrics`), Name = the instrument name. This is what makes metrics a
+  // first-class telemetry signal alongside AppTraces (logs) and
+  // AppRequests/AppDependencies (traces) for the SAME slow-query incident.
+  const meter = metrics.getMeter('zava-api');
+  categoryQueryDuration = meter.createHistogram('zava.products.category.query.duration_ms', {
+    description: 'Server-side duration of the products-by-category DB query',
+    unit: 'ms',
+  });
+  slowQueryCount = meter.createCounter('zava.products.slow_query.count', {
+    description: 'Count of category queries whose DB duration exceeded the slow-query threshold',
+  });
+}
+
+// Record one category-query duration sample. The only attribute is `category`,
+// whose values are the fixed seed categories plus the synthetic `__probe` — a
+// bounded set. Do NOT add per-request attributes (id, sku, limit, user): those
+// would explode metric series cardinality. The histogram includes `__probe`
+// (the 1 Hz self-probe) so the metric stream has continuous data and climbs
+// under a missing-index regression; the alert layer excludes `__probe` to mirror
+// alertProductsSlow, so synthetic baseline traffic alone never fires it.
+function recordCategoryQueryDuration(category, durationMs) {
+  if (!categoryQueryDuration) return;
+  categoryQueryDuration.record(durationMs, { category });
+  if (durationMs > SLOW_QUERY_THRESHOLD_MS && category !== '__probe') {
+    slowQueryCount.add(1, { category });
+  }
 }
 
 function log(level, message, properties = {}) {
@@ -72,4 +111,4 @@ function log(level, message, properties = {}) {
   }
 }
 
-module.exports = { log };
+module.exports = { log, recordCategoryQueryDuration };

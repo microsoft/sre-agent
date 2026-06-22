@@ -26,6 +26,9 @@ param managedResourceGroupId string
 @description('AKS cluster name — used to grant system identity K8s-level RBAC')
 param aksClusterName string
 
+@description('Resource ID of the VNet-injection subnet (delegated to Microsoft.App/environments). The agent sandbox runs here with egress forced through the Azure Firewall.')
+param agentSubnetId string
+
 @description('AI model provider for the agent (Anthropic enables web search; not in EU Data Boundary)')
 @allowed([
   'Anthropic'
@@ -60,6 +63,37 @@ resource sreAgent 'Microsoft.App/agents@2025-05-01-preview' = {
     }
   }
   properties: {
+    // VNet injection: the agent's sandbox (where its CLI tools run) is placed in
+    // the delegated agent subnet, with all egress forced through the Azure Firewall.
+    // The agent works the cluster with native, first-class kubectl tools
+    // authenticated by its own managed identity, runs PostgreSQL SQL through an
+    // in-cluster helper, and uses az / ARM for control-plane actions and Azure
+    // Monitor — all permitted by the firewall allow-list. No public reachability
+    // to the AKS API server or PostgreSQL is required.
+    vnetConfiguration: {
+      subnetResourceId: agentSubnetId
+    }
+    sandboxConfiguration: {
+      egress: {
+        mode: 'AzureVNet'
+        vnetConfiguration: {
+          usePrivateDnsResolution: true
+        }
+        // Remote HTTP MCP servers (the microsoft-learn connector below) are
+        // brokered by the platform rather than the customer VNet — required for
+        // the agent's Microsoft Learn lookups to work behind the firewall.
+        allowHttpMcpServerNetworkAccess: true
+        allowedCodeRepositories: []
+        // Maximum lockdown: nothing extra is allow-listed. Note the sandbox egress is
+        // HTTP(S)-proxy-brokered — it reaches allow-listed HTTPS endpoints (ARM,
+        // Entra, Azure Monitor, Microsoft Learn) but CANNOT open raw TCP to private VNet
+        // IPs (e.g. PostgreSQL:5432, verified). Private DB access therefore runs from an
+        // in-cluster pod (a real VNet NIC) via `kubectl exec`, not from the agent sandbox.
+        allowedRegistries: []
+        allowedHosts: []
+      }
+      packages: []
+    }
     knowledgeGraphConfiguration: {
       managedResources: [
         managedResourceGroupId
@@ -235,6 +269,10 @@ var dbIncidentSkill = {
   tools: [
     'RunAzCliReadCommands'
     'RunAzCliWriteCommands'
+    'RunKubectlReadCommand'
+    'RunKubectlWriteCommand'
+    'RunKubectlCommandHelp'
+    'RunInTerminal'
     'SearchMemory'
     'microsoft-learn_microsoft_code_sample_search'
     'microsoft-learn_microsoft_docs_fetch'
@@ -249,15 +287,18 @@ You diagnose from telemetry, then remediate within the permitted-action boundary
 
 ## Tools you have
 
-- **`az` CLI (read + write)** — your only Azure interface. For in-cluster operations (kubectl, exec, SQL through the app pod), the path is `az aks command invoke`.
+You operate with your **own managed identity (Entra)** — no passwords, no app credentials. You work AKS through the Kubernetes control plane (your `kubectl` tools, authenticated by your Entra identity) and the database/resources through the Azure control plane (`az`). Important nuance: your sandbox's egress is **HTTP(S)-proxy-brokered**, so it can reach allow-listed HTTPS endpoints (ARM, Entra, Azure Monitor, Microsoft Learn) but **cannot open raw TCP to private VNet IPs** — so PostgreSQL SQL runs from an in-cluster app pod (a real VNet NIC) via `kubectl exec`, never a direct socket from your sandbox.
+
+- **kubectl (read + write + help)** — `RunKubectlReadCommand` / `RunKubectlWriteCommand` / `RunKubectlCommandHelp`. First-class kubectl against the AKS API with your Entra identity (you hold AKS RBAC Cluster Admin). Use these directly for pods, logs, events, deployments, and NetworkPolicies. Do NOT hand-wrap kubectl inside `az aks command invoke`.
+- **Terminal in your sandbox** — `RunInTerminal` runs shell commands (`python3`, `node`, scripts) inside your workspace sandbox. Important: the sandbox's egress is HTTP(S)-proxy-brokered — it can reach allow-listed HTTPS endpoints but **cannot open raw TCP to private VNet IPs** (e.g. PostgreSQL:5432 — verified refused). Use it for compute/scripting, not for direct database or private-service connections.
+- **PostgreSQL SQL** — your sandbox can't open a raw socket to the private database, so run SQL (reads `pg_stat_*`, and read-mostly DDL like `CREATE INDEX CONCURRENTLY` / `ANALYZE`) through the in-cluster helper, which executes from an app pod (a real VNet NIC): `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js "<SQL>"` (the helper reuses the app pod's PG Entra identity).
+- **`az` CLI (read + write)** — `RunAzCliReadCommands` / `RunAzCliWriteCommands`. Your control-plane interface: PostgreSQL start/stop/parameter-set, NSG rules, resource state, Azure Monitor.
 - **Memory search** — past investigations and the architecture knowledge base.
 - **Microsoft Learn search/fetch** — for Azure / AKS / PostgreSQL Flexible Server / KQL surfaces you're unsure about. Prefer documenting your reasoning over guessing.
 
-You do NOT have direct kubectl, psql, Test-NetConnection, or any TCP-level tools. You're outside this VNet — see the knowledge base for the architecture.
-
 ## Identities and grants (do NOT try to elevate)
 
-Both your system-assigned and user-assigned managed identities have what you need: AKS RBAC Cluster Admin (so `az aks command invoke` works without further consent), Reader + Monitoring Reader + Contributor on the resource group, and PostgreSQL Entra admin. You do NOT have `Microsoft.Authorization/roleAssignments/write`. **Never** attempt `az role assignment create` — it will be denied. If you think you need a role you don't have, the diagnosis is wrong; back up.
+Both your system-assigned and user-assigned managed identities have what you need: AKS RBAC Cluster Admin (so kubectl works without further consent), Reader + Monitoring Reader + Contributor on the resource group, and PostgreSQL Entra admin (the app pod's identity, used by `bin/run-sql.js`, is also a PG Entra admin). You do NOT have `Microsoft.Authorization/roleAssignments/write`. **Never** attempt `az role assignment create` — it will be denied. If you think you need a role you don't have, the diagnosis is wrong; back up.
 
 ## Always filter telemetry to `zava-api`
 
@@ -269,14 +310,17 @@ App Insights and Log Analytics are shared with your own ARM-poll telemetry. Filt
 |---|---|
 | `postgres-server-stopped` / `postgres-server-down` | PostgreSQL Flexible Server is Stopped or unreachable at the TCP layer. Read `state` from ARM; if Stopped, start it. |
 | `postgres-network-blocked` | App pods see `ETIMEDOUT` to PG's private IP. PG is up; something is dropping packets. There are two enforcement surfaces between the app pods and PG (an NSG on the AKS subnet, and Kubernetes NetworkPolicy inside the cluster) — both can produce this symptom. The KB documents which is platform-managed and which is user-controlled. |
-| `Zava-products-query-slow` | App Insights `AppRequests` for `/api/products*` (excluding `__probe`) breached the latency threshold. Bottleneck is at PostgreSQL, not pods/CPU/memory. Look at PG's own statistics views (the KB documents the helper for running SQL through the app pod). Never restart pods or scale the cluster for this alert. |
-| `Zava-http-5xx-errors` | Composite signal — almost always a downstream effect of one of the conditions above. Check those first before treating it as a separate failure. |
+| `Zava-products-query-slow` | App Insights `AppRequests` for `/api/products*` (excluding `__probe`) breached the latency threshold. Bottleneck is at PostgreSQL, not pods/CPU/memory. Inspect PG's statistics views (`pg_stat_statements`, `pg_stat_user_indexes`, `pg_stat_activity`, `EXPLAIN`) by running SQL through the in-cluster helper with kubectl: `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js "<SQL>"`. Never restart pods or scale the cluster for this alert. |
+| `Zava-category-latency-metric` | The app's own custom METRIC (`zava.products.category.query.duration_ms` in `AppMetrics`) for a non-probe category breached the latency threshold. Treat this as a first-class corroborating signal for the SAME slow-query incident as `Zava-products-query-slow` (the `AppRequests` log signal) and the `AppDependencies` PostgreSQL-call latency (the trace signal) — logs + metrics + traces agreeing points at the database query, not pods/CPU/memory. Diagnose at PG exactly as for `Zava-products-query-slow`. |
+| `Zava-db-cpu-saturation` | PostgreSQL server CPU is saturated (platform metric). On its own it can be organic load, but co-firing with the slow-query signals above corroborates a database-side bottleneck (e.g. heavy scans). Inspect PG activity and statistics views before considering any compute change; do not scale the cluster for this alert. |
+| `Zava-http-5xx-errors` | Composite signal. First rule out the conditions above — a 5xx spike is usually a downstream effect of a DB outage, network partition, or slow-query bottleneck. If none of those correlate, treat it as a possible **bad deploy**: check recent rollout history (`kubectl rollout history deployment/zava-api -n zava-demo`) and recent deployment changes / `KubeEvents` (`ScalingReplicaSet`). A 5xx regression whose onset lines up with a recent rollout is a deployment regression — roll back to the previous good revision (see permitted actions). |
 
 ## Permitted autonomous actions
 
 - Start / restart / parameter-set on PostgreSQL Flexible Server.
 - Delete a NetworkPolicy in `zava-demo` whose egress blocks PG, and delete a matching NSG deny rule on the AKS subnet.
 - Restart deployments in `zava-demo`.
+- Roll back a deployment in `zava-demo` to its previous revision (`kubectl rollout undo`) when a 5xx regression correlates with a recent rollout.
 - Read-mostly DDL on PostgreSQL: `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, `ANALYZE`, `REINDEX CONCURRENTLY`.
 
 ## Out of scope (require human approval)
@@ -298,6 +342,7 @@ var proactiveHealthSkill = {
   tools: [
     'RunAzCliReadCommands'
     'RunAzCliWriteCommands'
+    'RunKubectlReadCommand'
     'SearchMemory'
     'ExecutePythonCode'
     'microsoft-learn_microsoft_code_sample_search'
