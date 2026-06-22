@@ -670,6 +670,9 @@ else
 fi
 
 # ── 2. Knowledge items (KnowledgeText/File/WebPage/Repository via connectors API) ──
+# NOTE: KnowledgeText items are exported as plain .md files in data/ so that
+# on re-deploy they go through the AgentMemory data-plane upload (Knowledge tab)
+# instead of being re-created as ARM KnowledgeFile connectors.
 if [[ "$INCLUDE_KNOWLEDGE_ITEMS" == "true" ]]; then
   _log "Reading knowledge items from connectors API..."
   RAW_KNOWLEDGE_ITEMS=$(dp_get "/api/v2/extendedAgent/connectors")
@@ -690,37 +693,51 @@ if [[ "$INCLUDE_KNOWLEDGE_ITEMS" == "true" ]]; then
   KI_COUNT=$(echo "$KNOWLEDGE_ITEMS" | jq 'length')
   _log "  Found ${KI_COUNT} knowledge item(s)"
 
-  # Download knowledge item content if requested
+  # Download knowledge item content and write KnowledgeText as .md in data/
   if [[ "$DOWNLOAD_FILES" == "true" && "$KI_COUNT" -gt 0 ]]; then
     _log "  Downloading knowledge item content..."
     KI_DIR="${FILES_DIR}/knowledge-items"
     mkdir -p "$KI_DIR"
+    KI_TEXT_EXPORTED=0
+    KI_OTHER_ITEMS="[]"
     for i in $(seq 0 $((KI_COUNT - 1))); do
       kiname=$(echo "$KNOWLEDGE_ITEMS" | jq -r --argjson i "$i" '.[$i].name')
       kitype=$(echo "$KNOWLEDGE_ITEMS" | jq -r --argjson i "$i" '.[$i].type')
-      # Determine file extension based on type
       case "$kitype" in
-        KnowledgeText)     ext=".md" ;;
-        KnowledgeWebPage)  ext=".html" ;;
-        KnowledgeFile)     ext="" ;;
-        *)                 ext=".json" ;;
+        KnowledgeText)
+          # Export as .md file in data/ → will be uploaded via AgentMemory on redeploy
+          fname="${kiname}.md"
+          # Try to strip trailing -md suffix from connector name for cleaner filenames
+          [[ "$kiname" == *-md ]] && fname="${kiname%-md}.md"
+          dp_download "/api/v2/extendedAgent/connectors/$(printf %s "$kiname" | jq -sRr @uri)/content" \
+            "${KI_DIR}/${fname}" 2>/dev/null && {
+            _log "    ✓ ${kiname} → data/${fname} (will use AgentMemory on redeploy)"
+            KI_TEXT_EXPORTED=$((KI_TEXT_EXPORTED + 1))
+          } || _log "    ✗ ${kiname} (could not download content)"
+          ;;
+        *)
+          # Non-text items (WebPage, File, Repository) stay as knowledgeItems
+          ext=""
+          case "$kitype" in
+            KnowledgeWebPage) ext=".html" ;;
+            KnowledgeFile)    ext="" ;;
+            *)                ext=".json" ;;
+          esac
+          dp_download "/api/v2/extendedAgent/connectors/$(printf %s "$kiname" | jq -sRr @uri)/content" \
+            "${KI_DIR}/${kiname}${ext}" 2>/dev/null && \
+            _log "    ✓ ${kiname} (${kitype})" || \
+            _log "    ✗ ${kiname} (could not download content)"
+          KI_OTHER_ITEMS=$(echo "$KI_OTHER_ITEMS" | jq --argjson i "$i" --arg dir "$KI_DIR" --arg ext "$ext" \
+            --slurpfile items <(echo "$KNOWLEDGE_ITEMS") \
+            '. + [$items[0][$i] + {localPath: ($dir + "/" + $items[0][$i].name + $ext)}]')
+          ;;
       esac
-      dp_download "/api/v2/extendedAgent/connectors/$(printf %s "$kiname" | jq -sRr @uri)/content" \
-        "${KI_DIR}/${kiname}${ext}" 2>/dev/null && \
-        _log "    ✓ ${kiname} (${kitype})" || \
-        _log "    ✗ ${kiname} (could not download content)"
     done
-    # Update entries with localPath
-    KNOWLEDGE_ITEMS=$(echo "$KNOWLEDGE_ITEMS" | jq -c --arg dir "$KI_DIR" '[
-      .[] | . + {
-        localPath: ($dir + "/" + .name + (
-          if .type == "KnowledgeText" then ".md"
-          elif .type == "KnowledgeWebPage" then ".html"
-          elif .type == "KnowledgeFile" then ""
-          else ".json" end
-        ))
-      }
-    ]')
+    # Only keep non-text items in KNOWLEDGE_ITEMS (text ones became .md files)
+    KNOWLEDGE_ITEMS="$KI_OTHER_ITEMS"
+    if [[ "$KI_TEXT_EXPORTED" -gt 0 ]]; then
+      _log "  Migrated ${KI_TEXT_EXPORTED} KnowledgeText item(s) to data/ .md files (AgentMemory path)"
+    fi
   fi
 else
   _log "Skipping knowledge items (use --include-knowledge-items to include)"
@@ -1421,12 +1438,26 @@ fi
 
 # Move downloaded files into data/ if they were downloaded
 if [[ "$DOWNLOAD_FILES" == "true" && -d "$FILES_DIR" ]]; then
-  for subdir in knowledge knowledge-items synthesized-knowledge repo-instructions; do
+  for subdir in knowledge synthesized-knowledge repo-instructions; do
     if [[ -d "${FILES_DIR}/${subdir}" ]]; then
       mkdir -p "${DATA_DIR}/${subdir}"
       cp -r "${FILES_DIR}/${subdir}/." "${DATA_DIR}/${subdir}/" 2>/dev/null || true
     fi
   done
+  # KnowledgeText .md files go to data/ root so assemble auto-discovers them
+  # for AgentMemory upload (not back into knowledge-items which creates ARM connectors)
+  if [[ -d "${FILES_DIR}/knowledge-items" ]]; then
+    for f in "${FILES_DIR}/knowledge-items/"*.md; do
+      [[ -f "$f" ]] && cp "$f" "${DATA_DIR}/" 2>/dev/null || true
+    done
+    # Non-.md files (WebPage, File) stay in knowledge-items/
+    for f in "${FILES_DIR}/knowledge-items/"*; do
+      [[ -f "$f" && "$f" != *.md ]] && {
+        mkdir -p "${DATA_DIR}/knowledge-items"
+        cp "$f" "${DATA_DIR}/knowledge-items/" 2>/dev/null || true
+      }
+    done
+  fi
   # Clean up temp files dir if it was separate
   [[ "$FILES_DIR" != "$DATA_DIR" && "$FILES_DIR" != "${EXPORT_DIR}/data" ]] && rm -rf "$FILES_DIR" 2>/dev/null || true
 fi
