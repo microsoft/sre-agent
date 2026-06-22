@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.41.2.15936",
-      "templateHash": "10212371151939919113"
+      "version": "0.43.1.21952",
+      "templateHash": "4890042339973748602"
     }
   },
   "parameters": {
@@ -72,8 +72,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "16572089972785666489"
+              "version": "0.43.1.21952",
+              "templateHash": "11890560791397435576"
             }
           },
           "parameters": {
@@ -92,7 +92,8 @@
           },
           "variables": {
             "vnetName": "[format('vnet-Zava-{0}', parameters('uniqueSuffix'))]",
-            "nsgName": "[format('nsg-aks-{0}', parameters('uniqueSuffix'))]"
+            "nsgName": "[format('nsg-aks-{0}', parameters('uniqueSuffix'))]",
+            "firewallPrivateIp": "10.3.1.4"
           },
           "resources": [
             {
@@ -113,6 +114,38 @@
                       "sourcePortRange": "*",
                       "destinationAddressPrefix": "*",
                       "destinationPortRange": "*"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/publicIPAddresses",
+              "apiVersion": "2024-05-01",
+              "name": "[format('afw-pip-Zava-{0}', parameters('uniqueSuffix'))]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "Standard",
+                "tier": "Regional"
+              },
+              "properties": {
+                "publicIPAllocationMethod": "Static"
+              }
+            },
+            {
+              "type": "Microsoft.Network/routeTables",
+              "apiVersion": "2024-05-01",
+              "name": "[format('rt-agent-{0}', parameters('uniqueSuffix'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "disableBgpRoutePropagation": true,
+                "routes": [
+                  {
+                    "name": "default-to-azure-firewall",
+                    "properties": {
+                      "addressPrefix": "0.0.0.0/0",
+                      "nextHopType": "VirtualAppliance",
+                      "nextHopIpAddress": "[variables('firewallPrivateIp')]"
                     }
                   }
                 ]
@@ -157,10 +190,34 @@
                         }
                       ]
                     }
+                  },
+                  {
+                    "name": "agent-subnet",
+                    "properties": {
+                      "addressPrefix": "10.3.0.0/27",
+                      "routeTable": {
+                        "id": "[resourceId('Microsoft.Network/routeTables', format('rt-agent-{0}', parameters('uniqueSuffix')))]"
+                      },
+                      "delegations": [
+                        {
+                          "name": "agent-delegation",
+                          "properties": {
+                            "serviceName": "Microsoft.App/environments"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "name": "AzureFirewallSubnet",
+                    "properties": {
+                      "addressPrefix": "10.3.1.0/26"
+                    }
                   }
                 ]
               },
               "dependsOn": [
+                "[resourceId('Microsoft.Network/routeTables', format('rt-agent-{0}', parameters('uniqueSuffix')))]",
                 "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
               ]
             },
@@ -185,6 +242,182 @@
                 "[resourceId('Microsoft.Network/privateDnsZones', format('{0}.private.postgres.database.azure.com', parameters('uniqueSuffix')))]",
                 "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
               ]
+            },
+            {
+              "type": "Microsoft.Network/firewallPolicies",
+              "apiVersion": "2024-05-01",
+              "name": "[format('afw-policy-Zava-{0}', parameters('uniqueSuffix'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "sku": {
+                  "tier": "Standard"
+                },
+                "dnsSettings": {
+                  "enableProxy": true
+                },
+                "threatIntelMode": "Deny"
+              }
+            },
+            {
+              "type": "Microsoft.Network/firewallPolicies/ruleCollectionGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', format('afw-policy-Zava-{0}', parameters('uniqueSuffix')), 'DefaultNetworkRuleCollectionGroup')]",
+              "properties": {
+                "priority": 200,
+                "ruleCollections": [
+                  {
+                    "ruleCollectionType": "FirewallPolicyFilterRuleCollection",
+                    "name": "allow-essential-dns",
+                    "priority": 100,
+                    "action": {
+                      "type": "Allow"
+                    },
+                    "rules": [
+                      {
+                        "ruleType": "NetworkRule",
+                        "name": "allow-azure-dns",
+                        "description": "DNS resolution via Azure DNS (required for the firewall DNS proxy)",
+                        "ipProtocols": [
+                          "UDP",
+                          "TCP"
+                        ],
+                        "sourceAddresses": [
+                          "10.3.0.0/27"
+                        ],
+                        "destinationAddresses": [
+                          "168.63.129.16"
+                        ],
+                        "destinationPorts": [
+                          "53"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "ruleCollectionType": "FirewallPolicyFilterRuleCollection",
+                    "name": "allow-azure-service-tags",
+                    "priority": 105,
+                    "action": {
+                      "type": "Allow"
+                    },
+                    "rules": [
+                      {
+                        "ruleType": "NetworkRule",
+                        "name": "allow-azure-services-l4",
+                        "description": "L4 access to Azure services via precise service tags (NOT AzureCloud)",
+                        "ipProtocols": [
+                          "TCP"
+                        ],
+                        "sourceAddresses": [
+                          "10.3.0.0/27"
+                        ],
+                        "destinationAddresses": [
+                          "AzureResourceManager",
+                          "AzureActiveDirectory",
+                          "AzureMonitor"
+                        ],
+                        "destinationPorts": [
+                          "443"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "ruleCollectionType": "FirewallPolicyFilterRuleCollection",
+                    "name": "allow-agent-azure-services",
+                    "priority": 150,
+                    "action": {
+                      "type": "Allow"
+                    },
+                    "rules": [
+                      {
+                        "ruleType": "ApplicationRule",
+                        "name": "allow-arm-aad-graph",
+                        "description": "FQDN access to ARM, Entra ID, and Microsoft Graph",
+                        "sourceAddresses": [
+                          "10.3.0.0/27"
+                        ],
+                        "protocols": [
+                          {
+                            "protocolType": "Https",
+                            "port": 443
+                          }
+                        ],
+                        "targetFqdns": [
+                          "management.azure.com",
+                          "login.microsoftonline.com",
+                          "graph.microsoft.com"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "ruleCollectionType": "FirewallPolicyFilterRuleCollection",
+                    "name": "allow-microsoft-learn",
+                    "priority": 200,
+                    "action": {
+                      "type": "Allow"
+                    },
+                    "rules": [
+                      {
+                        "ruleType": "ApplicationRule",
+                        "name": "allow-learn-microsoft-com",
+                        "description": "Microsoft Learn docs + MCP (the agent looks up Azure/AKS/PostgreSQL guidance here)",
+                        "sourceAddresses": [
+                          "10.3.0.0/27"
+                        ],
+                        "protocols": [
+                          {
+                            "protocolType": "Https",
+                            "port": 443
+                          }
+                        ],
+                        "targetFqdns": [
+                          "learn.microsoft.com",
+                          "*.learn.microsoft.com"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/firewallPolicies', format('afw-policy-Zava-{0}', parameters('uniqueSuffix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/azureFirewalls",
+              "apiVersion": "2024-05-01",
+              "name": "[format('afw-Zava-{0}', parameters('uniqueSuffix'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "sku": {
+                  "name": "AZFW_VNet",
+                  "tier": "Standard"
+                },
+                "firewallPolicy": {
+                  "id": "[resourceId('Microsoft.Network/firewallPolicies', format('afw-policy-Zava-{0}', parameters('uniqueSuffix')))]"
+                },
+                "ipConfigurations": [
+                  {
+                    "name": "fw-ipconfig",
+                    "properties": {
+                      "subnet": {
+                        "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '2024-01-01').subnets[3].id]"
+                      },
+                      "publicIPAddress": {
+                        "id": "[resourceId('Microsoft.Network/publicIPAddresses', format('afw-pip-Zava-{0}', parameters('uniqueSuffix')))]"
+                      }
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', format('afw-pip-Zava-{0}', parameters('uniqueSuffix')))]",
+                "[resourceId('Microsoft.Network/firewallPolicies', format('afw-policy-Zava-{0}', parameters('uniqueSuffix')))]",
+                "[resourceId('Microsoft.Network/firewallPolicies/ruleCollectionGroups', format('afw-policy-Zava-{0}', parameters('uniqueSuffix')), 'DefaultNetworkRuleCollectionGroup')]",
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+              ]
             }
           ],
           "outputs": {
@@ -203,6 +436,10 @@
             "dbSubnetId": {
               "type": "string",
               "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '2024-01-01').subnets[1].id]"
+            },
+            "agentSubnetId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '2024-01-01').subnets[2].id]"
             },
             "nsgName": {
               "type": "string",
@@ -243,8 +480,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "17028242685811391999"
+              "version": "0.43.1.21952",
+              "templateHash": "16542703906130965193"
             }
           },
           "parameters": {
@@ -328,8 +565,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "7326506129800277627"
+              "version": "0.43.1.21952",
+              "templateHash": "5864804151585967659"
             }
           },
           "parameters": {
@@ -728,6 +965,85 @@
               ]
             },
             {
+              "type": "Microsoft.Insights/scheduledQueryRules",
+              "apiVersion": "2023-03-15-preview",
+              "name": "Zava-category-latency-metric",
+              "location": "[parameters('location')]",
+              "properties": {
+                "severity": 2,
+                "enabled": true,
+                "evaluationFrequency": "PT1M",
+                "windowSize": "PT5M",
+                "scopes": [
+                  "[resourceId('Microsoft.OperationalInsights/workspaces', variables('lawName'))]"
+                ],
+                "criteria": {
+                  "allOf": [
+                    {
+                      "query": "AppMetrics\r\n| where AppRoleName == 'zava-api'\r\n| where Name == 'zava.products.category.query.duration_ms'\r\n| extend Category = tostring(Properties['category'])\r\n| where Category != '__probe'\r\n| summarize AvgDurationMs = sum(Sum) / sum(ItemCount) by Category\r\n| where AvgDurationMs > 30",
+                      "timeAggregation": "Count",
+                      "operator": "GreaterThan",
+                      "threshold": 0,
+                      "failingPeriods": {
+                        "numberOfEvaluationPeriods": 1,
+                        "minFailingPeriodsToAlert": 1
+                      }
+                    }
+                  ]
+                },
+                "actions": {
+                  "actionGroups": [
+                    "[resourceId('Microsoft.Insights/actionGroups', format('ag-Zava-sre-{0}', parameters('uniqueSuffix')))]"
+                  ]
+                },
+                "autoMitigate": true,
+                "description": "Zava Demo: the zava.products.category.query.duration_ms custom metric averaged above 30ms for at least one category over 5 minutes (healthy baseline ~3ms)."
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', format('ag-Zava-sre-{0}', parameters('uniqueSuffix')))]",
+                "[resourceId('Microsoft.OperationalInsights/workspaces', variables('lawName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "Zava-db-cpu-saturation",
+              "location": "global",
+              "properties": {
+                "severity": 3,
+                "enabled": true,
+                "scopes": [
+                  "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('postgresServerName'))]"
+                ],
+                "evaluationFrequency": "PT1M",
+                "windowSize": "PT5M",
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "pgCpu",
+                      "metricName": "cpu_percent",
+                      "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
+                      "operator": "GreaterThan",
+                      "threshold": 80,
+                      "timeAggregation": "Average",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": [
+                  {
+                    "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('ag-Zava-sre-{0}', parameters('uniqueSuffix')))]"
+                  }
+                ],
+                "autoMitigate": true,
+                "description": "Zava Demo: PostgreSQL server CPU averaged above 80% over 5 minutes."
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', format('ag-Zava-sre-{0}', parameters('uniqueSuffix')))]"
+              ]
+            },
+            {
               "type": "Microsoft.Insights/activityLogAlerts",
               "apiVersion": "2023-01-01-preview",
               "name": "postgres-server-stopped",
@@ -830,8 +1146,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "13272948923324719539"
+              "version": "0.43.1.21952",
+              "templateHash": "10431586641767226171"
             }
           },
           "parameters": {
@@ -1039,8 +1355,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "1619425297672132838"
+              "version": "0.43.1.21952",
+              "templateHash": "4471309822927703249"
             }
           },
           "parameters": {
@@ -1211,8 +1527,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "8609693906669799130"
+              "version": "0.43.1.21952",
+              "templateHash": "3222822890112493357"
             }
           },
           "parameters": {
@@ -1397,6 +1713,9 @@
           },
           "aksClusterName": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'aks'), '2025-04-01').outputs.clusterName.value]"
+          },
+          "agentSubnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'vnet'), '2025-04-01').outputs.agentSubnetId.value]"
           }
         },
         "template": {
@@ -1405,8 +1724,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "9260401994940964470"
+              "version": "0.43.1.21952",
+              "templateHash": "4407083482938427939"
             }
           },
           "parameters": {
@@ -1464,6 +1783,12 @@
                 "description": "AKS cluster name — used to grant system identity K8s-level RBAC"
               }
             },
+            "agentSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the VNet-injection subnet (delegated to Microsoft.App/environments). The agent sandbox runs here with egress forced through the Azure Firewall."
+              }
+            },
             "modelProvider": {
               "type": "string",
               "defaultValue": "Anthropic",
@@ -1504,12 +1829,16 @@
               "tools": [
                 "RunAzCliReadCommands",
                 "RunAzCliWriteCommands",
+                "RunKubectlReadCommand",
+                "RunKubectlWriteCommand",
+                "RunKubectlCommandHelp",
+                "RunInTerminal",
                 "SearchMemory",
                 "microsoft-learn_microsoft_code_sample_search",
                 "microsoft-learn_microsoft_docs_fetch",
                 "microsoft-learn_microsoft_docs_search"
               ],
-              "skillContent": "## Zava Incident Runbook\r\n\r\nResource Group: `@@RG@@`. App Insights `cloud_RoleName`: `zava-api`. App k8s namespace: `zava-demo`.\r\n\r\nYou diagnose from telemetry, then remediate within the permitted-action boundary below. Outside that boundary you summarize and stop. When in doubt about an Azure / AKS / PostgreSQL surface you haven't seen before, look it up in Microsoft Learn before guessing.\r\n\r\n## Tools you have\r\n\r\n- **`az` CLI (read + write)** — your only Azure interface. For in-cluster operations (kubectl, exec, SQL through the app pod), the path is `az aks command invoke`.\r\n- **Memory search** — past investigations and the architecture knowledge base.\r\n- **Microsoft Learn search/fetch** — for Azure / AKS / PostgreSQL Flexible Server / KQL surfaces you're unsure about. Prefer documenting your reasoning over guessing.\r\n\r\nYou do NOT have direct kubectl, psql, Test-NetConnection, or any TCP-level tools. You're outside this VNet — see the knowledge base for the architecture.\r\n\r\n## Identities and grants (do NOT try to elevate)\r\n\r\nBoth your system-assigned and user-assigned managed identities have what you need: AKS RBAC Cluster Admin (so `az aks command invoke` works without further consent), Reader + Monitoring Reader + Contributor on the resource group, and PostgreSQL Entra admin. You do NOT have `Microsoft.Authorization/roleAssignments/write`. **Never** attempt `az role assignment create` — it will be denied. If you think you need a role you don't have, the diagnosis is wrong; back up.\r\n\r\n## Always filter telemetry to `zava-api`\r\n\r\nApp Insights and Log Analytics are shared with your own ARM-poll telemetry. Filter every KQL query by `AppRoleName == 'zava-api'` (KQL) or `cloud/roleName == 'zava-api'` (metrics) — unfiltered queries are dominated by agent self-noise.\r\n\r\n## What the Zava alerts mean\r\n\r\n| Alert title | Meaning |\r\n|---|---|\r\n| `postgres-server-stopped` / `postgres-server-down` | PostgreSQL Flexible Server is Stopped or unreachable at the TCP layer. Read `state` from ARM; if Stopped, start it. |\r\n| `postgres-network-blocked` | App pods see `ETIMEDOUT` to PG's private IP. PG is up; something is dropping packets. There are two enforcement surfaces between the app pods and PG (an NSG on the AKS subnet, and Kubernetes NetworkPolicy inside the cluster) — both can produce this symptom. The KB documents which is platform-managed and which is user-controlled. |\r\n| `Zava-products-query-slow` | App Insights `AppRequests` for `/api/products*` (excluding `__probe`) breached the latency threshold. Bottleneck is at PostgreSQL, not pods/CPU/memory. Look at PG's own statistics views (the KB documents the helper for running SQL through the app pod). Never restart pods or scale the cluster for this alert. |\r\n| `Zava-http-5xx-errors` | Composite signal — almost always a downstream effect of one of the conditions above. Check those first before treating it as a separate failure. |\r\n\r\n## Permitted autonomous actions\r\n\r\n- Start / restart / parameter-set on PostgreSQL Flexible Server.\r\n- Delete a NetworkPolicy in `zava-demo` whose egress blocks PG, and delete a matching NSG deny rule on the AKS subnet.\r\n- Restart deployments in `zava-demo`.\r\n- Read-mostly DDL on PostgreSQL: `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, `ANALYZE`, `REINDEX CONCURRENTLY`.\r\n\r\n## Out of scope (require human approval)\r\n\r\n- `DROP`, DML, schema migrations, role/grant changes.\r\n- Cluster scale, node deletion, VNet changes.\r\n- Any IAM modification.\r\n\r\n## Verification\r\n\r\nRe-check the resource you changed, confirm error rate / latency is back to baseline, confirm the alert auto-mitigated.\r\n",
+              "skillContent": "## Zava Incident Runbook\r\n\r\nResource Group: `@@RG@@`. App Insights `cloud_RoleName`: `zava-api`. App k8s namespace: `zava-demo`.\r\n\r\nYou diagnose from telemetry, then remediate within the permitted-action boundary below. Outside that boundary you summarize and stop. When in doubt about an Azure / AKS / PostgreSQL surface you haven't seen before, look it up in Microsoft Learn before guessing.\r\n\r\n## Tools you have\r\n\r\nYou operate with your **own managed identity (Entra)** — no passwords, no app credentials. You work AKS through the Kubernetes control plane (your `kubectl` tools, authenticated by your Entra identity) and the database/resources through the Azure control plane (`az`). Important nuance: your sandbox's egress is **HTTP(S)-proxy-brokered**, so it can reach allow-listed HTTPS endpoints (ARM, Entra, Azure Monitor, Microsoft Learn) but **cannot open raw TCP to private VNet IPs** — so PostgreSQL SQL runs from an in-cluster app pod (a real VNet NIC) via `kubectl exec`, never a direct socket from your sandbox.\r\n\r\n- **kubectl (read + write + help)** — `RunKubectlReadCommand` / `RunKubectlWriteCommand` / `RunKubectlCommandHelp`. First-class kubectl against the AKS API with your Entra identity (you hold AKS RBAC Cluster Admin). Use these directly for pods, logs, events, deployments, and NetworkPolicies. Do NOT hand-wrap kubectl inside `az aks command invoke`.\r\n- **Terminal in your sandbox** — `RunInTerminal` runs shell commands (`python3`, `node`, scripts) inside your workspace sandbox. Important: the sandbox's egress is HTTP(S)-proxy-brokered — it can reach allow-listed HTTPS endpoints but **cannot open raw TCP to private VNet IPs** (e.g. PostgreSQL:5432 — verified refused). Use it for compute/scripting, not for direct database or private-service connections.\r\n- **PostgreSQL SQL** — your sandbox can't open a raw socket to the private database, so run SQL (reads `pg_stat_*`, and read-mostly DDL like `CREATE INDEX CONCURRENTLY` / `ANALYZE`) through the in-cluster helper, which executes from an app pod (a real VNet NIC): `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js \"<SQL>\"` (the helper reuses the app pod's PG Entra identity).\r\n- **`az` CLI (read + write)** — `RunAzCliReadCommands` / `RunAzCliWriteCommands`. Your control-plane interface: PostgreSQL start/stop/parameter-set, NSG rules, resource state, Azure Monitor.\r\n- **Memory search** — past investigations and the architecture knowledge base.\r\n- **Microsoft Learn search/fetch** — for Azure / AKS / PostgreSQL Flexible Server / KQL surfaces you're unsure about. Prefer documenting your reasoning over guessing.\r\n\r\n## Identities and grants (do NOT try to elevate)\r\n\r\nBoth your system-assigned and user-assigned managed identities have what you need: AKS RBAC Cluster Admin (so kubectl works without further consent), Reader + Monitoring Reader + Contributor on the resource group, and PostgreSQL Entra admin (the app pod's identity, used by `bin/run-sql.js`, is also a PG Entra admin). You do NOT have `Microsoft.Authorization/roleAssignments/write`. **Never** attempt `az role assignment create` — it will be denied. If you think you need a role you don't have, the diagnosis is wrong; back up.\r\n\r\n## Always filter telemetry to `zava-api`\r\n\r\nApp Insights and Log Analytics are shared with your own ARM-poll telemetry. Filter every KQL query by `AppRoleName == 'zava-api'` (KQL) or `cloud/roleName == 'zava-api'` (metrics) — unfiltered queries are dominated by agent self-noise.\r\n\r\n## What the Zava alerts mean\r\n\r\n| Alert title | Meaning |\r\n|---|---|\r\n| `postgres-server-stopped` / `postgres-server-down` | PostgreSQL Flexible Server is Stopped or unreachable at the TCP layer. Read `state` from ARM; if Stopped, start it. |\r\n| `postgres-network-blocked` | App pods see `ETIMEDOUT` to PG's private IP. PG is up; something is dropping packets. There are two enforcement surfaces between the app pods and PG (an NSG on the AKS subnet, and Kubernetes NetworkPolicy inside the cluster) — both can produce this symptom. The KB documents which is platform-managed and which is user-controlled. |\r\n| `Zava-products-query-slow` | App Insights `AppRequests` for `/api/products*` (excluding `__probe`) breached the latency threshold. Bottleneck is at PostgreSQL, not pods/CPU/memory. Inspect PG's statistics views (`pg_stat_statements`, `pg_stat_user_indexes`, `pg_stat_activity`, `EXPLAIN`) by running SQL through the in-cluster helper with kubectl: `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js \"<SQL>\"`. Never restart pods or scale the cluster for this alert. |\r\n| `Zava-category-latency-metric` | The app's own custom METRIC (`zava.products.category.query.duration_ms` in `AppMetrics`) for a non-probe category breached the latency threshold. Treat this as a first-class corroborating signal for the SAME slow-query incident as `Zava-products-query-slow` (the `AppRequests` log signal) and the `AppDependencies` PostgreSQL-call latency (the trace signal) — logs + metrics + traces agreeing points at the database query, not pods/CPU/memory. Diagnose at PG exactly as for `Zava-products-query-slow`. |\r\n| `Zava-db-cpu-saturation` | PostgreSQL server CPU is saturated (platform metric). On its own it can be organic load, but co-firing with the slow-query signals above corroborates a database-side bottleneck (e.g. heavy scans). Inspect PG activity and statistics views before considering any compute change; do not scale the cluster for this alert. |\r\n| `Zava-http-5xx-errors` | Composite signal. First rule out the conditions above — a 5xx spike is usually a downstream effect of a DB outage, network partition, or slow-query bottleneck. If none of those correlate, treat it as a possible **bad deploy**: check recent rollout history (`kubectl rollout history deployment/zava-api -n zava-demo`) and recent deployment changes / `KubeEvents` (`ScalingReplicaSet`). A 5xx regression whose onset lines up with a recent rollout is a deployment regression — roll back to the previous good revision (see permitted actions). |\r\n\r\n## Permitted autonomous actions\r\n\r\n- Start / restart / parameter-set on PostgreSQL Flexible Server.\r\n- Delete a NetworkPolicy in `zava-demo` whose egress blocks PG, and delete a matching NSG deny rule on the AKS subnet.\r\n- Restart deployments in `zava-demo`.\r\n- Roll back a deployment in `zava-demo` to its previous revision (`kubectl rollout undo`) when a 5xx regression correlates with a recent rollout.\r\n- Read-mostly DDL on PostgreSQL: `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, `ANALYZE`, `REINDEX CONCURRENTLY`.\r\n\r\n## Out of scope (require human approval)\r\n\r\n- `DROP`, DML, schema migrations, role/grant changes.\r\n- Cluster scale, node deletion, VNet changes.\r\n- Any IAM modification.\r\n\r\n## Verification\r\n\r\nRe-check the resource you changed, confirm error rate / latency is back to baseline, confirm the alert auto-mitigated.\r\n",
               "additionalFiles": [],
               "sourcePluginInstallation": null
             },
@@ -1518,6 +1847,7 @@
               "tools": [
                 "RunAzCliReadCommands",
                 "RunAzCliWriteCommands",
+                "RunKubectlReadCommand",
                 "SearchMemory",
                 "ExecutePythonCode",
                 "microsoft-learn_microsoft_code_sample_search",
@@ -1605,6 +1935,22 @@
                 }
               },
               "properties": {
+                "vnetConfiguration": {
+                  "subnetResourceId": "[parameters('agentSubnetId')]"
+                },
+                "sandboxConfiguration": {
+                  "egress": {
+                    "mode": "AzureVNet",
+                    "vnetConfiguration": {
+                      "usePrivateDnsResolution": true
+                    },
+                    "allowHttpMcpServerNetworkAccess": true,
+                    "allowedCodeRepositories": [],
+                    "allowedRegistries": [],
+                    "allowedHosts": []
+                  },
+                  "packages": []
+                },
                 "knowledgeGraphConfiguration": {
                   "managedResources": [
                     "[parameters('managedResourceGroupId')]"
@@ -1846,7 +2192,8 @@
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'aks')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'monitoring')]",
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'vnet')]"
       ]
     },
     {
@@ -1876,8 +2223,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "2351920676602393766"
+              "version": "0.43.1.21952",
+              "templateHash": "1813198627844114663"
             }
           },
           "parameters": {
@@ -1959,8 +2306,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "2351920676602393766"
+              "version": "0.43.1.21952",
+              "templateHash": "1813198627844114663"
             }
           },
           "parameters": {
@@ -2043,8 +2390,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "2351920676602393766"
+              "version": "0.43.1.21952",
+              "templateHash": "1813198627844114663"
             }
           },
           "parameters": {

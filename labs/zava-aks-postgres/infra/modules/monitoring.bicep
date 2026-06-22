@@ -404,6 +404,118 @@ resource alertProductsSlow 'Microsoft.Insights/scheduledQueryRules@2023-03-15-pr
   }
 }
 
+// Alert: Category-query custom METRIC latency (scheduled-query alert against AppMetrics).
+//
+// This is the first-class *metric* signal for the slow-query incident. The app
+// emits an OTel histogram `zava.products.category.query.duration_ms` (see
+// src/api/logging/logger.js + routes/products.js) which the @azure/monitor-
+// opentelemetry exporter ships to this workspace-based App Insights component's
+// AppMetrics table (Name = the instrument name; the per-request `category`
+// attribute lands in the dynamic Properties column).
+//
+// Why a scheduled-query (KQL-on-AppMetrics) rule and NOT a Microsoft.Insights/
+// metricAlert on a custom metric namespace: for workspace-based App Insights,
+// OTel custom metrics are reliably queryable in AppMetrics but are NOT reliably
+// exposed as a splittable custom metric namespace with the `category` dimension
+// in the metricAlert plane. Reading AppMetrics keeps the dimension and matches
+// the proven alertProductsSlow pattern. This still demonstrates a metric SIGNAL
+// the app itself defines and emits — making "metrics as a first-class signal"
+// demoable — and corroborates the AppRequests log alert + AppDependencies pg-call
+// latency for the same incident.
+//
+// Threshold logic mirrors alertProductsSlow: weighted mean per non-probe
+// category over 5 min, fire when ANY category mean exceeds 30 ms (healthy
+// baseline ~3 ms). `__probe` is excluded so the 1 Hz self-probe baseline alone
+// never fires it. AppMetrics aggregates each export interval into Sum/ItemCount,
+// so the true mean is sum(Sum)/sum(ItemCount).
+resource alertCategoryLatencyMetric 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = {
+  name: 'Zava-category-latency-metric'
+  location: location
+  properties: {
+    severity: 2
+    enabled: true
+    evaluationFrequency: 'PT1M'
+    windowSize: 'PT5M'
+    scopes: [law.id]
+    criteria: {
+      allOf: [
+        {
+          query: '''AppMetrics
+| where AppRoleName == 'zava-api'
+| where Name == 'zava.products.category.query.duration_ms'
+| extend Category = tostring(Properties['category'])
+| where Category != '__probe'
+| summarize AvgDurationMs = sum(Sum) / sum(ItemCount) by Category
+| where AvgDurationMs > 30'''
+          timeAggregation: 'Count'
+          operator: 'GreaterThan'
+          threshold: 0
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    actions: {
+      actionGroups: [actionGroup.id]
+    }
+    autoMitigate: true
+    // Symptom-only by design — do NOT name a suspected index or table here.
+    description: 'Zava Demo: the zava.products.category.query.duration_ms custom metric averaged above 30ms for at least one category over 5 minutes (healthy baseline ~3ms).'
+  }
+}
+
+// Alert: PostgreSQL CPU saturation (platform METRIC alert).
+//
+// Consumes a metric PG Flexible Server already emits (the `AllMetrics`
+// diagnostic category is enabled on pgDiagnostics above), so no app change or
+// break script is needed — it is an additive, proactive/corroborating signal.
+// Scoped directly to the PG server resource with the platform metric namespace,
+// so it is a TRUE Microsoft.Insights/metricAlert (unlike the custom-metric rule
+// above, which has to read AppMetrics). Under the missing-index load run the
+// 120k-row sequential scans drive PG CPU up, so this may co-fire with the
+// slow-query signals and corroborate that the bottleneck is at the database.
+//
+// Named with the `Zava-` prefix (and deliberately WITHOUT the substring
+// `postgres`) so it routes to `zava-app-response`, alongside the other
+// slow-query signals — see the non-overlapping titleContains split in
+// sre-agent.bicep.
+resource alertPgCpuSaturation 'Microsoft.Insights/metricAlerts@2018-03-01' = {
+  name: 'Zava-db-cpu-saturation'
+  location: 'global'
+  properties: {
+    severity: 3
+    enabled: true
+    scopes: [pgServer.id]
+    evaluationFrequency: 'PT1M'
+    windowSize: 'PT5M'
+    criteria: {
+      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+      allOf: [
+        {
+          name: 'pgCpu'
+          metricName: 'cpu_percent'
+          metricNamespace: 'Microsoft.DBforPostgreSQL/flexibleServers'
+          operator: 'GreaterThan'
+          // 80% average over 5 min: the GeneralPurpose D2ds_v5 SKU sits well
+          // below this at the 1 Hz self-probe baseline, so a healthy demo does
+          // not fire, but sustained un-indexed seq scans push it over.
+          threshold: 80
+          timeAggregation: 'Average'
+          criterionType: 'StaticThresholdCriterion'
+        }
+      ]
+    }
+    actions: [
+      { actionGroupId: actionGroup.id }
+    ]
+    autoMitigate: true
+    // Symptom-only by design — do NOT add cause/remediation/scenario hints here.
+    description: 'Zava Demo: PostgreSQL server CPU averaged above 80% over 5 minutes.'
+  }
+}
+
 // Alert: PostgreSQL server stopped (Activity Log — detects az postgres flexible-server stop)
 // Named without "Zava-" prefix so the "postgres" response plan filter matches exclusively
 resource alertPgStopped 'Microsoft.Insights/activityLogAlerts@2023-01-01-preview' = {

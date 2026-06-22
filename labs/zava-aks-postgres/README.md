@@ -22,10 +22,10 @@ azd down --force --purge     # Tear down when done
 |-----------|---------|
 | **App** | Zava Athletic e-commerce storefront (Node.js/Express on AKS) |
 | **Database** | PostgreSQL 16 Flexible Server (Entra-only auth, zero passwords) |
-| **Monitoring** | App Insights + Log Analytics (4-day retention on noisy tables, no daily ingestion cap, 100% sampling; probes filtered at the alert KQL so alerts fire fast) + 8 Azure Monitor alert rules |
+| **Monitoring** | App Insights + Log Analytics (4-day retention on noisy tables, no daily ingestion cap, 100% sampling; probes filtered at the alert KQL so alerts fire fast) + 10 Azure Monitor alert rules. The app emits a **custom OpenTelemetry metric** (`zava.products.category.query.duration_ms` + a `slow_query` counter) so latency regressions surface as a first-class **metric** signal — not just logs/traces — and a PostgreSQL `cpu_percent` metric alert covers DB saturation. |
 | **SRE Agent** | Anthropic-backed agent (Preview channel). Connectors, skills, response plans, and Azure Monitor incident binding declared in `infra/modules/sre-agent.bicep`. Knowledge-file upload via `scripts/setup-sre-agent.ps1` (ARM doesn't surface that yet). Default agent + rich skills, no subagent handoff. |
 | **Telemetry access** | App Insights, Log Analytics, and Azure Monitor exposed via **connectors** |
-| **Demo Scenarios** | 3 break/fix scenarios with scripts |
+| **Demo Scenarios** | 4 break/fix scenarios with scripts |
 
 ## Architecture
 
@@ -35,7 +35,10 @@ azd down --force --purge     # Tear down when done
 │                                                                 │
 │  ┌──────────┐     ┌───────────────────────────┐                 │
 │  │ SRE Agent│◄────│  Azure Monitor Alerts (8) │                 │
-│  └────┬─────┘     └─────────┬─────────────────┘                 │
+│  │ (VNet-   │     └─────────┬─────────────────┘                 │
+│  │  injected│               │     egress → Azure Firewall       │
+│  │  +FW lock│               │     (default-deny allow-list)     │
+│  └────┬─────┘               │                                   │
 │       │                     │                                   │
 │       ▼                     │                                   │
 │  ┌─────────────────────┐    │    ┌────────────────────┐         │
@@ -83,9 +86,22 @@ While the UI shows `agent investigating`, the SRE Agent is actually working the 
 ### Scenario 3: Missing Index
 ```powershell
 .\.github\skills\running-demo\scripts\break-db-perf.ps1  # Drops category/name index → slow queries
-# Agent detects response time degradation via App Insights
+# Two correlated signals fire for one root cause: the custom-metric alert
+# (Zava-category-latency-metric, on zava.products.category.query.duration_ms) AND
+# the log alert (Zava-products-query-slow); PG cpu saturation may co-fire. The agent
+# correlates logs + metrics + traces and applies CREATE INDEX via the in-cluster helper.
 .\.github\skills\running-demo\scripts\fix-db-perf.ps1    # Fallback
 ```
+
+### Scenario 4: Bad Deploy / Rollback
+```powershell
+.\.github\skills\running-demo\scripts\break-bad-deploy.ps1  # kubectl set env FAULT_INJECT=500 → new rollout, GET /api/products returns 500
+# Existing Zava-http-5xx-errors alert fires; agent correlates the 5xx spike with the recent
+# rollout (kubectl rollout history / KubeEvents) and rolls back to the previous good revision.
+.\.github\skills\running-demo\scripts\fix-bad-deploy.ps1    # Fallback: kubectl rollout undo
+```
+Liveness (`/livez`) and readiness (`/api/health`) stay green, so the platform looks healthy while
+only the app route regresses — deployment-signal correlation is what ties the symptom to its cause.
 
 ## SRE Agent Management
 
@@ -100,14 +116,18 @@ Drop new `*.md` files into `sre-config/knowledge-base/` and re-run the script to
 
 ## How the Agent Operates Against a Private Backend
 
-### Design constraint: no VNet injection, no direct AKS/PG access
+### Network posture: VNet-injected, egress locked down behind an Azure Firewall
 
-This sample is built to a deliberate constraint: **the agent works entirely through the Azure control plane (ARM), with no VNet injection and no direct network reachability to AKS or PostgreSQL.** It runs in a Microsoft-managed network and never sees the app VNet. The point is portability — this pattern works in fully locked-down customer environments where opening the VNet to a managed agent isn't on the table.
+The agent is **injected into the workload VNet** (a delegated `agent-subnet`) and its sandbox egress is **locked down behind an Azure Firewall** — default-deny, with an allow-list of exactly what it needs (ARM, Entra, Microsoft Graph, Azure Monitor, and Microsoft Learn). Because it sits **inside** the VNet, it works the private AKS API server and private PostgreSQL with its **own managed identity** — native kubectl for the cluster, and SQL through an in-cluster helper — while ARM and Azure Monitor go over the control plane. The firewall permits exactly those endpoints and nothing else gets out. The point is a fully locked-down, in-VNet agent: it sits inside the customer network boundary yet its blast radius is constrained to the Azure endpoints on the allow-list and its least-privilege identity grants.
 
-One consequence is worth calling out, because it shapes Scenario 3's remediation: **DDL like `CREATE INDEX` is data-plane only.** No managed PG service (Azure PG Flex, RDS, Cloud SQL) exposes catalog mutation through its cloud control plane — `az postgres flexible-server execute` and friends are just libpq clients embedded in the CLI and need network reachability. So the agent runs DDL by tunneling through a workload that's already in the VNet — the api pod:
+> **What "VNet-injected" means here:** the agent's sandbox has **L7 HTTP(S) egress to allow-listed destinations, not raw L3/L4 network access**. It makes HTTPS calls to the allow-listed endpoints (ARM, Entra, Azure Monitor, Microsoft Learn, and any registry added via `allowedRegistries`); it does not open raw TCP/UDP sockets to private VNet IPs. Anything that needs a direct private connection — a database or other non-HTTP service — runs from a workload with a real VNet NIC (an in-cluster pod via `kubectl exec`). `kubectl` and `az` operate over the Kubernetes and ARM **control planes** (HTTP), so they work from the sandbox directly. Egress allow/deny decisions are visible in the SRE Agent UI under **Workspace Configuration → Inspect → Network audit** (Preview).
+
+> **Scope:** the firewall + forced-tunnel route govern the **agent sandbox's internet egress** (the `agent-subnet` only). They do not restrict private intra-VNet traffic, the AKS subnet's own egress, or what the agent can make AKS do via its Cluster Admin RBAC — those are governed by Kubernetes RBAC and the agent's action boundary, not this firewall.
+
+One consequence is worth calling out, because it shapes Scenario 3's remediation: **DDL like `CREATE INDEX` is data-plane only.** No managed PG service (Azure PG Flex, RDS, Cloud SQL) exposes catalog mutation through its cloud control plane. The agent reads `pg_stat_*` to diagnose the missing index and applies the DDL the same way — by running the in-cluster helper from a workload that's already in the VNet (the api pod) through its native kubectl tool:
 
 ```
-az aks command invoke … kubectl exec deploy/zava-api -- node bin/run-sql.js "<SQL>"
+RunKubectlWriteCommand → kubectl exec deploy/zava-api -n zava-demo -- node bin/run-sql.js "<SQL>"
 ```
 
 `bin/run-sql.js` is ~30 lines: a `pg`-client wrapper that reuses the pod's existing workload identity (already a PG Entra admin). No new endpoint, no new identity, no temporary network opening — just reuses an existing trust path.
@@ -115,19 +135,27 @@ az aks command invoke … kubectl exec deploy/zava-api -- node bin/run-sql.js "<
 | Component | Endpoint | How the agent works on it |
 |---|---|---|
 | Storefront / nginx ingress | Public LoadBalancer IP | HTTP from anywhere |
-| AKS API server | **Private** (system-managed private DNS zone) | `az aks command invoke` (Azure proxies the command through the AKS control plane; both agent identities hold *Cluster Admin* RBAC) |
-| Pods, services, node IPs | Private (VNet only) | `az aks command invoke … kubectl <verb>` (`get`, `logs`, `describe`, `delete`, `apply`, `exec`, `rollout`) |
-| PostgreSQL Flex (port 5432) | **Private only** — `publicNetworkAccess: Disabled`, VNet-delegated | `az postgres flexible-server` (state/config) and `az aks command invoke … kubectl exec deploy/zava-api -- node bin/run-sql.js "<SQL>"` (in-cluster SQL through an app pod's identity — the image ships `bin/run-sql.js`, not `psql`) |
+| AKS API server | **Private** (system-managed private DNS zone) | Native kubectl (`RunKubectlReadCommand` / `RunKubectlWriteCommand`) authenticated by the agent's Entra identity (*Cluster Admin* RBAC) |
+| Pods, services, node IPs | Private (VNet only) | Native `kubectl <verb>` (`get`, `logs`, `describe`, `delete`, `apply`, `exec`, `rollout`) |
+| PostgreSQL Flex (port 5432) | **Private only** — `publicNetworkAccess: Disabled`, VNet-delegated | State/config: `az postgres flexible-server`. SQL (reads + DDL): `kubectl exec deploy/zava-api -- node bin/run-sql.js "<SQL>"` via **native kubectl** (the in-cluster helper reuses the pod's PG Entra identity) |
 
-### What the agent can do via the control plane (no VNet injection required)
+### What the agent can do (from inside the locked-down VNet)
 
 | Plane | Read | Write / remediate |
 |---|---|---|
 | **AKS control plane** | `az aks show / nodepool list / get-upgrades` | `az aks start / stop / update / nodepool scale / rotate-certs` |
-| **AKS in-cluster proxy** (`az aks command invoke`) | `kubectl get …`, `kubectl logs`, `kubectl describe` | `kubectl delete networkpolicy …` (Scenario 2), `kubectl rollout restart …`, `kubectl exec deploy/zava-api -- node bin/run-sql.js "CREATE INDEX …"` (Scenario 3) |
-| **PostgreSQL control plane** | `az postgres flexible-server show / parameter list / backup list / server-logs list / replica list` | `az postgres flexible-server start` (**Scenario 1**), `restart`, `update`, `parameter set`, `replica create`, `restore`, `ad-admin create` |
+| **Kubernetes (native kubectl)** | `RunKubectlReadCommand` — `kubectl get …`, `logs`, `describe` | `RunKubectlWriteCommand` — `kubectl delete networkpolicy …` (Scenario 2), `kubectl rollout restart …`, `kubectl exec deploy/zava-api -- node bin/run-sql.js "CREATE INDEX …"` (Scenario 3) |
+| **PostgreSQL** | Control: `az postgres flexible-server show / parameter list / backup list / server-logs list / replica list`. Data (reads + DDL): `kubectl exec … bin/run-sql.js` via native kubectl | `az postgres flexible-server start` (**Scenario 1**), `restart`, `update`, `parameter set`, `replica create`, `restore`, `ad-admin create` |
 | **Networking** | `az network nsg / vnet / private-dns show` | `az network nsg rule create / delete` (Scenario 2 cleanup) |
 | **Telemetry** | App Insights, Log Analytics, and Azure Monitor connectors (KQL + metrics) — API-based, no network reachability needed | Alert / action group create / update |
+
+### Running PostgreSQL SQL
+
+SQL — reads (`pg_stat_*`) and read-mostly DDL like `CREATE INDEX CONCURRENTLY` and `ANALYZE` — runs through the in-cluster `bin/run-sql.js` helper in the application pod, which reuses the pod's PostgreSQL Entra identity:
+
+```
+kubectl exec deploy/zava-api -n zava-demo -- node bin/run-sql.js "<SQL>"
+```
 
 ### Practical limits
 
@@ -164,7 +192,7 @@ mergeWindowHours: 0
 - [Azure Developer CLI (azd)](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) (1.9+)
 - [PowerShell 7.4+](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) — **required on Windows, WSL, Linux, or macOS**; `azd up` runs a pre-provision check and fast-fails if `pwsh` is missing
 
-> **Note:** `kubectl` is **not** required on your local workstation. The AKS cluster is private; operator in-cluster operations in this repo go through `az aks command invoke` (wrapped by `Invoke-AksCommand` in `scripts/_aks-helpers.ps1`), and the SRE Agent reaches the cluster the same way via its `az` CLI tools (Azure RBAC Cluster Admin granted in Bicep).
+> **Note:** `kubectl` is **not** required on your local workstation. The AKS cluster is private; operator in-cluster operations in this repo go through `az aks command invoke` (wrapped by `Invoke-AksCommand` in `scripts/_aks-helpers.ps1`). The SRE Agent, by contrast, is VNet-injected and uses its own **native kubectl tools** (Entra / managed-identity auth) — see "How the Agent Operates Against a Private Backend" above.
 
 > **Region default:** `azd up` will prompt for a location. The Bicep default is `swedencentral` (validated end-to-end there). To deploy elsewhere, pick another region at the prompt or run `azd env set AZURE_LOCATION <region>` before `azd up`. Any region with availability for AKS, PostgreSQL Flexible Server, and the SRE Agent resource provider works.
 

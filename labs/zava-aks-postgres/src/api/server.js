@@ -32,6 +32,27 @@ app.use((req, res, next) => {
   next();
 });
 
+// Fault-injection toggle (Scenario 4 — Bad Deploy / Rollback). Default OFF.
+// When FAULT_INJECT=500, the product listing route (GET /api/products) returns
+// HTTP 500, simulating a regression shipped by a bad config rollout. The 1 Hz
+// self-probe already hits /api/products, so this produces a steady 5xx spike
+// that the existing Zava-http-5xx-errors metric alert detects — no external
+// load generator needed. The bad "deploy" is applied with `kubectl set env`,
+// which creates a new ReplicaSet revision: that rollout IS the deployment
+// signal the agent correlates the regression against and rolls back with
+// `kubectl rollout undo`.
+// Scoped deliberately to the EXACT /api/products path so liveness (/livez),
+// readiness (/api/health), and the synthetic __probe category path are
+// untouched — pods stay Running and only the app route regresses.
+// Unset/empty => behavior is unchanged (normal deploys are unaffected).
+const FAULT_INJECT = process.env.FAULT_INJECT || '';
+if (FAULT_INJECT === '500') {
+  log('warn', 'FAULT_INJECT=500 active — GET /api/products will return HTTP 500');
+  app.get('/api/products', (req, res) => {
+    res.status(500).json({ error: 'Internal server error' });
+  });
+}
+
 // Routes
 app.use('/api/products', require('./routes/products'));
 app.use('/api/orders', require('./routes/orders'));

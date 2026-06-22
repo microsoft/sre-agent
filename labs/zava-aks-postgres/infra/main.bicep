@@ -101,6 +101,7 @@ module sreAgent 'modules/sre-agent.bicep' = {
     logAnalyticsId: monitoring.outputs.logAnalyticsWorkspaceId
     managedResourceGroupId: rg.id
     aksClusterName: aks.outputs.clusterName
+    agentSubnetId: vnet.outputs.agentSubnetId
   }
 }
 
