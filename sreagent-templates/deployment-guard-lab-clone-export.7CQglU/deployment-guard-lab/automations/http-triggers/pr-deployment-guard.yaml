@@ -1,7 +1,0 @@
-name: pr-deployment-guard
-spec:
-  description: Receives PR webhooks from GitHub and triggers the deployment guard
-    to analyze changes for production safety.
-  prompt: ''
-  handlingAgent: ''
-  agentMode: autonomous

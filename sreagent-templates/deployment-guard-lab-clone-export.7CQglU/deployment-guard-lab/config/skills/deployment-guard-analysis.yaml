@@ -1,9 +1,0 @@
-metadata:
-  name: deployment-guard-analysis
-  description: Deployment guard that assesses PR safety for production by analyzing
-    diffs, capturing baselines, deploying to staging, running canary tests, validating
-    response correctness, and comparing health metrics.
-  spec:
-    tools: []
-skillContent: skills/deployment-guard-analysis.md
-additionalFiles: []
