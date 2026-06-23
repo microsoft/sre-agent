@@ -1,0 +1,68 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgentTool
+metadata:
+  name: UploadServiceNowAttachment
+spec:
+  type: PythonTool
+  connector: ''
+  toolMode: Auto
+  description: |-
+    Attach a text document (e.g. a root-cause analysis / RCA report) to an existing ServiceNow record
+    such as a Change Request. Provide the target table (default change_request), the record sys_id, a
+    file name, and the text content. Returns the attachment sys_id.
+  functionCode: |-
+    import requests
+
+    # Injected at apply time from gitignored sre-config/.env (the PythonTool sandbox cannot read
+    # env vars, so credentials must be literal here). Committed source keeps @@...@@ placeholders.
+    SERVICENOW_URL = "@@SERVICENOW_URL@@"
+    SERVICENOW_USER = "@@SERVICENOW_USER@@"
+    SERVICENOW_PASS = "@@SERVICENOW_PASS@@"
+
+    def main(table_sys_id: str, file_name: str, content: str, table_name: str = "change_request", content_type: str = "text/plain") -> dict:
+        if not (SERVICENOW_URL and SERVICENOW_USER and SERVICENOW_PASS):
+            return {"success": False, "error": "ServiceNow credentials not configured (SERVICENOW_URL/USER/PASS)."}
+        try:
+            response = requests.post(
+                f"{SERVICENOW_URL}/api/now/attachment/file",
+                auth=(SERVICENOW_USER, SERVICENOW_PASS),
+                headers={"Content-Type": content_type, "Accept": "application/json"},
+                params={"table_name": table_name, "table_sys_id": table_sys_id, "file_name": file_name},
+                data=content.encode("utf-8"),
+                timeout=30
+            )
+            response.raise_for_status()
+            result = response.json().get("result", {})
+            return {
+                "success": True,
+                "attachment_sys_id": result.get("sys_id", ""),
+                "file_name": result.get("file_name", file_name),
+                "message": f"Attachment {result.get('file_name', file_name)} uploaded successfully"
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+  timeoutSeconds: 240
+  dependencies:
+  - requests
+  authScopes:
+  parameters:
+  - name: table_sys_id
+    type: string
+    description: "string:sys_id of the record to attach to (e.g. the Change Request sys_id)"
+    required: true
+  - name: file_name
+    type: string
+    description: "string:Attachment file name (e.g. 'rca-quiz-launch-failing.md')"
+    required: true
+  - name: content
+    type: string
+    description: "string:The text content of the attachment (e.g. the RCA report)"
+    required: true
+  - name: table_name
+    type: string
+    description: "string:ServiceNow table the record lives in (default: change_request)"
+    required: false
+  - name: content_type
+    type: string
+    description: "string:MIME type of the attachment (default: text/plain)"
+    required: false

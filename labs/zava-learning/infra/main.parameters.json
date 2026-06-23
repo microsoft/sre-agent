@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": { "value": "${AZURE_ENV_NAME}" },
+    "location": { "value": "${AZURE_LOCATION}" },
+    "dbLocation": { "value": "westus3" },
+    "pagerDutyWebhookUrl": { "value": "${PAGERDUTY_WEBHOOK_URL}" },
+
+    "injectLegacyDeny": { "value": false },
+    "portalHealthProbePath": { "value": "/health" },
+    "assessmentMinReplicas": { "value": 1 },
+    "assessmentMaxReplicas": { "value": 3 },
+
+    "injectLegacyDenyNsgLane": { "value": false },
+    "seedAuditFindings": { "value": true },
+    "appgwLaneProbePath": { "value": "/health" },
+    "appLaneMinReplicas": { "value": 1 },
+    "appLaneMaxReplicas": { "value": 3 },
+
+    "dbAdminPassword": { "value": "${POSTGRES_ADMIN_PASSWORD}" },
+    "dbPoolPassword": { "value": "${POSTGRES_POOL_PASSWORD}" },
+    "vmAdminPassword": { "value": "${VM_ADMIN_PASSWORD}" },
+    "deployerIp": { "value": "${DEPLOYER_IP}" }
+  }
+}

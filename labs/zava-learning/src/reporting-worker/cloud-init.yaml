@@ -1,0 +1,67 @@
+#cloud-config
+# Zava Learning reporting-worker VM.
+# Runs a "nightly grade export" job on a 1-minute demo cadence: it writes a grade-export
+# file to the data disk (/data/exports), prunes old exports, and logs a heartbeat to syslog
+# (tag: zava-export). When the data disk fills up the export write fails and the worker logs
+# a symptom-only failure line that the Azure Monitor alert pages on. The raw "No space left
+# on device" error is also logged so the SRE Agent can diagnose disk pressure.
+disk_setup:
+  /dev/disk/azure/data/by-lun/0:
+    table_type: gpt
+    layout: true
+    overwrite: true
+fs_setup:
+  - device: /dev/disk/azure/data/by-lun/0
+    partition: 1
+    filesystem: ext4
+mounts:
+  - [ "/dev/disk/azure/data/by-lun/0-part1", "/data", "ext4", "defaults,nofail", "0", "2" ]
+write_files:
+  - path: /opt/zava/export-worker.sh
+    permissions: "0755"
+    content: |
+      #!/bin/bash
+      # One "nightly grade export" cycle. Writes a small export file to the data disk, keeps
+      # only the most recent few, and logs a heartbeat to syslog. On a full disk the write
+      # fails: we log a symptom-only failure plus the raw OS error for diagnosis.
+      set -u
+      EXPORT_DIR=/data/exports
+      mkdir -p "$EXPORT_DIR" 2>/dev/null
+      TS=$(date +%Y%m%d-%H%M%S)
+      OUT="$EXPORT_DIR/grades-$TS.csv"
+      ERRFILE=$(mktemp)
+      if head -c 5M /dev/urandom > "$OUT" 2>"$ERRFILE"; then
+        # Keep only the 5 most recent exports so the disk stays healthy in normal operation.
+        ls -1t "$EXPORT_DIR"/grades-*.csv 2>/dev/null | tail -n +6 | xargs -r rm -f
+        logger -t zava-export "nightly grade export completed: $(basename "$OUT")"
+      else
+        ERR=$(cat "$ERRFILE")
+        logger -t zava-export "nightly grade export job FAILED"
+        logger -t zava-export "export write error: ${ERR}"
+        rm -f "$OUT" 2>/dev/null
+      fi
+      rm -f "$ERRFILE" 2>/dev/null
+  - path: /etc/systemd/system/zava-export.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Zava Learning nightly grade-export worker
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/zava/export-worker.sh
+  - path: /etc/systemd/system/zava-export.timer
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Run the Zava grade-export worker on a 1-minute demo cadence
+      [Timer]
+      OnBootSec=60
+      OnUnitActiveSec=60
+      AccuracySec=5s
+      [Install]
+      WantedBy=timers.target
+runcmd:
+  - [ bash, -c, "mkdir -p /data/exports" ]
+  - [ systemctl, daemon-reload ]
+  - [ systemctl, enable, --now, zava-export.timer ]
+  - [ bash, -c, "logger -t zava-export 'reporting-worker provisioned and timer enabled'" ]

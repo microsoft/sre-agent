@@ -1,0 +1,30 @@
+{
+  "_comment": "Incident-response routing filter applied via the Azure MCP SRE tools. Symptom-keyed: all student-facing Zava alerts route to the custom zava-incident-responder agent, which scopes the skill menu (allowedSkills + system skills) and prescribes the ordered runbook (triage -> mitigate -> RCA -> evidence -> recommendations -> PR -> Change Request -> report) via its instructions and critic-on-handoff gate. Cause-level split (NSG vs LB vs AppGW vs app) happens inside the runbook from telemetry, never by alert name. @@INCIDENT_PLATFORM@@ is substituted (PagerDuty | AzMonitor) by scripts/configure-agent.ps1.",
+  "name": "zava-learning-response",
+  "filter": {
+    "incidentPlatform": "@@INCIDENT_PLATFORM@@",
+    "impactedService": "",
+    "priorities": [ "Sev0", "Sev1", "Sev2", "Sev3", "Sev4" ],
+    "incidentType": "",
+    "alertId": "",
+    "titleContains": "Zava",
+    "titleContainsAll": [],
+    "titleContainsAny": [],
+    "titleNotContains": [],
+    "agentMode": "autonomous",
+    "handlingAgent": "zava-incident-responder",
+    "handlingAgents": null,
+    "owningTeamId": "",
+    "owningTeamIds": [],
+    "maxAutomatedInvestigationAttempts": 3,
+    "deepInvestigationEnabled": false,
+    "mergeEnabled": true,
+    "mergeWindowHours": 3,
+    "isEnabled": true,
+    "icmFilterSettings": null,
+    "azMonitorFilterSettings": {
+      "targetResourceType": "",
+      "targetResource": ""
+    }
+  }
+}

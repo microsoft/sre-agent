@@ -1,0 +1,17 @@
+apiVersion: azuresre.ai/v1
+kind: ScheduledTask
+metadata:
+  name: zava-nsg-weekly-audit
+  owner: zava-sre
+spec:
+  name: zava-nsg-weekly-audit
+  description: Weekly read-only Network Security Group / network-exposure audit of the Zava Learning resource group, delivered as a branded PowerPoint deck.
+  cron_expression: "0 8 * * 1"
+  agent: zava-nsg-auditor
+  agent_prompt: |-
+    Run the weekly Network Security Group audit for the Zava Learning resource group.
+    Enumerate every NSG and its rules, assess inbound/outbound exposure, flag overly-permissive,
+    shadowed, or legacy rules with an impact-based severity, and distinguish the intended public lane
+    exposure (Application Gateway ports 8081-8087) from genuinely risky exposure. Then produce the
+    single branded, downloadable PowerPoint deck via the zava-audit-report skill and post a short
+    posture summary with the deck's download link. This is read-only — recommend, never change.

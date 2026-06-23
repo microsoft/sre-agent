@@ -1,0 +1,81 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgentTool
+metadata:
+  name: CreateServiceNowChangeRequest
+spec:
+  type: PythonTool
+  connector: ''
+  toolMode: Auto
+  description: |-
+    Create a ServiceNow Change Request to track a remediation (e.g. an Infrastructure-as-Code or
+    application code change identified during an investigation). Returns the change number
+    (e.g. CHG0030042), the sys_id, and a ready-to-use clickable portal `link` for that CR — always
+    surface the CR as `[<number>](<link>)`, never the bare number. Reference the GitHub PR in the
+    description and set the change type (normal/standard/emergency).
+  functionCode: |-
+    import requests
+
+    # Injected at apply time from gitignored sre-config/.env (the PythonTool sandbox cannot read
+    # env vars, so credentials must be literal here). Committed source keeps @@...@@ placeholders.
+    SERVICENOW_URL = "@@SERVICENOW_URL@@"
+    SERVICENOW_USER = "@@SERVICENOW_USER@@"
+    SERVICENOW_PASS = "@@SERVICENOW_PASS@@"
+
+    def main(short_description: str, description: str, change_type: str = "normal", implementation_plan: str = "", risk: str = "moderate") -> dict:
+        if not (SERVICENOW_URL and SERVICENOW_USER and SERVICENOW_PASS):
+            return {"success": False, "error": "ServiceNow credentials not configured (SERVICENOW_URL/USER/PASS)."}
+        try:
+            response = requests.post(
+                f"{SERVICENOW_URL}/api/now/table/change_request",
+                auth=(SERVICENOW_USER, SERVICENOW_PASS),
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                json={
+                    "short_description": short_description,
+                    "description": description,
+                    "type": change_type,
+                    "implementation_plan": implementation_plan,
+                    "risk": risk,
+                    "category": "Software",
+                    "work_notes": "Change Request auto-created by Azure SRE Agent during automated remediation."
+                },
+                timeout=20
+            )
+            response.raise_for_status()
+            result = response.json().get("result", {})
+            sys_id = result.get("sys_id", "")
+            link = f"{SERVICENOW_URL}/nav_to.do?uri=change_request.do?sys_id={sys_id}" if sys_id else ""
+            return {
+                "success": True,
+                "number": result.get("number", ""),
+                "sys_id": sys_id,
+                "state": result.get("state", ""),
+                "link": link,
+                "message": f"Change Request {result.get('number')} created successfully. Clickable link: {link}"
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+  timeoutSeconds: 240
+  dependencies:
+  - requests
+  authScopes:
+  parameters:
+  - name: short_description
+    type: string
+    description: "string:Brief summary of the change (e.g. 'Remove legacy NSG deny rule blocking quiz traffic')"
+    required: true
+  - name: description
+    type: string
+    description: "string:Detailed change description including the RCA and the GitHub PR URL"
+    required: true
+  - name: change_type
+    type: string
+    description: "string:Change type: normal, standard, or emergency (default: normal)"
+    required: false
+  - name: implementation_plan
+    type: string
+    description: "string:How the change is applied and validated"
+    required: false
+  - name: risk
+    type: string
+    description: "string:Risk level: low, moderate, high (default: moderate)"
+    required: false

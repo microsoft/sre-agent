@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+name: zava-learning
+metadata:
+  template: zava-learning@1.0.0
+infra:
+  provider: bicep
+  path: infra
+  module: main
+services:
+  learner-portal:
+    project: ./src/learner-portal
+    language: js
+    host: containerapp
+    docker:
+      path: ./Dockerfile
+  course-api:
+    project: ./src/course-api
+    language: js
+    host: containerapp
+    docker:
+      path: ./Dockerfile
+  assessment-api:
+    project: ./src/assessment-api
+    language: js
+    host: containerapp
+    docker:
+      path: ./Dockerfile
