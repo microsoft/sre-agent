@@ -1,0 +1,17 @@
+apiVersion: azuresre.ai/v1
+kind: ScheduledTask
+metadata:
+  name: zava-rbac-weekly-audit
+  owner: zava-sre
+spec:
+  name: zava-rbac-weekly-audit
+  description: Weekly read-only RBAC / least-privilege audit of the Zava Learning resource group, delivered as a branded PowerPoint deck.
+  cron_expression: "0 8 * * 2"
+  agent: zava-rbac-auditor
+  agent_prompt: |-
+    Run the weekly RBAC / least-privilege audit for the Zava Learning resource group.
+    Enumerate role assignments at the resource-group scope, flag over-privileged, directly-assigned
+    (vs. group-governed), guest, or stale principals with an impact-based severity, and recommend
+    least-privilege corrections. Then produce the single branded, downloadable PowerPoint deck via the
+    zava-audit-report skill and post a short posture summary with the deck's download link. This is
+    read-only — recommend, never change a role assignment.

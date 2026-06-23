@@ -1,0 +1,42 @@
+{
+  "_comment": "Data connectors applied to the SRE Agent via the Azure MCP SRE tools. Placeholders @@APP_INSIGHTS_ID@@ / @@APP_INSIGHTS_NAME@@ / @@LOG_ANALYTICS_ID@@ / @@LOG_ANALYTICS_NAME@@ are substituted by scripts/configure-agent.ps1 from the lab resource group.",
+  "connectors": [
+    {
+      "name": "app-insights",
+      "dataConnectorType": "AppInsights",
+      "dataSource": "@@APP_INSIGHTS_ID@@",
+      "extendedProperties": {
+        "armResourceId": "@@APP_INSIGHTS_ID@@",
+        "resource": { "name": "@@APP_INSIGHTS_NAME@@" }
+      },
+      "identity": "system"
+    },
+    {
+      "name": "log-analytics",
+      "dataConnectorType": "LogAnalytics",
+      "dataSource": "@@LOG_ANALYTICS_ID@@",
+      "extendedProperties": {
+        "armResourceId": "@@LOG_ANALYTICS_ID@@",
+        "resource": { "name": "@@LOG_ANALYTICS_NAME@@" }
+      },
+      "identity": "system"
+    },
+    {
+      "name": "azure-monitor",
+      "dataConnectorType": "MonitorClient",
+      "dataSource": "n/a",
+      "identity": "system"
+    },
+    {
+      "name": "microsoft-learn",
+      "dataConnectorType": "Mcp",
+      "dataSource": "zava-learning-microsoft-learn-mcp",
+      "extendedProperties": {
+        "type": "http",
+        "endpoint": "https://learn.microsoft.com/api/mcp",
+        "authType": "CustomHeaders"
+      },
+      "identity": ""
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+# Secrets / local env (never commit). .env.sample IS tracked.
+.env
+**/.env
+!**/.env.sample
+
+# Generated locally by post-provision (may contain endpoint + secrets)
+simulator/config.json
+
+# Python
+__pycache__/
+*.pyc
+
+# Compiled Bicep
+infra/**/*.json
+!infra/main.parameters.json
+
+# azd
+.azure/
+
+# Node
+node_modules/
+
+# Office lock/temp files
+~$*
+simulator/logs/

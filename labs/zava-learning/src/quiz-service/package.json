@@ -1,0 +1,14 @@
+{
+  "name": "zava-quiz-service",
+  "version": "1.0.0",
+  "description": "Zava Learning - DB-backed quiz service (breakable lane surface)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "applicationinsights": "^2.9.8",
+    "express": "^4.19.2",
+    "pg": "^8.12.0"
+  }
+}

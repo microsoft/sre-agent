@@ -1,0 +1,18 @@
+apiVersion: azuresre.ai/v1
+kind: ScheduledTask
+metadata:
+  name: zava-cost-weekly-analysis
+  owner: zava-sre
+spec:
+  name: zava-cost-weekly-analysis
+  description: Weekly read-only cloud-cost analysis of the Zava Learning resource group, delivered as a branded PowerPoint deck.
+  cron_expression: "0 8 * * 3"
+  agent: zava-cost-analyst
+  agent_prompt: |-
+    Run the weekly cloud-cost analysis for the Zava Learning resource group.
+    Pull this-week vs. last-week spend per resource (Cost Management, falling back to consumption or a
+    clearly-labelled inventory estimate — record which source you used), identify the top cost drivers,
+    week-over-week trend, and idle/oversized/orphaned resources, each with an impact-based severity and
+    a concrete savings recommendation. Then produce the single branded, downloadable PowerPoint deck
+    via the zava-audit-report skill and post a short posture summary with the deck's download link.
+    This is read-only — recommend, never resize or delete anything.
