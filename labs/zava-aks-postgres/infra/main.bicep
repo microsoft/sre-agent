@@ -12,6 +12,17 @@ param uniqueSuffix string = take(uniqueString(subscription().subscriptionId, res
 @description('AZD environment name (auto-injected from AZURE_ENV_NAME by main.bicepparam). Used only to derive a short distinguishing suffix on the SRE Agent name so that fresh `azd env new` demos get fresh agents (and therefore fresh data-plane thread state). Other resources keep using uniqueSuffix only, so they remain idempotent across incremental `azd up` runs on the same env.')
 param environmentName string = ''
 
+@description('''Lock the SRE Agent down to PRIVATE-ONLY Azure Monitor (maximum restraint).
+When true (default): the agent\'s Monitor private-DNS zones are linked to the agent VNet AND the
+public `AzureMonitor` service tag is removed from the firewall L4 allow-list, so the agent reaches
+Log Analytics / Application Insights only via the AMPLS private endpoint over the hub/spoke.
+
+The agent remains fully functional under this lockdown: it queries Log Analytics / Application
+Insights and remediates incidents end-to-end over the private path. (The agent\'s Monitor query
+connector is platform-brokered, so dropping the public `AzureMonitor` tag from the agent-VNet
+firewall does not gate it.) Set false to keep the public allow-listed Monitor path instead.''')
+param lockAgentToPrivateMonitor bool = true
+
 // 4-char hash of the env name appended to the SRE Agent name. Empty when
 // environmentName is blank (e.g. raw `az deployment sub create`), preserving
 // the legacy `sre-agent-${uniqueSuffix}` shape for that path.
@@ -28,6 +39,7 @@ module vnet 'modules/vnet.bicep' = {
   params: {
     location: location
     uniqueSuffix: uniqueSuffix
+    lockAgentToPrivateMonitor: lockAgentToPrivateMonitor
   }
 }
 
@@ -105,6 +117,41 @@ module sreAgent 'modules/sre-agent.bicep' = {
   }
 }
 
+// Azure Monitor Private Link Scope (AMPLS) — the private ingress/egress path for
+// Azure Monitor. The agent is locked to the private path by default
+// (lockAgentToPrivateMonitor); the platform/workload spoke stays on the public
+// allow-listed path unless linkWorkloadVnetsToPrivateMonitor is also set true
+// (off by default — linking it risks NXDOMAIN on the app's regional App Insights
+// ingestion host; a documented private-link DNS pitfall, not validated here). See
+// the module header.
+module monitorPrivateLink 'modules/monitor-private-link.bicep' = {
+  scope: rg
+  name: 'monitor-private-link'
+  params: {
+    location: location
+    uniqueSuffix: uniqueSuffix
+    logAnalyticsWorkspaceResourceId: monitoring.outputs.logAnalyticsWorkspaceId
+    appInsightsResourceId: monitoring.outputs.appInsightsResourceId
+    peSubnetId: vnet.outputs.peSubnetId
+    hubVnetId: vnet.outputs.hubVnetId
+    platformVnetId: vnet.outputs.platformVnetId
+    agentVnetId: vnet.outputs.agentVnetId
+    lockAgentToPrivateMonitor: lockAgentToPrivateMonitor
+  }
+}
+
+// Firewall diagnostic logs → Log Analytics (AZFW* tables). Lets the SRE Agent
+// interrogate the hub firewall — the demo's "network device" — the INDIRECT way
+// (querying what it observed), complementing the DIRECT ARM reads of its policy.
+module firewallDiagnostics 'modules/firewall-diagnostics.bicep' = {
+  scope: rg
+  name: 'firewall-diagnostics'
+  params: {
+    firewallName: vnet.outputs.firewallName
+    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
+  }
+}
+
 // PostgreSQL Entra admin grants for the three managed identities — the SRE
 // Agent UMI, the SRE Agent SMI (system-assigned, only known after the agent
 // resource exists), and the app workload identity. Done in Bicep so the deploy
@@ -171,6 +218,9 @@ output APPINSIGHTS_CONNECTION_STRING string = monitoring.outputs.appInsightsConn
 output APPINSIGHTS_RESOURCE_ID string = monitoring.outputs.appInsightsResourceId
 output VNET_NAME string = vnet.outputs.vnetName
 output NSG_NAME string = vnet.outputs.nsgName
+output HUB_VNET_NAME string = vnet.outputs.hubVnetName
+output FIREWALL_NAME string = vnet.outputs.firewallName
+output AMPLS_NAME string = monitorPrivateLink.outputs.amplsName
 output SRE_AGENT_NAME string = sreAgent.outputs.agentName
 output SRE_AGENT_ENDPOINT string = sreAgent.outputs.agentEndpoint
 output AGENT_PORTAL_URL string = sreAgent.outputs.agentPortalUrl

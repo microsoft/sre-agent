@@ -12,6 +12,11 @@
     What stays in this script is the residual data-plane work that ARM does
     not yet expose:
       - Knowledge file upload (Builder UI > Knowledge sources)
+      - Global tool enablement: turn the Microsoft Learn MCP tools ON for every
+        agent loop. MCP connector tools ship `defaultMode: disabled` (skill-gated),
+        and there is NO ARM/Bicep property for per-tool state (the agent's
+        `permissions` stays null) — Microsoft's own `srectl tool config set` CLI
+        exists for exactly this (POST /api/v2/agent/tools/configure).
       - Verification of Bicep-deployed assets
 .EXAMPLE
     .\scripts\setup-sre-agent.ps1
@@ -180,6 +185,60 @@ try {
 
 Write-Host ("  Summary: {0} uploaded, {1} replaced, {2} skipped, {3} failed (of {4} local files)" -f $uploaded, $replaced, $skipped, $failed, $kbLocalFiles.Count) -ForegroundColor Yellow
 
+# --- Step 2b: Enable Microsoft Learn MCP tools globally (data-plane only) ----
+# MCP connector tools ship `defaultMode: disabled` — they are skill-gated, i.e.
+# only surface when an incident skill that lists them is active. To make the
+# Microsoft Learn docs tools part of the GLOBAL tool roster (available to every
+# agent loop, like the system MCP tools), they must be explicitly enabled.
+# There is no ARM/Bicep property for per-tool enablement (the agent resource's
+# `permissions` stays null); Microsoft added the `srectl tool config set` CLI for
+# exactly this. The underlying call is POST /api/v2/agent/tools/configure with
+# merge semantics: { overrides: [{ name, enabled }] }.
+#
+# The tools only appear in the catalog AFTER the microsoft-learn MCP connector
+# completes its first tools/list handshake (which needs the GitHub-raw firewall
+# allow in vnet.bicep + a warm connection), so we poll for them before enabling.
+Write-Host "`nStep 2b: Enabling Microsoft Learn MCP tools globally..." -ForegroundColor Yellow
+$learnTools = @(
+    'microsoft-learn_microsoft_docs_search',
+    'microsoft-learn_microsoft_code_sample_search',
+    'microsoft-learn_microsoft_docs_fetch'
+)
+$catalog = @(); $present = @()
+$toolDeadline = (Get-Date).AddMinutes(3)
+do {
+    try {
+        $tr = $client.GetAsync("$agentEndpoint/api/v2/agent/tools").Result
+        if ($tr.IsSuccessStatusCode) { $catalog = @(($tr.Content.ReadAsStringAsync().Result | ConvertFrom-Json).data) }
+    } catch {}
+    $present = @($learnTools | Where-Object { $_ -in $catalog.name })
+    if ($present.Count -eq $learnTools.Count) { break }
+    Start-Sleep -Seconds 15
+} while ((Get-Date) -lt $toolDeadline)
+
+if ($present.Count -lt $learnTools.Count) {
+    Write-Host "  [WARN] Only $($present.Count)/$($learnTools.Count) Learn MCP tools visible in the catalog yet — the" -ForegroundColor Yellow
+    Write-Host "         microsoft-learn MCP connection is still warming up (it fetches its server bits from" -ForegroundColor Yellow
+    Write-Host "         raw.githubusercontent.com; confirm the allow-github-raw-mcp-bits firewall rule exists)." -ForegroundColor Yellow
+    Write-Host "         Re-run this script shortly to finish enabling them." -ForegroundColor Yellow
+}
+if ($present.Count -gt 0) {
+    $alreadyEnabled = @($catalog | Where-Object { ($_.name -in $present) -and $_.enabled } | ForEach-Object { $_.name })
+    if ($alreadyEnabled.Count -eq $present.Count) {
+        Write-Host "  [skip] $($present.Count) Learn MCP tool(s) already enabled globally" -ForegroundColor DarkGray
+    } else {
+        $payload = @{ overrides = @($present | ForEach-Object { @{ name = $_; enabled = $true } }) } | ConvertTo-Json -Depth 4 -Compress
+        $cfgContent = [System.Net.Http.StringContent]::new($payload, [System.Text.Encoding]::UTF8, "application/json")
+        $cfgResp = $client.PostAsync("$agentEndpoint/api/v2/agent/tools/configure", $cfgContent).Result
+        if ($cfgResp.IsSuccessStatusCode) {
+            Write-Host "  [ok] Enabled $($present.Count) Learn MCP tool(s) globally (docs_search, code_sample_search, docs_fetch)" -ForegroundColor Green
+        } else {
+            Write-Host "  WARNING: tool enable returned $($cfgResp.StatusCode): $($cfgResp.Content.ReadAsStringAsync().Result)" -ForegroundColor Yellow
+        }
+        $cfgContent.Dispose()
+    }
+}
+
 # --- Step 3: Verify Bicep-deployed assets ----------------------------------
 Write-Host "`nStep 3: Verifying Bicep-deployed configuration..." -ForegroundColor Yellow
 $allGood = $true
@@ -196,13 +255,13 @@ if (-not $missingConnectors) { Write-Host "  [OK] Connectors: $($connectors.Coun
 else { Write-Host "  [MISSING] Connectors: $($missingConnectors -join ', ') — re-run azd provision" -ForegroundColor Red; $allGood = $false }
 
 $skills = @(Get-AgentChildren -Kind "skills")
-$expectedSkills = @("db-incident-investigation","proactive-health-check")
+$expectedSkills = @("database-incidents","performance-incidents","application-incidents","general-triage","proactive-health-check")
 $missingSkills = $expectedSkills | Where-Object { $_ -notin $skills.name }
 if (-not $missingSkills) { Write-Host "  [OK] Custom skills: $($skills.Count)" -ForegroundColor Green }
 else { Write-Host "  [MISSING] Skills: $($missingSkills -join ', ') — re-run azd provision" -ForegroundColor Red; $allGood = $false }
 
 $filters = @(Get-AgentChildren -Kind "incidentFilters")
-$expectedFilters = @("zava-db-response","zava-app-response")
+$expectedFilters = @("zava-database","zava-performance","zava-application","zava-unknown")
 $missingFilters = $expectedFilters | Where-Object { $_ -notin $filters.name }
 if (-not $missingFilters) { Write-Host "  [OK] Response plans: $($filters.Count)" -ForegroundColor Green }
 else { Write-Host "  [MISSING] Response plans: $($missingFilters -join ', ') — re-run azd provision" -ForegroundColor Red; $allGood = $false }
@@ -236,6 +295,20 @@ if ($agent.properties.incidentManagementConfiguration.type -ne "AzMonitor") {
     Write-Host "  [WARN] Incident platform: $($agent.properties.incidentManagementConfiguration.type) (expected AzMonitor)" -ForegroundColor Yellow; $allGood = $false
 } else { Write-Host "  [OK] Incident platform: AzMonitor" -ForegroundColor Green }
 
+$learnEnabled = @()
+try {
+    $vt = $client.GetAsync("$agentEndpoint/api/v2/agent/tools").Result
+    if ($vt.IsSuccessStatusCode) {
+        $vcat = @(($vt.Content.ReadAsStringAsync().Result | ConvertFrom-Json).data)
+        $learnEnabled = @($vcat | Where-Object { ($_.name -in $learnTools) -and $_.enabled } | ForEach-Object { $_.name })
+    }
+} catch {}
+if ($learnEnabled.Count -eq $learnTools.Count) {
+    Write-Host "  [OK] Microsoft Learn MCP tools enabled globally: $($learnEnabled.Count)/$($learnTools.Count)" -ForegroundColor Green
+} else {
+    Write-Host "  [WARN] Learn MCP tools enabled globally: $($learnEnabled.Count)/$($learnTools.Count) (MCP connection may still be warming up)" -ForegroundColor Yellow; $allGood = $false
+}
+
 if ($allGood) { Write-Host "  All Bicep + data-plane assets verified." -ForegroundColor Green }
 else { Write-Host "  Some assets missing — see above." -ForegroundColor Yellow }
 
@@ -250,10 +323,11 @@ Write-Host "  DEPLOYED BY BICEP (verified above, not done by this script):" -For
 Write-Host "  [x] Agent: autonomous mode + High access"
 Write-Host "  [x] Incident platform: Azure Monitor"
 Write-Host "  [x] Connectors: app-insights, log-analytics, azure-monitor, microsoft-learn"
-Write-Host "  [x] Custom skills: db-incident-investigation, proactive-health-check"
-Write-Host "  [x] Response plans: zava-db-response, zava-app-response"
+Write-Host "  [x] Custom skills: database-incidents, performance-incidents, application-incidents, general-triage, proactive-health-check"
+Write-Host "  [x] Response plans (incident filters): zava-database, zava-performance, zava-application, zava-unknown"
 Write-Host "`n  DONE BY THIS SCRIPT (data plane — no ARM API yet):" -ForegroundColor Cyan
 Write-Host ("  [x] Knowledge files synced: {0} local file(s) ({1} uploaded, {2} replaced, {3} skipped, {4} failed)" -f $kbLocalFiles.Count, $uploaded, $replaced, $skipped, $failed)
+Write-Host ("  [x] Microsoft Learn MCP tools enabled globally: {0}/{1} (docs_search, code_sample_search, docs_fetch)" -f $learnEnabled.Count, $learnTools.Count)
 
 Write-Host "`n  NEXT STEPS:" -ForegroundColor Cyan
 Write-Host "  Run a break scenario:"

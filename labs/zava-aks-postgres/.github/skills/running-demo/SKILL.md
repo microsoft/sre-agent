@@ -12,7 +12,7 @@ This skill drives the full demo using Playwright MCP for browser control. Execut
 ```powershell
 # AKS is a private cluster — kubectl from your local workstation won't work without VPN/jumpbox.
 # Use `Invoke-AksCommand` (wraps `az aks command invoke` for human-operator polling/diagnostics).
-# The SRE Agent reaches the cluster the same way (its `az` CLI tool runs `az aks command invoke`).
+# The SRE Agent uses native kubectl primarily (command-invoke fallback); this helper is for human operators without the agent's VNet/DNS/proxy setup.
 . .\scripts\_aks-helpers.ps1
 $rg  = (azd env get-value RESOURCE_GROUP)
 $aks = (azd env get-value AKS_CLUSTER_NAME)
@@ -44,14 +44,14 @@ Wait 30 seconds for the app to notice.
 
 ### Step 4: Watch the SRE Agent
 1. Navigate to `$agentUrl` — the agent portal
-2. Look for a new incident thread (`postgres-server-stopped` activity-log alert and/or `postgres-server-down` scheduled-query alert)
+2. Look for a new incident thread (`postgres-unreachable` scheduled-query alert, routed to the `zava-database` response plan)
 3. The agent should investigate and run `az postgres flexible-server start`
 4. Poll PostgreSQL state every 60s — let the agent do its thing, do NOT run the fix script:
    ```powershell
    az postgres flexible-server show -g $rg -n $pg --query state -o tsv
    ```
 5. Wait until state = "Ready" (typically 3-5 min)
-6. Before starting Scenario 2, wait for the log-search alert `postgres-network-blocked` to be `Resolved` if it fired during the DB outage. A stopped Flexible Server can briefly produce the same timeout-shaped app traces as a real network partition; starting Scenario 2 while that alert is still active can attach the network break to the wrong incident lifecycle.
+6. There's now **one** `postgres-unreachable` alert for both DB scenarios, with the `zava-database` response plan **merge disabled** (the agent won't fold a second incident into the first thread). Both scenarios share that single rule, so Azure Monitor won't emit a fresh alert instance while the previous one is still `Fired`/`Acknowledged`. To keep back-to-back runs clean, the `database-incidents` runbook has the agent **close the `postgres-unreachable` alert as its final step** once recovery is verified — so by the time you start Scenario 2 it should already be resolved and the new break dispatches fresh. (Fallback if the agent didn't close it: `autoMitigate` resolves it ~15-30 min after recovery, or close it yourself in the portal Alerts blade.) The agent diagnoses each from ARM state (`Stopped` → restart; `Ready` but unreachable → NetworkPolicy/NSG).
 
 ### Step 5: Show recovery
 1. Wait 15s after PG is Ready for pods to reconnect
@@ -67,6 +67,9 @@ Do not run `fix-sql.ps1` as part of the demo. It exists for post-demo cleanup or
 2. Take screenshot
 
 ### Step 2: Break it
+
+> **Heads-up if you just ran Scenario 1:** both DB scenarios share the one `postgres-unreachable` alert. The `database-incidents` runbook has the agent close that alert as its final remediation step, so it should already be resolved and this break will dispatch a fresh investigation. If the agent didn't close it (still `Fired`), close it in the portal Alerts blade or wait for `autoMitigate` (~15-30 min) — otherwise Azure Monitor dedupes this break into the still-open instance and the agent won't dispatch.
+
 ```powershell
 .\.github\skills\running-demo\scripts\break-network.ps1
 ```
@@ -78,7 +81,7 @@ Wait 30 seconds.
 
 ### Step 4: Watch the agent
 1. Check SRE Agent portal for investigation
-2. Agent needs to find the K8s NetworkPolicy via `az aks command invoke … kubectl get networkpolicy -n zava-demo -o yaml` and remove it via `az aks command invoke … kubectl delete networkpolicy database-tier-isolation -n zava-demo` — this is harder than Scenario 1 and may take longer
+2. Agent needs to find the K8s NetworkPolicy via native `kubectl get networkpolicy -n zava-demo -o yaml` and remove it via `kubectl delete networkpolicy database-tier-isolation -n zava-demo` (with command-invoke only as fallback) — this is harder than Scenario 1 and may take longer
 3. Poll for NetworkPolicy removal (the AKS API server is private — go through ARM):
    ```powershell
    Invoke-AksCommand -ResourceGroup $rg -ClusterName $aks -Command "kubectl get networkpolicy -n zava-demo"
@@ -114,7 +117,7 @@ If the script aborts with "Telemetry pipeline is dead", the api pods stopped sen
 4. (`break-db-perf.ps1` already launched a 15-min in-cluster Kubernetes Job (`zava-cat-load` in the `zava-demo` namespace) that hammers `/api/products/category/<X>` over the cluster-internal Service DNS. This pushes real traffic past the alert's 30ms threshold — the 1Hz `__probe` is excluded by the alert KQL. The Job auto-cleans 60s after completion via `ttlSecondsAfterFinished`; `fix-db-perf.ps1` also deletes it explicitly. Run with `-NoLoad` to skip.)
 
 ### Step 4: Watch agent
-1. Monitor SRE Agent portal — it should detect slow response times via App Insights, identify the missing index, and run `CREATE INDEX CONCURRENTLY` in-cluster via `bin/run-sql.js` (the agent runs `az aks command invoke … kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js "<SQL>"` — the helper reuses the pod's workload identity)
+1. Monitor SRE Agent portal — it should detect slow response times via App Insights, identify the missing index, and run `CREATE INDEX CONCURRENTLY` in-cluster via `bin/run-sql.js` (the agent runs native `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js "<SQL>"`, with command-invoke only as fallback — the helper reuses the pod's workload identity)
 2. Do not run `fix-db-perf.ps1` as part of the demo — same rule as the other scenarios: the script is post-demo cleanup, not an agent-failure fallback.
 
 ### Step 5: Show recovery
@@ -141,8 +144,8 @@ If the script aborts with "Telemetry pipeline is dead", the api pods stopped sen
 ```powershell
 # Ships a bad config rollout: kubectl set env deployment/zava-api FAULT_INJECT=500.
 # This mutates the pod template -> a NEW rollout revision (the deployment signal),
-# and GET /api/products starts returning HTTP 500. Liveness (/livez) and readiness
-# (/api/health) are untouched, so pods stay Running and only the app route regresses.
+# and GET /api/products starts returning HTTP 500. The liveness AND readiness probes
+# both hit /livez (and /api/health stays green too), so pods stay Running and only the app route regresses.
 # The 1Hz in-cluster self-probe hits /api/products, so the 5xx signal builds with no
 # external load. Verifies AppRequests telemetry is flowing first (-SkipTelemetryCheck
 # to bypass on a brand-new deploy).
@@ -166,6 +169,17 @@ If the script aborts with "Telemetry pipeline is dead", the api pods stopped sen
 ### Step 5: Show recovery
 1. Navigate to `$storeUrl/api/products` — returns 200 again
 2. Navigate to `$storeUrl` — products load; take screenshot
+
+## Chat demo: interrogate the hub firewall (network device)
+
+No break needed — this shows the agent treating the **hub Azure Firewall** as a queryable "network device" in the hub-and-spoke topology.
+
+1. Open the agent chat (`$agentUrl`) and ask:
+   > "Inspect the hub Azure Firewall: summarize its egress allow-list (rule collections), and query the `AZFW*` Log Analytics tables for anything denied for the agent subnet in the last hour."
+2. Expect the agent to read the firewall policy over ARM (`az network firewall policy ...`, covered by its Reader role) and run KQL against `AZFWApplicationRule` / `AZFWNetworkRule`.
+3. Optional follow-up — *"Is the firewall in the path between the app and PostgreSQL?"* The correct answer is **no**: it gates only the agent's own egress; the app↔PG path is governed by the platform-spoke NSG and the in-cluster Kubernetes NetworkPolicy. This confirms the agent has the topology boundary right.
+
+This is a read/diagnostic demonstration, not a break/fix — the firewall gates the agent's *own* egress, so breaking it would disable the agent itself.
 
 ## Watching the SRE Agent
 

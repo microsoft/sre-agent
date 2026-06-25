@@ -38,3 +38,12 @@ hooks:
       shell: sh
       run: pwsh -NoProfile -File scripts/post-provision.ps1
       interactive: true
+  predown:
+    windows:
+      shell: pwsh
+      run: scripts/pre-down.ps1
+      interactive: true
+    posix:
+      shell: sh
+      run: pwsh -NoProfile -File scripts/pre-down.ps1
+      interactive: true

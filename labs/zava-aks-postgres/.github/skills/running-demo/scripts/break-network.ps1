@@ -19,8 +19,8 @@
 # config that looks suspicious.
 #
 # Resource names are chosen to look like a security architect's work
-# (database-tier-isolation, restrict-egress-database-tier) rather than the
-# obvious "block-postgres" of the old version, so the agent can't pattern-
+# (database-tier-isolation, restrict-egress-database-tier) rather than an
+# obvious name like `block-postgres`, so the agent can't pattern-
 # match its way to the answer — it has to reason about what's actually
 # blocking traffic.
 #
@@ -28,9 +28,9 @@
 # K8s op runs through `az aks command invoke` (Azure-proxied control plane),
 # the exact same path the SRE Agent uses for remediation.
 #
-# CIDR discovery: instead of hardcoding 10.0.0.0/16 / 10.1.0.0/24 we ask Azure
-# what's actually deployed. Falls back to the vnet.bicep defaults only if the
-# discovery fails (e.g., a customer renamed the subnets).
+# CIDR discovery: instead of hardcoding the subnet CIDRs we ask Azure what's
+# actually deployed. Falls back to the vnet.bicep defaults only if the discovery
+# fails (e.g., a customer renamed the subnets).
 param(
     [string]$ResourceGroup = "",
     [string]$ClusterName = "",
@@ -54,14 +54,17 @@ function Get-SubnetCidr {
     return $cidr
 }
 
-$vnetName = az network vnet list -g $ctx.ResourceGroup --query "[0].name" -o tsv
+# The lab now deploys a hub-and-spoke topology (hub + platform + agent VNets), so
+# we can't just grab the first VNet — select the one that actually contains the
+# AKS subnet (the platform spoke).
+$vnetName = az network vnet list -g $ctx.ResourceGroup --query "[?subnets[?name=='$AksSubnetName']].name | [0]" -o tsv
 if (-not $vnetName) {
-    Write-Host "No VNet found in $($ctx.ResourceGroup); using vnet.bicep defaults." -ForegroundColor DarkYellow
-    $aksCidr = "10.0.0.0/16"
-    $dbCidr  = "10.1.0.0/24"
+    Write-Host "No VNet containing '$AksSubnetName' found in $($ctx.ResourceGroup); using vnet.bicep defaults." -ForegroundColor DarkYellow
+    $aksCidr = "10.20.0.0/20"
+    $dbCidr  = "10.20.16.0/24"
 } else {
-    $aksCidr = Get-SubnetCidr -Rg $ctx.ResourceGroup -VnetName $vnetName -SubnetName $AksSubnetName -Fallback "10.0.0.0/16"
-    $dbCidr  = Get-SubnetCidr -Rg $ctx.ResourceGroup -VnetName $vnetName -SubnetName $DbSubnetName  -Fallback "10.1.0.0/24"
+    $aksCidr = Get-SubnetCidr -Rg $ctx.ResourceGroup -VnetName $vnetName -SubnetName $AksSubnetName -Fallback "10.20.0.0/20"
+    $dbCidr  = Get-SubnetCidr -Rg $ctx.ResourceGroup -VnetName $vnetName -SubnetName $DbSubnetName  -Fallback "10.20.16.0/24"
     Write-Host "Discovered CIDRs from VNet '$vnetName': AKS=$aksCidr, PG=$dbCidr" -ForegroundColor DarkGray
 }
 
@@ -69,7 +72,13 @@ if (-not $vnetName) {
 # a delegated subnet, this NSG rule isn't the active enforcement point — the
 # K8s NetworkPolicy below is. The agent needs to reason past the NSG and find
 # the real cause.
-$nsgName = az network nsg list -g $ctx.ResourceGroup --query "[0].name" -o tsv
+#
+# Target the AKS subnet's own NSG (named `nsg-aks-*`) explicitly. The resource
+# group can contain more than one NSG, so blindly taking the first one ([0])
+# could land on the wrong NSG; match by name and fall back to [0] only if the
+# named one isn't found.
+$nsgName = az network nsg list -g $ctx.ResourceGroup --query "[?starts_with(name, 'nsg-aks')].name | [0]" -o tsv
+if (-not $nsgName) { $nsgName = az network nsg list -g $ctx.ResourceGroup --query "[0].name" -o tsv }
 if ($nsgName) {
     Write-Host "Adding NSG deny rule (red herring; the NetworkPolicy below is the actual block)..." -ForegroundColor Yellow
     az network nsg rule create `
