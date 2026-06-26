@@ -10,11 +10,12 @@
 # expected to correlate the 5xx spike with `kubectl rollout history` / KubeEvents
 # and roll back with `kubectl rollout undo` (the fix script does the same).
 #
-# Detection reuses the existing Zava-http-5xx-errors metric alert (requests/failed
-# on App Insights). No new alert, no external load generator: the in-cluster 1 Hz
+# Detection reuses the existing Zava-http-5xx-errors scheduled-query alert (it
+# counts failed AppRequests over the window). No external load generator needed:
+# the in-cluster 1 Hz
 # self-probe already hits GET /api/products, so once that route returns 500 the
-# failed-request count crosses the threshold on its own. Liveness (/livez) and
-# readiness (/api/health) are deliberately untouched, so pods stay Running and
+# failed-request count crosses the threshold on its own. The liveness AND readiness
+# probes both hit /livez (shallow, no DB), and /api/health stays green too, so pods stay Running and
 # only the app route regresses — exactly the "looks healthy at the platform layer
 # but the app is broken" shape that makes deployment correlation the key signal.
 #
@@ -70,7 +71,7 @@ if ($r.exitCode -ne 0) {
 
 Write-Host "Bad deploy rolled out. GET /api/products now returns HTTP 500; /livez and /api/health stay green." -ForegroundColor Yellow
 Write-Host "What to watch:" -ForegroundColor Cyan
-Write-Host "  - Zava-http-5xx-errors metric alert fires (requests/failed > threshold) within ~5 min." -ForegroundColor DarkGray
+Write-Host "  - Zava-http-5xx-errors scheduled-query alert fires (failed AppRequests > threshold) within ~5 min." -ForegroundColor DarkGray
 Write-Host "  - The SRE Agent should correlate the 5xx spike with the recent rollout:" -ForegroundColor DarkGray
 Write-Host "      kubectl rollout history deployment/zava-api -n $Namespace" -ForegroundColor DarkGray
 Write-Host "      kubectl get events -n $Namespace  (KubeEvents: ScalingReplicaSet)" -ForegroundColor DarkGray

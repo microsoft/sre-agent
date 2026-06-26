@@ -3,8 +3,9 @@
 # Fast-fails with a clear, actionable message if the host is missing required tooling.
 #
 # This demo currently requires PowerShell 7.4+ (Windows or WSL/Linux/macOS with pwsh installed)
-# and `az` on PATH. kubectl is NOT required: the AKS cluster is private and every in-cluster
-# operation runs through `az aks command invoke`. Post-provision automation runs in pwsh.
+# and `az` on PATH. kubectl is NOT required on the host: the AKS cluster is private and all
+# in-cluster operations are performed by the SRE Agent from inside its sandbox — the machine
+# running azd never touches the cluster directly. Post-provision automation runs in pwsh.
 
 $ErrorActionPreference = 'Stop'
 
@@ -24,8 +25,8 @@ if ($PSVersionTable.PSVersion.Major -lt 7 -or
     Write-Fail "PowerShell 7.4+ is required. Detected: $($PSVersionTable.PSVersion)"
 }
 
-# 2. Required CLI tools (kubectl intentionally NOT required — private cluster, all kubectl
-#    calls go through `az aks command invoke`)
+# 2. Required CLI tools (kubectl intentionally NOT required on the host — the SRE Agent runs
+#    all in-cluster operations from its own sandbox)
 $required = @('az')
 $missing = @()
 foreach ($tool in $required) {

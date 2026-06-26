@@ -3,8 +3,8 @@
 //     dimension filters and KQL `AppRoleName == 'zava-api'` depend on this.
 //   - `logger.emit()` ships logs into the `AppTraces` table (NOT
 //     AppExceptions — that requires `recordException` on a span). The
-//     `postgres-server-down` and `postgres-network-blocked` scheduled-query
-//     alerts in monitoring.bicep query AppTraces accordingly.
+//     `postgres-unreachable` scheduled-query alert in monitoring.bicep
+//     queries AppTraces accordingly.
 const { useAzureMonitor } = require('@azure/monitor-opentelemetry');
 const { resourceFromAttributes } = require('@opentelemetry/resources');
 const { ATTR_SERVICE_NAME } = require('@opentelemetry/semantic-conventions');
@@ -85,8 +85,8 @@ function log(level, message, properties = {}) {
   // events — those are access-log rows for /api/products/* etc, which the
   // HTTP auto-instrumentation already records as AppRequests. Double-shipping
   // them adds ~530 MB/hr of redundant ingestion under Scenario 3 load.
-  // Warn/error stays — the postgres-server-down + postgres-network-blocked
-  // KQL alerts depend on AppTraces with severityLevel >= 2.
+  // Warn/error stays — the postgres-unreachable KQL alert depends on
+  // AppTraces with severityLevel >= 2.
   if (logger && (level === 'warn' || level === 'error')) {
     // OTel SeverityNumber values per
     // https://opentelemetry.io/docs/specs/otel/logs/data-model/#field-severitynumber

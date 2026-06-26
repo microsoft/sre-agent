@@ -84,69 +84,53 @@ resource actionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = {
   }
 }
 
-// Alert: HTTP 5xx errors
-resource alert5xx 'Microsoft.Insights/metricAlerts@2018-03-01' = {
+// Alert: HTTP 5xx errors — app-layer / bad-deploy regression (Scenario 4).
+//
+// Fires purely on the 5xx failed-request count — NO DB self-suppression. We don't
+// dedupe: a DB outage that also produces 5xx will open BOTH a `postgres-unreachable`
+// thread and this app thread (each real symptom surfaces its own investigation; the
+// application runbook rules out DB/perf first). Symptom-only description (see AGENTS.md).
+resource alert5xx 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = {
   name: 'Zava-http-5xx-errors'
-  location: 'global'
+  location: location
   properties: {
     severity: 2
     enabled: true
-    scopes: [appInsights.id]
-    evaluationFrequency: 'PT1M'
+    // PT5M (not PT1M): at 1-minute evaluation the SRE agent acknowledges this alert
+    // but does not open an autonomous investigation; 5-minute evaluation dispatches
+    // reliably (see alertDbUnreachable / alertProductsSlow for the same rationale).
+    evaluationFrequency: 'PT5M'
     windowSize: 'PT5M'
+    scopes: [law.id]
     criteria: {
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
       allOf: [
         {
-          name: 'http5xx'
-          metricName: 'requests/failed'
-          metricNamespace: 'microsoft.insights/components'
+          query: '''
+            AppRequests
+            | where TimeGenerated > ago(5m)
+            | where AppRoleName == 'zava-api'
+            | where Success == false and toint(ResultCode) >= 500
+            | summarize ErrorCount = count()
+          '''
+          timeAggregation: 'Total'
+          metricMeasureColumn: 'ErrorCount'
           operator: 'GreaterThan'
           threshold: 5
-          timeAggregation: 'Count'
-          criterionType: 'StaticThresholdCriterion'
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
         }
       ]
     }
-    actions: [
-      { actionGroupId: actionGroup.id }
-    ]
+    actions: {
+      actionGroups: [actionGroup.id]
+    }
     autoMitigate: true
-    description: 'Zava Demo: HTTP 5xx error rate exceeded threshold'
+    description: 'Zava Demo: zava-api returned more than 5 HTTP 5xx responses in the last 5 minutes.'
   }
 }
 
-// Alert: Response time degradation
-resource alertSlowResponse 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: 'Zava-slow-response-time'
-  location: 'global'
-  properties: {
-    severity: 3
-    enabled: true
-    scopes: [appInsights.id]
-    evaluationFrequency: 'PT1M'
-    windowSize: 'PT5M'
-    criteria: {
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
-      allOf: [
-        {
-          name: 'slowResponse'
-          metricName: 'requests/duration'
-          metricNamespace: 'microsoft.insights/components'
-          operator: 'GreaterThan'
-          threshold: 5000
-          timeAggregation: 'Average'
-          criterionType: 'StaticThresholdCriterion'
-        }
-      ]
-    }
-    actions: [
-      { actionGroupId: actionGroup.id }
-    ]
-    autoMitigate: true
-    description: 'Zava Demo: Average response time exceeded 5 seconds'
-  }
-}
 
 // Diagnostic settings: pipe PostgreSQL logs to Log Analytics for SRE Agent query access
 resource pgServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' existing = {
@@ -182,91 +166,48 @@ output appInsightsResourceId string = appInsights.id
 output appInsightsName string = appInsights.name
 output appInsightsAppId string = appInsights.properties.AppId
 
-// --- Infrastructure-level alerts (fire without app traffic) ---
-
-// Alert: NSG rule changes (someone added/deleted a deny rule)
-resource alertNsgChange 'Microsoft.Insights/activityLogAlerts@2023-01-01-preview' = {
-  name: 'Zava-nsg-change'
-  location: 'global'
-  properties: {
-    enabled: true
-    scopes: [resourceGroupId]
-    condition: {
-      allOf: [
-        {
-          field: 'category'
-          equals: 'Administrative'
-        }
-        {
-          field: 'operationName'
-          equals: 'Microsoft.Network/networkSecurityGroups/securityRules/write'
-        }
-      ]
-    }
-    actions: {
-      actionGroups: [{ actionGroupId: actionGroup.id }]
-    }
-    description: 'Zava Demo: NSG security rule was created or modified'
-  }
-}
-
-// Alert: NSG rule deleted
-resource alertNsgDelete 'Microsoft.Insights/activityLogAlerts@2023-01-01-preview' = {
-  name: 'Zava-nsg-rule-deleted'
-  location: 'global'
-  properties: {
-    enabled: true
-    scopes: [resourceGroupId]
-    condition: {
-      allOf: [
-        {
-          field: 'category'
-          equals: 'Administrative'
-        }
-        {
-          field: 'operationName'
-          equals: 'Microsoft.Network/networkSecurityGroups/securityRules/delete'
-        }
-      ]
-    }
-    actions: {
-      actionGroups: [{ actionGroupId: actionGroup.id }]
-    }
-    description: 'Zava Demo: NSG security rule was deleted'
-  }
-}
-
-// Alert: PostgreSQL server down (ECONNREFUSED) — Scenario 1.
+// Alert: PostgreSQL unreachable from the app — covers BOTH Scenario 1 (server
+// stopped) and Scenario 2 (network partition). One symptom-based alert, not two.
 //
-// Split from a previous combined ECONNREFUSED+ETIMEDOUT rule so each failure mode
-// has its own incident lifecycle. With a single rule, Scenario 1 (server stopped)
-// would fire + auto-mitigate, then Scenario 2 (network blocked) would re-attach
-// to the closed incident instead of opening a new one — and the SRE Agent would
-// never get dispatched for Scenario 2. Both rules route to `zava-db-response`
-// via titleContains:'postgres' (see infra/modules/sre-agent.bicep).
-resource alertDbServerDown 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = {
-  name: 'postgres-server-down'
+// Empirically, BOTH a stopped PG Flexible Server and a NetworkPolicy/NSG
+// block present at the app as connection TIMEOUTS — a deallocated private endpoint
+// and a dropped packet both time out (measured ~1650 timeout traces vs ~42
+// ECONNREFUSED on a stop). So the failure mode CANNOT be distinguished by error
+// text. We alert on the symptom ("zava-api cannot reach PostgreSQL") and let the
+// SRE Agent diagnose the cause from ARM state: PG `Stopped` -> start it; PG `Ready`
+// but unreachable -> find the blocking Kubernetes NetworkPolicy / NSG rule. Routes
+// to `zava-database` via titleContains:'postgres'. The database response plan has
+// merge DISABLED so the agent won't fold the two DB scenarios into one thread. NOTE:
+// both scenarios share THIS one rule, so Azure Monitor won't emit a fresh alert
+// instance while the prior one is still Fired. The database-incidents runbook has the
+// agent CLOSE this alert as its final step once recovery is verified (using its
+// Contributor changestate right), so back-to-back runs dispatch fresh; autoMitigate
+// (~15-30 min) is the fallback if the agent doesn't close it.
+resource alertDbUnreachable 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = {
+  name: 'postgres-unreachable'
   location: location
   properties: {
     severity: 1
     enabled: true
-    evaluationFrequency: 'PT1M'
+    // PT5M (not PT1M): verified that at 1-minute evaluation the SRE agent acknowledges
+    // this alert but does not open an autonomous investigation; at 5-minute evaluation
+    // (matching the http-5xx alert) it dispatches and remediates end-to-end. The DB-outage
+    // signal is unambiguous, so the slightly later fire is well within demo tolerance.
+    evaluationFrequency: 'PT5M'
     windowSize: 'PT5M'
     scopes: [law.id]
     criteria: {
       allOf: [
         {
-          // OTel logger.emit() lands in AppTraces (severity 17 = ERROR).
-          // It does NOT land in AppExceptions (which requires recordException
-          // on a span). The Zava API logs DB failures via logger (logging/logger.js),
-          // so we query AppTraces here. The node-postgres driver reports
-          // "ECONNREFUSED" verbatim in its error message when the server is stopped.
+          // OTel logger.emit() lands in AppTraces (severity 17 = ERROR). The
+          // node-postgres driver surfaces both ECONNREFUSED (active refusal) and
+          // timeout phrasings; match either as "unreachable".
           query: '''
             AppTraces
             | where TimeGenerated > ago(5m)
             | where AppRoleName == 'zava-api' and SeverityLevel >= 3
-            | where Message has_any ("ECONNREFUSED", "connection refused")
-               or tostring(Properties) has_any ("ECONNREFUSED", "connection refused")
+            | where Message has_any ("ECONNREFUSED", "ETIMEDOUT", "connection refused", "timeout exceeded when trying to connect", "connection timeout", "connection terminated")
+               or tostring(Properties) has_any ("ECONNREFUSED", "ETIMEDOUT", "connection refused", "timeout exceeded when trying to connect", "connection timeout", "connection terminated")
             | summarize ErrorCount = count()
           '''
           timeAggregation: 'Total'
@@ -285,66 +226,7 @@ resource alertDbServerDown 'Microsoft.Insights/scheduledQueryRules@2023-03-15-pr
     }
     autoMitigate: true
     // Symptom-only by design — do NOT add cause/remediation/scenario hints here.
-    // The alert payload is part of the incident context the SRE Agent reads, and
-    // recipes in this string undo the de-spoon-fed runbook. See AGENTS.md.
-    description: 'Zava Demo: zava-api logged more than 3 ECONNREFUSED-class PostgreSQL connection failures in the last 5 minutes.'
-  }
-}
-
-// Alert: PostgreSQL network blocked (ETIMEDOUT) — Scenario 2.
-// See note on alertDbServerDown above for why these are split into two rules.
-resource alertDbNetworkBlocked 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = {
-  name: 'postgres-network-blocked'
-  location: location
-  properties: {
-    severity: 1
-    enabled: true
-    evaluationFrequency: 'PT1M'
-    windowSize: 'PT5M'
-    scopes: [law.id]
-    criteria: {
-      allOf: [
-        {
-          // Same as alertDbServerDown — query AppTraces (OTel logs), not AppExceptions.
-          // node-postgres reports network timeouts as "timeout exceeded when trying
-          // to connect" (NOT the raw ETIMEDOUT errno), so we have to match that
-          // exact phrase in addition to the generic strings.
-          //
-          // Mutual exclusion with `postgres-server-down`: a stopped PG produces
-          // ECONNREFUSED first, then ETIMEDOUTs as connection attempts pile up.
-          // To prevent this rule from firing on a PG-stop (and pre-poisoning the
-          // S2 incident slot), require ETIMEDOUT-class errors AND zero *recent*
-          // (< 2 min) ECONNREFUSED-class errors. The 2-minute lookback (rather
-          // than the full 5-minute window) is deliberate: a stale ECONNREFUSED
-          // from a brief PG blip 4 minutes ago must NOT mask a fresh network
-          // partition that started 30 seconds ago. See AGENTS.md.
-          query: '''
-            AppTraces
-            | where TimeGenerated > ago(5m)
-            | where AppRoleName == 'zava-api' and SeverityLevel >= 3
-            | extend Combined = strcat(Message, ' ', tostring(Properties))
-            | extend IsTimeout = Combined has_any ("ETIMEDOUT", "timeout exceeded when trying to connect", "connection timeout", "connection terminated")
-            | extend IsRecentRefused = (Combined has_any ("ECONNREFUSED", "connection refused")) and TimeGenerated > ago(2m)
-            | summarize TimeoutCount = countif(IsTimeout), RecentRefusedCount = countif(IsRecentRefused)
-            | extend ErrorCount = iff(RecentRefusedCount == 0, TimeoutCount, 0)
-          '''
-          timeAggregation: 'Total'
-          metricMeasureColumn: 'ErrorCount'
-          operator: 'GreaterThan'
-          threshold: 3
-          failingPeriods: {
-            numberOfEvaluationPeriods: 1
-            minFailingPeriodsToAlert: 1
-          }
-        }
-      ]
-    }
-    actions: {
-      actionGroups: [actionGroup.id]
-    }
-    autoMitigate: true
-    // Symptom-only by design — do NOT add cause/remediation/scenario hints here.
-    description: 'Zava Demo: zava-api logged more than 3 PostgreSQL connection-timeout traces (ETIMEDOUT / "timeout exceeded when trying to connect" / "connection terminated") in the last 5 minutes.'
+    description: 'Zava Demo: zava-api logged more than 3 PostgreSQL connectivity failures (connection refused or timeout) in the last 5 minutes — the database is unreachable from the application.'
   }
 }
 
@@ -370,7 +252,10 @@ resource alertProductsSlow 'Microsoft.Insights/scheduledQueryRules@2023-03-15-pr
   properties: {
     severity: 2
     enabled: true
-    evaluationFrequency: 'PT1M'
+    // PT5M (not PT1M): same dispatch reason as postgres-unreachable — at 1-minute
+    // evaluation the SRE agent acknowledges this alert but does not open an autonomous
+    // investigation; 5-minute evaluation dispatches reliably (matches the http-5xx alert).
+    evaluationFrequency: 'PT5M'
     windowSize: 'PT5M'
     scopes: [law.id]
     criteria: {
@@ -404,145 +289,32 @@ resource alertProductsSlow 'Microsoft.Insights/scheduledQueryRules@2023-03-15-pr
   }
 }
 
-// Alert: Category-query custom METRIC latency (scheduled-query alert against AppMetrics).
+// Alert: Unknown-incident demo trigger (DISABLED by default).
 //
-// This is the first-class *metric* signal for the slow-query incident. The app
-// emits an OTel histogram `zava.products.category.query.duration_ms` (see
-// src/api/logging/logger.js + routes/products.js) which the @azure/monitor-
-// opentelemetry exporter ships to this workspace-based App Insights component's
-// AppMetrics table (Name = the instrument name; the per-request `category`
-// attribute lands in the dynamic Properties column).
-//
-// Why a scheduled-query (KQL-on-AppMetrics) rule and NOT a Microsoft.Insights/
-// metricAlert on a custom metric namespace: for workspace-based App Insights,
-// OTel custom metrics are reliably queryable in AppMetrics but are NOT reliably
-// exposed as a splittable custom metric namespace with the `category` dimension
-// in the metricAlert plane. Reading AppMetrics keeps the dimension and matches
-// the proven alertProductsSlow pattern. This still demonstrates a metric SIGNAL
-// the app itself defines and emits — making "metrics as a first-class signal"
-// demoable — and corroborates the AppRequests log alert + AppDependencies pg-call
-// latency for the same incident.
-//
-// Threshold logic mirrors alertProductsSlow: weighted mean per non-probe
-// category over 5 min, fire when ANY category mean exceeds 30 ms (healthy
-// baseline ~3 ms). `__probe` is excluded so the 1 Hz self-probe baseline alone
-// never fires it. AppMetrics aggregates each export interval into Sum/ItemCount,
-// so the true mean is sum(Sum)/sum(ItemCount).
-resource alertCategoryLatencyMetric 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = {
-  name: 'Zava-category-latency-metric'
-  location: location
-  properties: {
-    severity: 2
-    enabled: true
-    evaluationFrequency: 'PT1M'
-    windowSize: 'PT5M'
-    scopes: [law.id]
-    criteria: {
-      allOf: [
-        {
-          query: '''AppMetrics
-| where AppRoleName == 'zava-api'
-| where Name == 'zava.products.category.query.duration_ms'
-| extend Category = tostring(Properties['category'])
-| where Category != '__probe'
-| summarize AvgDurationMs = sum(Sum) / sum(ItemCount) by Category
-| where AvgDurationMs > 30'''
-          timeAggregation: 'Count'
-          operator: 'GreaterThan'
-          threshold: 0
-          failingPeriods: {
-            numberOfEvaluationPeriods: 1
-            minFailingPeriodsToAlert: 1
-          }
-        }
-      ]
-    }
-    actions: {
-      actionGroups: [actionGroup.id]
-    }
-    autoMitigate: true
-    // Symptom-only by design — do NOT name a suspected index or table here.
-    description: 'Zava Demo: the zava.products.category.query.duration_ms custom metric averaged above 30ms for at least one category over 5 minutes (healthy baseline ~3ms).'
-  }
-}
-
-// Alert: PostgreSQL CPU saturation (platform METRIC alert).
-//
-// Consumes a metric PG Flexible Server already emits (the `AllMetrics`
-// diagnostic category is enabled on pgDiagnostics above), so no app change or
-// break script is needed — it is an additive, proactive/corroborating signal.
-// Scoped directly to the PG server resource with the platform metric namespace,
-// so it is a TRUE Microsoft.Insights/metricAlert (unlike the custom-metric rule
-// above, which has to read AppMetrics). Under the missing-index load run the
-// 120k-row sequential scans drive PG CPU up, so this may co-fire with the
-// slow-query signals and corroborate that the bottleneck is at the database.
-//
-// Named with the `Zava-` prefix (and deliberately WITHOUT the substring
-// `postgres`) so it routes to `zava-app-response`, alongside the other
-// slow-query signals — see the non-overlapping titleContains split in
-// sre-agent.bicep.
-resource alertPgCpuSaturation 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: 'Zava-db-cpu-saturation'
+// Exercises the `zava-unknown` catch-all response plan + the `general-triage`
+// skill with no real failure. The title carries the `Zava-` prefix (so it stays
+// inside the demo's bounded unknown bucket) but matches NONE of the known routing
+// tokens (db / query-slow / http-5xx), so it falls through to general triage.
+// To demo: enable it, then write a tag on the resource group to fire it:
+//   az monitor activity-log alert update -g <rg> -n Zava-unknown-test --enabled true
+//   az tag update --operation merge --tags zava-drill=on --resource-id <rg-id>
+// Disable again afterwards.
+resource alertUnknownTest 'Microsoft.Insights/activityLogAlerts@2023-01-01-preview' = {
+  name: 'Zava-unknown-test'
   location: 'global'
   properties: {
-    severity: 3
-    enabled: true
-    scopes: [pgServer.id]
-    evaluationFrequency: 'PT1M'
-    windowSize: 'PT5M'
-    criteria: {
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
-      allOf: [
-        {
-          name: 'pgCpu'
-          metricName: 'cpu_percent'
-          metricNamespace: 'Microsoft.DBforPostgreSQL/flexibleServers'
-          operator: 'GreaterThan'
-          // 80% average over 5 min: the GeneralPurpose D2ds_v5 SKU sits well
-          // below this at the 1 Hz self-probe baseline, so a healthy demo does
-          // not fire, but sustained un-indexed seq scans push it over.
-          threshold: 80
-          timeAggregation: 'Average'
-          criterionType: 'StaticThresholdCriterion'
-        }
-      ]
-    }
-    actions: [
-      { actionGroupId: actionGroup.id }
-    ]
-    autoMitigate: true
-    // Symptom-only by design — do NOT add cause/remediation/scenario hints here.
-    description: 'Zava Demo: PostgreSQL server CPU averaged above 80% over 5 minutes.'
-  }
-}
-
-// Alert: PostgreSQL server stopped (Activity Log — detects az postgres flexible-server stop)
-// Named without "Zava-" prefix so the "postgres" response plan filter matches exclusively
-resource alertPgStopped 'Microsoft.Insights/activityLogAlerts@2023-01-01-preview' = {
-  name: 'postgres-server-stopped'
-  location: 'global'
-  properties: {
-    enabled: true
+    enabled: false
     scopes: [resourceGroupId]
     condition: {
       allOf: [
-        {
-          field: 'category'
-          equals: 'Administrative'
-        }
-        {
-          field: 'operationName'
-          equals: 'Microsoft.DBforPostgreSQL/flexibleServers/stop/action'
-        }
-        {
-          field: 'status'
-          equals: 'Succeeded'
-        }
+        { field: 'category', equals: 'Administrative' }
+        { field: 'operationName', equals: 'Microsoft.Resources/tags/write' }
+        { field: 'status', equals: 'Succeeded' }
       ]
     }
     actions: {
       actionGroups: [{ actionGroupId: actionGroup.id }]
     }
-    description: 'Zava Demo: PostgreSQL server was stopped'
+    description: 'Zava Demo: a tag was written on the resource group.'
   }
 }

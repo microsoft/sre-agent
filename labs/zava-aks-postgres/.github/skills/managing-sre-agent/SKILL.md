@@ -11,9 +11,9 @@ For **this demo**, agent configuration is declared in Bicep
 
 - **Agent settings** — autonomous mode, High access level, Azure Monitor incident binding
 - **Connectors** — `app-insights`, `log-analytics`, `azure-monitor` (MonitorClient), `microsoft-learn` (MCP)
-- **Custom skills** — `db-incident-investigation`, `proactive-health-check`
-- **Response plans / incident filters** — `zava-db-response`, `zava-app-response`
-  (route 8 alerts via `titleContains` patterns)
+- **Custom skills** — `database-incidents`, `performance-incidents`, `application-incidents`, `general-triage` (the unknown bucket), `proactive-health-check` (auto-selected by description; max 5 concurrent)
+- **Response plans / incident filters** — `zava-database`, `zava-performance`, `zava-application` (known-good, autonomous) + `zava-unknown` (catch-all, Review mode)
+  (routed by `titleContains` / `titleNotContains`)
 - **RBAC** — system-assigned managed identity granted Reader, Monitoring Reader,
   Contributor, and AKS RBAC Cluster Admin on the resource group
 
@@ -52,9 +52,10 @@ script does not delete remote files that are no longer present locally).
    output reports `[OK]` or `[MISSING]` for every Bicep-deployed asset.
 4. **Activity-log alerts gotcha** — they fire as Sev4 regardless of the configured
    severity, so response plan filters must match all severities (Bicep already does).
-5. **Runbook content is intentionally non-prescriptive** — the `dbIncidentSkill` in
-   `sre-agent.bicep` deliberately does *not* contain per-alert triage tables or exact
-   SQL/kubectl commands. It points the agent at the diagnostic surface and the KB's
-   failure-mode patterns, then asks it to reason. Preserve this when adding/modifying
-   skills unless the use case is genuinely deterministic (e.g., parameter tuning with
-   no diagnostic surface). See AGENTS.md "Non-Obvious Things" for the full rationale.
+5. **Runbook philosophy** — the five skills (`database-incidents`, `performance-incidents`,
+   `application-incidents`, `general-triage`, `proactive-health-check`) in `sre-agent.bicep`
+   state the facts the agent can't infer (the RBAC it holds, what each alert means, which
+   table to look at) — e.g. the `database-incidents` runbook's `postgres-unreachable` triage
+   table maps alert → ARM-state check → action TYPE — while keeping the actual remediation at
+   the action-type level, NOT copy-paste SQL/kubectl recipes. Preserve both halves when
+   adding/modifying skills. See AGENTS.md "Non-Obvious Things" for the full rationale.

@@ -86,10 +86,16 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-09-01' = {
   }
 }
 
-// ACR pull role for AKS kubelet identity
+// ACR pull role for AKS kubelet identity — scoped to the REGISTRY (least
+// privilege; AVM avm/res/container-service/managed-cluster scopes ACR role
+// assignments to the registry, not the resource group).
+resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
+  name: last(split(acrId, '/'))
+}
+
 resource acrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(aks.id, acrId, 'acrpull')
-  scope: resourceGroup()
+  scope: acr
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d') // AcrPull
     principalId: aks.properties.identityProfile.kubeletidentity.objectId

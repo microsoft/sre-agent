@@ -35,14 +35,70 @@ Set-Location $repoRoot
 # ── Step 0: Load azd environment values ──────────────────────────────────────
 Write-Host "Loading azd environment values..." -ForegroundColor Yellow
 
+# Resolve the target resource group early — the Azure-discovery fallback below
+# needs it. RESOURCE_GROUP is an azd OUTPUT (only present after a successful
+# provision); ZAVA_RG_NAME is the INPUT the env always carries, so it is the
+# reliable bootstrap.
+function Get-TargetRg {
+    foreach ($k in 'RESOURCE_GROUP', 'ZAVA_RG_NAME') {
+        $v = [Environment]::GetEnvironmentVariable($k)
+        if (-not $v) {
+            $v = azd env get-value $k 2>$null
+            if ($LASTEXITCODE -ne 0) { $v = $null }
+        }
+        if ($v -and "$v".Trim() -and "$v" -notmatch '^ERROR') { return "$v".Trim() }
+    }
+    return $null
+}
+$script:TargetRg = Get-TargetRg
+
+# Azure-discovery fallback: derive a value straight from the deployed resources
+# when azd has not captured outputs. azd only persists Bicep outputs on a FULLY
+# successful `azd provision`, so a partial/transient failure (e.g. the AMPLS
+# private endpoint's occasional InternalServerError) leaves the outputs unset and
+# strands this hook. Discovering from the resource group makes post-provision
+# RESUMABLE after such a failure AND runnable standalone (e.g. after a raw
+# `az deployment sub create`, outside azd). Names are deterministic per RG, and
+# the lab deploys exactly one of each of these, so `[0]` / name-contains is safe.
+function Get-DiscoveredValue([string]$key) {
+    $rg = $script:TargetRg
+    if (-not $rg) { return $null }
+    switch ($key) {
+        'RESOURCE_GROUP'   { $rg }
+        'AZURE_LOCATION'   { az group show -n $rg --query location -o tsv 2>$null }
+        'AKS_CLUSTER_NAME' { az aks list -g $rg --query "[0].name" -o tsv 2>$null }
+        'AKS_OIDC_ISSUER'  { $a = az aks list -g $rg --query "[0].name" -o tsv 2>$null; if ($a) { az aks show -g $rg -n $a --query oidcIssuerProfile.issuerUrl -o tsv 2>$null } }
+        'ACR_NAME'         { az acr list -g $rg --query "[0].name" -o tsv 2>$null }
+        'ACR_LOGIN_SERVER' { az acr list -g $rg --query "[0].loginServer" -o tsv 2>$null }
+        'PG_SERVER_NAME'   { az postgres flexible-server list -g $rg --query "[0].name" -o tsv 2>$null }
+        'DB_HOST'          { az postgres flexible-server list -g $rg --query "[0].fullyQualifiedDomainName" -o tsv 2>$null }
+        'APPINSIGHTS_CONNECTION_STRING' { $aiId = az resource list -g $rg --resource-type 'microsoft.insights/components' --query "[0].id" -o tsv 2>$null; if ($aiId) { az resource show --ids $aiId --query properties.ConnectionString -o tsv 2>$null } }
+        'APP_IDENTITY_NAME'         { az identity list -g $rg --query "[?contains(name,'Zava-app')].name | [0]" -o tsv 2>$null }
+        'APP_IDENTITY_CLIENT_ID'    { az identity list -g $rg --query "[?contains(name,'Zava-app')].clientId | [0]" -o tsv 2>$null }
+        'APP_IDENTITY_PRINCIPAL_ID' { az identity list -g $rg --query "[?contains(name,'Zava-app')].principalId | [0]" -o tsv 2>$null }
+        'SRE_AGENT_NAME'   { az resource list -g $rg --resource-type 'Microsoft.App/agents' --query "[0].name" -o tsv 2>$null }
+        default            { $null }
+    }
+}
+
 function Get-AzdValue([string]$key) {
-    # azd injects Bicep outputs as env vars in hook subprocesses
+    # 1) azd injects Bicep outputs as env vars in hook subprocesses; 2) fall back
+    # to the persisted env; 3) discover from Azure (resumable + standalone).
     $val = [Environment]::GetEnvironmentVariable($key)
     if (-not $val) {
         $val = azd env get-value $key 2>$null
+        # `azd env get-value` for a missing key prints an "ERROR: ..." string to
+        # stdout with a non-zero exit code — don't mistake that for a real value.
+        if ($LASTEXITCODE -ne 0) { $val = $null }
     }
-    if (-not $val) { throw "Missing azd env value: $key — run 'azd provision' first." }
-    return $val.Trim()
+    if (-not $val -or -not "$val".Trim() -or "$val" -match '^ERROR') {
+        $val = Get-DiscoveredValue $key
+        if ($val -and "$val".Trim()) { Write-Host "  (discovered $key from Azure resources)" -ForegroundColor DarkGray }
+    }
+    if (-not $val -or -not "$val".Trim()) {
+        throw "Missing value '$key' — not in azd env and not discoverable in resource group '$($script:TargetRg)'. Run 'azd provision' or set ZAVA_RG_NAME."
+    }
+    return "$val".Trim()
 }
 
 $RG              = Get-AzdValue "RESOURCE_GROUP"
@@ -171,6 +227,37 @@ if (-not $proxyReady) {
     Write-Host "  Possible causes: RBAC propagation delay, Azure Policy blocking aks-command pod, cluster not fully provisioned." -ForegroundColor Red
     Write-Host "  Try: az aks command invoke -g $RG -n $AKS_NAME --command 'kubectl version'" -ForegroundColor Yellow
     exit 1
+}
+Write-Host ""
+
+# ── Step 4b: Link AKS private DNS zone to the agent VNet (native kubectl) ─────
+# The SRE Agent runs VNet-injected in its own spoke and is wired for NATIVE
+# kubectl (the firewall rule agent-subnet -> API:443 and SNAT are in vnet.bicep).
+# The one piece that can ONLY be done post-deploy: AKS creates its private DNS
+# zone (<guid>.privatelink.<region>.azmk8s.io) in the node resource group with a
+# name not known until the cluster exists, so the virtual-network link to the
+# agent spoke can't be a static Bicep resource. Without this link the agent can't
+# resolve the private API server and flounders on kubectl before falling back to
+# `az aks command invoke`. Idempotent.
+Write-Host "=== Step 4b: Linking AKS private DNS zone to agent VNet (native kubectl) ===" -ForegroundColor Green
+$mcRg = az aks show -g $RG -n $AKS_NAME --query nodeResourceGroup -o tsv 2>$null
+$aksDnsZone = az network private-dns zone list -g $mcRg --query "[?contains(name,'azmk8s.io')].name | [0]" -o tsv 2>$null
+$agentVnetId = az network vnet list -g $RG --query "[?contains(name,'agent')].id | [0]" -o tsv 2>$null
+if ($mcRg -and $aksDnsZone -and $agentVnetId) {
+    $existing = az network private-dns link vnet show -g $mcRg -z $aksDnsZone -n agent-link --query name -o tsv 2>$null
+    if ($existing) {
+        Write-Host "  Link 'agent-link' already present on $aksDnsZone" -ForegroundColor DarkGray
+    } else {
+        az network private-dns link vnet create -g $mcRg -z $aksDnsZone -n agent-link `
+            --virtual-network $agentVnetId --registration-enabled false -o none 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "  Linked AKS private DNS zone -> agent VNet (native kubectl enabled)" -ForegroundColor Green
+        } else {
+            Write-Host "  (warning: could not link AKS DNS zone; agent falls back to 'az aks command invoke')" -ForegroundColor Yellow
+        }
+    }
+} else {
+    Write-Host "  (skipped: could not resolve AKS node RG / DNS zone / agent VNet)" -ForegroundColor Yellow
 }
 Write-Host ""
 

@@ -2,7 +2,7 @@
 # Fix Network: Remove the K8s NetworkPolicy and NSG deny rule that
 # break-network.ps1 installs. Names match the realistic-sounding ones the
 # break script uses (database-tier-isolation / restrict-egress-database-tier),
-# not the old "block-postgres" giveaway.
+# rather than an obvious `block-postgres` name.
 # Uses `az aks command invoke` against the PRIVATE AKS cluster — no kubectl required.
 param(
     [string]$ResourceGroup = "",
@@ -21,7 +21,10 @@ Invoke-AksCommand -ResourceGroup $ctx.ResourceGroup -ClusterName $ctx.ClusterNam
 
 # Remove the NSG red herring (it never actually blocked anything — delegated
 # subnets bypass NSGs — but leaving it would be configuration drift).
-$nsgName = az network nsg list -g $ctx.ResourceGroup --query "[0].name" -o tsv
+# Must match the NSG that break-network.ps1 targets: the AKS subnet's own
+# `nsg-aks-*` NSG, not another NSG that may also live in the RG.
+$nsgName = az network nsg list -g $ctx.ResourceGroup --query "[?starts_with(name, 'nsg-aks')].name | [0]" -o tsv
+if (-not $nsgName) { $nsgName = az network nsg list -g $ctx.ResourceGroup --query "[0].name" -o tsv }
 if ($nsgName) {
     Write-Host "Removing NSG deny rule: $nsgName → restrict-egress-database-tier..." -ForegroundColor Green
     az network nsg rule delete --nsg-name $nsgName -g $ctx.ResourceGroup --name restrict-egress-database-tier 2>$null
