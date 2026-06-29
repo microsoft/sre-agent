@@ -51,7 +51,7 @@ exp_list() {
   fi
 }
 
-API_VERSION="2025-05-01-preview"
+API_VERSION="2026-01-01"
 ARM_BASE="https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.App/agents/${AGENT}"
 
 # Resolve agent endpoint
