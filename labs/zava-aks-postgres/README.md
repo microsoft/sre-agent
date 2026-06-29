@@ -179,6 +179,8 @@ The network is modeled as **hub-and-spoke**, the shape most enterprises actually
 - **Platform spoke** (`vnet-Zava-platform-*`, 10.20.0.0/16) holds the workload — AKS + PostgreSQL.
 - **Agent spoke** (`vnet-Zava-agent-*`, 10.30.0.0/24) holds the VNet-injected SRE Agent; its egress is force-tunneled to the hub firewall over VNet peering (UDR `0.0.0.0/0` → firewall).
 
+> **The agent's VNet is regional — its *reach* is not.** VNet injection is a **regional binding**: the `agent-subnet` you inject the agent into **must be in the same Azure region as the SRE Agent resource** — Microsoft's docs are explicit, *"The subnet must be in the same region as your SRE Agent resource"* ([SRE Agent subnet requirements](https://learn.microsoft.com/azure/sre-agent/network-integration#configure-azure-vnet-mode)). You **cannot** inject an agent that lives in *region A* into a subnet in *region B*. But that co-regional subnet only fixes **where the agent runs** — it does **not** limit **what the agent can reach**. Once injected, the agent reaches whatever its VNet can route to, including resources in **other Azure regions** (over [global VNet peering](https://learn.microsoft.com/azure/virtual-network/virtual-network-peering-overview)) and **on-premises** networks (over ExpressRoute/VPN) — *"as long as your network routes and rules allow it"* ([SRE Agent traffic routing](https://learn.microsoft.com/azure/sre-agent/network-integration#how-azure-vnet-mode-works)). In this lab all three VNets are co-regional, but the cross-region path is the **same mechanism** as the on-prem path — see [Reaching other regions and on-premises](#reaching-other-regions-and-on-premises).
+
 This proves the agent operates identically when it's isolated in its own management spoke and reaches everything through a *shared* firewall — the real customer pattern. It's behavior-preserving because the agent reaches AKS via native `kubectl` over the private API-server path (with `az aks command invoke` as fallback) and PostgreSQL through an in-cluster pod — not raw DB sockets; moving it into a separate spoke changes only *which* firewall inspects its egress.
 
 ### The hub firewall doubles as a "network device" the agent can interrogate
@@ -196,9 +198,26 @@ All with the agent's own managed identity (no elevation):
 
 **Chat demonstration (no break needed).** Ask the agent: *"Inspect the hub Azure Firewall — show its egress allow-list and anything it denied for my subnet in the last hour."* It reads the policy over ARM (`az network firewall policy ...`) and queries the `AZFW*` tables, demonstrating the network-device interrogation directly. Because the firewall gates the agent's *own* egress, this is a read/diagnostic demonstration, not an autonomous break/fix.
 
-### ExpressRoute / on-prem
+### Reaching other regions and on-premises
 
-A real ExpressRoute circuit can't be self-provisioned in a demo (it needs a connectivity provider to light up the circuit), so the topology **reserves** the `GatewaySubnet` and documents where the gateway attaches. To exercise hub-to-on-prem reachability cheaply, add a small peered "on-prem" VNet; for true gateway-transit semantics, deploy a VPN gateway in `GatewaySubnet` and flip `allowGatewayTransit` / `useRemoteGateways` on the peerings (cost + ~30-45 min deploy trade-off).
+The agent's network footprint is governed by two independent facts — **where it's injected** and **what it can reach**. They are not the same:
+
+| | Regional? | Why |
+|---|---|---|
+| **Where the agent is *injected*** (its `agent-subnet`) | **Yes — fixed.** Must be in the same region as the `Microsoft.App/agents` resource. | VNet injection is regional. *"The subnet must be in the same region as your SRE Agent resource."* ([subnet requirements](https://learn.microsoft.com/azure/sre-agent/network-integration#configure-azure-vnet-mode)) |
+| **What the agent can *reach*** | **No.** Anything its VNet routes to — any region, plus on-prem. | Once injected, the agent is just another workload on the subnet; it reaches whatever peering/routes expose. |
+
+So the rule is: **the agent's own subnet is pinned to its region, but peering lets it operate across any region (and into on-prem).** Three ways to extend reach, all the *same* mechanism — peer the remote network to the **hub**, and every spoke (including the agent) can route to it:
+
+- **Same region — VNet peering.** This lab's pattern: the agent spoke is peered to the hub, which is peered to the platform spoke, so the agent reaches AKS/PostgreSQL. Plain [VNet peering](https://learn.microsoft.com/azure/virtual-network/virtual-network-peering-overview) (*"Connect virtual networks within the same Azure region"*).
+- **Another Azure region — global VNet peering.** Peer the hub to a VNet in a **different** region and the agent reaches that region's private resources exactly as it reaches the platform spoke here. Azure calls this **global VNet peering** (*"Connect virtual networks across Azure regions"*) — still private, still on Microsoft's backbone, **no gateway required**. The agent doesn't move or change; only the peering graph grows.
+- **On-premises — ExpressRoute / VPN.** Swap the remote VNet for an ExpressRoute/VPN circuit that lands in the hub's reserved `GatewaySubnet`; the agent's traffic transits the hub exactly as cross-region traffic does. The SRE Agent docs call this out directly: the agent *"can reach … on-premises systems connected via ExpressRoute or VPN, as long as your network routes and rules allow it."*
+
+The on-prem example is therefore just **one instance** of the general rule, not a special case. The hub-and-spoke shape is what makes this clean: peer each new region's (or on-prem's) network to the **hub** once, and the agent — already peered to the hub — inherits the reach.
+
+> **Try cross-region (demo-cheap).** Deploy a small VNet in another region, global-peer it to the hub, drop a private resource in it, and the agent can reach it. `infra/modules/vnet.bicep` ships a **commented `remote-region` example** (a peered remote spoke + the `hub ↔ remote` global peering, plus the firewall egress rule the agent needs) you can uncomment to exercise it. No gateway is needed for VNet-to-VNet — global peering alone carries the traffic.
+
+> **On-prem via ExpressRoute / VPN.** A real ExpressRoute circuit can't be self-provisioned in a demo (it needs a connectivity provider to light up the circuit), so the topology **reserves** the `GatewaySubnet` and documents where the gateway attaches. To exercise hub-to-on-prem reachability cheaply, add a small peered "on-prem" VNet (same as the cross-region example above); for true gateway-transit semantics, deploy a VPN gateway in `GatewaySubnet` and flip `allowGatewayTransit` / `useRemoteGateways` on the peerings (cost + ~30-45 min deploy trade-off).
 
 ### Private Azure Monitor (AMPLS) — agent locked private by default
 
