@@ -46,6 +46,18 @@ param lockAgentToPrivateMonitor bool = true
 //                                                  via a UDR (0.0.0.0/0 → firewall private
 //                                                  IP) over peering.
 //
+// REGIONAL INJECTION, CROSS-REGION REACH:
+// the agent-subnet is delegated to Microsoft.App/environments and MUST be in the
+// SAME REGION as the Microsoft.App/agents resource — VNet injection is regional.
+// Docs: "The subnet must be in the same region as your SRE Agent resource."
+// https://learn.microsoft.com/azure/sre-agent/network-integration#configure-azure-vnet-mode
+// That pins WHERE the agent runs, NOT what it can REACH. Peered to the hub, the
+// agent routes to ANY peered network — other Azure REGIONS over GLOBAL VNet
+// peering (https://learn.microsoft.com/azure/virtual-network/virtual-network-peering-overview)
+// or ON-PREM over an ExpressRoute/VPN gateway in GatewaySubnet — "as long as your
+// network routes and rules allow it". The cross-region case is the SAME mechanism
+// as the on-prem case; see the optional remote-region example after the peerings.
+//
 // WHY THIS IS SAFE / BEHAVIOR-PRESERVING: the agent never needed raw L3 reach to
 // AKS or PostgreSQL. The AKS API server is PRIVATE and reached through
 // `az aks command invoke` (ARM); PostgreSQL SQL runs from an in-cluster pod via
@@ -238,6 +250,11 @@ resource agentVnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
 // in the local VNet. No gateway is deployed, so the gateway-transit flags are
 // false; flip allowGatewayTransit (hub) / useRemoteGateways (spoke) once a real
 // ExpressRoute/VPN gateway lands in GatewaySubnet.
+// NOTE: this same resource type peers ACROSS REGIONS — Azure transparently makes
+// a peering "global VNet peering" when the remote VNet is in a different region
+// (no extra property, no gateway). That's how the agent — pinned to THIS region
+// by injection — still reaches another region's private resources: peer that
+// region's VNet to the hub. See the optional remote-region example below.
 // --------------------------------------------------------------------------
 resource peerHubToPlatform 'Microsoft.Network/virtualNetworks/virtualNetworkPeerings@2024-05-01' = {
   parent: hubVnet
@@ -286,6 +303,78 @@ resource peerAgentToHub 'Microsoft.Network/virtualNetworks/virtualNetworkPeering
     useRemoteGateways: false
   }
 }
+
+// ==========================================================================
+// OPTIONAL — reach a SECOND AZURE REGION over GLOBAL VNet peering.
+// ==========================================================================
+// Demonstrates the cross-region half of "regional injection, cross-region reach"
+// (see the header note). The agent's OWN subnet stays in THIS region — that's a
+// hard requirement of VNet injection:
+//   "The subnet must be in the same region as your SRE Agent resource."
+//   https://learn.microsoft.com/azure/sre-agent/network-integration#configure-azure-vnet-mode
+// But peering the HUB to a VNet in a DIFFERENT region lets every spoke — the
+// agent included — route to that region's private resources, exactly like the
+// agent reaches the platform spoke here. Azure calls cross-region peering
+// "global VNet peering" (https://learn.microsoft.com/azure/virtual-network/virtual-network-peering-overview):
+// private, on Microsoft's backbone, NO gateway required. This is the SAME pattern
+// as the on-prem ExpressRoute/VPN path (which lands in GatewaySubnet) — just
+// another Azure VNet instead of an on-prem circuit.
+//
+// To try it: pick a different region, then UNCOMMENT the block below and place a
+// private resource in remoteVnet for the agent to reach. (Kept commented so the
+// default demo stays single-region and cheap — same stance as the on-prem
+// gateway, which is documented but not deployed.)
+//
+// @description('Region for the optional remote (cross-region) spoke. Must DIFFER from `location`.')
+// param remoteRegion string = 'westus2'
+//
+// resource remoteVnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
+//   name: 'vnet-Zava-remote-${uniqueSuffix}'
+//   location: remoteRegion              // DIFFERENT region from the agent/hub.
+//   properties: {
+//     addressSpace: { addressPrefixes: ['10.40.0.0/24'] }   // must NOT overlap any VNet above
+//     subnets: [
+//       { name: 'workload-subnet', properties: { addressPrefix: '10.40.0.0/27' } }
+//     ]
+//   }
+// }
+//
+// // Global VNet peering hub <-> remote (bidirectional). IDENTICAL to the local
+// // hub<->spoke peerings above — Azure makes it "global" automatically because
+// // the two VNets are in different regions. No gateway, no extra property.
+// resource peerHubToRemote 'Microsoft.Network/virtualNetworks/virtualNetworkPeerings@2024-05-01' = {
+//   parent: hubVnet
+//   name: 'hub-to-remote'
+//   properties: {
+//     remoteVirtualNetwork: { id: remoteVnet.id }
+//     allowVirtualNetworkAccess: true
+//     allowForwardedTraffic: true
+//     allowGatewayTransit: false
+//     useRemoteGateways: false
+//   }
+// }
+// resource peerRemoteToHub 'Microsoft.Network/virtualNetworks/virtualNetworkPeerings@2024-05-01' = {
+//   parent: remoteVnet
+//   name: 'remote-to-hub'
+//   properties: {
+//     remoteVirtualNetwork: { id: hubVnet.id }
+//     allowVirtualNetworkAccess: true
+//     allowForwardedTraffic: true
+//     allowGatewayTransit: false
+//     useRemoteGateways: false
+//   }
+// }
+//
+// // The agent's egress is force-tunneled to the hub firewall (UDR 0.0.0.0/0 ->
+// // firewall). Peering carries the packets, but the firewall still GATES the
+// // agent's egress — so add a network rule permitting agent-subnet -> the remote
+// // range to the ruleCollectionGroup below (the module already SNATs all egress,
+// // so the return path stays symmetric):
+// //   { name: 'allow-agent-to-remote-region', ruleType: 'NetworkRule',
+// //     sourceAddresses: ['10.30.0.0/27'], destinationAddresses: ['10.40.0.0/24'],
+// //     destinationPorts: ['*'], ipProtocols: ['Any'] }
+// // Cross-region peering alone is enough for VNet-to-VNet traffic that ISN'T
+// // force-tunneled; this lab force-tunnels the agent, hence the extra firewall rule.
 
 // Public IP for the Azure Firewall frontend (the only public ingress in the hub).
 resource firewallPip 'Microsoft.Network/publicIPAddresses@2024-05-01' = {
