@@ -62,7 +62,8 @@ resource database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-0
 //
 // Why this matters for the demo: the goal is for the SRE Agent to *diagnose*
 // from Log Analytics (KQL) BEFORE falling back to in-cluster execution
-// (`az aks command invoke … kubectl exec deploy/zava-api -- node bin/run-sql.js`).
+// (native `kubectl exec deploy/zava-api -- node bin/run-sql.js`, run in the
+// agent's sandbox terminal).
 // Azure PG Flex pre-loads pg_qs and
 // pgms_wait_sampling in shared_preload_libraries, but they're idle by default —
 // flipping query_capture_mode to ALL turns them on. Once on, the per-query

@@ -34,10 +34,11 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-09-01' = {
       dnsServiceIP: '10.2.0.10'
     }
     // Enterprise hardening: private API server. The control plane is
-    // unreachable from the public internet — both human operators and the
-    // SRE Agent reach it through `az aks command invoke` (Azure-proxied
-    // kubectl). Cluster Admin RBAC for the agent identities is granted in
-    // `sre-agent.bicep`.
+    // unreachable from the public internet. Human operators reach it through
+    // `az aks command invoke` (Azure-proxied kubectl); the SRE Agent uses
+    // native `kubectl` over the private API-server path (managed-identity
+    // `kubelogin`). Cluster Admin RBAC for the agent
+    // identities is granted in `sre-agent.bicep`.
     apiServerAccessProfile: {
       enablePrivateCluster: true
       privateDNSZone: 'system'
