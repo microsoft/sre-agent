@@ -59,9 +59,10 @@ param lockAgentToPrivateMonitor bool = true
 // as the on-prem case; see the optional remote-region example after the peerings.
 //
 // WHY THIS IS SAFE / BEHAVIOR-PRESERVING: the agent never needed raw L3 reach to
-// AKS or PostgreSQL. The AKS API server is PRIVATE and reached through
-// `az aks command invoke` (ARM); PostgreSQL SQL runs from an in-cluster pod via
-// the same path; everything else (ARM, Entra, Azure Monitor, Microsoft Learn) is
+// AKS or PostgreSQL. The AKS API server is PRIVATE and reached through native
+// `kubectl` over the firewall-brokered private API-server path; PostgreSQL SQL
+// runs from an in-cluster pod via `kubectl exec`; everything else (ARM, Entra,
+// Azure Monitor, Microsoft Learn) is
 // allow-listed HTTPS. The agent's sandbox egress is HTTP(S)-proxy-brokered
 // (allow-listed HTTPS only — it cannot open raw TCP to private VNet IPs). So
 // putting the agent in its own spoke changes only WHICH firewall inspects its
@@ -410,7 +411,7 @@ resource firewallPolicy 'Microsoft.Network/firewallPolicies@2024-05-01' = {
     // the platform NSG's VirtualNetwork tag) makes the API server accept it AND
     // reply through the firewall symmetrically (stateful). Remove this together
     // with the `allow-agent-to-aks-api` rule below to revert to a command-invoke-
-    // only, maximally-locked-down posture.
+    // only posture (no API-server line of sight).
     snat: {
       privateRanges: ['255.255.255.255/32']
     }
@@ -420,8 +421,9 @@ resource firewallPolicy 'Microsoft.Network/firewallPolicies@2024-05-01' = {
 // Allow-list = exactly what the VNet-injected SRE Agent needs to operate:
 // DNS, ARM / Entra / Microsoft Graph, Azure Monitor (App Insights + Log
 // Analytics queries), and Microsoft Learn (the agent's learn MCP / docs tools).
-// `az aks command invoke` and all azcli operations ride ARM, so they work
-// through these rules without exposing the cluster API server publicly.
+// All az CLI operations ride ARM (including `az aks command invoke`, used by
+// human operators — not the agent), so they work through these rules without
+// exposing the cluster API server publicly.
 // AzureCloud is deliberately NOT used (it covers ~65k prefixes including
 // third-party SaaS); precise service tags are used instead. The source is the
 // agent spoke's subnet (10.30.0.0/27).
@@ -462,7 +464,7 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
         // VNet (a post-deploy step — the zone is AKS-managed in the MC_* RG) and
         // (b) the SNAT on the policy above, this is what makes native `kubectl`
         // work from the agent. Omit this collection (and the SNAT) for a
-        // command-invoke-only, maximally-locked-down lab.
+        // command-invoke-only lab (no API-server line of sight).
         ruleCollectionType: 'FirewallPolicyFilterRuleCollection'
         name: 'allow-agent-to-aks-api'
         priority: 210

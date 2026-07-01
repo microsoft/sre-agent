@@ -12,7 +12,7 @@ This skill drives the full demo using Playwright MCP for browser control. Execut
 ```powershell
 # AKS is a private cluster — kubectl from your local workstation won't work without VPN/jumpbox.
 # Use `Invoke-AksCommand` (wraps `az aks command invoke` for human-operator polling/diagnostics).
-# The SRE Agent uses native kubectl primarily (command-invoke fallback); this helper is for human operators without the agent's VNet/DNS/proxy setup.
+# The SRE Agent uses native kubectl; this helper is for human operators without the agent's VNet/DNS/proxy setup.
 . .\scripts\_aks-helpers.ps1
 $rg  = (azd env get-value RESOURCE_GROUP)
 $aks = (azd env get-value AKS_CLUSTER_NAME)
@@ -81,7 +81,7 @@ Wait 30 seconds.
 
 ### Step 4: Watch the agent
 1. Check SRE Agent portal for investigation
-2. Agent needs to find the K8s NetworkPolicy via native `kubectl get networkpolicy -n zava-demo -o yaml` and remove it via `kubectl delete networkpolicy database-tier-isolation -n zava-demo` (with command-invoke only as fallback) — this is harder than Scenario 1 and may take longer
+2. Agent needs to find the K8s NetworkPolicy via native `kubectl get networkpolicy -n zava-demo -o yaml` and remove it via `kubectl delete networkpolicy database-tier-isolation -n zava-demo` (run in its sandbox terminal) — this is harder than Scenario 1 and may take longer
 3. Poll for NetworkPolicy removal (the AKS API server is private — go through ARM):
    ```powershell
    Invoke-AksCommand -ResourceGroup $rg -ClusterName $aks -Command "kubectl get networkpolicy -n zava-demo"
@@ -117,7 +117,7 @@ If the script aborts with "Telemetry pipeline is dead", the api pods stopped sen
 4. (`break-db-perf.ps1` already launched a 15-min in-cluster Kubernetes Job (`zava-cat-load` in the `zava-demo` namespace) that hammers `/api/products/category/<X>` over the cluster-internal Service DNS. This pushes real traffic past the alert's 30ms threshold — the 1Hz `__probe` is excluded by the alert KQL. The Job auto-cleans 60s after completion via `ttlSecondsAfterFinished`; `fix-db-perf.ps1` also deletes it explicitly. Run with `-NoLoad` to skip.)
 
 ### Step 4: Watch agent
-1. Monitor SRE Agent portal — it should detect slow response times via App Insights, identify the missing index, and run `CREATE INDEX CONCURRENTLY` in-cluster via `bin/run-sql.js` (the agent runs native `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js "<SQL>"`, with command-invoke only as fallback — the helper reuses the pod's workload identity)
+1. Monitor SRE Agent portal — it should detect slow response times via App Insights, identify the missing index, and run `CREATE INDEX CONCURRENTLY` in-cluster via `bin/run-sql.js` (the agent runs native `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js "<SQL>"` from its sandbox terminal — the helper reuses the pod's workload identity)
 2. Do not run `fix-db-perf.ps1` as part of the demo — same rule as the other scenarios: the script is post-demo cleanup, not an agent-failure fallback.
 
 ### Step 5: Show recovery
