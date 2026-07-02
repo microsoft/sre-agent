@@ -17,6 +17,11 @@
         and there is NO ARM/Bicep property for per-tool state (the agent's
         `permissions` stays null) — Microsoft's own `srectl tool config set` CLI
         exists for exactly this (POST /api/v2/agent/tools/configure).
+      - Global tool DISABLEMENT: turn the built-in RunKubectl* tools OFF for every
+        agent loop. The lab is fully kube-native — the agent runs `kubectl` in its
+        sandbox terminal via managed-identity `kubelogin` — so these built-in tools
+        are disabled at the agent level via the same POST
+        /api/v2/agent/tools/configure API used to enable the Learn tools above.
       - Verification of Bicep-deployed assets
 .EXAMPLE
     .\scripts\setup-sre-agent.ps1
@@ -239,6 +244,45 @@ if ($present.Count -gt 0) {
     }
 }
 
+# --- Step 2c: Disable the built-in RunKubectl* tools globally (data-plane) --
+# This lab is fully kube-native: the agent runs `kubectl` itself in its sandbox
+# terminal (RunInTerminal), authenticated by its managed identity via `kubelogin`.
+# The built-in RunKubectl* tools are turned OFF at the agent level so the agent
+# uses that native path. This is the same POST /api/v2/agent/tools/configure API
+# Step 2b uses to enable the Learn tools, with a symmetric payload:
+# { overrides: [{ name, enabled: false }] }. We disable the two raw-kubectl tools
+# present in this agent's catalog (Read + Write) and union in any other tool whose
+# name starts with 'RunKubectl' the live catalog reports, so we never POST a name
+# the catalog can't confirm.
+Write-Host "`nStep 2c: Disabling built-in RunKubectl* tools globally (kube-native)..." -ForegroundColor Yellow
+$kubectlCore = @('RunKubectlReadCommand', 'RunKubectlWriteCommand')
+$kcat = @()
+try {
+    $ktr = $client.GetAsync("$agentEndpoint/api/v2/agent/tools").Result
+    if ($ktr.IsSuccessStatusCode) { $kcat = @(($ktr.Content.ReadAsStringAsync().Result | ConvertFrom-Json).data) }
+} catch {}
+# Always disable the two raw-kubectl tools; union in any other RunKubectl* the
+# live catalog actually reports so we never POST a name it can't confirm.
+$kubeFromCat = @($kcat | Where-Object { $_.name -like 'RunKubectl*' } | ForEach-Object { $_.name })
+$kubectlTools = @($kubectlCore + $kubeFromCat | Select-Object -Unique)
+# Built-in tools may not surface in the catalog readout, so skip only when the
+# catalog positively confirms every target is present AND already disabled.
+$kubePresent = @($kubectlTools | Where-Object { $_ -in $kcat.name })
+$kubeStillOn = @($kcat | Where-Object { ($_.name -in $kubectlTools) -and $_.enabled } | ForEach-Object { $_.name })
+if ($kubePresent.Count -gt 0 -and $kubePresent.Count -eq $kubectlTools.Count -and $kubeStillOn.Count -eq 0) {
+    Write-Host "  [skip] RunKubectl* tools already disabled globally ($($kubectlTools -join ', '))" -ForegroundColor DarkGray
+} else {
+    $kPayload = @{ overrides = @($kubectlTools | ForEach-Object { @{ name = $_; enabled = $false } }) } | ConvertTo-Json -Depth 4 -Compress
+    $kContent = [System.Net.Http.StringContent]::new($kPayload, [System.Text.Encoding]::UTF8, "application/json")
+    $kResp = $client.PostAsync("$agentEndpoint/api/v2/agent/tools/configure", $kContent).Result
+    if ($kResp.IsSuccessStatusCode) {
+        Write-Host "  [ok] Disabled built-in kubectl tools globally ($($kubectlTools -join ', ')) — agent uses native kubectl via RunInTerminal" -ForegroundColor Green
+    } else {
+        Write-Host "  WARNING: kubectl tool disable returned $($kResp.StatusCode): $($kResp.Content.ReadAsStringAsync().Result)" -ForegroundColor Yellow
+    }
+    $kContent.Dispose()
+}
+
 # --- Step 3: Verify Bicep-deployed assets ----------------------------------
 Write-Host "`nStep 3: Verifying Bicep-deployed configuration..." -ForegroundColor Yellow
 $allGood = $true
@@ -296,6 +340,7 @@ if ($agent.properties.incidentManagementConfiguration.type -ne "AzMonitor") {
 } else { Write-Host "  [OK] Incident platform: AzMonitor" -ForegroundColor Green }
 
 $learnEnabled = @()
+$vcat = @()
 try {
     $vt = $client.GetAsync("$agentEndpoint/api/v2/agent/tools").Result
     if ($vt.IsSuccessStatusCode) {
@@ -307,6 +352,13 @@ if ($learnEnabled.Count -eq $learnTools.Count) {
     Write-Host "  [OK] Microsoft Learn MCP tools enabled globally: $($learnEnabled.Count)/$($learnTools.Count)" -ForegroundColor Green
 } else {
     Write-Host "  [WARN] Learn MCP tools enabled globally: $($learnEnabled.Count)/$($learnTools.Count) (MCP connection may still be warming up)" -ForegroundColor Yellow; $allGood = $false
+}
+
+$kubeVerifyOn = @($vcat | Where-Object { ($_.name -in $kubectlTools) -and $_.enabled } | ForEach-Object { $_.name })
+if ($kubeVerifyOn.Count -eq 0) {
+    Write-Host "  [OK] Built-in RunKubectl* tools disabled globally (agent is kube-native via RunInTerminal)" -ForegroundColor Green
+} else {
+    Write-Host "  [WARN] RunKubectl* still enabled: $($kubeVerifyOn -join ', ') — re-run Step 2c to disable" -ForegroundColor Yellow; $allGood = $false
 }
 
 if ($allGood) { Write-Host "  All Bicep + data-plane assets verified." -ForegroundColor Green }
@@ -328,6 +380,7 @@ Write-Host "  [x] Response plans (incident filters): zava-database, zava-perform
 Write-Host "`n  DONE BY THIS SCRIPT (data plane — no ARM API yet):" -ForegroundColor Cyan
 Write-Host ("  [x] Knowledge files synced: {0} local file(s) ({1} uploaded, {2} replaced, {3} skipped, {4} failed)" -f $kbLocalFiles.Count, $uploaded, $replaced, $skipped, $failed)
 Write-Host ("  [x] Microsoft Learn MCP tools enabled globally: {0}/{1} (docs_search, code_sample_search, docs_fetch)" -f $learnEnabled.Count, $learnTools.Count)
+Write-Host ("  [x] Built-in RunKubectl* tools disabled globally: {0}/{1} (kube-native — agent runs kubectl in its sandbox terminal)" -f ($kubectlTools.Count - $kubeVerifyOn.Count), $kubectlTools.Count)
 
 Write-Host "`n  NEXT STEPS:" -ForegroundColor Cyan
 Write-Host "  Run a break scenario:"

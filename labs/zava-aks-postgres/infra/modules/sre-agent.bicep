@@ -290,16 +290,14 @@ resource azureMonitorConnector 'Microsoft.App/agents/connectors@2025-05-01-previ
 
 var sharedContext = '''Resource Group `@@RG@@`. App namespace `zava-demo`. Deployments `zava-api` / `zava-storefront`. App Insights cloud_RoleName `zava-api`.
 
-You operate with your own managed identity (Entra) — AKS RBAC Cluster Admin, Reader + Monitoring Reader + Contributor on the resource group, and PostgreSQL Entra admin. These are sufficient: do NOT attempt `az role assignment create` (it is denied — if you think you need a role you lack, your diagnosis is wrong, back up). Your sandbox egress is forced through an Azure Firewall (allow-list: ARM, Entra, Microsoft Graph, Microsoft Learn over public service tags, plus the AKS API server over the hub/spoke; Azure Monitor is reached privately via the AMPLS private endpoint by default) AND a TLS-inspecting forward proxy that re-signs certificates. This cluster is wired for native `kubectl` (the agent VNet has the AKS private-DNS zone linked and a firewall rule + SNAT to the API server). One-time setup per session, then use your kubectl tools directly: (1) `az aks get-credentials -g @@RG@@ -n <aks-cluster> --overwrite-existing` (find the cluster via `az aks list -g @@RG@@ --query "[0].name" -o tsv`); (2) `kubelogin convert-kubeconfig -l azurecli` — non-interactive managed-identity auth (the DEFAULT device-code flow hangs; do not use it); (3) trust the egress proxy by merging its CA `/etc/ssl/certs/adc-egress-proxy-ca.crt` into the kubeconfig cluster's `certificate-authority-data`. Then `kubectl get nodes` works; use native kubectl for pods, logs, events, NetworkPolicies, rollouts, and the in-cluster SQL helper `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js '<SQL>'`. `az aks command invoke -g @@RG@@ -n <aks-cluster> --command "kubectl ..."` remains a fallback (and is the only path if the firewall to the API server is closed). Never install DB clients (`psql`, `psycopg2`) or open a raw socket to PostgreSQL. Reach ARM over the control plane; reach Azure Monitor (Log Analytics / Application Insights) with your Monitor query tools — they work normally (this deployment locks the agent's Monitor access to the AMPLS private endpoint by default, and your tools operate fine over it). Filter every App Insights / Log Analytics query by `AppRoleName == 'zava-api'` — the workspace is shared with your own ARM-poll telemetry.'''
+You operate with your own managed identity (Entra) — AKS RBAC Cluster Admin, Reader + Monitoring Reader + Contributor on the resource group, and PostgreSQL Entra admin. These are sufficient: do NOT attempt `az role assignment create` (it is denied — if you think you need a role you lack, your diagnosis is wrong, back up). Your sandbox egress is forced through an Azure Firewall (allow-list: ARM, Entra, Microsoft Graph, Microsoft Learn over public service tags, plus the AKS API server over the hub/spoke; Azure Monitor is reached privately via the AMPLS private endpoint by default) AND a TLS-inspecting forward proxy that re-signs certificates. This cluster is wired for native `kubectl` (the agent VNet has the AKS private-DNS zone linked and a firewall rule + SNAT to the API server): you run `kubectl` yourself as a bash command in your sandbox terminal (`RunInTerminal`). One-time setup per session: (1) `az aks get-credentials -g @@RG@@ -n <aks-cluster> --overwrite-existing` (find the cluster via `az aks list -g @@RG@@ --query "[0].name" -o tsv`); (2) `kubelogin convert-kubeconfig -l azurecli` — non-interactive managed-identity auth (the DEFAULT device-code flow hangs; do not use it); (3) trust the egress proxy by merging its CA `/etc/ssl/certs/adc-egress-proxy-ca.crt` into the kubeconfig cluster's `certificate-authority-data`. Then `kubectl get nodes` works; run kubectl in your terminal for pods, logs, events, NetworkPolicies, rollouts, and the in-cluster SQL helper `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js '<SQL>'`. Never install DB clients (`psql`, `psycopg2`) or open a raw socket to PostgreSQL. Reach ARM over the control plane; reach Azure Monitor (Log Analytics / Application Insights) with your Monitor query tools — they work normally (this deployment locks the agent's Monitor access to the AMPLS private endpoint by default, and your tools operate fine over it). Filter every App Insights / Log Analytics query by `AppRoleName == 'zava-api'` — the workspace is shared with your own ARM-poll telemetry.'''
 
 var databaseSkill = {
   description: 'Use for Zava PostgreSQL AVAILABILITY incidents — alert `postgres-unreachable` (zava-api cannot reach PostgreSQL; connection refused or, more often, timeout). Diagnose the cause from ARM state — stopped server vs network partition — and remediate: restart the server, or remove the in-cluster Kubernetes NetworkPolicy / matching NSG deny rule that blocks PG egress.'
   tools: [
     'RunAzCliReadCommands'
     'RunAzCliWriteCommands'
-    'RunKubectlReadCommand'
-    'RunKubectlWriteCommand'
-    'RunKubectlCommandHelp'
+    'RunInTerminal'
     'SearchMemory'
     'microsoft-learn_microsoft_docs_search'
     'microsoft-learn_microsoft_docs_fetch'
@@ -315,7 +313,7 @@ The alert `postgres-unreachable` means zava-api cannot reach PostgreSQL — it l
 | PG ARM `state` | Cause | Action |
 |---|---|---|
 | `Stopped` | The server was stopped. | **Start it**: `az postgres flexible-server start`. |
-| `Ready` (app still can't connect) | A network block. | Two enforcement surfaces sit between the app and PG: an NSG deny rule on the AKS subnet (often a RED HERRING — PG's private access uses a platform-managed delegated subnet) and a Kubernetes **NetworkPolicy** in `zava-demo` (usually the real cause). Inspect both — `az network nsg rule list` and `az aks command invoke -g @@RG@@ -n <aks-cluster> --command "kubectl get networkpolicy -A -o yaml"` — then delete the offending NetworkPolicy with `az aks command invoke -g @@RG@@ -n <aks-cluster> --command "kubectl delete networkpolicy <name> -n zava-demo"` (and any matching NSG deny rule on the AKS subnet). |
+| `Ready` (app still can't connect) | A network block. | Two enforcement surfaces sit between the app and PG: an NSG deny rule on the AKS subnet (often a RED HERRING — PG's private access uses a platform-managed delegated subnet) and a Kubernetes **NetworkPolicy** in `zava-demo` (usually the real cause). Inspect both — `az network nsg rule list` and `kubectl get networkpolicy -A -o yaml` (run in your terminal) — then delete the offending NetworkPolicy with `kubectl delete networkpolicy <name> -n zava-demo` (and any matching NSG deny rule on the AKS subnet). |
 
 ## Permitted autonomous actions
 - Start / restart / parameter-set on PostgreSQL Flexible Server.
@@ -341,9 +339,7 @@ var performanceSkill = {
   tools: [
     'RunAzCliReadCommands'
     'RunAzCliWriteCommands'
-    'RunKubectlReadCommand'
-    'RunKubectlWriteCommand'
-    'RunKubectlCommandHelp'
+    'RunInTerminal'
     'SearchMemory'
     'microsoft-learn_microsoft_docs_search'
     'microsoft-learn_microsoft_docs_fetch'
@@ -362,7 +358,7 @@ var performanceSkill = {
 Agreement across all four points at the database query, not the app tier.
 
 ## Diagnose at PostgreSQL (in-cluster SQL helper)
-`kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js '<SQL>'` — native kubectl, set up per shared context; `az aks command invoke -g @@RG@@ -n <aks-cluster> --command "kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js '<SQL>'"` is a reliable fallback for the quoted SQL. Inspect `pg_stat_user_indexes` (low/zero `idx_scan` on a hot table is a strong signal), `pg_stat_user_tables` (high `seq_scan`), `pg_stat_statements` (top mean-time), and `EXPLAIN`.
+`kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js '<SQL>'` — run kubectl in your terminal, set up per shared context. Inspect `pg_stat_user_indexes` (low/zero `idx_scan` on a hot table is a strong signal), `pg_stat_user_tables` (high `seq_scan`), `pg_stat_statements` (top mean-time), and `EXPLAIN`.
 
 ## Permitted autonomous actions
 - Read-mostly DDL on PostgreSQL via the in-cluster helper: `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, `ANALYZE`, `REINDEX CONCURRENTLY`.
@@ -382,9 +378,7 @@ var applicationSkill = {
   tools: [
     'RunAzCliReadCommands'
     'RunAzCliWriteCommands'
-    'RunKubectlReadCommand'
-    'RunKubectlWriteCommand'
-    'RunKubectlCommandHelp'
+    'RunInTerminal'
     'SearchMemory'
     'microsoft-learn_microsoft_docs_search'
     'microsoft-learn_microsoft_docs_fetch'
@@ -397,10 +391,10 @@ var applicationSkill = {
 
 ## Investigate
 1. Briefly confirm it is not DB/perf after all: PG `state == Ready`, no ECONNREFUSED/ETIMEDOUT traces, `/api/products` latency normal. If a DB or slow-query symptom is actually present, defer to the database / performance runbook.
-2. App regressions are usually shipped by a deploy. Every change to the `zava-api` Deployment pod template creates a new ReplicaSet **revision**. Check whether the 5xx onset lines up with a recent rollout: `az aks command invoke -g @@RG@@ -n <aks-cluster> --command "kubectl rollout history deployment/zava-api -n zava-demo"` and `KubeEvents` (Azure Monitor) (`ScalingReplicaSet` timestamps). Note the liveness AND readiness probes both hit `/livez` (shallow, no DB call), so pods stay Ready through an app-route regression and the platform looks healthy while the app is broken; `/api/health` is a separate app health endpoint (it pings the DB) and can also stay green for a route-only regression — deployment correlation is the tie.
+2. App regressions are usually shipped by a deploy. Every change to the `zava-api` Deployment pod template creates a new ReplicaSet **revision**. Check whether the 5xx onset lines up with a recent rollout: native `kubectl rollout history deployment/zava-api -n zava-demo` and `KubeEvents` (Azure Monitor) (`ScalingReplicaSet` timestamps). Note the liveness AND readiness probes both hit `/livez` (shallow, no DB call), so pods stay Ready through an app-route regression and the platform looks healthy while the app is broken; `/api/health` is a separate app health endpoint (it pings the DB) and can also stay green for a route-only regression — deployment correlation is the tie.
 
 ## Permitted autonomous actions
-- Roll back a `zava-demo` deployment to its previous revision (`az aks command invoke -g @@RG@@ -n <aks-cluster> --command "kubectl rollout undo deployment/zava-api -n zava-demo"`) when a 5xx regression correlates with a recent rollout.
+- Roll back a `zava-demo` deployment to its previous revision (native `kubectl rollout undo deployment/zava-api -n zava-demo`) when a 5xx regression correlates with a recent rollout.
 - Restart deployments in `zava-demo`.
 
 ## Out of scope (summarize + stop)
@@ -417,8 +411,6 @@ var generalTriageSkill = {
   description: 'Use for ANY Zava incident that does not match a specific known scenario — novel / unknown alerts routed to the unknown response plan. Triage from first principles: identify the impacted resource, gather telemetry, form hypotheses, and propose a remediation for human approval (this path runs in Review mode). Do not auto-remediate beyond clearly read-only/safe steps.'
   tools: [
     'RunAzCliReadCommands'
-    'RunKubectlReadCommand'
-    'RunKubectlCommandHelp'
     'SearchMemory'
     'microsoft-learn_microsoft_docs_search'
     'microsoft-learn_microsoft_docs_fetch'
