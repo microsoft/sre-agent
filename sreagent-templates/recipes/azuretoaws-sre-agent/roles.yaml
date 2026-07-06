@@ -1,0 +1,12 @@
+# Role assignments for azuretoaws recipe
+#
+# AWS credentials: Generate STS temporary credentials
+#   aws sts get-session-token --duration-seconds 43200
+#   Copy AccessKeyId, SecretAccessKey, SessionToken into connectors.secrets.env
+#
+# GitHub repo: Configure in portal after deploy, or use GitHub App integration
+
+roles:
+  - scope: "/subscriptions/{{subscription}}/resourceGroups/{{resourceGroup}}"
+    role: "Reader"
+    principal: "{{agentUamiPrincipalId}}"

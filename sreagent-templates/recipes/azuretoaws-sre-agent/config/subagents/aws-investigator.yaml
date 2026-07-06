@@ -1,0 +1,37 @@
+metadata:
+  name: aws-investigator
+spec:
+  instructions: subagents/aws-investigator.instructions.md
+  handoffDescription: Investigates AWS infrastructure issues using CloudWatch logs,
+    metrics, alarms, X-Ray traces, and source code analysis.
+  enableSkills: true
+  allowedSkills:
+  - investigate-aws-app-errors
+  tools:
+  - SearchMemory
+  - ExecutePythonCode
+  - CreateGithubIssue
+  - FetchGithubIssues
+  - FindConnectedGitHubRepo
+  - PlotAreaChartWithCorrelation
+  - PlotBarChart
+  - PlotHeatmap
+  - aws-mcp_cloudwatch_get-log-events
+  - aws-mcp_cloudwatch_filter-log-events
+  - aws-mcp_cloudwatch_describe-alarms
+  - aws-mcp_cloudwatch_get-metric-data
+  - aws-mcp_cloudwatch_list-metrics
+  - aws-mcp_cloudwatch_start-query
+  - aws-mcp_cloudwatch_get-query-results
+  - aws-mcp_lambda_get-function
+  - aws-mcp_lambda_list-functions
+  - aws-mcp_lambda_get-function-configuration
+  - aws-mcp_dynamodb_describe-table
+  - aws-mcp_dynamodb_list-tables
+  - aws-mcp_xray_get-trace-summaries
+  - aws-mcp_xray_batch-get-traces
+  - aws-mcp_s3_list-buckets
+  - aws-mcp_s3_get-bucket-location
+  - aws-knowledge_search
+  - aws-knowledge_get-content
+  agentType: Autonomous

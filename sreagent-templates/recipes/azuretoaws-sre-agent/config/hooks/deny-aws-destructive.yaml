@@ -1,0 +1,11 @@
+metadata:
+  name: deny-aws-destructive
+spec:
+  eventType: PreToolUse
+  hook:
+    type: prompt
+    prompt: If the tool targets a production AWS resource (deleting, terminating, or
+      removing), deny the action and require explicit human approval.
+    matcher: ^aws-mcp_(delete|terminate|remove|destroy|stop).*
+  permissionDecision: deny
+  enabled: true

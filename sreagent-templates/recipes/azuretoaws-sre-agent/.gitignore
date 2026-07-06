@@ -1,0 +1,3 @@
+connectors.secrets.env
+*.secrets.env
+data/
