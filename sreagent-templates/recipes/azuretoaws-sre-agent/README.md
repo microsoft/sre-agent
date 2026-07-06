@@ -15,8 +15,20 @@ Includes a diagnostic skill and subagent for investigating serverless app issues
 
 ### Step 1 — Get AWS credentials
 
+Two options depending on your AWS setup:
+
+**Option A: Permanent IAM access key (simplest, no expiration)**
+
+1. In the AWS Console, go to IAM → Users → create a user with programmatic access
+2. Attach `ReadOnlyAccess` policy (or a scoped policy for CloudWatch, Lambda, DynamoDB, X-Ray)
+3. Under Security credentials, create an access key
+4. Use the Access Key ID and Secret Access Key directly, leave `AWS_SESSION_TOKEN` empty
+
+**Option B: Temporary STS credentials (short-lived)**
+
+If you already have an IAM user with permanent keys, generate temporary credentials:
+
 ```bash
-# Generate short-lived STS credentials (12 hours)
 aws sts get-session-token --duration-seconds 43200 --output json
 ```
 
@@ -80,11 +92,11 @@ EOF
 
 These go in the secrets file, **never** on the command line:
 
-| Variable | Source | Notes |
-|----------|--------|-------|
-| `AWS_ACCESS_KEY_ID` | `aws sts get-session-token` | Temporary key |
-| `AWS_SECRET_ACCESS_KEY` | `aws sts get-session-token` | Temporary secret |
-| `AWS_SESSION_TOKEN` | `aws sts get-session-token` | Session token (required for STS creds) |
+| Variable | Notes |
+|----------|-------|
+| `AWS_ACCESS_KEY_ID` | Permanent key (starts with `AKIA`) or temporary key (starts with `ASIA`) |
+| `AWS_SECRET_ACCESS_KEY` | Corresponding secret key |
+| `AWS_SESSION_TOKEN` | Required for temporary STS creds. Leave empty if using permanent IAM key |
 
 ### Advanced Options
 
@@ -130,15 +142,14 @@ Provides AWS documentation, best practices, code samples, and regional availabil
 
 ## Credential Rotation
 
-STS credentials expire (default 12 hours). To rotate:
+**Permanent IAM keys:** No expiration. Rotate periodically per your security policy (IAM → User → Security credentials → Create new key → delete old key). No redeploy needed if you delete and recreate the connector in the portal with the new values.
+
+**Temporary STS credentials:** Expire after your configured session duration. To rotate:
 
 1. Generate new credentials: `aws sts get-session-token --duration-seconds 43200`
-2. Update `connectors.secrets.env` with new values
-3. Redeploy: `./bin/deploy.sh aws-agent/`
+2. Delete the `aws-mcp` connector in Builder and re-add it with the new values (this forces a fresh proxy process)
 
-For production use, consider:
-- AWS IAM Roles Anywhere (X.509 certificate-based, no manual rotation)
-- A scheduled task that rotates credentials automatically
+For production use, consider AWS IAM Roles Anywhere (X.509 certificate-based, no manual rotation).
 
 ## Via Portal (no IaC)
 
