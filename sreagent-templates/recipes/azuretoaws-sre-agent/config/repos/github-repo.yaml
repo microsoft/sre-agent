@@ -1,0 +1,5 @@
+name: todo-app-aws
+spec:
+  url: "{{githubRepo}}"
+  branch: main
+  description: Serverless todo app with Lambda, DynamoDB, S3, API Gateway, CloudWatch observability

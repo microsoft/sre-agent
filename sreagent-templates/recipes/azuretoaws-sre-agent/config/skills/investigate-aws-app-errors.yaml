@@ -1,0 +1,26 @@
+metadata:
+  name: investigate-aws-app-errors
+  description: Investigate errors and performance issues in AWS serverless applications
+    using CloudWatch Logs, Lambda metrics, DynamoDB operations, and X-Ray traces.
+  spec:
+    tools:
+    - SearchMemory
+    - ExecutePythonCode
+    - PlotAreaChartWithCorrelation
+    - PlotBarChart
+    - aws-mcp_cloudwatch_get-log-events
+    - aws-mcp_cloudwatch_filter-log-events
+    - aws-mcp_cloudwatch_describe-alarms
+    - aws-mcp_cloudwatch_get-metric-data
+    - aws-mcp_cloudwatch_list-metrics
+    - aws-mcp_lambda_get-function
+    - aws-mcp_lambda_list-functions
+    - aws-mcp_lambda_get-function-configuration
+    - aws-mcp_dynamodb_describe-table
+    - aws-mcp_dynamodb_list-tables
+    - aws-mcp_xray_get-trace-summaries
+    - aws-mcp_xray_batch-get-traces
+    - aws-knowledge_search
+    - aws-knowledge_get-content
+skillContent: skills/investigate-aws-app-errors.md
+additionalFiles: []

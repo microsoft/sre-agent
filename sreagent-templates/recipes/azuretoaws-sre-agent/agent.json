@@ -1,0 +1,79 @@
+{
+  "_scenario": "azuretoaws-sre-agent",
+  "_description": "SRE Agent connected to AWS resources via AWS MCP SDK. Uses CloudWatch for observability, connects to Lambda/DynamoDB/S3 workloads, and GitHub for code context. AWS credentials go in connectors.secrets.env (never on command line).",
+  "_prerequisites": [
+    "AWS account with IAM access (STS temporary credentials recommended)",
+    "GitHub repo with your AWS app source code",
+    "Azure subscription with a resource group for the agent"
+  ],
+  "_prompts": {
+    "agentName": {
+      "ask": "Agent name",
+      "default": "aws-sre-agent"
+    },
+    "resourceGroup": {
+      "ask": "Resource group for the agent",
+      "default": "rg-aws-sre-agent"
+    },
+    "location": {
+      "ask": "Region",
+      "options": [
+        "eastus2",
+        "swedencentral",
+        "uksouth",
+        "australiaeast"
+      ],
+      "required": true
+    },
+    "targetRGs": {
+      "ask": "Azure resource groups to monitor (comma-separated, can be empty for AWS-only)",
+      "default": ""
+    },
+    "awsRegion": {
+      "ask": "AWS region where your workloads run",
+      "default": "us-east-1"
+    },
+
+    "githubRepo": {
+      "ask": "GitHub repo URL (e.g. https://github.com/org/repo.git)",
+      "default": "https://github.com/dm-chelupati/todo-app-dynatrace-aws.git"
+    },
+    "existingUamiId": {
+      "ask": "Existing UAMI resource ID (leave blank to create new)",
+      "default": ""
+    },
+    "modelProvider": {
+      "ask": "AI model provider",
+      "options": [
+        "Anthropic",
+        "Azure OpenAI"
+      ],
+      "default": "Anthropic"
+    },
+    "existingAgentAppInsightsId": {
+      "ask": "Existing App Insights resource ID for agent telemetry (leave blank to create new)",
+      "default": ""
+    }
+  },
+  "identity": {
+    "agentName": "{{agentName}}",
+    "resourceGroup": "{{resourceGroup}}",
+    "subscription": "",
+    "location": "{{location}}",
+    "targetResourceGroups": "{{targetRGs}}"
+  },
+  "access": {
+    "accessLevel": "Low",
+    "actionMode": "Review"
+  },
+  "upgradeChannel": "Preview",
+  "defaultModelProvider": "{{modelProvider}}",
+  "monthlyAgentUnitLimit": 10000,
+  "tags": {},
+  "toggles": {
+    "enableWebhookBridge": false,
+    "webhookBridgeTriggerUrl": ""
+  },
+  "existingUamiId": "{{existingUamiId}}",
+  "existingAgentAppInsightsId": "{{existingAgentAppInsightsId}}"
+}
