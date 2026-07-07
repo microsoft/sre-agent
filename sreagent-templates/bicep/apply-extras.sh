@@ -688,6 +688,17 @@ if [[ "$count" -gt 0 ]]; then
       spec=$(jq -c --argjson i "$i" '.githubDomains[$i].spec // .githubDomains[$i]' "$FILE")
       # Resolve env vars in spec (secrets like clientId, privateKeySecretUri)
       auth_type=$(echo "$spec" | jq -r '.authType // "Pat"')
+      # Skip entries that are OAuth/empty — those use the normal OAuth sign-in flow (step 5)
+      if [[ "$auth_type" == "OAuth" || -z "$auth_type" ]]; then
+        echo "  skip githubDomains/${domain} (authType=${auth_type:-empty}, using OAuth flow)"
+        continue
+      fi
+      # For GitHubApp entries, require clientId
+      client_id=$(echo "$spec" | jq -r '.clientId // empty')
+      if [[ "$auth_type" == "GitHubApp" && -z "$client_id" ]]; then
+        echo "  skip githubDomains/${domain} (GitHubApp but no clientId — set githubAppClientId)"
+        continue
+      fi
       # Encode domain for URL: github.com → github_com (dots to underscores)
       domain_encoded=$(echo "$domain" | tr '.' '_')
       TOKEN=$(_dp_token)
@@ -830,12 +841,25 @@ if [[ "$count" -gt 0 ]]; then
     for i in $(seq 0 $((count - 1))); do
       name=$(jq -r --argjson i "$i" '.httpTriggers[$i].name' "$FILE")
       spec=$(jq -c --argjson i "$i" '.httpTriggers[$i].spec // .httpTriggers[$i]' "$FILE")
-      body=$(jq -n --arg name "$name" --argjson spec "$spec" '{name: $name} + $spec')
+      # Map YAML field names to API field names: prompt→agentPrompt, handlingAgent→agent
+      body=$(jq -n --arg name "$name" --argjson spec "$spec" '
+        {name: $name} + $spec
+        | if .prompt then .agentPrompt = .prompt | del(.prompt) else . end
+        | if .handlingAgent then .agent = .handlingAgent | del(.handlingAgent) else . end
+      ')
       existing_id=$(echo "$EXISTING_TRIGGERS" | jq -r --arg n "$name" '[.[] | select(.name == $n)] | first | .id // empty')
       if [[ -n "$existing_id" ]]; then
+        # PUT to update existing trigger (preserves trigger ID, threads, execution history)
         existing_url="${AGENT_ENDPOINT}/api/v1/httptriggers/trigger/${existing_id}"
-        echo "  httpTrigger/${name}: ${existing_url}"
-        [[ -z "$HTTP_TRIGGER_URL" ]] && HTTP_TRIGGER_URL="$existing_url"
+        resp=$(curl -sS -w "\n%{http_code}" -X PUT "${AGENT_ENDPOINT}/api/v1/httptriggers/${existing_id}" \
+          -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" -d "$body" 2>&1)
+        http_code=$(echo "$resp" | tail -1)
+        if [[ "$http_code" =~ ^2 ]]; then
+          echo "  httpTrigger/${name}: ${existing_url} (updated)"
+          [[ -z "$HTTP_TRIGGER_URL" ]] && HTTP_TRIGGER_URL="$existing_url"
+        else
+          echo "  httpTrigger/${name}: FAILED update (HTTP ${http_code})"
+        fi
       else
         resp=$(curl -sS -w "\n%{http_code}" -X POST "${AGENT_ENDPOINT}/api/v1/httptriggers/create" \
           -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" -d "$body" 2>&1)

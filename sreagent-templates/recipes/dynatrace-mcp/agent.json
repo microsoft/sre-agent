@@ -63,6 +63,14 @@
     "existingAgentAppInsightsId": {
       "ask": "Existing App Insights resource ID for agent telemetry (leave blank to create new)",
       "default": ""
+    },
+    "githubAppClientId": {
+      "ask": "GitHub App Client ID for BYO App auth (starts with Iv..., leave blank for OAuth)",
+      "default": ""
+    },
+    "privateKeySecretUri": {
+      "ask": "Key Vault key URI for GitHub App private key (https://<vault>.vault.azure.net/keys/<name>)",
+      "default": ""
     }
   },
   "identity": {

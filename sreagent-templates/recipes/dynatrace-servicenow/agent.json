@@ -20,7 +20,12 @@
     },
     "location": {
       "ask": "Region",
-      "options": ["eastus2", "swedencentral", "uksouth", "australiaeast"],
+      "options": [
+        "eastus2",
+        "swedencentral",
+        "uksouth",
+        "australiaeast"
+      ],
       "required": true
     },
     "targetRGs": {
@@ -67,8 +72,19 @@
     },
     "modelProvider": {
       "ask": "AI model provider",
-      "options": ["Anthropic", "MicrosoftFoundry"],
+      "options": [
+        "Anthropic",
+        "MicrosoftFoundry"
+      ],
       "default": "Anthropic"
+    },
+    "githubAppClientId": {
+      "ask": "GitHub App Client ID for BYO App auth (starts with Iv..., leave blank for OAuth)",
+      "default": ""
+    },
+    "privateKeySecretUri": {
+      "ask": "Key Vault key URI for GitHub App private key (https://<vault>.vault.azure.net/keys/<name>)",
+      "default": ""
     }
   },
   "identity": {
