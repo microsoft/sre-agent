@@ -1,0 +1,7 @@
+metadata:
+  name: github.com
+spec:
+  authType: GitHubApp
+  clientId: "{{githubAppClientId}}"
+  privateKeySecretUri: "{{privateKeySecretUri}}"
+  keyVaultManagedIdentityId: "{{existingUamiId}}"

@@ -28,7 +28,7 @@
       "required": true
     },
     "targetRGs": {
-      "ask": "Resource groups the agent can access (comma-separated). Include your app's prod and staging RGs \u2014 the agent needs these to deploy to staging and read container app config. The LAW/AppInsights RG is NOT needed here if you provided the full resource ID above.",
+      "ask": "Resource groups the agent can access (comma-separated). Include your app's prod and staging RGs — the agent needs these to deploy to staging and read container app config. The LAW/AppInsights RG is NOT needed here if you provided the full resource ID above.",
       "required": true
     },
     "lawId": {
@@ -62,6 +62,14 @@
     },
     "existingAgentAppInsightsId": {
       "ask": "Existing App Insights resource ID for agent telemetry (leave blank to create new)",
+      "default": ""
+    },
+    "githubAppClientId": {
+      "ask": "GitHub App Client ID for BYO App auth (starts with Iv..., leave blank for OAuth)",
+      "default": ""
+    },
+    "privateKeySecretUri": {
+      "ask": "Key Vault key URI for GitHub App private key (https://<vault>.vault.azure.net/keys/<name>)",
       "default": ""
     }
   },

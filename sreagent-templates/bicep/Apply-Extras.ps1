@@ -524,17 +524,85 @@ if ($stCount -gt 0) {
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
+# 1d. githubDomains — data-plane PUT /api/v2/github/domains/{domain}
+# Supports authType: Pat (github.com only) and GitHubApp (BYO App)
+# ═════════════════════════════════════════════════════════════════════════════
+$githubDomains = $extras.githubDomains
+$ghDomainCount = ($githubDomains | Measure-Object).Count
+$byoappDomains = @()
+if ($ghDomainCount -gt 0) {
+    if ($DpTokenAvailable) {
+        Write-Host "githubDomains: $ghDomainCount"
+        foreach ($ghd in $githubDomains) {
+            $domain = if ($ghd.metadata) { $ghd.metadata.name } else { $ghd.name }
+            $spec = if ($ghd.spec) { $ghd.spec } else { $ghd }
+            $authType = if ($spec.authType) { $spec.authType } else { "Pat" }
+
+            # Skip entries that are OAuth/empty — those use the normal OAuth sign-in flow
+            if ([string]::IsNullOrWhiteSpace($authType) -or $authType -eq "OAuth") {
+                Write-Host "  skip githubDomains/$domain (authType=$authType, using OAuth flow)"
+                continue
+            }
+            # For GitHubApp entries, require clientId
+            $clientId = $spec.clientId
+            if ($authType -eq "GitHubApp" -and [string]::IsNullOrWhiteSpace($clientId)) {
+                Write-Host "  skip githubDomains/$domain (GitHubApp but no clientId - set githubAppClientId)"
+                continue
+            }
+
+            $byoappDomains += $domain
+            $domainEncoded = $domain -replace '\.', '_'
+            $token = Get-DpToken
+            $specJson = $spec | ConvertTo-Json -Depth 10 -Compress
+            try {
+                $result = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/github/domains/$domainEncoded" `
+                    -Method Put -Headers @{ Authorization = "Bearer $token"; "Content-Type" = "application/json" } `
+                    -Body $specJson -ErrorAction Stop
+                Write-Host "  ok githubDomains/$domain ($authType)"
+            } catch {
+                $errMsg = $_.Exception.Message
+                try { $errMsg = ($_ | ConvertFrom-Json).message } catch {}
+                Write-Host "  FAILED - PUT github/domains/$domainEncoded : $errMsg"
+            }
+        }
+    } else {
+        Write-Host "githubDomains: $ghDomainCount - WARNING skipped (no data-plane token)"
+        foreach ($ghd in $githubDomains) {
+            $gdn = if ($ghd.metadata) { $ghd.metadata.name } else { $ghd.name }
+            $DpSkippedItems.Add("githubDomain/$gdn")
+        }
+    }
+}
+
+# ═════════════════════════════════════════════════════════════════════════════
 # 2. repos — data-plane only (requires azuresre.dev token)
+# Split into byoapp_repos (domain has GitHubApp entry) and oauth_repos
 # ═════════════════════════════════════════════════════════════════════════════
 $repos = $extras.repos
 $repoCount = ($repos | Measure-Object).Count
 $oauthRepos = @()
+$byoappRepos = @()
 if ($repoCount -gt 0) {
     if ($DpTokenAvailable) {
         foreach ($repo in $repos) {
-            $oauthRepos += $repo.name
+            $rurl = $repo.spec.url
+            if ($rurl -match '^http') {
+                $rdomain = ([System.Uri]$rurl).Host
+            } else {
+                $rdomain = "github.com"
+            }
+            if ($byoappDomains -contains $rdomain) {
+                $byoappRepos += $repo
+            } else {
+                $oauthRepos += $repo.name
+            }
         }
-        Write-Host "repos: $repoCount (will be wired up after GitHub sign-in below)"
+        if ($byoappRepos.Count -gt 0) {
+            Write-Host "repos: $($byoappRepos.Count) via BYO App (will be wired after githubDomains)"
+        }
+        if ($oauthRepos.Count -gt 0) {
+            Write-Host "repos: $($oauthRepos.Count) via OAuth (will be wired after GitHub sign-in below)"
+        }
     } else {
         Write-Host "repos: $repoCount - WARNING skipped (no data-plane token)"
         foreach ($repo in $repos) {
@@ -1052,6 +1120,38 @@ if ($DpTokenAvailable) {
     }
 
     Write-Host ""
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # BYO App repos — push repos that use GitHubApp auth directly (no OAuth needed)
+    # ─────────────────────────────────────────────────────────────────────────
+    if ($byoappRepos.Count -gt 0) {
+        Write-Host "byoapp repos: $($byoappRepos.Count)"
+        $token = Get-DpToken
+        foreach ($repo in $byoappRepos) {
+            $rname = $repo.name
+            $rurl = $repo.spec.url
+            if ($rurl -notmatch '^http' -and $rurl -match '/') {
+                $rurl = "https://github.com/$rurl"
+            }
+            $rtypeIn = if ($repo.spec.type) { $repo.spec.type } else { "github" }
+            $rtype = switch -Regex ($rtypeIn.ToLower()) {
+                'ado|azuredevops' { "AzureDevOps" }
+                default { "GitHub" }
+            }
+            $rdesc = if ($repo.spec.description) { $repo.spec.description } else { "" }
+            $rbody = @{ name = $rname; type = "CodeRepo"; properties = @{ url = $rurl; type = $rtype } }
+            if ($rdesc) { $rbody.properties.description = $rdesc }
+            $rbodyJson = $rbody | ConvertTo-Json -Depth 5 -Compress
+            try {
+                $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/repos/$([Uri]::EscapeDataString($rname))" `
+                    -Method Put -Headers @{ Authorization = "Bearer $token"; "Content-Type" = "application/json" } `
+                    -Body $rbodyJson -ErrorAction Stop
+                Write-Host "  ok repo/$rname ($rurl) [BYO App]"
+            } catch {
+                Write-Host "  FAILED - PUT /api/v2/repos/$rname (try the portal Repos blade)"
+            }
+        }
+    }
 
     # ─────────────────────────────────────────────────────────────────────────
     # GitHub: OAuth sign-in + connector + repo wiring.

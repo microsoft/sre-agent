@@ -1,18 +1,21 @@
 {
-  "_scenario": "azmon-lawappinsights",
-  "_description": "General-purpose SRE Agent with AppInsights + Log Analytics connectors, safety defaults, and a daily health check.",
+  "_scenario": "starter-enterprise-recipe",
+  "_description": "Enterprise SRE Agent with ServiceNow, Azure Monitor (LAW + App Insights), GitHub BYO App, tool governance, and marketplace skills.",
   "_prerequisites": [
-    "Azure subscription with at least one resource group to monitor",
-    "Application Insights and/or Log Analytics workspace (optional but recommended)"
+    "Azure subscription with SRE Agent RP access",
+    "ServiceNow instance with API access",
+    "Log Analytics workspace with Activity Logs diagnostic settings",
+    "(Optional) GitHub App with private key in Key Vault for BYO App auth",
+    "(Optional) Jira instance for ConnectorV2"
   ],
   "_prompts": {
     "agentName": {
-      "ask": "Agent name (lowercase, hyphens ok)",
-      "default": "my-sre-agent"
+      "ask": "Agent name (will be prefixed with cg-poc-)",
+      "default": "cg-poc-enterprise"
     },
     "resourceGroup": {
       "ask": "Resource group for the agent",
-      "default": "sre-agent-rg"
+      "default": "rg-cg-poc"
     },
     "location": {
       "ask": "Region",
@@ -28,44 +31,49 @@
       "ask": "Resource groups to monitor (comma-separated)",
       "required": true
     },
-    "appInsightsId": {
-      "ask": "Application Insights resource ID (or leave blank)",
+    "snowInstance": {
+      "ask": "ServiceNow instance URL (e.g. https://mycompany.service-now.com)",
+      "required": true
+    },
+    "snowUser": {
+      "ask": "ServiceNow username",
       "default": ""
     },
-    "appInsightsAppId": {
-      "ask": "Application Insights App ID / GUID (or leave blank)",
+    "snowPassword": {
+      "ask": "ServiceNow password",
+      "default": "",
+      "secret": true
+    },
+    "githubRepo": {
+      "ask": "GitHub repo (org/repo, or leave blank)",
+      "default": ""
+    },
+    "githubAppClientId": {
+      "ask": "GitHub App Client ID for BYO App auth (starts with Iv..., or leave blank for PAT)",
+      "default": ""
+    },
+    "privateKeySecretUri": {
+      "ask": "Key Vault key URI for GitHub App private key (https://<vault>.vault.azure.net/keys/<name>)",
       "default": ""
     },
     "lawId": {
-      "ask": "Log Analytics workspace resource ID (or leave blank)",
+      "ask": "Log Analytics workspace resource ID",
       "default": ""
     },
     "existingUamiId": {
       "ask": "Existing UAMI resource ID (leave blank to create new)",
       "default": ""
     },
-    "githubRepo": {
-      "ask": "GitHub repo URL (or leave blank)",
-      "default": ""
-    },
     "modelProvider": {
       "ask": "AI model provider",
       "options": [
         "Anthropic",
-        "Azure OpenAI"
+        "MicrosoftFoundry"
       ],
       "default": "Anthropic"
     },
     "existingAgentAppInsightsId": {
       "ask": "Existing App Insights resource ID for agent telemetry (leave blank to create new)",
-      "default": ""
-    },
-    "githubAppClientId": {
-      "ask": "GitHub App Client ID for BYO App auth (starts with Iv..., leave blank for OAuth)",
-      "default": ""
-    },
-    "privateKeySecretUri": {
-      "ask": "Key Vault key URI for GitHub App private key (https://<vault>.vault.azure.net/keys/<name>)",
       "default": ""
     }
   },
@@ -77,7 +85,7 @@
     "targetResourceGroups": "{{targetRGs}}"
   },
   "access": {
-    "accessLevel": "Low",
+    "accessLevel": "High",
     "actionMode": "Review"
   },
   "upgradeChannel": "Preview",
