@@ -217,7 +217,7 @@ if [[ -f "$AGENT_JSON_FILE" ]]; then
     NET_RG=$(jq -r '.networkConfiguration.resourceGroup // ""' "$AGENT_JSON_FILE")
     NET_VNET=$(jq -r '.networkConfiguration.vnetName // ""' "$AGENT_JSON_FILE")
     NET_SUBNET_NAME=$(jq -r '.networkConfiguration.subnetName // "agent-subnet"' "$AGENT_JSON_FILE")
-    NET_SUBNET_PREFIX=$(jq -r '.networkConfiguration.subnetPrefix // "10.2.0.0/28"' "$AGENT_JSON_FILE")
+    NET_SUBNET_PREFIX=$(jq -r '.networkConfiguration.subnetPrefix // "10.2.0.0/27"' "$AGENT_JSON_FILE")
 
     # Resolve subnet ID from broken-out fields if not given directly
     if [[ -z "$NET_SUBNET_ID" && -n "$NET_VNET" && -n "$NET_RG" ]]; then
