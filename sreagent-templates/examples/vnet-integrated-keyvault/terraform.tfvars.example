@@ -1,0 +1,16 @@
+subscription_id       = "00000000-0000-0000-0000-000000000000"
+resource_group_name   = "sre-agent-vnet-kv"
+create_resource_group = true
+location              = "uksouth"
+name_prefix           = "sreagent"
+
+# Must be globally unique.
+key_vault_name = "my-sre-agent-kv"
+
+# Optional: pin the tenant. Leave empty to use your current az login context.
+# tenant_id = "00000000-0000-0000-0000-000000000000"
+
+# Address space (safe to leave as-is unless it collides with existing networks).
+vnet_address_space  = "10.30.0.0/24"
+agent_subnet_prefix = "10.30.0.0/27"
+pe_subnet_prefix    = "10.30.0.32/27"
