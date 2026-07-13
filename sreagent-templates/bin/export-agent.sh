@@ -87,7 +87,7 @@ done
 command -v jq >/dev/null || { echo "Error: jq is required" >&2; exit 1; }
 command -v az >/dev/null || { echo "Error: az CLI is required" >&2; exit 1; }
 
-API_VERSION="2025-05-01-preview"
+API_VERSION="2026-01-01"
 ARM_BASE="https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.App/agents/${AGENT}"
 
 # ─────────────────────────── Helpers ───────────────────────────
@@ -134,6 +134,18 @@ arm_list() {
   local result
   result=$(az rest -m GET --url "$url" -o json 2>/dev/null || echo '{"value":[]}')
   echo "$result" | jq -c '.value // []'
+}
+
+# Data-plane LIST helper (normalizes array shapes: [] | {value:[...]} | {data:[...]})
+dp_list() {
+  local path="$1"
+  local result
+  result=$(dp_get "$path")
+  if [[ "$result" == "null" || -z "$result" ]]; then
+    echo '[]'
+    return
+  fi
+  echo "$result" | jq -c 'if type == "array" then . else (.value // .data // []) end' 2>/dev/null || echo '[]'
 }
 
 # Data-plane GET with bearer token
@@ -335,29 +347,118 @@ CONNECTORS=$(sanitize "$CONNECTORS")
 _log "Reading tools..."
 RAW_TOOLS=$(arm_list "tools")
 TOOL_COUNT=$(echo "$RAW_TOOLS" | jq 'length')
-_log "  Found ${TOOL_COUNT} tool(s)"
-TOOLS=$(decode_opaque "$RAW_TOOLS")
+if [[ "$TOOL_COUNT" -gt 0 ]]; then
+  _log "  Found ${TOOL_COUNT} tool(s) from ARM"
+  TOOLS=$(decode_opaque "$RAW_TOOLS")
+else
+  DP_TOOLS=$(dp_list "/api/v2/extendedAgent/tools")
+  DP_TOOL_COUNT=$(echo "$DP_TOOLS" | jq 'length')
+  if [[ "$DP_TOOL_COUNT" -eq 0 ]]; then
+    DP_TOOLS=$(dp_list "/api/v1/extendedAgent/tools")
+    DP_TOOL_COUNT=$(echo "$DP_TOOLS" | jq 'length')
+  fi
+  _log "  Found ${DP_TOOL_COUNT} tool(s) from data-plane"
+  TOOLS=$(echo "$DP_TOOLS" | jq -c '[.[] | {
+    metadata: { name: .name },
+    spec: (.properties // .spec // {})
+  }]')
+  TOOL_COUNT=$(echo "$TOOLS" | jq 'length')
+fi
 
 # Skills (opaque — special shape: Bicep encodes {name,description,tools,skillContent,additionalFiles})
 _log "Reading skills..."
 RAW_SKILLS=$(arm_list "skills")
 SKILL_COUNT=$(echo "$RAW_SKILLS" | jq 'length')
-_log "  Found ${SKILL_COUNT} skill(s)"
-SKILLS=$(decode_skills "$RAW_SKILLS")
+if [[ "$SKILL_COUNT" -gt 0 ]]; then
+  _log "  Found ${SKILL_COUNT} skill(s) from ARM"
+  SKILLS=$(decode_skills "$RAW_SKILLS")
+else
+  DP_SKILLS=$(dp_list "/api/v2/extendedAgent/skills")
+  DP_SKILL_COUNT=$(echo "$DP_SKILLS" | jq 'length')
+  if [[ "$DP_SKILL_COUNT" -eq 0 ]]; then
+    DP_SKILLS=$(dp_list "/api/v1/extendedAgent/skills")
+    DP_SKILL_COUNT=$(echo "$DP_SKILLS" | jq 'length')
+  fi
+  _log "  Found ${DP_SKILL_COUNT} skill(s) from data-plane"
+  SKILLS=$(echo "$DP_SKILLS" | jq -c '[.[] | {
+    metadata: {
+      name: .name,
+      description: (.properties.description // ""),
+      spec: {
+        tools: (.properties.tools // .spec.tools // [])
+      }
+    },
+    skillContent: (.properties.skillContent // ""),
+    additionalFiles: (.properties.additionalFiles // [])
+  }]')
+  SKILL_COUNT=$(echo "$SKILLS" | jq 'length')
+fi
 
 # Scheduled Tasks (opaque)
 _log "Reading scheduled tasks..."
 RAW_TASKS=$(arm_list "scheduledTasks")
 TASK_COUNT=$(echo "$RAW_TASKS" | jq 'length')
-_log "  Found ${TASK_COUNT} scheduled task(s)"
-SCHEDULED_TASKS=$(decode_opaque "$RAW_TASKS")
+if [[ "$TASK_COUNT" -gt 0 ]]; then
+  _log "  Found ${TASK_COUNT} scheduled task(s) from ARM"
+  SCHEDULED_TASKS=$(decode_opaque "$RAW_TASKS")
+else
+  DP_TASKS=$(dp_list "/api/v2/extendedAgent/scheduledTasks")
+  DP_TASK_COUNT=$(echo "$DP_TASKS" | jq 'length')
+  if [[ "$DP_TASK_COUNT" -eq 0 ]]; then
+    DP_TASKS=$(dp_list "/api/v1/scheduledtasks")
+    DP_TASK_COUNT=$(echo "$DP_TASKS" | jq 'length')
+  fi
+  _log "  Found ${DP_TASK_COUNT} scheduled task(s) from data-plane"
+  SCHEDULED_TASKS=$(echo "$DP_TASKS" | jq -c '[.[] | {
+    metadata: { name: .name },
+    spec: (.properties // .spec // {})
+  }]')
+  TASK_COUNT=$(echo "$SCHEDULED_TASKS" | jq 'length')
+fi
 
 # Incident Filters (opaque)
 _log "Reading incident filters..."
 RAW_FILTERS=$(arm_list "incidentFilters")
 FILTER_COUNT=$(echo "$RAW_FILTERS" | jq 'length')
-_log "  Found ${FILTER_COUNT} incident filter(s)"
-INCIDENT_FILTERS=$(decode_opaque "$RAW_FILTERS")
+if [[ "$FILTER_COUNT" -gt 0 ]]; then
+  _log "  Found ${FILTER_COUNT} incident filter(s) from ARM"
+  INCIDENT_FILTERS=$(decode_opaque "$RAW_FILTERS")
+else
+  DP_FILTERS=$(dp_list "/api/v2/extendedAgent/incidentFilters")
+  DP_FILTER_COUNT=$(echo "$DP_FILTERS" | jq 'length')
+  if [[ "$DP_FILTER_COUNT" -eq 0 ]]; then
+    DP_FILTERS=$(dp_list "/api/v1/incidentPlayground/filters")
+    DP_FILTER_COUNT=$(echo "$DP_FILTERS" | jq 'length')
+  fi
+  _log "  Found ${DP_FILTER_COUNT} incident filter(s) from data-plane"
+  INCIDENT_FILTERS=$(echo "$DP_FILTERS" | jq -c '[.[] | {
+    metadata: { name: (.name // .id) },
+    spec: (.properties // .spec // {
+      incidentPlatform: (.incidentPlatform // ""),
+      impactedService: (.impactedService // ""),
+      priorities: (.priorities // []),
+      incidentType: (.incidentType // ""),
+      alertId: (.alertId // ""),
+      titleContains: (.titleContains // ""),
+      titleContainsAll: (.titleContainsAll // []),
+      titleContainsAny: (.titleContainsAny // []),
+      titleNotContains: (.titleNotContains // []),
+      agentMode: (.agentMode // "review"),
+      handlingAgent: (.handlingAgent // ""),
+      handlingAgents: (.handlingAgents // null),
+      owningTeamId: (.owningTeamId // ""),
+      owningTeamIds: (.owningTeamIds // []),
+      maxAutomatedInvestigationAttempts: (.maxAutomatedInvestigationAttempts // 3),
+      deepInvestigationEnabled: (.deepInvestigationEnabled // false),
+      mergeEnabled: (.mergeEnabled // true),
+      mergeWindowHours: (.mergeWindowHours // 3),
+      isEnabled: (.isEnabled // true),
+      icmFilterSettings: (.icmFilterSettings // null),
+      azMonitorFilterSettings: (.azMonitorFilterSettings // {targetResourceType: "", targetResource: ""})
+    })
+  }]')
+  FILTER_COUNT=$(echo "$INCIDENT_FILTERS" | jq 'length')
+fi
 
 # Incident Handlers — data-plane (customInstructions lives here, not on the filter)
 _log "Reading incident handlers (data-plane)..."
@@ -380,8 +481,19 @@ fi
 _log "Reading subagents..."
 RAW_SUBAGENTS=$(arm_list "subagents")
 SUBAGENT_COUNT=$(echo "$RAW_SUBAGENTS" | jq 'length')
-_log "  Found ${SUBAGENT_COUNT} subagent(s)"
-SUBAGENTS=$(decode_opaque "$RAW_SUBAGENTS")
+if [[ "$SUBAGENT_COUNT" -gt 0 ]]; then
+  _log "  Found ${SUBAGENT_COUNT} subagent(s) from ARM"
+  SUBAGENTS=$(decode_opaque "$RAW_SUBAGENTS")
+else
+  DP_SUBAGENTS=$(dp_list "/api/v2/extendedAgent/agents")
+  DP_SUBAGENT_COUNT=$(echo "$DP_SUBAGENTS" | jq 'length')
+  _log "  Found ${DP_SUBAGENT_COUNT} subagent(s) from data-plane"
+  SUBAGENTS=$(echo "$DP_SUBAGENTS" | jq -c '[.[] | {
+    metadata: { name: .name },
+    spec: (.properties // .spec // {})
+  }]')
+  SUBAGENT_COUNT=$(echo "$SUBAGENTS" | jq 'length')
+fi
 
 # Hooks (opaque — try ARM first; public Bicep deploys these via ARM now)
 _log "Reading hooks (ARM)..."
@@ -832,6 +944,8 @@ for i in $(seq 0 $((CONNECTOR_COUNT - 1))); do
   ctype=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.dataConnectorType')
   echo "    - ${cname} (${ctype})"
 done
+echo "  Tools:              ${TOOL_COUNT}"
+echo "$TOOLS" | jq -r '.[].metadata.name' 2>/dev/null | while read -r n; do echo "    - $n"; done
 echo "  Skills:             ${SKILL_COUNT}"
 echo "$SKILLS" | jq -r '.[].metadata.name' 2>/dev/null | while read -r n; do echo "    - $n"; done
 echo "  Subagents:          ${SUBAGENT_COUNT}"
