@@ -413,12 +413,14 @@ if [[ "$count" -gt 0 ]]; then
 fi
 
 # 2. repos — data-plane only (requires azuresre.dev token)
-# Split repos into two buckets:
-#   - byoapp_repos: domain has a GitHubApp entry in githubDomains → push directly after githubDomains are applied
-#   - oauth_repos:  domain uses OAuth/PAT → pushed in the OAuth sign-in block (step 5)
+# Split repos into three buckets:
+#   - byoapp_repos:  domain has a GitHubApp entry in githubDomains → push directly after githubDomains are applied
+#   - gitlab_repos:  domain is gitlab.com → push directly (auth via /api/v2/gitlab/auth PAT)
+#   - oauth_repos:   domain uses OAuth/PAT → pushed in the OAuth sign-in block (step 5)
 count=$(jq '[.repos // [] | .[] | select(.spec.url // "" | length > 0)] | length' "$FILE")
 oauth_repos=()
 byoapp_repos=()
+gitlab_repos=()
 # Build a set of domains that use GitHubApp auth (BYO App)
 _byoapp_domains=$(jq -r '[.githubDomains // [] | .[] | select(.spec.authType == "GitHubApp") | .metadata.name // .name] | join("|")' "$FILE" 2>/dev/null)
 if [[ "$count" -gt 0 ]]; then
@@ -426,13 +428,16 @@ if [[ "$count" -gt 0 ]]; then
     for i in $(seq 0 $((count - 1))); do
       name=$(jq -r --argjson i "$i" '[.repos[] | select(.spec.url // "" | length > 0)][$i].name' "$FILE")
       rurl=$(jq -r --argjson i "$i" '[.repos[] | select(.spec.url // "" | length > 0)][$i].spec.url' "$FILE")
+      rtype=$(jq -r --argjson i "$i" '[.repos[] | select(.spec.url // "" | length > 0)][$i].spec.type // ""' "$FILE")
       # Determine the domain: full URL → extract host; short "org/repo" → github.com
       if [[ "$rurl" == http* ]]; then
         rdomain=$(echo "$rurl" | sed 's|https\?://||' | cut -d/ -f1)
       else
         rdomain="github.com"
       fi
-      if [[ -n "$_byoapp_domains" ]] && echo "$rdomain" | grep -qE "^(${_byoapp_domains})$"; then
+      if [[ "$rdomain" == *"gitlab"* || "$(echo "$rtype" | tr '[:upper:]' '[:lower:]')" == "gitlab" ]]; then
+        gitlab_repos+=("$name")
+      elif [[ -n "$_byoapp_domains" ]] && echo "$rdomain" | grep -qE "^(${_byoapp_domains})$"; then
         byoapp_repos+=("$name")
       else
         oauth_repos+=("$name")
@@ -440,6 +445,9 @@ if [[ "$count" -gt 0 ]]; then
     done
     if [[ ${#byoapp_repos[@]} -gt 0 ]]; then
       echo "repos: ${#byoapp_repos[@]} via BYO App (will be wired after githubDomains)"
+    fi
+    if [[ ${#gitlab_repos[@]} -gt 0 ]]; then
+      echo "repos: ${#gitlab_repos[@]} via GitLab PAT (will be wired after gitlab/auth)"
     fi
     if [[ ${#oauth_repos[@]} -gt 0 ]]; then
       echo "repos: ${#oauth_repos[@]} via OAuth (will be wired after GitHub sign-in below)"
@@ -737,11 +745,15 @@ if [[ ${#byoapp_repos[@]} -gt 0 && "$DP_TOKEN_AVAILABLE" == "true" ]]; then
     rtype_in=$(jq -r --arg n "$rname" '[.repos[] | select(.name == $n)][0].spec.type // "github"' "$FILE")
     case "$(printf %s "$rtype_in" | tr "[:upper:]" "[:lower:]")" in
       ado|azuredevops|azure-devops) rtype="AzureDevOps" ;;
+      gitlab|gl)                    rtype="GitLab" ;;
       *)                            rtype="GitHub" ;;
     esac
     # Normalize short "org/repo" to full URL
     if [[ "$rurl" != http* && "$rurl" == */* ]]; then
-      rurl="https://github.com/${rurl}"
+      case "$rtype" in
+        GitLab) rurl="https://gitlab.com/${rurl}" ;;
+        *)      rurl="https://github.com/${rurl}" ;;
+      esac
     fi
     rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg t "$rtype" --arg d "$rdesc" '{
       name: $n,
@@ -757,6 +769,57 @@ if [[ ${#byoapp_repos[@]} -gt 0 && "$DP_TOKEN_AVAILABLE" == "true" ]]; then
       echo "  FAILED — PUT /api/v2/repos/${rname} (try the portal Repos blade)"
     fi
   done
+fi
+
+# 4f-3c. GitLab native connector — data-plane PUT /api/v2/gitlab/auth
+# GitLab uses a dedicated auth endpoint (not ConnectorV2, not a toggle).
+# Stores PAT in agent, validates against gitlab.com/api/v4/user.
+if [[ -n "${GITLAB_PAT:-}" ]]; then
+  if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
+    echo "gitlab: configuring native connector (PAT)"
+    TOKEN=$(_dp_token)
+    gl_result=$(curl -sS -w "\n%{http_code}" -X PUT \
+      "${AGENT_ENDPOINT}/api/v2/gitlab/auth" \
+      -H "Authorization: Bearer ${TOKEN}" \
+      -H "Content-Type: application/json" \
+      --data "{\"Pat\":\"${GITLAB_PAT}\"}" 2>&1)
+    gl_code=$(echo "$gl_result" | tail -1)
+    if [[ "$gl_code" =~ ^2 ]]; then
+      echo "  ok gitlab/auth (PAT stored and validated)"
+    else
+      gl_err=$(echo "$gl_result" | sed '$d' | head -2)
+      echo "  FAILED — PUT /api/v2/gitlab/auth (HTTP ${gl_code})"
+      echo "    ${gl_err}"
+      echo "    Verify your GITLAB_PAT has read_api + read_repository scopes"
+    fi
+
+    # Wire GitLab repos (PAT already stored above)
+    if [[ ${#gitlab_repos[@]} -gt 0 ]]; then
+      echo "gitlab repos: ${#gitlab_repos[@]}"
+      TOKEN=$(_dp_token)
+      repo_count=$(jq '.repos // [] | length' "$FILE")
+      for rname in "${gitlab_repos[@]}"; do
+        rurl=$(jq -r --arg n "$rname" '[.repos[] | select(.name == $n)][0].spec.url' "$FILE")
+        rdesc=$(jq -r --arg n "$rname" '[.repos[] | select(.name == $n)][0].spec.description // ""' "$FILE")
+        rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg d "$rdesc" '{
+          name: $n,
+          type: "CodeRepo",
+          properties: ({ url: $u, type: "GitLab" } + (if $d == "" then {} else { description: $d } end))
+        }')
+        if curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/repos/$(printf %s "$rname" | jq -sRr @uri)" \
+             -H "Authorization: Bearer ${TOKEN}" \
+             -H "Content-Type: application/json" \
+             --data "$rbody" >/dev/null 2>&1; then
+          echo "  ok repo/${rname} (${rurl}) [GitLab PAT]"
+        else
+          echo "  FAILED — PUT /api/v2/repos/${rname}"
+        fi
+      done
+    fi
+  else
+    echo "gitlab: ⚠ skipped (no data-plane token). Set GITLAB_PAT and re-run."
+    DP_SKIPPED_ITEMS+=("gitlab/auth")
+  fi
 fi
 
 # 4f-4. connectorV2 — data-plane multi-step setup via /api/v2/connectorV2
@@ -776,48 +839,99 @@ if [[ "$count" -gt 0 ]]; then
       cv2_pvs=$(echo "$cv2_spec" | jq -c '.parameterValueSet // null')
       cv2_pv=$(echo "$cv2_spec" | jq -c '.parameterValues // null')
       cv2_rat=$(echo "$cv2_spec" | jq -c '.requireApprovalTools // null')
+      cv2_skip=$(echo "$cv2_spec" | jq -r '.skipConnection // false')
 
       TOKEN=$(_dp_token)
 
-      # Step 1: Create the connection
-      conn_body=$(jq -nc --arg dn "$cv2_display" --arg cn "$cv2_api" \
-        --argjson pvs "$cv2_pvs" --argjson pv "$cv2_pv" \
-        '{displayName: $dn, connectorName: $cn} + (if $pvs != null then {parameterValueSet: $pvs} else {} end) + (if $pv != null then {parameterValues: $pv} else {} end)')
-      conn_result=$(curl -sS -w "\n%{http_code}" -X PUT \
-        "${AGENT_ENDPOINT}/api/v2/connectorV2/connections/${cv2_conn}" \
-        -H "Authorization: Bearer ${TOKEN}" \
-        -H "Content-Type: application/json" \
-        --data "$conn_body" 2>&1)
-      conn_code=$(echo "$conn_result" | tail -1)
-      if [[ "$conn_code" =~ ^2 ]]; then
-        echo "  ok connectorV2/connection/${cv2_conn}"
+      # Step 1: Create the connection (skip if connector uses dedicated auth endpoint)
+      if [[ "$cv2_skip" == "true" ]]; then
+        echo "  skip connectorV2/connection/${cv2_conn} (uses dedicated auth endpoint)"
       else
-        echo "  WARN — PUT connection/${cv2_conn} (HTTP ${conn_code}) — may need OAuth consent in portal"
+        conn_body=$(jq -nc --arg dn "$cv2_display" --arg cn "$cv2_api" \
+          --argjson pvs "$cv2_pvs" --argjson pv "$cv2_pv" \
+          '{displayName: $dn, connectorName: $cn} + (if $pvs != null then {parameterValueSet: $pvs} else {} end) + (if $pv != null then {parameterValues: $pv} else {} end)')
+        conn_result=$(curl -sS -w "\n%{http_code}" -X PUT \
+          "${AGENT_ENDPOINT}/api/v2/connectorV2/connections/${cv2_conn}" \
+          -H "Authorization: Bearer ${TOKEN}" \
+          -H "Content-Type: application/json" \
+          --data "$conn_body" 2>&1)
+        conn_code=$(echo "$conn_result" | tail -1)
+        if [[ "$conn_code" =~ ^2 ]]; then
+          echo "  ok connectorV2/connection/${cv2_conn}"
+        else
+          echo "  WARN — PUT connection/${cv2_conn} (HTTP ${conn_code}) — may need OAuth consent in portal"
+        fi
       fi
 
-      # Step 2: Create MCP server config (links connection to MCP tools)
-      mcp_body=$(jq -nc --arg desc "$cv2_display" --arg cn "$cv2_conn" --arg api "$cv2_api" \
-        --argjson rat "$cv2_rat" \
+      # Step 2: Create MCP server config (skip if connection was skipped)
+      if [[ "$cv2_skip" == "true" ]]; then
+        echo "  skip connectorV2/mcpserver/${cv2_conn} (uses dedicated auth endpoint)"
+      else
+        mcp_body=$(jq -nc --arg desc "$cv2_display" --arg cn "$cv2_conn" --arg api "$cv2_api" \
+          --argjson rat "$cv2_rat" \
         '{properties: {description: $desc, connectors: [{name: $api, connectionName: $cn}]}} + (if $rat != null then {runtimeMcpConfiguration: {requireApprovalTools: $rat}} else {} end)')
-      TOKEN=$(_dp_token)
-      mcp_result=$(curl -sS -w "\n%{http_code}" -X PUT \
-        "${AGENT_ENDPOINT}/api/v2/connectorV2/mcpservers/${cv2_conn}" \
-        -H "Authorization: Bearer ${TOKEN}" \
-        -H "Content-Type: application/json" \
-        --data "$mcp_body" 2>&1)
-      mcp_code=$(echo "$mcp_result" | tail -1)
-      if [[ "$mcp_code" =~ ^2 ]]; then
-        echo "  ok connectorV2/mcpserver/${cv2_conn}"
-      else
-        echo "  FAILED — PUT mcpservers/${cv2_conn} (HTTP ${mcp_code})"
-        echo "    $(echo "$mcp_result" | sed '$d' | head -2)"
+        TOKEN=$(_dp_token)
+        mcp_result=$(curl -sS -w "\n%{http_code}" -X PUT \
+          "${AGENT_ENDPOINT}/api/v2/connectorV2/mcpservers/${cv2_conn}" \
+          -H "Authorization: Bearer ${TOKEN}" \
+          -H "Content-Type: application/json" \
+          --data "$mcp_body" 2>&1)
+        mcp_code=$(echo "$mcp_result" | tail -1)
+        if [[ "$mcp_code" =~ ^2 ]]; then
+          echo "  ok connectorV2/mcpserver/${cv2_conn}"
+        else
+          echo "  FAILED — PUT mcpservers/${cv2_conn} (HTTP ${mcp_code})"
+          echo "    $(echo "$mcp_result" | sed '$d' | head -2)"
+        fi
       fi
 
-      # Step 3: Print consent link if connection needs OAuth
-      conn_status=$(echo "$conn_result" | sed '$d' | jq -r '.properties.overallStatus // "Unknown"' 2>/dev/null)
-      if [[ "$conn_status" == "Error" || "$conn_status" == "Unauthenticated" ]]; then
-        echo "  ⚠ Connection ${cv2_conn} needs OAuth consent. Complete in the portal:"
-        echo "    https://sre.azure.com → Connectors → ${cv2_display} → Authorize"
+      # Step 3: For PAT-based connectors, store credentials via dedicated auth endpoint
+      cv2_auth_type=$(echo "$cv2_spec" | jq -r '.authType // empty' | tr '[:upper:]' '[:lower:]')
+      if [[ "$cv2_api" == "gitlab" && "$cv2_auth_type" == "pat" ]]; then
+        # Read PAT from GITLAB_PAT env var (sourced from connectors.secrets.env)
+        cv2_pat="${GITLAB_PAT:-}"
+        if [[ -n "$cv2_pat" ]]; then
+          TOKEN=$(_dp_token)
+          gl_auth_result=$(curl -sS -w "\n%{http_code}" -X PUT \
+            "${AGENT_ENDPOINT}/api/v2/gitlab/auth" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "{\"Pat\":\"${cv2_pat}\"}" 2>&1)
+          gl_auth_code=$(echo "$gl_auth_result" | tail -1)
+          if [[ "$gl_auth_code" =~ ^2 ]]; then
+            echo "  ok gitlab/auth (PAT stored)"
+          else
+            echo "  WARN — PUT gitlab/auth (HTTP ${gl_auth_code}) — verify PAT is valid"
+          fi
+        else
+          echo "  ⚠ GitLab PAT not resolved — set GITLAB_PAT env var or pass via connectors.secrets.env"
+        fi
+      fi
+
+      # Step 4: Get consent URL (only for OAuth connectors that created a connection)
+      if [[ "$cv2_skip" != "true" ]]; then
+        conn_status=$(echo "$conn_result" | sed '$d' | jq -r '.properties.overallStatus // "Unknown"' 2>/dev/null)
+        if [[ "$conn_status" == "Error" || "$conn_status" == "Unauthenticated" ]]; then
+          # Try to get consent URL from the connection response
+          cv2_consent_url=$(echo "$conn_result" | sed '$d' | jq -r '.properties.consentUrl // .properties.connectionParameters.token.oAuthSettings.redirectUrl // empty' 2>/dev/null)
+          # If not in response, try the consentLinks endpoint
+          if [[ -z "$cv2_consent_url" ]]; then
+            TOKEN=$(_dp_token)
+            cv2_consent_resp=$(curl -sS -f -X POST \
+              "${AGENT_ENDPOINT}/api/v2/connectorV2/connections/${cv2_conn}/consentLinks" \
+              -H "Authorization: Bearer ${TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data '{"parameters":[{"parameterName":"token","redirectUrl":"https://sre.azure.com"}]}' 2>/dev/null || echo '{}')
+            cv2_consent_url=$(echo "$cv2_consent_resp" | jq -r '.value[0].link // .link // .consentUrl // empty' 2>/dev/null)
+          fi
+          if [[ -n "$cv2_consent_url" ]]; then
+            echo "  ⚠ Connection ${cv2_conn} needs OAuth. Open this URL to authorize:"
+            echo "    ${cv2_consent_url}"
+          else
+            echo "  ⚠ Connection ${cv2_conn} needs OAuth consent. Complete in the portal:"
+            echo "    https://sre.azure.com → Connectors → ${cv2_display} → Authorize"
+          fi
+        fi
       fi
     done
   else
@@ -942,18 +1056,38 @@ if [[ "$count" -gt 0 ]]; then
   fi
 fi
 
-# 4i-3. tools — data-plane PUT
-# Route: PUT /api/v2/extendedAgent/tools/{name}
-# Body: { name, type: "Tool", tags: [], properties: { ... tool spec } }
+# 4i-3. tools — data-plane POST via /api/v1/extendedAgent/apply (ToolList kind)
+# Route: POST /api/v1/extendedAgent/apply
+# Body: { api_version: "azuresre.ai/v1", kind: "ToolList", metadata: {}, spec: { tools: [...] } }
 count=$(jq '.tools // [] | length' "$FILE")
 if [[ "$count" -gt 0 ]]; then
   if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
     echo "tools: ${count}"
-    for i in $(seq 0 $((count - 1))); do
-      name=$(jq -r --argjson i "$i" '.tools[$i].metadata.name' "$FILE")
-      props=$(jq -c --argjson i "$i" '.tools[$i].spec' "$FILE")
-      dataplane_put_extended "tools" "$name" "Tool" "[]" "$props"
-    done
+    TOKEN=$(_dp_token)
+    # Build YAML payload from the JSON tools array
+    tools_yaml=$(python3 -c "
+import json, sys, yaml
+data = json.load(open(sys.argv[1]))
+tools = [t['spec'] for t in data.get('tools', [])]
+doc = {'api_version': 'azuresre.ai/v1', 'kind': 'ToolList', 'metadata': {}, 'spec': {'tools': tools}}
+print(yaml.dump(doc, default_flow_style=False))
+" "$FILE" 2>/dev/null)
+    if [[ -z "$tools_yaml" ]]; then
+      echo "  FAILED — could not generate YAML (is PyYAML installed?)"
+    else
+      apply_result=$(curl -sS -w "\n%{http_code}" -X PUT \
+        "${AGENT_ENDPOINT}/api/v1/extendedAgent/apply" \
+        -H "Authorization: Bearer ${TOKEN}" \
+        -H "Content-Type: application/yaml" \
+        --data "$tools_yaml" 2>&1)
+      apply_code=$(echo "$apply_result" | tail -1)
+      if [[ "$apply_code" =~ ^2 ]]; then
+        echo "  ok tools (${count} deployed via apply)"
+      else
+        echo "  FAILED — PUT tools/apply (HTTP ${apply_code})"
+        echo "    $(echo "$apply_result" | sed '$d' | head -2)"
+      fi
+    fi
   else
     echo "tools: ${count} — ⚠ skipped (no data-plane token)"
     for i in $(seq 0 $((count - 1))); do
@@ -1128,12 +1262,16 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
       rurl=$(jq -r  --argjson i "$i" '.repos[$i].spec.url' "$FILE")
       # Normalize short "org/repo" to full URL (API requires valid URL format)
       if [[ "$rurl" != http* && "$rurl" == */* ]]; then
-        rurl="https://github.com/${rurl}"
+        case "$(printf %s "$rtype_in" | tr "[:upper:]" "[:lower:]")" in
+          gitlab|gl) rurl="https://gitlab.com/${rurl}" ;;
+          *)         rurl="https://github.com/${rurl}" ;;
+        esac
       fi
-      # Map our spec.type ("github"/"ado") to the View enum ("GitHub"/"AzureDevOps").
+      # Map our spec.type ("github"/"ado"/"gitlab") to the View enum.
       rtype_in=$(jq -r --argjson i "$i" '.repos[$i].spec.type // "github"' "$FILE")
       case "$(printf %s "$rtype_in" | tr "[:upper:]" "[:lower:]")" in
         ado|azuredevops|azure-devops) rtype="AzureDevOps" ;;
+        gitlab|gl)                    rtype="GitLab" ;;
         *)                            rtype="GitHub" ;;
       esac
       rdesc=$(jq -r --argjson i "$i" '.repos[$i].spec.description // ""' "$FILE")

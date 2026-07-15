@@ -271,8 +271,8 @@ fi
 GITHUB_DOMAINS=$(resolve_env_vars "$(collect_config "github-domains")")
 _log "github-domains: $(echo "$GITHUB_DOMAINS" | jq 'length')"
 
-# ConnectorV2 (Jira, Slack, etc.) — config/connectorv2/*.yaml
-CONNECTORV2=$(collect_config "connectorv2")
+# ConnectorV2 (Jira, Slack, GitLab, etc.) — config/connectorv2/*.yaml
+CONNECTORV2=$(resolve_env_vars "$(collect_config "connectorv2")")
 _log "connectorv2: $(echo "$CONNECTORV2" | jq 'length')"
 
 MARKETPLACES="[]"
@@ -388,7 +388,7 @@ jq -n \
       "enableWebhookBridge":           { "value": ($toggles.enableWebhookBridge // false) },
       "webhookBridgeTriggerUrl":       { "value": ($toggles.webhookBridgeTriggerUrl // "") },
       "connectors":                    { "value": [$connectors[] | select(.properties.dataConnectorType != "KnowledgeFile")] },
-      "tools":                         { "value": [] },
+      "tools":                         { "value": $tools },
       "skills":                        { "value": [] },
       "subagents":                     { "value": [] },
       "scheduledTasks":                { "value": [] },

@@ -1,0 +1,36 @@
+{
+  "toggles": {
+    "enableAppInsightsConnector": "{{appInsightsId:bool}}",
+    "appInsightsResourceId": "{{appInsightsId}}",
+    "appInsightsAppId": "{{appInsightsAppId}}",
+    "enableLogAnalyticsConnector": "{{lawId:bool}}",
+    "lawResourceId": "{{lawId}}",
+    "enableAzureMonitorConnector": false,
+    "azureMonitorLookbackDays": 7,
+    "grafanaUrl": "",
+    "grafanaApiKey": ""
+  },
+  "connectors": [
+    {
+      "name": "servicenow-mcp",
+      "properties": {
+        "dataConnectorType": "Mcp",
+        "dataSource": "placeholder",
+        "extendedProperties": {
+          "type": "stdio",
+          "command": "npx",
+          "args": ["-y", "@onlyflows/servicenow-mcp"],
+          "envs": {
+            "SN_INSTANCE": "https://{{snowInstance}}.service-now.com",
+            "SN_USER": "{{snowUser}}",
+            "SN_PASSWORD": "${SERVICENOW_PASSWORD}"
+          },
+          "toolsVisibleToMetaAgent": ["*"],
+          "selectedTools": ["create_incident", "update_incident", "add_work_note", "get_incident", "query_records", "search_knowledge", "resolve_incident"]
+        },
+        "identity": "system"
+      }
+    }
+  ]
+}
+

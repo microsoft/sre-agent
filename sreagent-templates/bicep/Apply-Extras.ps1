@@ -576,22 +576,26 @@ if ($ghDomainCount -gt 0) {
 
 # ═════════════════════════════════════════════════════════════════════════════
 # 2. repos — data-plane only (requires azuresre.dev token)
-# Split into byoapp_repos (domain has GitHubApp entry) and oauth_repos
+# Split into byoapp_repos (domain has GitHubApp entry), gitlab_repos, and oauth_repos
 # ═════════════════════════════════════════════════════════════════════════════
 $repos = $extras.repos
 $repoCount = ($repos | Measure-Object).Count
 $oauthRepos = @()
 $byoappRepos = @()
+$gitlabRepos = @()
 if ($repoCount -gt 0) {
     if ($DpTokenAvailable) {
         foreach ($repo in $repos) {
             $rurl = $repo.spec.url
+            $rtype = if ($repo.spec.type) { $repo.spec.type } else { "" }
             if ($rurl -match '^http') {
                 $rdomain = ([System.Uri]$rurl).Host
             } else {
                 $rdomain = "github.com"
             }
-            if ($byoappDomains -contains $rdomain) {
+            if ($rdomain -like "*gitlab*" -or $rtype -ieq "GitLab") {
+                $gitlabRepos += $repo
+            } elseif ($byoappDomains -contains $rdomain) {
                 $byoappRepos += $repo
             } else {
                 $oauthRepos += $repo.name
@@ -599,6 +603,9 @@ if ($repoCount -gt 0) {
         }
         if ($byoappRepos.Count -gt 0) {
             Write-Host "repos: $($byoappRepos.Count) via BYO App (will be wired after githubDomains)"
+        }
+        if ($gitlabRepos.Count -gt 0) {
+            Write-Host "repos: $($gitlabRepos.Count) via GitLab PAT (will be wired after gitlab/auth)"
         }
         if ($oauthRepos.Count -gt 0) {
             Write-Host "repos: $($oauthRepos.Count) via OAuth (will be wired after GitHub sign-in below)"
@@ -886,18 +893,43 @@ if ($saCount -gt 0) {
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 4g-3. tools — data-plane PUT
-# Route: PUT /api/v2/extendedAgent/tools/{name}
+# 4g-3. tools — data-plane POST via /api/v1/extendedAgent/apply (ToolList kind)
+# Route: POST /api/v1/extendedAgent/apply
 # ═════════════════════════════════════════════════════════════════════════════
 $toolItems = if ($extras.PSObject.Properties['tools']) { $extras.tools } else { $null }
 $tlCount = ($toolItems | Measure-Object).Count
 if ($tlCount -gt 0) {
     if ($DpTokenAvailable) {
         Write-Host "tools: $tlCount"
-        foreach ($tl in $toolItems) {
-            $name = if ($tl.metadata) { $tl.metadata.name } else { $tl.name }
-            $props = if ($tl.spec) { $tl.spec } else { $tl.properties }
-            DataPlane-PutExtended -Kind "tools" -Name $name -Type "Tool" -Tags @() -Properties $props
+        $token = Get-DpToken
+        # Build ToolList YAML document
+        $toolList = @{
+            api_version = "azuresre.ai/v1"
+            kind = "ToolList"
+            metadata = @{}
+            spec = @{
+                tools = @(foreach ($tl in $toolItems) {
+                    $name = if ($tl.metadata) { $tl.metadata.name } else { $tl.name }
+                    $spec = if ($tl.spec) { $tl.spec } else { $tl.properties }
+                    @{ metadata = @{ name = $name }; spec = $spec }
+                })
+            }
+        }
+        # Convert to YAML-like format (use JSON as fallback, apply endpoint accepts both)
+        $toolsBody = $toolList | ConvertTo-Json -Depth 20
+        try {
+            $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v1/extendedAgent/apply" `
+                -Method Put -Headers @{ Authorization = "Bearer $token"; "Content-Type" = "application/json" } `
+                -Body $toolsBody -ErrorAction Stop
+            Write-Host "  ok tools ($tlCount via apply endpoint)"
+        } catch {
+            Write-Host "  FAILED — PUT /api/v1/extendedAgent/apply (ToolList)"
+            # Fallback: try individual v2 PUT
+            foreach ($tl in $toolItems) {
+                $name = if ($tl.metadata) { $tl.metadata.name } else { $tl.name }
+                $props = if ($tl.spec) { $tl.spec } else { $tl.properties }
+                DataPlane-PutExtended -Kind "tools" -Name $name -Type "Tool" -Tags @() -Properties $props
+            }
         }
     } else {
         Write-Host "tools: $tlCount - WARNING skipped (no data-plane token)"
@@ -1150,6 +1182,48 @@ if ($DpTokenAvailable) {
             } catch {
                 Write-Host "  FAILED - PUT /api/v2/repos/$rname (try the portal Repos blade)"
             }
+        }
+    }
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # GitLab repos — authenticate via PAT then push repos
+    # ─────────────────────────────────────────────────────────────────────────
+    if ($gitlabRepos.Count -gt 0) {
+        $gitlabPat = $env:GITLAB_PAT
+        if ($gitlabPat) {
+            Write-Host "gitlab repos: $($gitlabRepos.Count)"
+            $token = Get-DpToken
+            # Store GitLab PAT
+            try {
+                $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/gitlab/auth" `
+                    -Method Put -Headers @{ Authorization = "Bearer $token"; "Content-Type" = "application/json" } `
+                    -Body (@{ pat = $gitlabPat } | ConvertTo-Json -Compress) -ErrorAction Stop
+                Write-Host "  ok gitlab/auth (PAT stored)"
+            } catch {
+                Write-Host "  FAILED - PUT /api/v2/gitlab/auth"
+            }
+            # Push repos
+            foreach ($repo in $gitlabRepos) {
+                $rname = $repo.name
+                $rurl = $repo.spec.url
+                if ($rurl -notmatch '^http' -and $rurl -match '/') {
+                    $rurl = "https://gitlab.com/$rurl"
+                }
+                $rdesc = if ($repo.spec.description) { $repo.spec.description } else { "" }
+                $rbody = @{ name = $rname; type = "CodeRepo"; properties = @{ url = $rurl; type = "GitLab" } }
+                if ($rdesc) { $rbody.properties.description = $rdesc }
+                $rbodyJson = $rbody | ConvertTo-Json -Depth 5 -Compress
+                try {
+                    $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/repos/$([Uri]::EscapeDataString($rname))" `
+                        -Method Put -Headers @{ Authorization = "Bearer $token"; "Content-Type" = "application/json" } `
+                        -Body $rbodyJson -ErrorAction Stop
+                    Write-Host "  ok repo/$rname ($rurl) [GitLab]"
+                } catch {
+                    Write-Host "  FAILED - PUT /api/v2/repos/$rname (try the portal Repos blade)"
+                }
+            }
+        } else {
+            Write-Host "gitlab repos: $($gitlabRepos.Count) - WARNING skipped (GITLAB_PAT not set)"
         }
     }
 

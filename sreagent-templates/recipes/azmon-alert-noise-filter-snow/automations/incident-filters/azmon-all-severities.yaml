@@ -1,0 +1,16 @@
+metadata:
+  name: azmon-all-severities
+spec:
+  incidentPlatform: AzMonitor
+  isEnabled: true
+  priorities:
+  - Sev0
+  - Sev1
+  - Sev2
+  - Sev3
+  handlingAgent: alert-triage-agent
+  agentMode: Autonomous
+  deepInvestigationEnabled: false
+  maxAutomatedInvestigationAttempts: 3
+  mergeEnabled: true
+  mergeWindowHours: 1
