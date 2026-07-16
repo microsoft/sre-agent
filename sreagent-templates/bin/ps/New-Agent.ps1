@@ -322,8 +322,10 @@ foreach ($kvp in $Values.GetEnumerator()) {
     $isSecret = if ($Prompts.PSObject.Properties[$k] -and $Prompts.$k.PSObject.Properties['secret'] -and $Prompts.$k.secret -eq $true) { $true } else { $false }
     if ($isSecret -and -not [string]::IsNullOrEmpty($v)) {
         $envName = switch ($k) {
-            "dtToken" { "DYNATRACE_BEARER_TOKEN" }
-            default   { ($k -creplace '[a-z]', { $_.Value.ToUpper() }) -replace '[^A-Z0-9]', '_' }
+            "dtToken"      { "DYNATRACE_BEARER_TOKEN" }
+            "snowPassword" { "SERVICENOW_PASSWORD" }
+            "gitlabPat"    { "GITLAB_PAT" }
+            default        { ($k -creplace '[a-z]', { $_.Value.ToUpper() }) -replace '[^A-Z0-9]', '_' }
         }
         $secretLines += "$envName=$v"
     }

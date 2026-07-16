@@ -1,0 +1,20 @@
+metadata:
+  name: alert-triage-agent
+spec:
+  instructions: subagents/alert-triage-agent.instructions.md
+  handoffDescription: Filters noisy Azure Monitor alerts using a 15-minute transient check. Closes transient alerts; investigates persistent ones and creates ServiceNow tickets.
+  handoffs: []
+  tools:
+  - wait-and-recheck-timer
+  - ExecutePythonCode
+  - RunAzCliReadCommands
+  - QueryAppInsightsUsingAppId
+  - QueryLogAnalyticsByWorkspaceId
+  - SearchMemory
+  - PlotAreaChartWithCorrelation
+  - PlotBarChart
+  agentType: Autonomous
+  temperature: 0.2
+  enableSkills: true
+  allowedSkills:
+  - alert-noise-filter
