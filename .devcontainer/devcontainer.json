@@ -1,0 +1,55 @@
+{
+  "name": "Azure SRE Agent Lab",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+
+  // --- Dev Container Features ---
+  "features": {
+    // Azure CLI + Bicep
+    "ghcr.io/devcontainers/features/azure-cli:1": {
+      "installBicep": true,
+      "version": "latest"
+    },
+    // Azure Developer CLI (azd)
+    "ghcr.io/azure/azure-dev/azd:latest": {},
+    // Python: system python3 from base image is sufficient (pyyaml via apt)
+    // GitHub CLI (Scenario 3: issue triage)
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "version": "latest"
+    }
+  },
+
+  // --- VS Code Extensions ---
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-azuretools.vscode-bicep",
+        "ms-azuretools.azure-dev",
+        "ms-azuretools.vscode-azure-github-copilot",
+        "ms-vscode.azurecli",
+        "ms-python.python",
+        "redhat.vscode-yaml",
+        "github.copilot-chat"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+
+  // --- Lifecycle Hooks ---
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "bash .devcontainer/post-start.sh",
+
+  // --- Azure credentials mount (for local Dev Container use) ---
+  "mounts": [
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.azure,target=/home/vscode/.azure,type=bind,consistency=cached"
+  ],
+
+  // --- Recommended Codespaces machine type ---
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "4gb"
+  },
+
+  "remoteUser": "vscode"
+}
