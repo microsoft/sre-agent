@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.1.21952",
-      "templateHash": "3184786289939969259"
+      "templateHash": "17454459993975253304"
     }
   },
   "parameters": {
@@ -83,7 +83,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.1.21952",
-              "templateHash": "14346587368849512345"
+              "templateHash": "7676869149456753884"
             }
           },
           "parameters": {
@@ -252,7 +252,7 @@
                   {
                     "name": "agent-subnet",
                     "properties": {
-                      "addressPrefix": "10.30.0.0/27",
+                      "addressPrefix": "10.30.0.0/28",
                       "routeTable": {
                         "id": "[resourceId('Microsoft.Network/routeTables', format('rt-agent-{0}', parameters('uniqueSuffix')))]"
                       },
@@ -401,7 +401,7 @@
                           "TCP"
                         ],
                         "sourceAddresses": [
-                          "10.30.0.0/27"
+                          "10.30.0.0/28"
                         ],
                         "destinationAddresses": [
                           "168.63.129.16"
@@ -428,7 +428,7 @@
                           "TCP"
                         ],
                         "sourceAddresses": [
-                          "10.30.0.0/27"
+                          "10.30.0.0/28"
                         ],
                         "destinationAddresses": [
                           "10.20.0.0/20"
@@ -455,7 +455,7 @@
                           "TCP"
                         ],
                         "sourceAddresses": [
-                          "10.30.0.0/27"
+                          "10.30.0.0/28"
                         ],
                         "destinationAddresses": [
                           "10.10.2.0/27"
@@ -482,7 +482,7 @@
                           "TCP"
                         ],
                         "sourceAddresses": [
-                          "10.30.0.0/27"
+                          "10.30.0.0/28"
                         ],
                         "destinationAddresses": "[if(parameters('lockAgentToPrivateMonitor'), createArray('AzureResourceManager', 'AzureActiveDirectory'), createArray('AzureResourceManager', 'AzureActiveDirectory', 'AzureMonitor'))]",
                         "destinationPorts": [
@@ -504,7 +504,7 @@
                         "name": "allow-arm-aad-graph",
                         "description": "FQDN access to ARM, Entra ID, and Microsoft Graph",
                         "sourceAddresses": [
-                          "10.30.0.0/27"
+                          "10.30.0.0/28"
                         ],
                         "protocols": [
                           {
@@ -533,7 +533,7 @@
                         "name": "allow-learn-microsoft-com",
                         "description": "Microsoft Learn docs + MCP runtime endpoint (the agent looks up Azure/AKS/PostgreSQL guidance here)",
                         "sourceAddresses": [
-                          "10.30.0.0/27"
+                          "10.30.0.0/28"
                         ],
                         "protocols": [
                           {
@@ -551,7 +551,7 @@
                         "name": "allow-github-raw-mcp-bits",
                         "description": "GitHub raw content — the Microsoft Learn MCP connector fetches its server bits here to complete the tool-discovery handshake",
                         "sourceAddresses": [
-                          "10.30.0.0/27"
+                          "10.30.0.0/28"
                         ],
                         "protocols": [
                           {
