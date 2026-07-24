@@ -27,7 +27,7 @@ refuses:
 | Resource | Setting that matters |
 |---|---|
 | VNet `sreagent-vnet` (`10.30.0.0/24`) | One VNet, two subnets |
-| ‣ `agent-subnet` (`10.30.0.0/27`) | Delegated to `Microsoft.App/environments` - agent injected here |
+| ‣ `agent-subnet` (`10.30.0.0/28`) | Delegated to `Microsoft.App/environments` - agent injected here |
 | ‣ `pe-subnet` (`10.30.0.32/27`) | Holds the Key Vault private endpoint |
 | Key Vault | `public_network_access_enabled = false`, `default_action = Deny`, `bypass = None`, RBAC |
 | Private endpoint `pe-kv` | `subresource = vault`, in `pe-subnet` |

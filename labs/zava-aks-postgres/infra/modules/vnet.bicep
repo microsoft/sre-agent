@@ -41,7 +41,7 @@ param lockAgentToPrivateMonitor bool = true
 //     └─ db-subnet                  10.20.16.0/24  PostgreSQL Flexible Server delegation.
 //
 //   SPOKE 2 — agent     vnet-Zava-agent-*      10.30.0.0/24  (the SRE Agent)
-//     └─ agent-subnet               10.30.0.0/27   Microsoft.App/environments delegation;
+//     └─ agent-subnet               10.30.0.0/28   Microsoft.App/environments delegation;
 //                                                  ALL egress forced to the hub firewall
 //                                                  via a UDR (0.0.0.0/0 → firewall private
 //                                                  IP) over peering.
@@ -226,10 +226,10 @@ resource agentVnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
       {
         // SRE Agent workload subnet — delegated to Microsoft.App/environments so
         // the agent's sandbox is injected here, with all egress forced through
-        // the hub Azure Firewall (route table above). Minimum size is /27.
+        // the hub Azure Firewall (route table above). Minimum size is /28.
         name: 'agent-subnet'
         properties: {
-          addressPrefix: '10.30.0.0/27'
+          addressPrefix: '10.30.0.0/28'
           routeTable: { id: agentRouteTable.id }
           delegations: [
             {
@@ -372,7 +372,7 @@ resource peerAgentToHub 'Microsoft.Network/virtualNetworks/virtualNetworkPeering
 // // range to the ruleCollectionGroup below (the module already SNATs all egress,
 // // so the return path stays symmetric):
 // //   { name: 'allow-agent-to-remote-region', ruleType: 'NetworkRule',
-// //     sourceAddresses: ['10.30.0.0/27'], destinationAddresses: ['10.40.0.0/24'],
+// //     sourceAddresses: ['10.30.0.0/28'], destinationAddresses: ['10.40.0.0/24'],
 // //     destinationPorts: ['*'], ipProtocols: ['Any'] }
 // // Cross-region peering alone is enough for VNet-to-VNet traffic that ISN'T
 // // force-tunneled; this lab force-tunnels the agent, hence the extra firewall rule.
@@ -426,7 +426,7 @@ resource firewallPolicy 'Microsoft.Network/firewallPolicies@2024-05-01' = {
 // exposing the cluster API server publicly.
 // AzureCloud is deliberately NOT used (it covers ~65k prefixes including
 // third-party SaaS); precise service tags are used instead. The source is the
-// agent spoke's subnet (10.30.0.0/27).
+// agent spoke's subnet (10.30.0.0/28).
 //
 // To let the agent reach a NETWORK DEVICE or other private service DIRECTLY, its
 // management endpoint must be HTTPS and its FQDN added BOTH here (an application
@@ -451,7 +451,7 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
             name: 'allow-azure-dns'
             description: 'DNS resolution via Azure DNS (required for the firewall DNS proxy)'
             ipProtocols: ['UDP', 'TCP']
-            sourceAddresses: ['10.30.0.0/27']
+            sourceAddresses: ['10.30.0.0/28']
             destinationAddresses: ['168.63.129.16']
             destinationPorts: ['53']
           }
@@ -475,7 +475,7 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
             name: 'agent-to-apiserver'
             description: 'Agent subnet -> AKS API server (enables native kubectl)'
             ipProtocols: ['TCP']
-            sourceAddresses: ['10.30.0.0/27']
+            sourceAddresses: ['10.30.0.0/28']
             destinationAddresses: ['10.20.0.0/20']
             destinationPorts: ['443']
           }
@@ -500,7 +500,7 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
             name: 'agent-to-ampls-pe'
             description: 'Agent subnet -> AMPLS private endpoint (private Azure Monitor)'
             ipProtocols: ['TCP']
-            sourceAddresses: ['10.30.0.0/27']
+            sourceAddresses: ['10.30.0.0/28']
             destinationAddresses: ['10.10.2.0/27']
             destinationPorts: ['443']
           }
@@ -517,7 +517,7 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
             name: 'allow-azure-services-l4'
             description: 'L4 access to Azure services via precise service tags (NOT AzureCloud)'
             ipProtocols: ['TCP']
-            sourceAddresses: ['10.30.0.0/27']
+            sourceAddresses: ['10.30.0.0/28']
             // AzureMonitor is dropped by DEFAULT (lockAgentToPrivateMonitor=true)
             // so the agent reaches Monitor only over the AMPLS private endpoint —
             // private-only / maximum restraint; the agent remains fully functional
@@ -544,7 +544,7 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
             ruleType: 'ApplicationRule'
             name: 'allow-arm-aad-graph'
             description: 'FQDN access to ARM, Entra ID, and Microsoft Graph'
-            sourceAddresses: ['10.30.0.0/27']
+            sourceAddresses: ['10.30.0.0/28']
             protocols: [{ protocolType: 'Https', port: 443 }]
             targetFqdns: [
               'management.azure.com'
@@ -564,7 +564,7 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
             ruleType: 'ApplicationRule'
             name: 'allow-learn-microsoft-com'
             description: 'Microsoft Learn docs + MCP runtime endpoint (the agent looks up Azure/AKS/PostgreSQL guidance here)'
-            sourceAddresses: ['10.30.0.0/27']
+            sourceAddresses: ['10.30.0.0/28']
             protocols: [{ protocolType: 'Https', port: 443 }]
             targetFqdns: [
               'learn.microsoft.com'
@@ -585,7 +585,7 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
             // (raw.githubusercontent.com/microsoftdocs/mcp/*) you'd need Azure
             // Firewall Premium + TLS inspection (targetUrls). See README caveats.
             description: 'GitHub raw content — the Microsoft Learn MCP connector fetches its server bits here to complete the tool-discovery handshake'
-            sourceAddresses: ['10.30.0.0/27']
+            sourceAddresses: ['10.30.0.0/28']
             protocols: [{ protocolType: 'Https', port: 443 }]
             targetFqdns: [
               'raw.githubusercontent.com'

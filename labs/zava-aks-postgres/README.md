@@ -162,7 +162,7 @@ This lab is configured so the agent uses **native `kubectl`** against the privat
    ZONE=$(az network private-dns zone list -g <MC_rg> --query "[?contains(name,'azmk8s')].name|[0]" -o tsv)
    az network private-dns link vnet create -g <MC_rg> -z $ZONE -n agent-link -v <agentVnetId> -e false
    ```
-2. **Firewall** — `vnet.bicep` adds an allow rule (`agent-subnet 10.30.0.0/27 → aks-subnet 10.20.0.0/20 :443`) **and SNATs** all traffic (`snat.privateRanges = 255.255.255.255/32`). SNAT is essential: the API server's NSG only admits the `VirtualNetwork` tag and the agent spoke isn't *directly* peered to the platform spoke, so the agent's source IP is rewritten to the firewall's hub IP (which *is* in the tag) — that also makes the return path symmetric without touching the AKS subnet's routing.
+2. **Firewall** — `vnet.bicep` adds an allow rule (`agent-subnet 10.30.0.0/28 → aks-subnet 10.20.0.0/20 :443`) **and SNATs** all traffic (`snat.privateRanges = 255.255.255.255/32`). SNAT is essential: the API server's NSG only admits the `VirtualNetwork` tag and the agent spoke isn't *directly* peered to the platform spoke, so the agent's source IP is rewritten to the firewall's hub IP (which *is* in the tag) — that also makes the return path symmetric without touching the AKS subnet's routing.
 
 **Agent in-session setup — encoded in the skill runbook:**
 1. `az aks get-credentials -g <rg> -n <aks> --overwrite-existing`
