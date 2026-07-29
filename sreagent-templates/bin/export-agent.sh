@@ -331,33 +331,102 @@ CONNECTORS=$(echo "$RAW_CONNECTORS" | jq -c --argjson dp "$DP_CONNECTORS" '[.[] 
 # Sanitize any embedded secrets in connector datasource strings
 CONNECTORS=$(sanitize "$CONNECTORS")
 
-# Tools (opaque — base64-encoded)
-_log "Reading tools..."
-RAW_TOOLS=$(arm_list "tools")
-TOOL_COUNT=$(echo "$RAW_TOOLS" | jq 'length')
-_log "  Found ${TOOL_COUNT} tool(s)"
-TOOLS=$(decode_opaque "$RAW_TOOLS")
+# Tools (opaque — base64-encoded; data-plane fallback for 3P tenants)
+_log "Reading tools (ARM)..."
+RAW_TOOLS=$(arm_list "tools" 2>/dev/null || echo "[]")
+TOOLS_ARM_COUNT=$(echo "$RAW_TOOLS" | jq 'length')
+if [[ "$TOOLS_ARM_COUNT" -gt 0 ]]; then
+  TOOLS=$(decode_opaque "$RAW_TOOLS")
+  TOOL_COUNT="$TOOLS_ARM_COUNT"
+  _log "  Found ${TOOLS_ARM_COUNT} tool(s) via ARM"
+else
+  _log "  None via ARM, trying data-plane..."
+  RAW_TOOLS_DP=$(dp_get "/api/v2/extendedAgent/tools")
+  if [[ "$RAW_TOOLS_DP" != "null" ]]; then
+    TOOLS=$(echo "$RAW_TOOLS_DP" | jq -c '[(.value // . // [])[] | {
+      metadata: { name: .name },
+      spec: (.properties // {})
+    }]' 2>/dev/null || echo "[]")
+  else
+    TOOLS="[]"
+  fi
+  TOOL_COUNT=$(echo "$TOOLS" | jq 'length')
+  _log "  Found ${TOOL_COUNT} tool(s) via data-plane"
+fi
 
-# Skills (opaque — special shape: Bicep encodes {name,description,tools,skillContent,additionalFiles})
-_log "Reading skills..."
-RAW_SKILLS=$(arm_list "skills")
-SKILL_COUNT=$(echo "$RAW_SKILLS" | jq 'length')
-_log "  Found ${SKILL_COUNT} skill(s)"
-SKILLS=$(decode_skills "$RAW_SKILLS")
+# Skills (opaque — special shape; data-plane fallback for 3P tenants)
+_log "Reading skills (ARM)..."
+RAW_SKILLS=$(arm_list "skills" 2>/dev/null || echo "[]")
+SKILLS_ARM_COUNT=$(echo "$RAW_SKILLS" | jq 'length')
+if [[ "$SKILLS_ARM_COUNT" -gt 0 ]]; then
+  SKILLS=$(decode_skills "$RAW_SKILLS")
+  SKILL_COUNT="$SKILLS_ARM_COUNT"
+  _log "  Found ${SKILLS_ARM_COUNT} skill(s) via ARM"
+else
+  _log "  None via ARM, trying data-plane..."
+  RAW_SKILLS_DP=$(dp_get "/api/v2/extendedAgent/skills")
+  if [[ "$RAW_SKILLS_DP" != "null" ]]; then
+    SKILLS=$(echo "$RAW_SKILLS_DP" | jq -c '[(.value // . // [])[] | {
+      metadata: {
+        name: .name,
+        description: (.properties.description // ""),
+        spec: { tools: (.properties.tools // []) }
+      },
+      skillContent: (.properties.skillContent // ""),
+      additionalFiles: (.properties.additionalFiles // [])
+    }]' 2>/dev/null || echo "[]")
+  else
+    SKILLS="[]"
+  fi
+  SKILL_COUNT=$(echo "$SKILLS" | jq 'length')
+  _log "  Found ${SKILL_COUNT} skill(s) via data-plane"
+fi
 
-# Scheduled Tasks (opaque)
-_log "Reading scheduled tasks..."
-RAW_TASKS=$(arm_list "scheduledTasks")
-TASK_COUNT=$(echo "$RAW_TASKS" | jq 'length')
-_log "  Found ${TASK_COUNT} scheduled task(s)"
-SCHEDULED_TASKS=$(decode_opaque "$RAW_TASKS")
+# Scheduled Tasks (opaque; data-plane fallback for 3P tenants)
+_log "Reading scheduled tasks (ARM)..."
+RAW_TASKS=$(arm_list "scheduledTasks" 2>/dev/null || echo "[]")
+TASKS_ARM_COUNT=$(echo "$RAW_TASKS" | jq 'length')
+if [[ "$TASKS_ARM_COUNT" -gt 0 ]]; then
+  SCHEDULED_TASKS=$(decode_opaque "$RAW_TASKS")
+  TASK_COUNT="$TASKS_ARM_COUNT"
+  _log "  Found ${TASKS_ARM_COUNT} scheduled task(s) via ARM"
+else
+  _log "  None via ARM, trying data-plane..."
+  RAW_TASKS_DP=$(dp_get "/api/v2/extendedAgent/scheduledtasks")
+  if [[ "$RAW_TASKS_DP" != "null" ]]; then
+    SCHEDULED_TASKS=$(echo "$RAW_TASKS_DP" | jq -c '[(.value // . // [])[] | {
+      metadata: { name: .name },
+      spec: (.properties // {})
+    }]' 2>/dev/null || echo "[]")
+  else
+    SCHEDULED_TASKS="[]"
+  fi
+  TASK_COUNT=$(echo "$SCHEDULED_TASKS" | jq 'length')
+  _log "  Found ${TASK_COUNT} scheduled task(s) via data-plane"
+fi
 
-# Incident Filters (opaque)
-_log "Reading incident filters..."
-RAW_FILTERS=$(arm_list "incidentFilters")
-FILTER_COUNT=$(echo "$RAW_FILTERS" | jq 'length')
-_log "  Found ${FILTER_COUNT} incident filter(s)"
-INCIDENT_FILTERS=$(decode_opaque "$RAW_FILTERS")
+# Incident Filters (opaque; data-plane fallback for 3P tenants)
+_log "Reading incident filters (ARM)..."
+RAW_FILTERS=$(arm_list "incidentFilters" 2>/dev/null || echo "[]")
+FILTERS_ARM_COUNT=$(echo "$RAW_FILTERS" | jq 'length')
+if [[ "$FILTERS_ARM_COUNT" -gt 0 ]]; then
+  INCIDENT_FILTERS=$(decode_opaque "$RAW_FILTERS")
+  FILTER_COUNT="$FILTERS_ARM_COUNT"
+  _log "  Found ${FILTERS_ARM_COUNT} incident filter(s) via ARM"
+else
+  _log "  None via ARM, trying data-plane..."
+  RAW_FILTERS_DP=$(dp_get "/api/v2/extendedAgent/incidentFilters")
+  if [[ "$RAW_FILTERS_DP" != "null" ]]; then
+    INCIDENT_FILTERS=$(echo "$RAW_FILTERS_DP" | jq -c '[(.value // . // [])[] | {
+      metadata: { name: .name },
+      spec: (.properties // {})
+    }]' 2>/dev/null || echo "[]")
+  else
+    INCIDENT_FILTERS="[]"
+  fi
+  FILTER_COUNT=$(echo "$INCIDENT_FILTERS" | jq 'length')
+  _log "  Found ${FILTER_COUNT} incident filter(s) via data-plane"
+fi
 
 # Incident Handlers — data-plane (customInstructions lives here, not on the filter)
 _log "Reading incident handlers (data-plane)..."
@@ -376,12 +445,28 @@ if [[ "$DP_HANDLER_COUNT" -gt 0 ]]; then
   _log "  Merged customInstructions into filters"
 fi
 
-# Subagents (opaque)
-_log "Reading subagents..."
-RAW_SUBAGENTS=$(arm_list "subagents")
-SUBAGENT_COUNT=$(echo "$RAW_SUBAGENTS" | jq 'length')
-_log "  Found ${SUBAGENT_COUNT} subagent(s)"
-SUBAGENTS=$(decode_opaque "$RAW_SUBAGENTS")
+# Subagents (opaque; data-plane fallback for 3P tenants)
+_log "Reading subagents (ARM)..."
+RAW_SUBAGENTS=$(arm_list "subagents" 2>/dev/null || echo "[]")
+SUBAGENTS_ARM_COUNT=$(echo "$RAW_SUBAGENTS" | jq 'length')
+if [[ "$SUBAGENTS_ARM_COUNT" -gt 0 ]]; then
+  SUBAGENTS=$(decode_opaque "$RAW_SUBAGENTS")
+  SUBAGENT_COUNT="$SUBAGENTS_ARM_COUNT"
+  _log "  Found ${SUBAGENTS_ARM_COUNT} subagent(s) via ARM"
+else
+  _log "  None via ARM, trying data-plane..."
+  RAW_SUBAGENTS_DP=$(dp_get "/api/v2/extendedAgent/agents")
+  if [[ "$RAW_SUBAGENTS_DP" != "null" ]]; then
+    SUBAGENTS=$(echo "$RAW_SUBAGENTS_DP" | jq -c '[(.value // . // [])[] | {
+      metadata: { name: .name },
+      spec: (.properties // {})
+    }]' 2>/dev/null || echo "[]")
+  else
+    SUBAGENTS="[]"
+  fi
+  SUBAGENT_COUNT=$(echo "$SUBAGENTS" | jq 'length')
+  _log "  Found ${SUBAGENT_COUNT} subagent(s) via data-plane"
+fi
 
 # Hooks (opaque — try ARM first; public Bicep deploys these via ARM now)
 _log "Reading hooks (ARM)..."
