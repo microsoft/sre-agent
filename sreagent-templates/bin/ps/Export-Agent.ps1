@@ -1101,7 +1101,13 @@ Write-Host ''
 # Phase 5: Write structured output
 # ═══════════════════════════════════════════════════════════════════
 
-$EXPORT_DIR = $Output
+# Resolve to absolute path — [System.IO.File]::WriteAllText uses .NET CWD which
+# can diverge from PowerShell CWD, causing "Could not find a part of the path" errors.
+if ([System.IO.Path]::IsPathRooted($Output)) {
+    $EXPORT_DIR = $Output
+} else {
+    $EXPORT_DIR = Join-Path $PWD $Output
+}
 if (-not (Test-Path (Join-Path $EXPORT_DIR 'config'))) {
     New-Item -ItemType Directory -Path (Join-Path $EXPORT_DIR 'config') -Force | Out-Null
 }
