@@ -140,11 +140,24 @@ if (Test-Path $PrereqScript) {
     . $PrereqScript
     if (-not (Test-Prerequisites -IncludePython -IncludeCurl)) { exit 1 }
 } else {
-    foreach ($cmd in @('jq', 'az', 'python3', 'curl')) {
+    foreach ($cmd in @('jq', 'az', 'curl')) {
         if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
             Write-Host "Error: $cmd is required but not found." -ForegroundColor Red
             exit 1
         }
+    }
+    # Python: accept python3 (macOS/Linux) or python (Windows)
+    if (-not (Get-Command python3 -ErrorAction SilentlyContinue)) {
+        if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
+            Write-Host "Error: python3 or python is required but not found." -ForegroundColor Red
+            exit 1
+        }
+    }
+}
+# Ensure 'python3' resolves everywhere — on Windows only 'python' may exist
+if (-not (Get-Command python3 -ErrorAction SilentlyContinue)) {
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        Set-Alias -Name python3 -Value python -Scope Script
     }
 }
 . (Join-Path $PSScriptRoot 'Invoke-Jq.ps1')
@@ -456,33 +469,106 @@ $CONNECTORS = $RAW_CONNECTORS | Invoke-Jq -Compact -Filter '[.[] |
 Remove-Item $dpTmpFile -Force -ErrorAction SilentlyContinue
 $CONNECTORS = Invoke-Sanitize $CONNECTORS
 
-# ── Tools (opaque) ──
-_log 'Reading tools...'
+# ── Tools (opaque; data-plane fallback for 3P tenants) ──
+_log 'Reading tools (ARM)...'
 $RAW_TOOLS = Invoke-ArmList 'tools'
-$TOOL_COUNT = ($RAW_TOOLS | jq 'length') -as [int]
-_log "  Found ${TOOL_COUNT} tool(s)"
-$TOOLS = ConvertFrom-OpaqueArm $RAW_TOOLS
+$TOOLS_ARM_COUNT = ($RAW_TOOLS | jq 'length') -as [int]
+if ($TOOLS_ARM_COUNT -gt 0) {
+    $TOOLS = ConvertFrom-OpaqueArm $RAW_TOOLS
+    $TOOL_COUNT = $TOOLS_ARM_COUNT
+    _log "  Found ${TOOLS_ARM_COUNT} tool(s) via ARM"
+} else {
+    _log '  None via ARM, trying data-plane...'
+    $RAW_TOOLS_DP = Invoke-DpGet '/api/v2/extendedAgent/tools'
+    if ($RAW_TOOLS_DP -ne 'null') {
+        $TOOLS = $RAW_TOOLS_DP | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {
+            metadata: { name: .name },
+            spec: (.properties // {})
+        }]'
+        if (-not $TOOLS) { $TOOLS = '[]' }
+    } else {
+        $TOOLS = '[]'
+    }
+    $TOOL_COUNT = ($TOOLS | jq 'length') -as [int]
+    _log "  Found ${TOOL_COUNT} tool(s) via data-plane"
+}
 
-# ── Skills (opaque, special shape) ──
-_log 'Reading skills...'
+# ── Skills (opaque, special shape; data-plane fallback for 3P tenants) ──
+_log 'Reading skills (ARM)...'
 $RAW_SKILLS = Invoke-ArmList 'skills'
-$SKILL_COUNT = ($RAW_SKILLS | jq 'length') -as [int]
-_log "  Found ${SKILL_COUNT} skill(s)"
-$SKILLS = ConvertFrom-SkillsArm $RAW_SKILLS
+$SKILLS_ARM_COUNT = ($RAW_SKILLS | jq 'length') -as [int]
+if ($SKILLS_ARM_COUNT -gt 0) {
+    $SKILLS = ConvertFrom-SkillsArm $RAW_SKILLS
+    $SKILL_COUNT = $SKILLS_ARM_COUNT
+    _log "  Found ${SKILLS_ARM_COUNT} skill(s) via ARM"
+} else {
+    _log '  None via ARM, trying data-plane...'
+    $RAW_SKILLS_DP = Invoke-DpGet '/api/v2/extendedAgent/skills'
+    if ($RAW_SKILLS_DP -ne 'null') {
+        $SKILLS = $RAW_SKILLS_DP | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {
+            metadata: {
+                name: .name,
+                description: (.properties.description // ""),
+                spec: { tools: (.properties.tools // []) }
+            },
+            skillContent: (.properties.skillContent // ""),
+            additionalFiles: (.properties.additionalFiles // [])
+        }]'
+        if (-not $SKILLS) { $SKILLS = '[]' }
+    } else {
+        $SKILLS = '[]'
+    }
+    $SKILL_COUNT = ($SKILLS | jq 'length') -as [int]
+    _log "  Found ${SKILL_COUNT} skill(s) via data-plane"
+}
 
-# ── Scheduled Tasks (opaque) ──
-_log 'Reading scheduled tasks...'
+# ── Scheduled Tasks (opaque; data-plane fallback for 3P tenants) ──
+_log 'Reading scheduled tasks (ARM)...'
 $RAW_TASKS = Invoke-ArmList 'scheduledTasks'
-$TASK_COUNT = ($RAW_TASKS | jq 'length') -as [int]
-_log "  Found ${TASK_COUNT} scheduled task(s)"
-$SCHEDULED_TASKS = ConvertFrom-OpaqueArm $RAW_TASKS
+$TASKS_ARM_COUNT = ($RAW_TASKS | jq 'length') -as [int]
+if ($TASKS_ARM_COUNT -gt 0) {
+    $SCHEDULED_TASKS = ConvertFrom-OpaqueArm $RAW_TASKS
+    $TASK_COUNT = $TASKS_ARM_COUNT
+    _log "  Found ${TASKS_ARM_COUNT} scheduled task(s) via ARM"
+} else {
+    _log '  None via ARM, trying data-plane...'
+    $RAW_TASKS_DP = Invoke-DpGet '/api/v2/extendedAgent/scheduledtasks'
+    if ($RAW_TASKS_DP -ne 'null') {
+        $SCHEDULED_TASKS = $RAW_TASKS_DP | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {
+            metadata: { name: .name },
+            spec: (.properties // {})
+        }]'
+        if (-not $SCHEDULED_TASKS) { $SCHEDULED_TASKS = '[]' }
+    } else {
+        $SCHEDULED_TASKS = '[]'
+    }
+    $TASK_COUNT = ($SCHEDULED_TASKS | jq 'length') -as [int]
+    _log "  Found ${TASK_COUNT} scheduled task(s) via data-plane"
+}
 
-# ── Incident Filters (opaque) ──
-_log 'Reading incident filters...'
+# ── Incident Filters (opaque; data-plane fallback for 3P tenants) ──
+_log 'Reading incident filters (ARM)...'
 $RAW_FILTERS = Invoke-ArmList 'incidentFilters'
-$FILTER_COUNT = ($RAW_FILTERS | jq 'length') -as [int]
-_log "  Found ${FILTER_COUNT} incident filter(s)"
-$INCIDENT_FILTERS = ConvertFrom-OpaqueArm $RAW_FILTERS
+$FILTERS_ARM_COUNT = ($RAW_FILTERS | jq 'length') -as [int]
+if ($FILTERS_ARM_COUNT -gt 0) {
+    $INCIDENT_FILTERS = ConvertFrom-OpaqueArm $RAW_FILTERS
+    $FILTER_COUNT = $FILTERS_ARM_COUNT
+    _log "  Found ${FILTERS_ARM_COUNT} incident filter(s) via ARM"
+} else {
+    _log '  None via ARM, trying data-plane...'
+    $RAW_FILTERS_DP = Invoke-DpGet '/api/v2/extendedAgent/incidentFilters'
+    if ($RAW_FILTERS_DP -ne 'null') {
+        $INCIDENT_FILTERS = $RAW_FILTERS_DP | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {
+            metadata: { name: .name },
+            spec: (.properties // {})
+        }]'
+        if (-not $INCIDENT_FILTERS) { $INCIDENT_FILTERS = '[]' }
+    } else {
+        $INCIDENT_FILTERS = '[]'
+    }
+    $FILTER_COUNT = ($INCIDENT_FILTERS | jq 'length') -as [int]
+    _log "  Found ${FILTER_COUNT} incident filter(s) via data-plane"
+}
 
 # ── Incident Handlers (data-plane) — merge customInstructions ──
 _log 'Reading incident handlers (data-plane)...'
@@ -506,12 +592,29 @@ if ($DP_HANDLER_COUNT -gt 0) {
     _log '  Merged customInstructions into filters'
 }
 
-# ── Subagents (opaque) ──
-_log 'Reading subagents...'
+# ── Subagents (opaque; data-plane fallback for 3P tenants) ──
+_log 'Reading subagents (ARM)...'
 $RAW_SUBAGENTS = Invoke-ArmList 'subagents'
-$SUBAGENT_COUNT = ($RAW_SUBAGENTS | jq 'length') -as [int]
-_log "  Found ${SUBAGENT_COUNT} subagent(s)"
-$SUBAGENTS = ConvertFrom-OpaqueArm $RAW_SUBAGENTS
+$SUBAGENTS_ARM_COUNT = ($RAW_SUBAGENTS | jq 'length') -as [int]
+if ($SUBAGENTS_ARM_COUNT -gt 0) {
+    $SUBAGENTS = ConvertFrom-OpaqueArm $RAW_SUBAGENTS
+    $SUBAGENT_COUNT = $SUBAGENTS_ARM_COUNT
+    _log "  Found ${SUBAGENTS_ARM_COUNT} subagent(s) via ARM"
+} else {
+    _log '  None via ARM, trying data-plane...'
+    $RAW_SUBAGENTS_DP = Invoke-DpGet '/api/v2/extendedAgent/agents'
+    if ($RAW_SUBAGENTS_DP -ne 'null') {
+        $SUBAGENTS = $RAW_SUBAGENTS_DP | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {
+            metadata: { name: .name },
+            spec: (.properties // {})
+        }]'
+        if (-not $SUBAGENTS) { $SUBAGENTS = '[]' }
+    } else {
+        $SUBAGENTS = '[]'
+    }
+    $SUBAGENT_COUNT = ($SUBAGENTS | jq 'length') -as [int]
+    _log "  Found ${SUBAGENT_COUNT} subagent(s) via data-plane"
+}
 
 # ── Hooks (ARM) ──
 _log 'Reading hooks (ARM)...'
@@ -1011,7 +1114,13 @@ Write-Host ''
 # Phase 5: Write structured output
 # ═══════════════════════════════════════════════════════════════════
 
-$EXPORT_DIR = $Output
+# Resolve to absolute path — [System.IO.File]::WriteAllText uses .NET CWD which
+# can diverge from PowerShell CWD, causing "Could not find a part of the path" errors.
+if ([System.IO.Path]::IsPathRooted($Output)) {
+    $EXPORT_DIR = $Output
+} else {
+    $EXPORT_DIR = Join-Path $PWD $Output
+}
 if (-not (Test-Path (Join-Path $EXPORT_DIR 'config'))) {
     New-Item -ItemType Directory -Path (Join-Path $EXPORT_DIR 'config') -Force | Out-Null
 }
