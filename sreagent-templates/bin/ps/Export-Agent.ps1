@@ -140,11 +140,24 @@ if (Test-Path $PrereqScript) {
     . $PrereqScript
     if (-not (Test-Prerequisites -IncludePython -IncludeCurl)) { exit 1 }
 } else {
-    foreach ($cmd in @('jq', 'az', 'python3', 'curl')) {
+    foreach ($cmd in @('jq', 'az', 'curl')) {
         if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
             Write-Host "Error: $cmd is required but not found." -ForegroundColor Red
             exit 1
         }
+    }
+    # Python: accept python3 (macOS/Linux) or python (Windows)
+    if (-not (Get-Command python3 -ErrorAction SilentlyContinue)) {
+        if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
+            Write-Host "Error: python3 or python is required but not found." -ForegroundColor Red
+            exit 1
+        }
+    }
+}
+# Ensure 'python3' resolves everywhere — on Windows only 'python' may exist
+if (-not (Get-Command python3 -ErrorAction SilentlyContinue)) {
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        Set-Alias -Name python3 -Value python -Scope Script
     }
 }
 . (Join-Path $PSScriptRoot 'Invoke-Jq.ps1')
