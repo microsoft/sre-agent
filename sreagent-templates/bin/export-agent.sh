@@ -87,6 +87,15 @@ done
 command -v jq >/dev/null || { echo "Error: jq is required" >&2; exit 1; }
 command -v az >/dev/null || { echo "Error: az CLI is required" >&2; exit 1; }
 
+# Resolve python command — python3 on macOS/Linux, python on Windows/MINGW
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON=python3
+elif command -v python >/dev/null 2>&1; then
+  PYTHON=python
+else
+  echo "Error: python3 or python is required" >&2; exit 1
+fi
+
 API_VERSION="2025-05-01-preview"
 ARM_BASE="https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.App/agents/${AGENT}"
 
@@ -99,7 +108,7 @@ _fail() { echo "  ERROR: $*" >&2; exit 1; }
 
 # JSON → YAML conversion (for human-editable config files)
 json2yaml() {
-  python3 -c "
+  $PYTHON -c "
 import sys, json, yaml
 
 def strip_nulls(obj):
@@ -1098,7 +1107,7 @@ if [[ ${#SET_OVERRIDES[@]} -gt 0 ]]; then
         # Inject connectionKey into incident platform YAML
         for pf in "${EXPORT_DIR}/automations/incident-platforms"/*.yaml; do
           [[ -f "$pf" ]] || continue
-          python3 -c "
+          $PYTHON -c "
 import yaml, sys
 with open('$pf') as f: d = yaml.safe_load(f)
 d.setdefault('spec',{})['connectionKey'] = '$val'
@@ -1435,11 +1444,11 @@ if [[ $(echo "$INCIDENT_PLATFORMS" | jq 'length') -gt 0 ]]; then
     ptype=$(echo "$INCIDENT_PLATFORMS" | jq -r --argjson i "$i" '.[$i].spec.platformType // .[$i].spec.incidentPlatform // ""')
     case "$ptype" in
       PagerDuty|ServiceNow)
-        has_key=$(python3 -c "import yaml; d=yaml.safe_load(open('${EXPORT_DIR}/automations/incident-platforms/${ipname}.yaml')); print('yes' if d.get('spec',{}).get('connectionKey') else 'no')" 2>/dev/null || echo "no")
+        has_key=$($PYTHON -c "import yaml; d=yaml.safe_load(open('${EXPORT_DIR}/automations/incident-platforms/${ipname}.yaml')); print('yes' if d.get('spec',{}).get('connectionKey') else 'no')" 2>/dev/null || echo "no")
         if [[ "$has_key" != "yes" ]]; then
           # Add connectionKey as env var reference so assemble-agent.sh substitutes it
           env_var="$(echo "${ptype}" | tr '[:lower:]' '[:upper:]')_API_KEY"
-          python3 -c "
+          $PYTHON -c "
 import yaml
 f='${EXPORT_DIR}/automations/incident-platforms/${ipname}.yaml'
 with open(f) as fh: d = yaml.safe_load(fh)
