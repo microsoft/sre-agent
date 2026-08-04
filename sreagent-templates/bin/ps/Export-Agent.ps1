@@ -961,6 +961,27 @@ if ($INCLUDE_REPO_INSTRUCTIONS -and $REPO_COUNT -gt 0) {
     _log 'Skipping repo instructions (use -IncludeRepoInstructions to include)'
 }
 
+# Session Insights (data-plane — learned patterns from past sessions)
+_log 'Reading session insights...'
+$RAW_SESSION_INSIGHTS = Invoke-DpGet '/api/v1/threads/insights?skip=0&take=1000'
+if ($RAW_SESSION_INSIGHTS -ne 'null') {
+    $SESSION_INSIGHTS = $RAW_SESSION_INSIGHTS | Invoke-Jq -Compact -Filter '[(.insights // [])[] | {
+        id: .id,
+        threadId: .threadId,
+        title: .title,
+        generatedTimestamp: .generatedTimestamp,
+        insightMarkdown: .insightMarkdown,
+        feedbackCount: (.feedbackCount // 0),
+        positiveFeedbackCount: (.positiveFeedbackCount // 0),
+        negativeFeedbackCount: (.negativeFeedbackCount // 0)
+    }]'
+    if (-not $SESSION_INSIGHTS) { $SESSION_INSIGHTS = '[]' }
+} else {
+    $SESSION_INSIGHTS = '[]'
+}
+$SESSION_INSIGHT_COUNT = ($SESSION_INSIGHTS | jq 'length') -as [int]
+_log "  Found ${SESSION_INSIGHT_COUNT} session insight(s)"
+
 Write-Host ''
 
 # ═══════════════════════════════════════════════════════════════════
@@ -998,6 +1019,7 @@ Write-Host "  Webhook bridge:     $(if ($BRIDGE_EXISTS) { 'yes' } else { 'no' })
 Write-Host "  Incident platforms: ${INCIDENT_PLATFORM_COUNT}"
 Write-Host "  Scheduled tasks:    ${TASK_COUNT}"
 Write-Host "  Incident filters:   ${FILTER_COUNT}"
+Write-Host "  Session insights:   ${SESSION_INSIGHT_COUNT}"
 
 if ($DryRun) {
     Write-Host ''
@@ -1542,7 +1564,7 @@ if ($piCount -gt 0) {
     }
 }
 
-# ═══════ 4. data/ — knowledge, memories, repo instructions ═══════
+# ═══════ 4. data/ — knowledge, memories, repo instructions, session insights ═══════
 
 _info 'Writing data/ files'
 
@@ -1552,6 +1574,29 @@ foreach ($subDir in @('knowledge', 'synthesized-knowledge')) {
     if (-not (Test-Path $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null }
     $gitkeep = Join-Path $p '.gitkeep'
     if (-not (Test-Path $gitkeep)) { '' | Set-Content $gitkeep }
+}
+
+# Session insights → individual .md files + metadata YAML
+if ($SESSION_INSIGHT_COUNT -gt 0) {
+    $siDir = Join-Path $DATA_DIR 'session-insights'
+    if (-not (Test-Path $siDir)) { New-Item -ItemType Directory -Path $siDir -Force | Out-Null }
+    for ($i = 0; $i -lt $SESSION_INSIGHT_COUNT; $i++) {
+        $siId = $SESSION_INSIGHTS | jq -r --argjson i $i '.[$i].id'
+        $siTitle = $SESSION_INSIGHTS | jq -r --argjson i $i '.[$i].title'
+        # Sanitize title for filename
+        $siFname = ($siTitle -replace '[^a-zA-Z0-9]', '-' -replace '-+', '-' -replace '^-|-$', '').ToLower()
+        if ($siFname.Length -gt 80) { $siFname = $siFname.Substring(0, 80) }
+        if (-not $siFname) { $siFname = $siId }
+        # Write insight markdown content
+        $siMd = $SESSION_INSIGHTS | Invoke-Jq -Raw -Filter '.[$i].insightMarkdown // ""' -ExtraArgs @('--argjson', 'i', "$i")
+        if ($siMd) {
+            [System.IO.File]::WriteAllText((Join-Path $siDir "${siFname}.md"), $siMd)
+        }
+        # Write metadata YAML (without the large markdown blob)
+        $SESSION_INSIGHTS | Invoke-Jq -Filter '.[$i] | del(.insightMarkdown) | . + {insightMarkdown: ("session-insights/" + $fname + ".md")}' -ExtraArgs @('--argjson', 'i', "$i", '--arg', 'fname', $siFname) |
+            ConvertTo-Yaml | Set-Content -Path (Join-Path $siDir "${siFname}.yaml") -NoNewline -Encoding utf8
+    }
+    _log "  session-insights: ${SESSION_INSIGHT_COUNT} file(s)"
 }
 
 $knowledgeCount = ($KNOWLEDGE | jq 'length') -as [int]

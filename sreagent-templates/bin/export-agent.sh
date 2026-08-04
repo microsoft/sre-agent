@@ -814,6 +814,26 @@ else
   _log "Skipping repo instructions (use --include-repo-instructions to include)"
 fi
 
+# Session Insights (data-plane — learned patterns from past sessions)
+_log "Reading session insights..."
+RAW_SESSION_INSIGHTS=$(dp_get "/api/v1/threads/insights?skip=0&take=1000")
+if [[ "$RAW_SESSION_INSIGHTS" != "null" ]]; then
+  SESSION_INSIGHTS=$(echo "$RAW_SESSION_INSIGHTS" | jq -c '[(.insights // [])[] | {
+    id: .id,
+    threadId: .threadId,
+    title: .title,
+    generatedTimestamp: .generatedTimestamp,
+    insightMarkdown: .insightMarkdown,
+    feedbackCount: (.feedbackCount // 0),
+    positiveFeedbackCount: (.positiveFeedbackCount // 0),
+    negativeFeedbackCount: (.negativeFeedbackCount // 0)
+  }]' 2>/dev/null || echo "[]")
+else
+  SESSION_INSIGHTS="[]"
+fi
+SESSION_INSIGHT_COUNT=$(echo "$SESSION_INSIGHTS" | jq 'length')
+_log "  Found ${SESSION_INSIGHT_COUNT} session insight(s)"
+
 echo
 
 # ────────────────────── Phase 4: Dry-run summary ──────────────────────
@@ -848,6 +868,7 @@ echo "  Webhook bridge:     $([[ "$BRIDGE_EXISTS" == true ]] && echo "yes" || ec
 echo "  Incident platforms: ${INCIDENT_PLATFORM_COUNT}"
 echo "  Scheduled tasks:    ${TASK_COUNT}"
 echo "  Incident filters:   ${FILTER_COUNT}"
+echo "  Session insights:   ${SESSION_INSIGHT_COUNT}"
 
 if [[ "$DRY_RUN" == "true" ]]; then
   echo
@@ -1400,7 +1421,7 @@ if [[ $(echo "$PLUGIN_INSTALLATIONS" | jq 'length') -gt 0 ]]; then
   done
 fi
 
-# ═══════ 4. data/ — knowledge, memories, repo instructions ═══════
+# ═══════ 4. data/ — knowledge, memories, repo instructions, session insights ═══════
 
 _info "Writing data/ files"
 
@@ -1411,6 +1432,26 @@ mkdir -p "${DATA_DIR}/knowledge"
 mkdir -p "${DATA_DIR}/synthesized-knowledge"
 touch "${DATA_DIR}/knowledge/.gitkeep"
 touch "${DATA_DIR}/synthesized-knowledge/.gitkeep"
+
+# Session insights → individual .md files + metadata YAML
+if [[ "$SESSION_INSIGHT_COUNT" -gt 0 ]]; then
+  SI_DIR="${DATA_DIR}/session-insights"
+  mkdir -p "$SI_DIR"
+  for i in $(seq 0 $((SESSION_INSIGHT_COUNT - 1))); do
+    si_id=$(echo "$SESSION_INSIGHTS" | jq -r --argjson i "$i" '.[$i].id')
+    si_title=$(echo "$SESSION_INSIGHTS" | jq -r --argjson i "$i" '.[$i].title')
+    # Sanitize title for filename
+    si_fname=$(echo "$si_title" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//' | head -c 80)
+    [[ -z "$si_fname" ]] && si_fname="$si_id"
+    # Write insight markdown content
+    si_md=$(echo "$SESSION_INSIGHTS" | jq -r --argjson i "$i" '.[$i].insightMarkdown // ""')
+    [[ -n "$si_md" ]] && printf '%s' "$si_md" > "${SI_DIR}/${si_fname}.md"
+    # Write metadata YAML (without the large markdown blob)
+    echo "$SESSION_INSIGHTS" | jq --argjson i "$i" '.[$i] | del(.insightMarkdown) | . + {insightMarkdown: ("session-insights/" + $fname + ".md")}' \
+      --arg fname "$si_fname" | json2yaml > "${SI_DIR}/${si_fname}.yaml"
+  done
+  _log "  session-insights: ${SESSION_INSIGHT_COUNT} file(s)"
+fi
 
 if [[ $(echo "$KNOWLEDGE" | jq 'length') -gt 0 ]]; then
   mkdir -p "${DATA_DIR}"
