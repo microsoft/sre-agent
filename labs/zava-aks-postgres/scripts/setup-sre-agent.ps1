@@ -17,9 +17,6 @@
         and there is NO ARM/Bicep property for per-tool state (the agent's
         `permissions` stays null) — Microsoft's own `srectl tool config set` CLI
         exists for exactly this (POST /api/v2/agent/tools/configure).
-      - Global tool enablement: keep the built-in RunKubectl* tools ON for every
-        agent loop. This also reverses the agent-wide disablement applied by older
-        versions of this script.
       - Verification of Bicep-deployed assets
 .EXAMPLE
     .\scripts\setup-sre-agent.ps1
@@ -242,37 +239,6 @@ if ($present.Count -gt 0) {
     }
 }
 
-# --- Step 2c: Enable the built-in RunKubectl* tools globally (data-plane) ---
-# Older versions of this script disabled these tools agent-wide. Keep them
-# enabled so the agent can use the platform-provided Kubernetes tools as well as
-# native kubectl through RunInTerminal. The configure endpoint has merge
-# semantics, so this also repairs existing agents without resetting other tool
-# overrides.
-Write-Host "`nStep 2c: Enabling built-in RunKubectl* tools globally..." -ForegroundColor Yellow
-$kubectlCore = @('RunKubectlReadCommand', 'RunKubectlWriteCommand')
-$kcat = @()
-try {
-    $ktr = $client.GetAsync("$agentEndpoint/api/v2/agent/tools").Result
-    if ($ktr.IsSuccessStatusCode) { $kcat = @(($ktr.Content.ReadAsStringAsync().Result | ConvertFrom-Json).data) }
-} catch {}
-$kubeFromCat = @($kcat | Where-Object { $_.name -like 'RunKubectl*' } | ForEach-Object { $_.name })
-$kubectlTools = @($kubectlCore + $kubeFromCat | Select-Object -Unique)
-$kubePresent = @($kubectlTools | Where-Object { $_ -in $kcat.name })
-$kubeEnabled = @($kcat | Where-Object { ($_.name -in $kubectlTools) -and $_.enabled } | ForEach-Object { $_.name })
-if ($kubePresent.Count -gt 0 -and $kubePresent.Count -eq $kubectlTools.Count -and $kubeEnabled.Count -eq $kubectlTools.Count) {
-    Write-Host "  [skip] RunKubectl* tools already enabled globally ($($kubectlTools -join ', '))" -ForegroundColor DarkGray
-} else {
-    $kPayload = @{ overrides = @($kubectlTools | ForEach-Object { @{ name = $_; enabled = $true } }) } | ConvertTo-Json -Depth 4 -Compress
-    $kContent = [System.Net.Http.StringContent]::new($kPayload, [System.Text.Encoding]::UTF8, "application/json")
-    $kResp = $client.PostAsync("$agentEndpoint/api/v2/agent/tools/configure", $kContent).Result
-    if ($kResp.IsSuccessStatusCode) {
-        Write-Host "  [ok] Enabled built-in kubectl tools globally ($($kubectlTools -join ', '))" -ForegroundColor Green
-    } else {
-        Write-Host "  WARNING: kubectl tool enable returned $($kResp.StatusCode): $($kResp.Content.ReadAsStringAsync().Result)" -ForegroundColor Yellow
-    }
-    $kContent.Dispose()
-}
-
 # --- Step 3: Verify Bicep-deployed assets ----------------------------------
 Write-Host "`nStep 3: Verifying Bicep-deployed configuration..." -ForegroundColor Yellow
 $allGood = $true
@@ -344,13 +310,6 @@ if ($learnEnabled.Count -eq $learnTools.Count) {
     Write-Host "  [WARN] Learn MCP tools enabled globally: $($learnEnabled.Count)/$($learnTools.Count) (MCP connection may still be warming up)" -ForegroundColor Yellow; $allGood = $false
 }
 
-$kubeVerifyOn = @($vcat | Where-Object { ($_.name -in $kubectlTools) -and $_.enabled } | ForEach-Object { $_.name })
-if ($kubeVerifyOn.Count -eq $kubectlTools.Count) {
-    Write-Host "  [OK] Built-in RunKubectl* tools enabled globally: $($kubeVerifyOn.Count)/$($kubectlTools.Count)" -ForegroundColor Green
-} else {
-    Write-Host "  [WARN] RunKubectl* tools enabled globally: $($kubeVerifyOn.Count)/$($kubectlTools.Count) — re-run Step 2c to enable" -ForegroundColor Yellow; $allGood = $false
-}
-
 if ($allGood) { Write-Host "  All Bicep + data-plane assets verified." -ForegroundColor Green }
 else { Write-Host "  Some assets missing — see above." -ForegroundColor Yellow }
 
@@ -370,8 +329,6 @@ Write-Host "  [x] Response plans (incident filters): zava-database, zava-perform
 Write-Host "`n  DONE BY THIS SCRIPT (data plane — no ARM API yet):" -ForegroundColor Cyan
 Write-Host ("  [x] Knowledge files synced: {0} local file(s) ({1} uploaded, {2} replaced, {3} skipped, {4} failed)" -f $kbLocalFiles.Count, $uploaded, $replaced, $skipped, $failed)
 Write-Host ("  [x] Microsoft Learn MCP tools enabled globally: {0}/{1} (docs_search, code_sample_search, docs_fetch)" -f $learnEnabled.Count, $learnTools.Count)
-Write-Host ("  [x] Built-in RunKubectl* tools enabled globally: {0}/{1}" -f $kubeVerifyOn.Count, $kubectlTools.Count)
-
 Write-Host "`n  NEXT STEPS:" -ForegroundColor Cyan
 Write-Host "  Run a break scenario:"
 Write-Host "    .\.github\skills\running-demo\scripts\break-sql.ps1      # Stop PostgreSQL"
