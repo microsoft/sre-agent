@@ -231,7 +231,7 @@ The Log Analytics workspace and Application Insights are scoped to an **Azure Mo
 
 This demo targets a permissive dev/sandbox subscription and works there as-is: it ships a Standard Azure Firewall with a public IP, a Basic ACR, AKS with local accounts enabled, and default public network access on the Log Analytics workspace / Application Insights (PostgreSQL is already VNet-integrated, with no public endpoint). A locked-down corporate landing zone with strict Azure Policy would likely require hardening those: `disableLocalAccounts` on AKS, a Premium ACR with a private endpoint, `publicNetworkAccess: 'Disabled'` on the workspace/App Insights, and a policy exemption for the firewall public IP. That hardened path isn't validated here.
 
-> **`disableLocalAccounts` and the SRE Agent.** On a hardened cluster the agent uses **native `kubectl`** authenticated by its own managed identity (`kubelogin convert-kubeconfig -l azurecli`) over a private network path to the API server (private-DNS link + firewall/SNAT). To keep the agent on that path, the lab removes the `RunKubectl*` tools from every skill and disables them agent-wide (`setup-sre-agent.ps1` Step 2c).
+> **`disableLocalAccounts` and the SRE Agent.** On a hardened cluster the agent can use **native `kubectl`** authenticated by its own managed identity (`kubelogin convert-kubeconfig -l azurecli`) over a private network path to the API server (private-DNS link + firewall/SNAT). This sample does not override the built-in `RunKubectl*` tool state.
 
 ## Platform Behaviors
 
