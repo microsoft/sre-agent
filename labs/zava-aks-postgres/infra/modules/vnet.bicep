@@ -7,7 +7,7 @@ param uniqueSuffix string
 @description('''Lock the agent to PRIVATE-ONLY Azure Monitor (default true). When true, the public
 `AzureMonitor` service tag is dropped from the firewall L4 allow-list and the agent reaches Monitor
 via the AMPLS private endpoint (10.10.2.0/27, rule allow-agent-to-ampls) + the linked private-DNS
-zones. The agent remains fully functional under this lockdown (Monitor queries, native kubectl, and
+zones. The agent remains fully functional under this lockdown (Monitor queries, Kubernetes tools, and
 incident remediation all work). See the main.bicep param doc.''')
 param lockAgentToPrivateMonitor bool = true
 
@@ -41,7 +41,7 @@ param lockAgentToPrivateMonitor bool = true
 //     └─ db-subnet                  10.20.16.0/24  PostgreSQL Flexible Server delegation.
 //
 //   SPOKE 2 — agent     vnet-Zava-agent-*      10.30.0.0/24  (the SRE Agent)
-//     └─ agent-subnet               10.30.0.0/28   Microsoft.App/environments delegation;
+//     └─ agent-subnet               10.30.0.0/27   Microsoft.App/environments delegation;
 //                                                  ALL egress forced to the hub firewall
 //                                                  via a UDR (0.0.0.0/0 → firewall private
 //                                                  IP) over peering.
@@ -79,6 +79,7 @@ var hubVnetName = 'vnet-Zava-hub-${uniqueSuffix}'
 var platformVnetName = 'vnet-Zava-platform-${uniqueSuffix}'
 var agentVnetName = 'vnet-Zava-agent-${uniqueSuffix}'
 var nsgName = 'nsg-aks-${uniqueSuffix}'
+var agentSubnetPrefix = '10.30.0.0/27'
 
 // First usable address in AzureFirewallSubnet (Azure reserves .0-.3 of the
 // subnet). Kept in sync with the AzureFirewallSubnet prefix (10.10.0.0/26).
@@ -226,10 +227,11 @@ resource agentVnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
       {
         // SRE Agent workload subnet — delegated to Microsoft.App/environments so
         // the agent's sandbox is injected here, with all egress forced through
-        // the hub Azure Firewall (route table above). Minimum size is /28.
+        // the hub Azure Firewall (route table above). /27 is the minimum:
+        // 32 total addresses minus 5 Azure-reserved addresses = 27 usable.
         name: 'agent-subnet'
         properties: {
-          addressPrefix: '10.30.0.0/28'
+          addressPrefix: agentSubnetPrefix
           routeTable: { id: agentRouteTable.id }
           delegations: [
             {
@@ -372,7 +374,7 @@ resource peerAgentToHub 'Microsoft.Network/virtualNetworks/virtualNetworkPeering
 // // range to the ruleCollectionGroup below (the module already SNATs all egress,
 // // so the return path stays symmetric):
 // //   { name: 'allow-agent-to-remote-region', ruleType: 'NetworkRule',
-// //     sourceAddresses: ['10.30.0.0/28'], destinationAddresses: ['10.40.0.0/24'],
+// //     sourceAddresses: [agentSubnetPrefix], destinationAddresses: ['10.40.0.0/24'],
 // //     destinationPorts: ['*'], ipProtocols: ['Any'] }
 // // Cross-region peering alone is enough for VNet-to-VNet traffic that ISN'T
 // // force-tunneled; this lab force-tunnels the agent, hence the extra firewall rule.
@@ -402,8 +404,8 @@ resource firewallPolicy 'Microsoft.Network/firewallPolicies@2024-05-01' = {
       enableProxy: true
     }
     threatIntelMode: 'Deny'
-    // SNAT all traffic, including private destinations. This is what lets the
-    // agent reach the PRIVATE AKS API server with native kubectl: the API
+    // SNAT all traffic, including private destinations. This supports the
+    // private AKS API-server network path: the API
     // server's NSG only admits the `VirtualNetwork` service tag, and the agent
     // spoke is NOT directly peered to the platform spoke — so without SNAT the
     // agent's 10.30.x.x source would be denied and the return path asymmetric.
@@ -426,7 +428,7 @@ resource firewallPolicy 'Microsoft.Network/firewallPolicies@2024-05-01' = {
 // exposing the cluster API server publicly.
 // AzureCloud is deliberately NOT used (it covers ~65k prefixes including
 // third-party SaaS); precise service tags are used instead. The source is the
-// agent spoke's subnet (10.30.0.0/28).
+// agent spoke's subnet (agentSubnetPrefix).
 //
 // To let the agent reach a NETWORK DEVICE or other private service DIRECTLY, its
 // management endpoint must be HTTPS and its FQDN added BOTH here (an application
@@ -451,7 +453,7 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
             name: 'allow-azure-dns'
             description: 'DNS resolution via Azure DNS (required for the firewall DNS proxy)'
             ipProtocols: ['UDP', 'TCP']
-            sourceAddresses: ['10.30.0.0/28']
+            sourceAddresses: [agentSubnetPrefix]
             destinationAddresses: ['168.63.129.16']
             destinationPorts: ['53']
           }
@@ -462,9 +464,8 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
         // PRIVATE AKS API server (10.20.0.4, in the platform spoke's aks-subnet)
         // on 443. Combined with (a) linking the AKS private-DNS zone to the agent
         // VNet (a post-deploy step — the zone is AKS-managed in the MC_* RG) and
-        // (b) the SNAT on the policy above, this is what makes native `kubectl`
-        // work from the agent. Omit this collection (and the SNAT) for a
-        // command-invoke-only lab (no API-server line of sight).
+        // (b) the SNAT on the policy above, this completes direct API-server
+        // network reachability from the agent subnet.
         ruleCollectionType: 'FirewallPolicyFilterRuleCollection'
         name: 'allow-agent-to-aks-api'
         priority: 210
@@ -473,9 +474,9 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
           {
             ruleType: 'NetworkRule'
             name: 'agent-to-apiserver'
-            description: 'Agent subnet -> AKS API server (enables native kubectl)'
+            description: 'Agent subnet -> AKS private API server'
             ipProtocols: ['TCP']
-            sourceAddresses: ['10.30.0.0/28']
+            sourceAddresses: [agentSubnetPrefix]
             destinationAddresses: ['10.20.0.0/20']
             destinationPorts: ['443']
           }
@@ -500,7 +501,7 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
             name: 'agent-to-ampls-pe'
             description: 'Agent subnet -> AMPLS private endpoint (private Azure Monitor)'
             ipProtocols: ['TCP']
-            sourceAddresses: ['10.30.0.0/28']
+            sourceAddresses: [agentSubnetPrefix]
             destinationAddresses: ['10.10.2.0/27']
             destinationPorts: ['443']
           }
@@ -517,7 +518,7 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
             name: 'allow-azure-services-l4'
             description: 'L4 access to Azure services via precise service tags (NOT AzureCloud)'
             ipProtocols: ['TCP']
-            sourceAddresses: ['10.30.0.0/28']
+            sourceAddresses: [agentSubnetPrefix]
             // AzureMonitor is dropped by DEFAULT (lockAgentToPrivateMonitor=true)
             // so the agent reaches Monitor only over the AMPLS private endpoint —
             // private-only / maximum restraint; the agent remains fully functional
@@ -544,7 +545,7 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
             ruleType: 'ApplicationRule'
             name: 'allow-arm-aad-graph'
             description: 'FQDN access to ARM, Entra ID, and Microsoft Graph'
-            sourceAddresses: ['10.30.0.0/28']
+            sourceAddresses: [agentSubnetPrefix]
             protocols: [{ protocolType: 'Https', port: 443 }]
             targetFqdns: [
               'management.azure.com'
@@ -552,6 +553,10 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
               'graph.microsoft.com'
             ]
           }
+          // The agent's OWN data-plane rule (allow-agent-data-plane) is NOT here —
+          // it lives in firewall-agent-dataplane.bicep, deployed AFTER the agent
+          // resource so it can pin to the agent's exact hostname (platform-assigned
+          // at creation time, not computable in Bicep beforehand). See main.bicep.
         ]
       }
       {
@@ -564,7 +569,7 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
             ruleType: 'ApplicationRule'
             name: 'allow-learn-microsoft-com'
             description: 'Microsoft Learn docs + MCP runtime endpoint (the agent looks up Azure/AKS/PostgreSQL guidance here)'
-            sourceAddresses: ['10.30.0.0/28']
+            sourceAddresses: [agentSubnetPrefix]
             protocols: [{ protocolType: 'Https', port: 443 }]
             targetFqdns: [
               'learn.microsoft.com'
@@ -585,7 +590,7 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
             // (raw.githubusercontent.com/microsoftdocs/mcp/*) you'd need Azure
             // Firewall Premium + TLS inspection (targetUrls). See README caveats.
             description: 'GitHub raw content — the Microsoft Learn MCP connector fetches its server bits here to complete the tool-discovery handshake'
-            sourceAddresses: ['10.30.0.0/28']
+            sourceAddresses: [agentSubnetPrefix]
             protocols: [{ protocolType: 'Https', port: 443 }]
             targetFqdns: [
               'raw.githubusercontent.com'
@@ -644,6 +649,7 @@ output nsgName string = nsg.name
 output aksSubnetId string = '${platformVnet.id}/subnets/aks-subnet'
 output dbSubnetId string = '${platformVnet.id}/subnets/db-subnet'
 output agentSubnetId string = '${agentVnet.id}/subnets/agent-subnet'
+output agentSubnetPrefix string = agentSubnetPrefix
 output privateDnsZoneId string = privateDnsZone.id
 
 // Hub-and-spoke outputs (consumed by the AMPLS + firewall-diagnostics modules).
@@ -653,5 +659,6 @@ output platformVnetId string = platformVnet.id
 output agentVnetId string = agentVnet.id
 output peSubnetId string = '${hubVnet.id}/subnets/pe-subnet'
 output firewallName string = firewall.name
+output firewallPolicyName string = firewallPolicy.name
 output firewallId string = firewall.id
 output firewallPrivateIp string = firewallPrivateIp

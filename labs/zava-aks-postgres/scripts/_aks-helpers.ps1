@@ -203,3 +203,60 @@ function Resolve-AksContext {
     }
     return [pscustomobject]@{ ResourceGroup = $ResourceGroup; ClusterName = $ClusterName }
 }
+
+function Reset-DemoAlertRule {
+    <#
+    .SYNOPSIS
+      Makes a stateful Azure Monitor alert rule ready for another demo run.
+
+    .DESCRIPTION
+      Agent-side response-plan merging is disabled, but Azure Monitor still keeps
+      one stateful alert instance per rule. A prior instance that remains Fired
+      prevents a new activation and therefore prevents a fresh agent dispatch.
+      This helper fails before fault injection if the old condition is still
+      active, and closes a resolved instance so the next activation is New.
+    #>
+    param(
+        [Parameter(Mandatory)] [string]$ResourceGroup,
+        [Parameter(Mandatory)] [string]$AlertRuleName
+    )
+
+    $sub = (az account show --query id -o tsv 2>$null).Trim()
+    if (-not $sub) { throw "Not logged in to az. Run 'az login'." }
+    $token = (az account get-access-token --resource 'https://management.azure.com/' --query accessToken -o tsv 2>$null).Trim()
+    if (-not $token) { throw "Could not acquire an Azure Resource Manager token. Run 'az login'." }
+    $headers = @{ Authorization = "Bearer $token" }
+
+    $url = "https://management.azure.com/subscriptions/$sub/providers/Microsoft.AlertsManagement/alerts?api-version=2019-05-05-preview&timeRange=30d&pageCount=250"
+    $response = Invoke-RestMethod -Method Get -Uri $url -Headers $headers
+    $alerts = @($response.value | Where-Object {
+        $essentials = $_.properties.essentials
+        $rule = [string]$essentials.alertRule
+        $ruleName = if ($rule.Contains('/')) { $rule.Split('/')[-1] } else { $rule }
+        $essentials.targetResourceGroup -eq $ResourceGroup -and $ruleName -eq $AlertRuleName
+    } | Sort-Object { [datetime]$_.properties.essentials.startDateTime } -Descending)
+
+    if ($alerts.Count -eq 0) {
+        Write-Host "Alert preflight: no prior $AlertRuleName instance." -ForegroundColor DarkGray
+        return
+    }
+
+    $latest = $alerts[0]
+    $essentials = $latest.properties.essentials
+    if ($essentials.monitorCondition -eq 'Fired') {
+        throw "Alert preflight: prior '$AlertRuleName' condition is still Fired. Restore the previous fault and wait for Azure Monitor to report Resolved before starting another run; otherwise no fresh agent dispatch is possible."
+    }
+
+    if ($essentials.alertState -ne 'Closed') {
+        $alertId = [string]$latest.id
+        $changeStateUrl = "https://management.azure.com${alertId}/changestate?api-version=2018-05-05&newState=Closed"
+        try {
+            Invoke-RestMethod -Method Post -Uri $changeStateUrl -Headers $headers | Out-Null
+        } catch {
+            throw "Could not close prior '$AlertRuleName' alert instance."
+        }
+        Write-Host "Alert preflight: closed prior resolved $AlertRuleName instance." -ForegroundColor DarkGray
+    } else {
+        Write-Host "Alert preflight: prior $AlertRuleName instance is resolved and closed." -ForegroundColor DarkGray
+    }
+}

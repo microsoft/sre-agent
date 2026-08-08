@@ -12,7 +12,7 @@ This skill drives the full demo using Playwright MCP for browser control. Execut
 ```powershell
 # AKS is a private cluster — kubectl from your local workstation won't work without VPN/jumpbox.
 # Use `Invoke-AksCommand` (wraps `az aks command invoke` for human-operator polling/diagnostics).
-# The SRE Agent uses native kubectl; this helper is for human operators without the agent's VNet/DNS/proxy setup.
+# The SRE Agent uses the built-in RunKubectl* system tools; this helper is for human operators.
 . .\scripts\_aks-helpers.ps1
 $rg  = (azd env get-value RESOURCE_GROUP)
 $aks = (azd env get-value AKS_CLUSTER_NAME)
@@ -23,6 +23,12 @@ $ip = ($r.logs -replace '[^\d\.]','').Trim()
 $storeUrl = "http://$ip"
 $agentUrl = (azd env get-value AGENT_PORTAL_URL)  # deep-links to this agent's blade — sign in if prompted
 ```
+
+When observing or prompting the SRE Agent, prefer its built-in `RunKubectlReadCommand` and
+`RunKubectlWriteCommand`; they accept the same kubectl commands used in a terminal. If a manual
+test absolutely requires terminal-native kubectl, run a built-in read against the cluster first
+to warm the process-local AKS CA path, then use the existing valid terminal kubeconfig. The warm-up
+does not survive a runtime restart.
 
 ## Scenario 1: Database Outage
 
@@ -81,7 +87,7 @@ Wait 30 seconds.
 
 ### Step 4: Watch the agent
 1. Check SRE Agent portal for investigation
-2. Agent needs to find the K8s NetworkPolicy via native `kubectl get networkpolicy -n zava-demo -o yaml` and remove it via `kubectl delete networkpolicy database-tier-isolation -n zava-demo` (run in its sandbox terminal) — this is harder than Scenario 1 and may take longer
+2. Agent needs to find the K8s NetworkPolicy with `RunKubectlReadCommand` using `kubectl get networkpolicy -n zava-demo -o yaml`, then remove it with `RunKubectlWriteCommand` using `kubectl delete networkpolicy database-tier-isolation -n zava-demo` - this is harder than Scenario 1 and may take longer
 3. Poll for NetworkPolicy removal (the AKS API server is private — go through ARM):
    ```powershell
    Invoke-AksCommand -ResourceGroup $rg -ClusterName $aks -Command "kubectl get networkpolicy -n zava-demo"
@@ -117,7 +123,7 @@ If the script aborts with "Telemetry pipeline is dead", the api pods stopped sen
 4. (`break-db-perf.ps1` already launched a 15-min in-cluster Kubernetes Job (`zava-cat-load` in the `zava-demo` namespace) that hammers `/api/products/category/<X>` over the cluster-internal Service DNS. This pushes real traffic past the alert's 30ms threshold — the 1Hz `__probe` is excluded by the alert KQL. The Job auto-cleans 60s after completion via `ttlSecondsAfterFinished`; `fix-db-perf.ps1` also deletes it explicitly. Run with `-NoLoad` to skip.)
 
 ### Step 4: Watch agent
-1. Monitor SRE Agent portal — it should detect slow response times via App Insights, identify the missing index, and run `CREATE INDEX CONCURRENTLY` in-cluster via `bin/run-sql.js` (the agent runs native `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js "<SQL>"` from its sandbox terminal — the helper reuses the pod's workload identity)
+1. Monitor SRE Agent portal - it should detect slow response times via App Insights, identify the missing index, and run `CREATE INDEX CONCURRENTLY` in-cluster via `bin/run-sql.js` (`RunKubectlWriteCommand` executes `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js "<SQL>"`; the helper reuses the pod's workload identity)
 2. Do not run `fix-db-perf.ps1` as part of the demo — same rule as the other scenarios: the script is post-demo cleanup, not an agent-failure fallback.
 
 ### Step 5: Show recovery
@@ -169,6 +175,45 @@ If the script aborts with "Telemetry pipeline is dead", the api pods stopped sen
 ### Step 5: Show recovery
 1. Navigate to `$storeUrl/api/products` — returns 200 again
 2. Navigate to `$storeUrl` — products load; take screenshot
+
+## Scenario 5: Compound Independent Faults
+
+This scenario overlaps Scenario 3 and Scenario 4 by 90 seconds. It should
+produce two separate alerts and two independent causes, not one causal story.
+
+### Step 1: Confirm healthy state
+1. Navigate to `$storeUrl` and `$storeUrl/api/health`
+2. Confirm products load and the database is connected
+
+### Step 2: Break both paths
+```powershell
+.\.github\skills\running-demo\scripts\break-compound.ps1
+```
+The script drops both category indexes, starts the sustained category load,
+waits 90 seconds, then deploys `FAULT_INJECT=500`.
+
+### Step 3: Verify the overlap
+1. `$storeUrl/api/products` returns HTTP 500 while `/api/health` remains healthy.
+2. Query `/api/diagnostics`; both category indexes are absent and product scans are sequential.
+3. Confirm the `zava-cat-load` Job is active through `Invoke-AksCommand`.
+4. Expect both `Zava-products-query-slow` and `Zava-http-5xx-errors` within 5-10 minutes.
+
+### Step 4: Grade the investigation
+A correct investigation enumerates the nearby alerts and disabled rule inventory,
+then proves the mechanisms are independent:
+- 5xx failures are app-local (`localhost:3001`) and correlate with the rollout.
+- PostgreSQL CPU/latency rises, but its slow queries succeed and create no failed PG dependencies.
+- `Zava-db-cpu-saturation` is present but disabled.
+
+Do not accept alert timestamps alone as causality; every dispatching rule uses
+PT5M evaluation and the 90-second injection order can be reversed at alert time.
+
+### Step 5: Cleanup
+Let the SRE Agent remediate during a demo. For post-demo cleanup or test teardown:
+```powershell
+.\.github\skills\running-demo\scripts\fix-compound.ps1
+```
+Verify `/api/products` returns 200, both indexes exist, and the load Job is gone.
 
 ## Chat demo: interrogate the hub firewall (network device)
 

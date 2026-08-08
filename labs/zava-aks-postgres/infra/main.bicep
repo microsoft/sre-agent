@@ -23,6 +23,14 @@ connector is platform-brokered, so dropping the public `AzureMonitor` tag from t
 firewall does not gate it.) Set false to keep the public allow-listed Monitor path instead.''')
 param lockAgentToPrivateMonitor bool = true
 
+@description('''Allow the agent to reach its OWN data-plane endpoint (`*.azuresre.ai`) through the hub
+firewall, default true. Required for the agent to read or write the configuration surfaces ARM does not
+expose — custom instructions, hooks, knowledge files, and global tool enablement. This is also a
+self-modification path (the agent can rewrite its own skills and always-on prompts); set false to keep
+data-plane config strictly operator/CI-applied. The firewall module remains deployed with an empty
+rule collection when false so incremental deployments revoke previously granted access.''')
+param allowAgentSelfManagement bool = true
+
 // 4-char hash of the env name appended to the SRE Agent name. Empty when
 // environmentName is blank (e.g. raw `az deployment sub create`), preserving
 // the legacy `sre-agent-${uniqueSuffix}` shape for that path.
@@ -97,6 +105,22 @@ module identity 'modules/identity.bicep' = {
   }
 }
 
+// Cross-alert correlation queries the subscription-scoped Alerts Management and
+// Resource Health event feeds so it can distinguish same-RG incidents from wider
+// platform events. RG-scoped roles cannot read upward, so the runtime UMI needs
+// Reader at subscription scope. Monitor query permissions remain RG-scoped.
+//
+// The principal ID is runtime-known. Pass it into a nested deployment so the
+// assignment name can be keyed to the actual principal rather than the reusable
+// identity name; that avoids RoleAssignmentUpdateNotPermitted after recreation.
+module correlationSubscriptionReader 'modules/subscription-reader.bicep' = {
+  scope: subscription()
+  name: 'correlation-subscription-reader'
+  params: {
+    principalId: identity.outputs.sreAgentIdentityPrincipalId
+  }
+}
+
 module sreAgent 'modules/sre-agent.bicep' = {
   scope: rg
   name: 'sre-agent'
@@ -114,6 +138,21 @@ module sreAgent 'modules/sre-agent.bicep' = {
     managedResourceGroupId: rg.id
     aksClusterName: aks.outputs.clusterName
     agentSubnetId: vnet.outputs.agentSubnetId
+  }
+}
+
+// Agent data-plane firewall rule — pinned to the agent's exact hostname (not the
+// broad *.azuresre.ai wildcard). Deployed AFTER the agent resource because the
+// hostname is platform-assigned at agent creation time and cannot be computed in
+// Bicep before it exists. See firewall-agent-dataplane.bicep header.
+module firewallAgentDataPlane 'modules/firewall-agent-dataplane.bicep' = {
+  scope: rg
+  name: 'firewall-agent-dataplane'
+  params: {
+    firewallPolicyName: vnet.outputs.firewallPolicyName
+    agentEndpoint: sreAgent.outputs.agentEndpoint
+    agentSubnetPrefix: vnet.outputs.agentSubnetPrefix
+    enabled: allowAgentSelfManagement
   }
 }
 
@@ -207,6 +246,7 @@ output PG_SERVER_NAME string = postgresql.outputs.serverName
 output APP_IDENTITY_NAME string = identity.outputs.appIdentityName
 output APP_IDENTITY_CLIENT_ID string = identity.outputs.appIdentityClientId
 output APP_IDENTITY_PRINCIPAL_ID string = identity.outputs.appIdentityPrincipalId
+output SRE_AGENT_PRINCIPAL_ID string = identity.outputs.sreAgentIdentityPrincipalId
 output LOG_ANALYTICS_WORKSPACE_ID string = monitoring.outputs.logAnalyticsWorkspaceId
 // NOTE: do NOT mark this @secure(). `azd env get-value` (used by post-provision.ps1)
 // silently omits secure outputs and returns the literal "ERROR: key not found" text

@@ -35,6 +35,11 @@ $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\..\..\..\..\scripts\_aks-helpers.ps1"
 $ctx = Resolve-AksContext -ResourceGroup $ResourceGroup -ClusterName $ClusterName
 
+# Azure Monitor's stateful per-rule instance is separate from agent-side merge.
+# Refuse to inject a new fault while the prior condition is still Fired, and
+# close a resolved prior instance so this run dispatches as a fresh alert.
+Reset-DemoAlertRule -ResourceGroup $ctx.ResourceGroup -AlertRuleName 'Zava-http-5xx-errors'
+
 # Telemetry precheck. Zava-http-5xx-errors evaluates the requests/failed metric,
 # which is derived from AppRequests telemetry. If the api isn't currently sending
 # telemetry to the workspace, the alert can never fire no matter how many 500s the

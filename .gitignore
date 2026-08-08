@@ -9,3 +9,6 @@
 Thumbs.db
 Desktop.ini
 samples/deployment-compliance/skills/.DS_Store
+
+# Browser automation artifacts
+.playwright-mcp/
