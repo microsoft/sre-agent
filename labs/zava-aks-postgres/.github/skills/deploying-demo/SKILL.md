@@ -10,10 +10,14 @@ Run these and install anything missing:
 - `az version` — need 2.60+
 - `azd version` — need 1.9+
 - `pwsh -v` — need 7.4+
+- Azure permission: Owner, User Access Administrator, or equivalent
+  `Microsoft.Authorization/roleAssignments/write` at subscription scope. The
+  template grants the agent runtime identity subscription Reader for correlation
+  context and removes it during `azd down`.
 
 > Note: `kubectl` is **not** required on your local workstation. The cluster is private. Operator
 > scripts in this repo go through `az aks command invoke` (wrapped by `scripts/_aks-helpers.ps1`).
-> The SRE Agent reaches the cluster the same way through its `az` CLI tools — no kubeconfig either side.
+> The SRE Agent uses its built-in `RunKubectlReadCommand` and `RunKubectlWriteCommand` tools instead.
 
 ## Phase 1: Azure Deployment
 1. Check if user has a subscription: `az account show`
@@ -25,7 +29,7 @@ Run these and install anything missing:
 
 ## Phase 2: Verify Deployment
 The AKS API server is private (`enablePrivateCluster: true`) — local kubectl
-will not work. Use the same path the SRE Agent uses:
+will not work. Human operators use the Azure-proxied command-invoke path:
 
 ```powershell
 . .\scripts\_aks-helpers.ps1
@@ -46,12 +50,19 @@ $ip = ($r.logs -replace '[^\d\.]','').Trim()
        -Command "kubectl exec -n zava-demo deploy/zava-api -- wget -qO- http://localhost:3001/api/health"
    ```
 
+> If you are manually testing from an SRE Agent chat and absolutely need terminal-native kubectl,
+> first run a read-only command against this cluster with `RunKubectlReadCommand`. That warms the
+> process-local AKS CA path; terminal kubectl can then use an already-valid kubeconfig in the same
+> runtime. A runtime restart clears the warm-up. Since `RunKubectl*` accepts the same kubectl
+> commands, prefer it directly. See `docs/aks-access-and-auth.md` for the kubeconfig, TLS,
+> authentication, authorization, and private-network mechanics behind this behavior.
+
 ## Phase 3: Sync knowledge + verify SRE Agent
 
 The agent itself — connectors, custom skills, response plans, autonomous mode,
 Azure Monitor binding — is already provisioned by Bicep during `azd up`. This
-script just uploads knowledge files (the one data-plane piece with no ARM API)
-and prints a verification readout of the Bicep-deployed assets.
+script uploads knowledge files, syncs the agent-global custom instructions,
+enables the Microsoft Learn MCP tools, and verifies the complete configuration.
 
 1. Get azd values: `$env:SRE_AGENT_ENDPOINT = azd env get-value SRE_AGENT_ENDPOINT` (and RESOURCE_GROUP, SRE_AGENT_NAME)
 2. Run: `.\scripts\setup-sre-agent.ps1` (auto-detects ResourceGroup and AgentName from `azd env`)

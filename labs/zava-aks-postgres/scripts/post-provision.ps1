@@ -37,8 +37,8 @@ Write-Host "Loading azd environment values..." -ForegroundColor Yellow
 
 # Resolve the target resource group early — the Azure-discovery fallback below
 # needs it. RESOURCE_GROUP is an azd OUTPUT (only present after a successful
-# provision); ZAVA_RG_NAME is the INPUT the env always carries, so it is the
-# reliable bootstrap.
+# provision); ZAVA_RG_NAME is an optional override. Fresh environments default
+# to rg-$AZURE_ENV_NAME, matching infra/main.bicepparam.
 function Get-TargetRg {
     foreach ($k in 'RESOURCE_GROUP', 'ZAVA_RG_NAME') {
         $v = [Environment]::GetEnvironmentVariable($k)
@@ -48,6 +48,8 @@ function Get-TargetRg {
         }
         if ($v -and "$v".Trim() -and "$v" -notmatch '^ERROR') { return "$v".Trim() }
     }
+    $environmentName = [Environment]::GetEnvironmentVariable('AZURE_ENV_NAME')
+    if ($environmentName) { return "rg-$environmentName" }
     return $null
 }
 $script:TargetRg = Get-TargetRg
@@ -230,16 +232,12 @@ if (-not $proxyReady) {
 }
 Write-Host ""
 
-# ── Step 4b: Link AKS private DNS zone to the agent VNet (native kubectl) ─────
-# The SRE Agent runs VNet-injected in its own spoke and is wired for NATIVE
-# kubectl (the firewall rule agent-subnet -> API:443 and SNAT are in vnet.bicep).
-# The one piece that can ONLY be done post-deploy: AKS creates its private DNS
+# ── Step 4b: Link AKS private DNS zone to the agent VNet ─────────────────────
+# AKS creates its private DNS
 # zone (<guid>.privatelink.<region>.azmk8s.io) in the node resource group with a
 # name not known until the cluster exists, so the virtual-network link to the
-# agent spoke can't be a static Bicep resource. Without this link the agent can't
-# resolve the private API server and flounders on kubectl before falling back to
-# `az aks command invoke`. Idempotent.
-Write-Host "=== Step 4b: Linking AKS private DNS zone to agent VNet (native kubectl) ===" -ForegroundColor Green
+# agent spoke can't be a static Bicep resource. Idempotent.
+Write-Host "=== Step 4b: Linking AKS private DNS zone to agent VNet ===" -ForegroundColor Green
 $mcRg = az aks show -g $RG -n $AKS_NAME --query nodeResourceGroup -o tsv 2>$null
 $aksDnsZone = az network private-dns zone list -g $mcRg --query "[?contains(name,'azmk8s.io')].name | [0]" -o tsv 2>$null
 $agentVnetId = az network vnet list -g $RG --query "[?contains(name,'agent')].id | [0]" -o tsv 2>$null
@@ -251,9 +249,9 @@ if ($mcRg -and $aksDnsZone -and $agentVnetId) {
         az network private-dns link vnet create -g $mcRg -z $aksDnsZone -n agent-link `
             --virtual-network $agentVnetId --registration-enabled false -o none 2>$null
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "  Linked AKS private DNS zone -> agent VNet (native kubectl enabled)" -ForegroundColor Green
+            Write-Host "  Linked AKS private DNS zone -> agent VNet" -ForegroundColor Green
         } else {
-            Write-Host "  (warning: could not link AKS DNS zone; agent falls back to 'az aks command invoke')" -ForegroundColor Yellow
+            Write-Host "  (warning: could not link AKS DNS zone to agent VNet)" -ForegroundColor Yellow
         }
     }
 } else {

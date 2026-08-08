@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.1.21952",
-      "templateHash": "17454459993975253304"
+      "templateHash": "4794228390861712736"
     }
   },
   "parameters": {
@@ -42,6 +42,13 @@
       "defaultValue": true,
       "metadata": {
         "description": "Lock the SRE Agent down to PRIVATE-ONLY Azure Monitor (maximum restraint).\nWhen true (default): the agent\\'s Monitor private-DNS zones are linked to the agent VNet AND the\npublic `AzureMonitor` service tag is removed from the firewall L4 allow-list, so the agent reaches\nLog Analytics / Application Insights only via the AMPLS private endpoint over the hub/spoke.\n\nThe agent remains fully functional under this lockdown: it queries Log Analytics / Application\nInsights and remediates incidents end-to-end over the private path. (The agent\\'s Monitor query\nconnector is platform-brokered, so dropping the public `AzureMonitor` tag from the agent-VNet\nfirewall does not gate it.) Set false to keep the public allow-listed Monitor path instead."
+      }
+    },
+    "allowAgentSelfManagement": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Allow the agent to reach its OWN data-plane endpoint (`*.azuresre.ai`) through the hub\nfirewall, default true. Required for the agent to read or write the configuration surfaces ARM does not\nexpose — custom instructions, hooks, knowledge files, and global tool enablement. This is also a\nself-modification path (the agent can rewrite its own skills and always-on prompts); set false to keep\ndata-plane config strictly operator/CI-applied. The firewall module remains deployed with an empty\nrule collection when false so incremental deployments revoke previously granted access."
       }
     }
   },
@@ -83,7 +90,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.1.21952",
-              "templateHash": "7676869149456753884"
+              "templateHash": "12420303598575479335"
             }
           },
           "parameters": {
@@ -103,7 +110,7 @@
               "type": "bool",
               "defaultValue": true,
               "metadata": {
-                "description": "Lock the agent to PRIVATE-ONLY Azure Monitor (default true). When true, the public\n`AzureMonitor` service tag is dropped from the firewall L4 allow-list and the agent reaches Monitor\nvia the AMPLS private endpoint (10.10.2.0/27, rule allow-agent-to-ampls) + the linked private-DNS\nzones. The agent remains fully functional under this lockdown (Monitor queries, native kubectl, and\nincident remediation all work). See the main.bicep param doc."
+                "description": "Lock the agent to PRIVATE-ONLY Azure Monitor (default true). When true, the public\n`AzureMonitor` service tag is dropped from the firewall L4 allow-list and the agent reaches Monitor\nvia the AMPLS private endpoint (10.10.2.0/27, rule allow-agent-to-ampls) + the linked private-DNS\nzones. The agent remains fully functional under this lockdown (Monitor queries, Kubernetes tools, and\nincident remediation all work). See the main.bicep param doc."
               }
             }
           },
@@ -112,6 +119,7 @@
             "platformVnetName": "[format('vnet-Zava-platform-{0}', parameters('uniqueSuffix'))]",
             "agentVnetName": "[format('vnet-Zava-agent-{0}', parameters('uniqueSuffix'))]",
             "nsgName": "[format('nsg-aks-{0}', parameters('uniqueSuffix'))]",
+            "agentSubnetPrefix": "10.30.0.0/27",
             "firewallPrivateIp": "10.10.0.4"
           },
           "resources": [
@@ -252,7 +260,7 @@
                   {
                     "name": "agent-subnet",
                     "properties": {
-                      "addressPrefix": "10.30.0.0/28",
+                      "addressPrefix": "[variables('agentSubnetPrefix')]",
                       "routeTable": {
                         "id": "[resourceId('Microsoft.Network/routeTables', format('rt-agent-{0}', parameters('uniqueSuffix')))]"
                       },
@@ -401,7 +409,7 @@
                           "TCP"
                         ],
                         "sourceAddresses": [
-                          "10.30.0.0/28"
+                          "[variables('agentSubnetPrefix')]"
                         ],
                         "destinationAddresses": [
                           "168.63.129.16"
@@ -423,12 +431,12 @@
                       {
                         "ruleType": "NetworkRule",
                         "name": "agent-to-apiserver",
-                        "description": "Agent subnet -> AKS API server (enables native kubectl)",
+                        "description": "Agent subnet -> AKS private API server",
                         "ipProtocols": [
                           "TCP"
                         ],
                         "sourceAddresses": [
-                          "10.30.0.0/28"
+                          "[variables('agentSubnetPrefix')]"
                         ],
                         "destinationAddresses": [
                           "10.20.0.0/20"
@@ -455,7 +463,7 @@
                           "TCP"
                         ],
                         "sourceAddresses": [
-                          "10.30.0.0/28"
+                          "[variables('agentSubnetPrefix')]"
                         ],
                         "destinationAddresses": [
                           "10.10.2.0/27"
@@ -482,7 +490,7 @@
                           "TCP"
                         ],
                         "sourceAddresses": [
-                          "10.30.0.0/28"
+                          "[variables('agentSubnetPrefix')]"
                         ],
                         "destinationAddresses": "[if(parameters('lockAgentToPrivateMonitor'), createArray('AzureResourceManager', 'AzureActiveDirectory'), createArray('AzureResourceManager', 'AzureActiveDirectory', 'AzureMonitor'))]",
                         "destinationPorts": [
@@ -504,7 +512,7 @@
                         "name": "allow-arm-aad-graph",
                         "description": "FQDN access to ARM, Entra ID, and Microsoft Graph",
                         "sourceAddresses": [
-                          "10.30.0.0/28"
+                          "[variables('agentSubnetPrefix')]"
                         ],
                         "protocols": [
                           {
@@ -533,7 +541,7 @@
                         "name": "allow-learn-microsoft-com",
                         "description": "Microsoft Learn docs + MCP runtime endpoint (the agent looks up Azure/AKS/PostgreSQL guidance here)",
                         "sourceAddresses": [
-                          "10.30.0.0/28"
+                          "[variables('agentSubnetPrefix')]"
                         ],
                         "protocols": [
                           {
@@ -551,7 +559,7 @@
                         "name": "allow-github-raw-mcp-bits",
                         "description": "GitHub raw content — the Microsoft Learn MCP connector fetches its server bits here to complete the tool-discovery handshake",
                         "sourceAddresses": [
-                          "10.30.0.0/28"
+                          "[variables('agentSubnetPrefix')]"
                         ],
                         "protocols": [
                           {
@@ -649,6 +657,10 @@
               "type": "string",
               "value": "[format('{0}/subnets/agent-subnet', resourceId('Microsoft.Network/virtualNetworks', variables('agentVnetName')))]"
             },
+            "agentSubnetPrefix": {
+              "type": "string",
+              "value": "[variables('agentSubnetPrefix')]"
+            },
             "privateDnsZoneId": {
               "type": "string",
               "value": "[resourceId('Microsoft.Network/privateDnsZones', format('{0}.private.postgres.database.azure.com', parameters('uniqueSuffix')))]"
@@ -676,6 +688,10 @@
             "firewallName": {
               "type": "string",
               "value": "[format('afw-Zava-{0}', parameters('uniqueSuffix'))]"
+            },
+            "firewallPolicyName": {
+              "type": "string",
+              "value": "[format('afw-policy-Zava-{0}', parameters('uniqueSuffix'))]"
             },
             "firewallId": {
               "type": "string",
@@ -802,7 +818,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.1.21952",
-              "templateHash": "4090068017172206758"
+              "templateHash": "318792492186991763"
             }
           },
           "parameters": {
@@ -828,6 +844,13 @@
               "type": "string",
               "metadata": {
                 "description": "Resource group ID — scope for activity-log-based alerts."
+              }
+            },
+            "enableDbCpuSaturationAlert": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Enable the PostgreSQL CPU-saturation metric alert. Deployed DISABLED by default on purpose — see the resource comment: the disabled causal alert is what makes the correlation scenario teach anything."
               }
             }
           },
@@ -1048,6 +1071,45 @@
               "dependsOn": [
                 "[resourceId('Microsoft.Insights/actionGroups', format('ag-Zava-sre-{0}', parameters('uniqueSuffix')))]",
                 "[resourceId('Microsoft.OperationalInsights/workspaces', variables('lawName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "Zava-db-cpu-saturation",
+              "location": "global",
+              "properties": {
+                "severity": 3,
+                "enabled": "[parameters('enableDbCpuSaturationAlert')]",
+                "evaluationFrequency": "PT1M",
+                "windowSize": "PT5M",
+                "scopes": [
+                  "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('postgresServerName'))]"
+                ],
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "criterionType": "StaticThresholdCriterion",
+                      "name": "pgCpu",
+                      "metricName": "cpu_percent",
+                      "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
+                      "operator": "GreaterThan",
+                      "threshold": 80,
+                      "timeAggregation": "Average"
+                    }
+                  ]
+                },
+                "actions": [
+                  {
+                    "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('ag-Zava-sre-{0}', parameters('uniqueSuffix')))]"
+                  }
+                ],
+                "autoMitigate": true,
+                "description": "Zava Demo: PostgreSQL server CPU averaged above 80% over 5 minutes."
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', format('ag-Zava-sre-{0}', parameters('uniqueSuffix')))]"
               ]
             },
             {
@@ -1687,6 +1749,60 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
+      "name": "correlation-subscription-reader",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "principalId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity'), '2025-04-01').outputs.sreAgentIdentityPrincipalId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.1.21952",
+              "templateHash": "17563515106843481408"
+            }
+          },
+          "parameters": {
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal object ID that receives subscription Reader."
+              }
+            }
+          },
+          "variables": {
+            "readerRoleId": "acdd72a7-3385-48ef-bd42-f606fba81ae7"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), variables('readerRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('readerRoleId'))]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
       "name": "sre-agent",
       "resourceGroup": "[parameters('resourceGroupName')]",
       "properties": {
@@ -1733,7 +1849,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.1.21952",
-              "templateHash": "5106647395530293630"
+              "templateHash": "9718037598915593578"
             }
           },
           "parameters": {
@@ -1832,46 +1948,49 @@
             "aiResourceName": "[last(split(parameters('appInsightsId'), '/'))]",
             "lawResourceName": "[last(split(parameters('logAnalyticsId'), '/'))]",
             "rgName": "[resourceGroup().name]",
-            "sharedContext": "Resource Group `@@RG@@`. App namespace `zava-demo`. Deployments `zava-api` / `zava-storefront`. App Insights cloud_RoleName `zava-api`.\r\n\r\nYou operate with your own managed identity (Entra) — AKS RBAC Cluster Admin, Reader + Monitoring Reader + Contributor on the resource group, and PostgreSQL Entra admin. These are sufficient: do NOT attempt `az role assignment create` (it is denied — if you think you need a role you lack, your diagnosis is wrong, back up). Your sandbox egress is forced through an Azure Firewall (allow-list: ARM, Entra, Microsoft Graph, Microsoft Learn over public service tags, plus the AKS API server over the hub/spoke; Azure Monitor is reached privately via the AMPLS private endpoint by default) AND a TLS-inspecting forward proxy that re-signs certificates. This cluster is wired for native `kubectl` (the agent VNet has the AKS private-DNS zone linked and a firewall rule + SNAT to the API server): you run `kubectl` yourself as a bash command in your sandbox terminal (`RunInTerminal`). One-time setup per session: (1) `az aks get-credentials -g @@RG@@ -n <aks-cluster> --overwrite-existing` (find the cluster via `az aks list -g @@RG@@ --query \"[0].name\" -o tsv`); (2) `kubelogin convert-kubeconfig -l azurecli` — non-interactive managed-identity auth (the DEFAULT device-code flow hangs; do not use it); (3) trust the egress proxy by merging its CA `/etc/ssl/certs/adc-egress-proxy-ca.crt` into the kubeconfig cluster's `certificate-authority-data`. Then `kubectl get nodes` works; run kubectl in your terminal for pods, logs, events, NetworkPolicies, rollouts, and the in-cluster SQL helper `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js '<SQL>'`. Never install DB clients (`psql`, `psycopg2`) or open a raw socket to PostgreSQL. Reach ARM over the control plane; reach Azure Monitor (Log Analytics / Application Insights) with your Monitor query tools — they work normally (this deployment locks the agent's Monitor access to the AMPLS private endpoint by default, and your tools operate fine over it). Filter every App Insights / Log Analytics query by `AppRoleName == 'zava-api'` — the workspace is shared with your own ARM-poll telemetry.",
+            "sharedContext": "Resource Group `@@RG@@`. App namespace `zava-demo`. Deployments `zava-api` / `zava-storefront`. App Insights cloud_RoleName `zava-api`.\r\n\r\nYou operate with your own managed identity (Entra) — AKS RBAC Cluster Admin, Reader + Monitoring Reader + Contributor on the resource group, Reader at subscription scope for cross-alert and Service Health context, and PostgreSQL Entra admin. These are sufficient: do NOT attempt `az role assignment create` (it is denied — if you think you need a role you lack, your diagnosis is wrong, back up). Use the built-in `RunKubectlReadCommand` and `RunKubectlWriteCommand` system tools for Kubernetes; they accept the same kubectl commands as a terminal. Use the read tool for inspection and the write tool for `delete`, `rollout`, and `exec` operations. Do not replace them with terminal-native kubectl, login repair, kubeconfig setup, or Python wrappers. Run PostgreSQL SQL through the in-cluster helper with the write tool: `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js '<SQL>'`. Never install DB clients (`psql`, `psycopg2`) or open a raw socket to PostgreSQL. Reach ARM over the control plane; reach Azure Monitor (Log Analytics / Application Insights) with your Monitor query tools — they work normally (this deployment locks the agent's Monitor access to the AMPLS private endpoint by default, and your tools operate fine over it). Filter every App Insights / Log Analytics query by `AppRoleName == 'zava-api'` — the workspace is shared with your own ARM-poll telemetry.",
             "databaseSkill": {
               "description": "Use for Zava PostgreSQL AVAILABILITY incidents — alert `postgres-unreachable` (zava-api cannot reach PostgreSQL; connection refused or, more often, timeout). Diagnose the cause from ARM state — stopped server vs network partition — and remediate: restart the server, or remove the in-cluster Kubernetes NetworkPolicy / matching NSG deny rule that blocks PG egress.",
               "tools": [
                 "RunAzCliReadCommands",
                 "RunAzCliWriteCommands",
-                "RunInTerminal",
+                "RunKubectlReadCommand",
+                "RunKubectlWriteCommand",
                 "SearchMemory",
-                "microsoft-learn_microsoft_docs_search",
-                "microsoft-learn_microsoft_docs_fetch"
+                "learn-docs_microsoft_docs_search",
+                "learn-docs_microsoft_docs_fetch"
               ],
-              "skillContent": "## Database availability runbook (Zava)\r\n\r\n@@SHARED@@\r\n\r\nYou diagnose from telemetry, then remediate within the permitted-action boundary; outside it, summarize and stop.\r\n\r\nThe alert `postgres-unreachable` means zava-api cannot reach PostgreSQL — it logged connection failures (refused or, far more often, **timeouts**). A stopped server and a network block BOTH look like timeouts at the app, so **diagnose the cause from ARM state, not the error text**:\r\n\r\n| PG ARM `state` | Cause | Action |\r\n|---|---|---|\r\n| `Stopped` | The server was stopped. | **Start it**: `az postgres flexible-server start`. |\r\n| `Ready` (app still can't connect) | A network block. | Two enforcement surfaces sit between the app and PG: an NSG deny rule on the AKS subnet (often a RED HERRING — PG's private access uses a platform-managed delegated subnet) and a Kubernetes **NetworkPolicy** in `zava-demo` (usually the real cause). Inspect both — `az network nsg rule list` and `kubectl get networkpolicy -A -o yaml` (run in your terminal) — then delete the offending NetworkPolicy with `kubectl delete networkpolicy <name> -n zava-demo` (and any matching NSG deny rule on the AKS subnet). |\r\n\r\n## Permitted autonomous actions\r\n- Start / restart / parameter-set on PostgreSQL Flexible Server.\r\n- Delete a NetworkPolicy in `zava-demo` whose egress blocks PG, and delete a matching NSG deny rule on the AKS subnet.\r\n\r\n## Out of scope (summarize + stop)\r\n- `DROP`, DML, schema migrations, role/grant changes; cluster scale / node deletion / VNet changes; any IAM modification.\r\n\r\n## Verify\r\nPG `state == Ready`; zava-api connection-error traces stop.\r\n\r\n## Close the loop (resolve the alert)\r\nAfter confirming recovery, **resolve the `postgres-unreachable` alert you were handling** instead of waiting for Azure Monitor's auto-mitigate. Auto-mitigate lags ~15-30 min, and while the alert lingers in a fired state Azure Monitor dedupes the NEXT distinct database incident into this same alert instance — so no new investigation dispatches until it clears. Closing it yourself keeps the loop tight. Take the alert's ARM id from your incident context (form `/subscriptions/.../providers/Microsoft.AlertsManagement/alerts/<guid>`); if you don't have it, list open ones with `az rest --method GET --url \"https://management.azure.com/subscriptions/<sub>/providers/Microsoft.AlertsManagement/alerts?api-version=2018-05-05&alertRule=postgres-unreachable\"`. Then close it:\r\n`az rest --method POST --url \"https://management.azure.com<ALERT_ID>/changestate?api-version=2018-05-05&newState=Closed\"`\r\n(your Contributor role grants `Microsoft.AlertsManagement/alerts/changestate/action`).\r\n",
+              "skillContent": "## Database availability runbook (Zava)\r\n\r\n@@SHARED@@\r\n\r\nYou diagnose from telemetry, then remediate within the permitted-action boundary; outside it, summarize and stop.\r\n\r\nThe alert `postgres-unreachable` means zava-api cannot reach PostgreSQL — it logged connection failures (refused or, far more often, **timeouts**). A stopped server and a network block BOTH look like timeouts at the app, so **diagnose the cause from ARM state, not the error text**:\r\n\r\n| PG ARM `state` | Cause | Action |\r\n|---|---|---|\r\n| `Stopped` | The server was stopped. | **Start it**: `az postgres flexible-server start`. |\r\n| `Ready` (app still can't connect) | A network block. | Two enforcement surfaces sit between the app and PG: an NSG deny rule on the AKS subnet (often a RED HERRING — PG's private access uses a platform-managed delegated subnet) and a Kubernetes **NetworkPolicy** in `zava-demo` (usually the real cause). Inspect both with `az network nsg rule list` and `RunKubectlReadCommand`, then delete the offending NetworkPolicy with `RunKubectlWriteCommand` (and any matching NSG deny rule on the AKS subnet). |\r\n\r\n## Permitted autonomous actions\r\n- Start / restart / parameter-set on PostgreSQL Flexible Server.\r\n- Delete a NetworkPolicy in `zava-demo` whose egress blocks PG, and delete a matching NSG deny rule on the AKS subnet.\r\n\r\n## Out of scope (summarize + stop)\r\n- `DROP`, DML, schema migrations, role/grant changes; cluster scale / node deletion / VNet changes; any IAM modification.\r\n\r\n## Verify\r\nPG `state == Ready`; zava-api connection-error traces stop.\r\n\r\n## Close the loop (resolve the alert)\r\nAfter confirming recovery, **resolve the `postgres-unreachable` alert you were handling** instead of waiting for Azure Monitor's auto-mitigate. Auto-mitigate lags ~15-30 min, and while the alert lingers in a fired state Azure Monitor dedupes the NEXT distinct database incident into this same alert instance — so no new investigation dispatches until it clears. Closing it yourself keeps the loop tight. Take the alert's ARM id from your incident context (form `/subscriptions/.../providers/Microsoft.AlertsManagement/alerts/<guid>`); if you don't have it, list open ones with `az rest --method GET --url \"https://management.azure.com/subscriptions/<sub>/providers/Microsoft.AlertsManagement/alerts?api-version=2018-05-05&alertRule=postgres-unreachable\"`. Then close it:\r\n`az rest --method POST --url \"https://management.azure.com<ALERT_ID>/changestate?api-version=2018-05-05&newState=Closed\"`\r\n(your Contributor role grants `Microsoft.AlertsManagement/alerts/changestate/action`).\r\n",
               "additionalFiles": [],
               "sourcePluginInstallation": null
             },
             "performanceSkill": {
-              "description": "Use for Zava query-LATENCY / slow-endpoint incidents — alert `Zava-products-query-slow` (a /api/products/category endpoint breached its latency threshold). The bottleneck is at PostgreSQL (missing/disabled index, plan regression), not pods/CPU. Corroborate with the custom latency metric + PG CPU, then apply read-mostly DDL (CREATE INDEX) via the in-cluster SQL helper.",
+              "description": "Use for Zava query-LATENCY / slow-endpoint incidents — alert `Zava-products-query-slow` (a /api/products/category endpoint breached its latency threshold). Diagnose the PostgreSQL query path, check nearby alerts with `incident-correlation`, and do not treat a co-firing 5xx as the same cause without a direct dependency-failure mechanism. Apply read-mostly DDL (CREATE INDEX) via the in-cluster SQL helper when the query plan proves it is needed.",
               "tools": [
                 "RunAzCliReadCommands",
                 "RunAzCliWriteCommands",
-                "RunInTerminal",
+                "RunKubectlReadCommand",
+                "RunKubectlWriteCommand",
                 "SearchMemory",
-                "microsoft-learn_microsoft_docs_search",
-                "microsoft-learn_microsoft_docs_fetch"
+                "learn-docs_microsoft_docs_search",
+                "learn-docs_microsoft_docs_fetch"
               ],
-              "skillContent": "## Query-performance runbook (Zava)\r\n\r\n@@SHARED@@\r\n\r\n`Zava-products-query-slow` fires when a `/api/products/category/<X>` endpoint averages above its latency threshold (healthy baseline ~3 ms). The bottleneck is almost always at the DATABASE (missing/disabled index, plan regression, statistics drift), NOT pods/CPU/memory — never restart pods or scale the cluster for this alert.\r\n\r\n## Corroborate across logs + metrics + traces (REQUIRED — these are paired with the alert, not separate alerts)\r\n1. **Log** (the alert): `AppRequests | where AppRoleName == 'zava-api' | where Name startswith 'GET /api/products/category/' and Name !contains '__probe' | summarize avg(DurationMs) by Name`.\r\n2. **Custom metric**: `AppMetrics | where Name == 'zava.products.category.query.duration_ms' | extend Category = tostring(Properties['category']) | where Category != '__probe' | summarize sum(Sum)/sum(ItemCount) by Category`.\r\n3. **PG saturation metric**: `AzureMetrics` for `cpu_percent` on the PG server (heavy seq scans drive CPU up).\r\n4. **Trace**: `AppDependencies` PostgreSQL-call latency.\r\nAgreement across all four points at the database query, not the app tier.\r\n\r\n## Diagnose at PostgreSQL (in-cluster SQL helper)\r\n`kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js '<SQL>'` — run kubectl in your terminal, set up per shared context. Inspect `pg_stat_user_indexes` (low/zero `idx_scan` on a hot table is a strong signal), `pg_stat_user_tables` (high `seq_scan`), `pg_stat_statements` (top mean-time), and `EXPLAIN`.\r\n\r\n## Permitted autonomous actions\r\n- Read-mostly DDL on PostgreSQL via the in-cluster helper: `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, `ANALYZE`, `REINDEX CONCURRENTLY`.\r\n\r\n## Out of scope (summarize + stop)\r\n- `DROP`, DML, schema migrations; pod restarts / cluster scale for this alert; any IAM modification.\r\n\r\n## Verify\r\nThe category endpoint's avg latency returns to baseline; `idx_scan` climbs on the new index; the alert auto-mitigates.\r\n",
+              "skillContent": "## Query-performance runbook (Zava)\r\n\r\n@@SHARED@@\r\n\r\n`Zava-products-query-slow` fires when a `/api/products/category/<X>` endpoint averages above its latency threshold (healthy baseline ~3 ms). The bottleneck is almost always at the DATABASE (missing/disabled index, plan regression, statistics drift), NOT pods/CPU/memory — never restart pods or scale the cluster for this alert.\r\n\r\n## Corroborate across logs + metrics + traces (REQUIRED — these are paired with the alert, not separate alerts)\r\n1. **Log** (the alert): `AppRequests | where AppRoleName == 'zava-api' | where Name startswith 'GET /api/products/category/' and Name !contains '__probe' | summarize avg(DurationMs) by Name`.\r\n2. **Custom metric**: `AppMetrics | where Name == 'zava.products.category.query.duration_ms' | extend Category = tostring(Properties['category']) | where Category != '__probe' | summarize sum(Sum)/sum(ItemCount) by Category`.\r\n3. **PG saturation metric**: `AzureMetrics` for `cpu_percent` on the PG server (heavy seq scans drive CPU up).\r\n4. **Trace**: `AppDependencies` PostgreSQL-call latency.\r\nAgreement across all four points at the database query, not the app tier.\r\n\r\n## Cross-alert guard\r\nLoad `incident-correlation` to check fired-alert history before assigning a shared root cause; alert-rule inventory cannot tell you what fired. A co-firing 5xx is NOT corroboration for a slow-query diagnosis. Split `AppDependencies` by target and result code: slow but successful PostgreSQL calls establish this latency fault, but they cannot explain HTTP 500s whose failed dependencies are only app-local. Different mechanisms mean independent incidents, even when their alert times and resource group match. If the other alert is already acknowledged, report the relationship but leave its remediation to that thread.\r\n\r\n## Diagnose at PostgreSQL (in-cluster SQL helper)\r\nUse `RunKubectlWriteCommand` to execute `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js '<SQL>'`. Inspect `pg_stat_user_indexes` (low/zero `idx_scan` on a hot table is a strong signal), `pg_stat_user_tables` (high `seq_scan`), `pg_stat_statements` (top mean-time), and `EXPLAIN`.\r\n\r\n## Permitted autonomous actions\r\n- Read-mostly DDL on PostgreSQL via the in-cluster helper: `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, `ANALYZE`, `REINDEX CONCURRENTLY`.\r\n\r\n## Out of scope (summarize + stop)\r\n- `DROP`, DML, schema migrations; pod restarts / cluster scale for this alert; any IAM modification.\r\n\r\n## Verify\r\nThe category endpoint's avg latency returns to baseline; `idx_scan` climbs on the new index; the alert auto-mitigates.\r\n",
               "additionalFiles": [],
               "sourcePluginInstallation": null
             },
             "applicationSkill": {
-              "description": "Use for Zava APPLICATION-layer HTTP 5xx incidents — alert `Zava-http-5xx-errors` (zava-api returning HTTP 5xx). This is typically an app/route regression such as a bad deploy, but a DB outage also produces 5xx, so FIRST rule out DB/perf; if PG is healthy, correlate the 5xx onset with a recent rollout and roll back to the previous good revision.",
+              "description": "Use for Zava APPLICATION-layer HTTP 5xx incidents — alert `Zava-http-5xx-errors` (zava-api returning HTTP 5xx). Rule out a direct DB failure path, check nearby alerts with `incident-correlation`, and correlate the 5xx onset with a recent rollout. Do not attribute it to a co-firing latency alert unless dependency failures prove that mechanism.",
               "tools": [
                 "RunAzCliReadCommands",
                 "RunAzCliWriteCommands",
-                "RunInTerminal",
+                "RunKubectlReadCommand",
+                "RunKubectlWriteCommand",
                 "SearchMemory",
-                "microsoft-learn_microsoft_docs_search",
-                "microsoft-learn_microsoft_docs_fetch"
+                "learn-docs_microsoft_docs_search",
+                "learn-docs_microsoft_docs_fetch"
               ],
-              "skillContent": "## Application 5xx runbook (Zava)\r\n\r\n@@SHARED@@\r\n\r\n`Zava-http-5xx-errors` fires when zava-api returns >5 HTTP 5xx in 5 min. It does NOT self-suppress on DB errors, so a DB outage (which also returns 5xx) can fire this alert too — therefore your FIRST step is to rule out a DB/perf root cause. If PostgreSQL is healthy and there is no slow-query symptom, this is an APP-layer regression.\r\n\r\n## Investigate\r\n1. Briefly confirm it is not DB/perf after all: PG `state == Ready`, no ECONNREFUSED/ETIMEDOUT traces, `/api/products` latency normal. If a DB or slow-query symptom is actually present, defer to the database / performance runbook.\r\n2. App regressions are usually shipped by a deploy. Every change to the `zava-api` Deployment pod template creates a new ReplicaSet **revision**. Check whether the 5xx onset lines up with a recent rollout: native `kubectl rollout history deployment/zava-api -n zava-demo` and `KubeEvents` (Azure Monitor) (`ScalingReplicaSet` timestamps). Note the liveness AND readiness probes both hit `/livez` (shallow, no DB call), so pods stay Ready through an app-route regression and the platform looks healthy while the app is broken; `/api/health` is a separate app health endpoint (it pings the DB) and can also stay green for a route-only regression — deployment correlation is the tie.\r\n\r\n## Permitted autonomous actions\r\n- Roll back a `zava-demo` deployment to its previous revision (native `kubectl rollout undo deployment/zava-api -n zava-demo`) when a 5xx regression correlates with a recent rollout.\r\n- Restart deployments in `zava-demo`.\r\n\r\n## Out of scope (summarize + stop)\r\n- Schema/role/IAM changes; cluster scale / node deletion / VNet changes.\r\n\r\n## Verify\r\n`GET /api/products` returns 200; 5xx rate returns to baseline; the alert auto-mitigates.\r\n",
+              "skillContent": "## Application 5xx runbook (Zava)\r\n\r\n@@SHARED@@\r\n\r\n`Zava-http-5xx-errors` fires when zava-api returns >5 HTTP 5xx in 5 min. It does NOT self-suppress on DB errors, so a DB outage (which also returns 5xx) can fire this alert too — therefore your FIRST step is to rule out a DB/perf root cause. If PostgreSQL is healthy and there is no slow-query symptom, this is an APP-layer regression.\r\n\r\n## Investigate\r\n1. Briefly confirm it is not DB/perf after all: PG `state == Ready`, no ECONNREFUSED/ETIMEDOUT traces, `/api/products` latency normal. If a DB or slow-query symptom is actually present, defer to the database / performance runbook.\r\n2. App regressions are usually shipped by a deploy. Every change to the `zava-api` Deployment pod template creates a new ReplicaSet **revision**. Check whether the 5xx onset lines up with a recent rollout using `RunKubectlReadCommand` for `kubectl rollout history deployment/zava-api -n zava-demo` and `KubeEvents` (Azure Monitor) (`ScalingReplicaSet` timestamps). Note the liveness AND readiness probes both hit `/livez` (shallow, no DB call), so pods stay Ready through an app-route regression and the platform looks healthy while the app is broken; `/api/health` is a separate app health endpoint (it pings the DB) and can also stay green for a route-only regression — deployment correlation is the tie.\r\n\r\nLoad `incident-correlation` to check fired-alert history; alert-rule inventory cannot tell you what fired. Shared timing is not a mechanism: split `AppDependencies` by target and result code before claiming the other alert caused this one. A slow-query alert with successful PostgreSQL dependencies does not explain HTTP 500s whose failed dependency is app-local. If the other alert is already acknowledged, report the relationship but leave its remediation to that thread.\r\n\r\n## Permitted autonomous actions\r\n- Roll back a `zava-demo` deployment to its previous revision with `RunKubectlWriteCommand` (`kubectl rollout undo deployment/zava-api -n zava-demo`) when a 5xx regression correlates with a recent rollout.\r\n- Restart deployments in `zava-demo`.\r\n\r\n## Out of scope (summarize + stop)\r\n- Schema/role/IAM changes; cluster scale / node deletion / VNet changes.\r\n\r\n## Verify\r\n`GET /api/products` returns 200; 5xx rate returns to baseline; the alert auto-mitigates.\r\n",
               "additionalFiles": [],
               "sourcePluginInstallation": null
             },
@@ -1880,8 +1999,8 @@
               "tools": [
                 "RunAzCliReadCommands",
                 "SearchMemory",
-                "microsoft-learn_microsoft_docs_search",
-                "microsoft-learn_microsoft_docs_fetch"
+                "learn-docs_microsoft_docs_search",
+                "learn-docs_microsoft_docs_fetch"
               ],
               "skillContent": "## General triage runbook (Zava — unknown incidents)\r\n\r\n@@SHARED@@\r\n\r\nThis is the catch-all for incidents that do NOT match a known scenario (PostgreSQL availability, query performance, or application 5xx). You run in REVIEW mode: investigate thoroughly and PROPOSE actions for human approval — do not autonomously change resources beyond read-only/safe inspection.\r\n\r\n## Approach (first principles)\r\n1. Parse the alert: which rule fired, severity, the impacted Azure resource (`alertTargetIDs` / scope) and the symptom in the description.\r\n2. Establish blast radius and a baseline: is the app serving traffic (`AppRequests` success rate for `AppRoleName == 'zava-api'`), is PostgreSQL `Ready`, are pods healthy (via `KubeEvents` in Azure Monitor — this skill is read-only, so use telemetry rather than `kubectl`)?\r\n3. Gather the relevant telemetry for the impacted resource (Azure Monitor metrics/logs, `KubeEvents`, recent `az monitor activity-log` changes, the hub firewall `AZFW*` logs if egress-related).\r\n4. Form 1–3 ranked hypotheses with the evidence for each.\r\n5. Propose a concrete, least-privilege remediation and the verification step — then stop for approval. If it maps to a known scenario after all, recommend the matching skill.\r\n\r\n## Boundaries\r\nRead-only investigation is always allowed. Any mutating action requires approval (Review mode). Never `az role assignment create`. Never `DROP` / DML / schema / IAM changes.\r\n",
               "additionalFiles": [],
@@ -1893,11 +2012,21 @@
                 "RunAzCliReadCommands",
                 "SearchMemory",
                 "ExecutePythonCode",
-                "microsoft-learn_microsoft_code_sample_search",
-                "microsoft-learn_microsoft_docs_fetch",
-                "microsoft-learn_microsoft_docs_search"
+                "learn-docs_microsoft_code_sample_search",
+                "learn-docs_microsoft_docs_fetch",
+                "learn-docs_microsoft_docs_search"
               ],
               "skillContent": "## Proactive Health Check\r\n\r\nPull current signals; complete silently if everything is in baseline.\r\n\r\nAlways filter App Insights queries by `AppRoleName == 'zava-api'` — the workspace is shared with SRE Agent's own ARM polling, which dominates unfiltered queries.\r\n\r\nWhat \"baseline\" means for Zava:\r\n\r\n1. Request success rate >99% on `/api/*` over the last 15 minutes; single-digit ms avg/p95 on `/api/products*`.\r\n2. Zero `ECONNREFUSED` / `ETIMEDOUT` / \"timeout exceeded when trying to connect\" exceptions or traces from `zava-api` in the last 15 minutes.\r\n3. PostgreSQL Flexible Server `state == Ready`.\r\n\r\nIf any of those is missed, hand off to the matching domain skill: `database-incidents` (connectivity), `performance-incidents` (latency), or `application-incidents` (5xx). If everything is in baseline, complete silently.\r\n",
+              "additionalFiles": [],
+              "sourcePluginInstallation": null
+            },
+            "correlationSkill": {
+              "description": "Use during a Zava incident when the dispatched alert may be only part of the story: another alert fired nearby, the evidence does not add up, remediation did not hold, or a symptom appears to precede its cause. Enumerates other Azure Monitor alerts, disabled alert rules that may hide the causal signal, and Azure Service Health, then distinguishes one causal chain from independent faults that merely overlapped.",
+              "tools": [
+                "RunAzCliReadCommands",
+                "SearchMemory"
+              ],
+              "skillContent": "## Cross-alert correlation runbook (Zava)\r\n\r\nResource Group `@@RG@@`.\r\n\r\nYou were dispatched on ONE alert. That alert is a filter someone wrote in advance, on one signal, with one threshold — it is evidence, not a conclusion, and it cannot tell you whether it is the cause, a symptom, or a coincidence. Every response plan in this deployment has merge DISABLED, so a single root cause opens several INDEPENDENT threads that cannot see each other. Nobody assembles the forest for you. Pull it.\r\n\r\n## 1. What else fired? (the forest)\r\n\r\n`az graph query` is usually unavailable (resource-graph extension absent). Use the Alerts Management REST API:\r\n\r\n`az rest --method get --url \"https://management.azure.com/subscriptions/<sub>/providers/Microsoft.AlertsManagement/alerts?api-version=2019-05-05-preview&timeRange=1d&pageCount=250\" --query \"value[].{ruleId:properties.essentials.alertRule, rg:properties.essentials.targetResourceGroup, sev:properties.essentials.severity, cond:properties.essentials.monitorCondition, start:properties.essentials.startDateTime, target:properties.essentials.targetResource}\" -o json`\r\n\r\n- `pageCount` MUST be 1..250 (larger returns BadRequest). `timeRange` accepts 1h/1d/7d/30d only.\r\n- `RunAzCliReadCommands` rejects shell pipes and `&&` — issue one command per call.\r\n- `alertRule` is already the full rule resource ID in this API; the projection names it `ruleId`.\r\n- For LOG alerts `targetResource` is the Log Analytics WORKSPACE, not the app or DB. Use `rg` / `ruleId` to identify the environment; do not group by `targetResource`.\r\n- This fired-alert feed and the rule inventory in step 2 answer different questions. Never conclude \"nothing else fired\" from `scheduledQueryRules` or `az monitor metrics alert list`.\r\n\r\n## 2. Which alerts SHOULD have fired but did not? (the silent cause)\r\n\r\nA missing alert is a finding. Enumerate the rule INVENTORY, not just fired alerts:\r\n\r\n`az monitor metrics alert list -g @@RG@@ --query \"[].{name:name, enabled:enabled, scopes:scopes}\" -o json`\r\n`az rest --method get --url \"https://management.azure.com/subscriptions/<sub>/resourceGroups/@@RG@@/providers/microsoft.insights/scheduledQueryRules?api-version=2023-03-15-preview\" --query \"value[].{name:name, enabled:properties.enabled, window:properties.windowSize, freq:properties.evaluationFrequency}\" -o json`\r\n\r\nIf a rule sits on the resource you are investigating and is `enabled: false`, the causal signal is MUTED — query that metric directly rather than concluding the resource was healthy. This deployment ships `Zava-db-cpu-saturation` disabled on purpose; PG CPU can be pegged at 90% with no DB alert anywhere.\r\n\r\n## 3. Is the platform itself the cause?\r\n\r\nAzure Service Health, subscription-scoped — covers regional outages and planned maintenance:\r\n\r\n`az rest --method get --url \"https://management.azure.com/subscriptions/<sub>/providers/Microsoft.ResourceHealth/events?api-version=2022-10-01&queryStartTime=<ISO8601>\" --query \"value[].{type:properties.eventType, level:properties.eventLevel, status:properties.status, title:properties.title, start:properties.impactStartTime}\" -o json`\r\n\r\n`eventType` is `ServiceIssue` (outage), `PlannedMaintenance`, or `HealthAdvisory`. Per-resource view:\r\n`az rest --method get --url \"https://management.azure.com/subscriptions/<sub>/resourceGroups/@@RG@@/providers/Microsoft.ResourceHealth/availabilityStatuses?api-version=2023-07-01-preview\" --query \"value[].{res:id, avail:properties.availabilityState, summary:properties.summary}\" -o json`\r\n\r\nCheck this BEFORE concluding \"platform health event\" from absence of evidence. A `PlannedMaintenance` event naming PostgreSQL turns a guess into a fact, and it changes the remediation: you wait and document instead of chasing config.\r\n\r\n## 4. TWO RULES — violate these and correlation makes you WORSE, not better\r\n\r\nFilter every App Insights query by `AppRoleName == 'zava-api'`; the workspace also contains the agent's own ARM-poll telemetry.\r\n\r\n**Alert fire order is NOT causal order.** Every dispatching rule here is `PT5M` window / `PT5M` evaluation, so detection latency is up to 5 min plus ingestion lag. A symptom alert can fire BEFORE the cause alert. Any gap under ~7 minutes proves nothing about ordering. Establish onset from raw telemetry in 1-2 minute buckets, never from alert timestamps.\r\n\r\n**Co-firing is NOT causation.** Two alerts seconds apart can be two unrelated faults. Before claiming a causal chain, confirm the mechanism in telemetry:\r\n\r\n| Observation | Reading |\r\n|---|---|\r\n| HTTP 500, failed dependencies ONLY on `localhost:3001`, zero PG dependency failures | app-layer regression |\r\n| HTTP 503, failed dependencies against the PG target | DB unreachable |\r\n| No dependency FAILURES but PG `cpu_percent` high and latency up | DB saturation — slow but SUCCESSFUL queries, so failure-based signals stay clean |\r\n\r\nThe single fastest discriminator is one `dependencies` query split by `target` alongside `resultCode`. If two co-firing alerts have different mechanisms, they are independent — report them as separate incidents and do not merge the narrative.\r\n\r\n**Environment containment:** alerts from a DIFFERENT resource group are a different Zava stack. Same-RG co-firing only identifies the candidate environment; it does NOT suggest a shared cause. Cross-RG simultaneity may justify checking for a platform event (step 3), but still proves nothing by itself. Never merge findings across resource groups without that check.\r\n\r\n## 5. Report\r\n\r\nState plainly which it was: (a) one cause, several alerts; (b) several independent causes that overlapped; or (c) this alert is the whole story. If (c), say so in one line and move on — a correlation sweep that finds nothing is a successful sweep, not wasted work.\r\n\r\nIf an independent alert is already `Acknowledged`, its own thread is active. Attach the correlation finding to your report, but do not execute that other domain's remediation from this thread; concurrent duplicate writes can conflict.\r\n\r\n## Boundaries\r\nRead-only. This skill never remediates — hand off to `database-incidents`, `performance-incidents`, or `application-incidents` with the correlation context attached.\r\n",
               "additionalFiles": [],
               "sourcePluginInstallation": null
             },
@@ -1919,14 +2048,13 @@
               "titleContainsAny": [],
               "titleNotContains": [],
               "agentMode": "autonomous",
-              "handlingAgent": "default",
+              "handlingAgent": "meta_agent",
               "handlingAgents": null,
               "owningTeamId": "",
               "owningTeamIds": [],
               "maxAutomatedInvestigationAttempts": 3,
-              "deepInvestigationEnabled": false,
               "mergeEnabled": false,
-              "mergeWindowHours": 0,
+              "mergeWindowHours": 3,
               "isEnabled": true,
               "icmFilterSettings": null,
               "azMonitorFilterSettings": {
@@ -1945,14 +2073,13 @@
               "titleContainsAny": [],
               "titleNotContains": [],
               "agentMode": "autonomous",
-              "handlingAgent": "default",
+              "handlingAgent": "meta_agent",
               "handlingAgents": null,
               "owningTeamId": "",
               "owningTeamIds": [],
               "maxAutomatedInvestigationAttempts": 3,
-              "deepInvestigationEnabled": false,
               "mergeEnabled": false,
-              "mergeWindowHours": 0,
+              "mergeWindowHours": 3,
               "isEnabled": true,
               "icmFilterSettings": null,
               "azMonitorFilterSettings": {
@@ -1971,14 +2098,13 @@
               "titleContainsAny": [],
               "titleNotContains": [],
               "agentMode": "autonomous",
-              "handlingAgent": "default",
+              "handlingAgent": "meta_agent",
               "handlingAgents": null,
               "owningTeamId": "",
               "owningTeamIds": [],
               "maxAutomatedInvestigationAttempts": 3,
-              "deepInvestigationEnabled": false,
               "mergeEnabled": false,
-              "mergeWindowHours": 0,
+              "mergeWindowHours": 3,
               "isEnabled": true,
               "icmFilterSettings": null,
               "azMonitorFilterSettings": {
@@ -1992,26 +2118,22 @@
               "priorities": "[variables('defaultPriorities')]",
               "incidentType": "",
               "alertId": "",
-              "titleContains": "",
+              "titleContains": "Zava",
               "titleContainsAll": [],
-              "titleContainsAny": [
-                "Zava",
-                "postgres"
-              ],
+              "titleContainsAny": [],
               "titleNotContains": [
                 "postgres",
                 "query-slow",
                 "http-5xx"
               ],
               "agentMode": "review",
-              "handlingAgent": "default",
+              "handlingAgent": "meta_agent",
               "handlingAgents": null,
               "owningTeamId": "",
               "owningTeamIds": [],
               "maxAutomatedInvestigationAttempts": 2,
-              "deepInvestigationEnabled": true,
               "mergeEnabled": false,
-              "mergeWindowHours": 0,
+              "mergeWindowHours": 3,
               "isEnabled": true,
               "icmFilterSettings": null,
               "azMonitorFilterSettings": {
@@ -2193,14 +2315,23 @@
             {
               "type": "Microsoft.App/agents/connectors",
               "apiVersion": "2025-05-01-preview",
-              "name": "[format('{0}/{1}', parameters('agentName'), 'microsoft-learn')]",
+              "name": "[format('{0}/{1}', parameters('agentName'), 'learn-docs')]",
               "properties": {
                 "dataConnectorType": "Mcp",
-                "dataSource": "zava-aks-postgres-microsoft-learn-mcp",
+                "dataSource": "placeholder",
                 "extendedProperties": {
                   "type": "http",
                   "endpoint": "https://learn.microsoft.com/api/mcp",
-                  "authType": "CustomHeaders"
+                  "selectedTools": [
+                    "learn-docs_microsoft_docs_search",
+                    "learn-docs_microsoft_code_sample_search",
+                    "learn-docs_microsoft_docs_fetch"
+                  ],
+                  "toolsVisibleToMetaAgent": [
+                    "learn-docs_microsoft_docs_search",
+                    "learn-docs_microsoft_code_sample_search",
+                    "learn-docs_microsoft_docs_fetch"
+                  ]
                 },
                 "identity": ""
               },
@@ -2271,6 +2402,17 @@
               "name": "[format('{0}/{1}', parameters('agentName'), 'proactive-health-check')]",
               "properties": {
                 "value": "[base64(string(union(variables('proactiveHealthSkill'), createObject('skillContent', replace(variables('proactiveHealthSkill').skillContent, '@@RG@@', variables('rgName'))))))]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.App/agents', parameters('agentName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.App/agents/skills",
+              "apiVersion": "2025-05-01-preview",
+              "name": "[format('{0}/{1}', parameters('agentName'), 'incident-correlation')]",
+              "properties": {
+                "value": "[base64(string(union(variables('correlationSkill'), createObject('skillContent', replace(variables('correlationSkill').skillContent, '@@RG@@', variables('rgName'))))))]"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.App/agents', parameters('agentName'))]"
@@ -2350,6 +2492,96 @@
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'monitoring')]",
         "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'vnet')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "firewall-agent-dataplane",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "firewallPolicyName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'vnet'), '2025-04-01').outputs.firewallPolicyName.value]"
+          },
+          "agentEndpoint": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'sre-agent'), '2025-04-01').outputs.agentEndpoint.value]"
+          },
+          "agentSubnetPrefix": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'vnet'), '2025-04-01').outputs.agentSubnetPrefix.value]"
+          },
+          "enabled": {
+            "value": "[parameters('allowAgentSelfManagement')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.1.21952",
+              "templateHash": "1430610225671267128"
+            }
+          },
+          "parameters": {
+            "firewallPolicyName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the firewall policy to add the rule collection group to."
+              }
+            },
+            "agentEndpoint": {
+              "type": "string",
+              "metadata": {
+                "description": "The agent data-plane endpoint URL (e.g. https://<agent>--<hash>.<hash>.<region>.azuresre.ai). The host is extracted automatically."
+              }
+            },
+            "agentSubnetPrefix": {
+              "type": "string",
+              "defaultValue": "10.30.0.0/27",
+              "metadata": {
+                "description": "Source address prefix for the agent subnet (must match vnet.bicep)."
+              }
+            },
+            "enabled": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Whether the exact-host data-plane allow rule is active. False removes the rule on incremental deployments."
+              }
+            }
+          },
+          "variables": {
+            "agentFqdn": "[split(replace(parameters('agentEndpoint'), 'https://', ''), '/')[0]]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/firewallPolicies/ruleCollectionGroups",
+              "apiVersion": "2023-11-01",
+              "name": "[format('{0}/{1}', parameters('firewallPolicyName'), 'AgentDataPlaneRuleCollectionGroup')]",
+              "properties": {
+                "priority": 250,
+                "ruleCollections": "[if(parameters('enabled'), createArray(createObject('ruleCollectionType', 'FirewallPolicyFilterRuleCollection', 'name', 'allow-agent-data-plane', 'priority', 100, 'action', createObject('type', 'Allow'), 'rules', createArray(createObject('ruleType', 'ApplicationRule', 'name', 'allow-agent-data-plane', 'description', format('SRE Agent data-plane: {0}', variables('agentFqdn')), 'sourceAddresses', createArray(parameters('agentSubnetPrefix')), 'protocols', createArray(createObject('protocolType', 'Https', 'port', 443)), 'targetFqdns', createArray(variables('agentFqdn')))))), createArray())]"
+              }
+            }
+          ],
+          "outputs": {
+            "agentDataPlaneFqdn": {
+              "type": "string",
+              "value": "[variables('agentFqdn')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'sre-agent')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'vnet')]"
       ]
     },
@@ -3047,6 +3279,10 @@
     "APP_IDENTITY_PRINCIPAL_ID": {
       "type": "string",
       "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity'), '2025-04-01').outputs.appIdentityPrincipalId.value]"
+    },
+    "SRE_AGENT_PRINCIPAL_ID": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity'), '2025-04-01').outputs.sreAgentIdentityPrincipalId.value]"
     },
     "LOG_ANALYTICS_WORKSPACE_ID": {
       "type": "string",

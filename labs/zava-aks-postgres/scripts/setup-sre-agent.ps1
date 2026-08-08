@@ -5,7 +5,7 @@
 .DESCRIPTION
     Most agent configuration is now declarative in Bicep
     (infra/modules/sre-agent.bicep): autonomous mode, AzMonitor incident
-    platform, connectors (app-insights, log-analytics, azure-monitor, microsoft-learn),
+    platform, connectors (app-insights, log-analytics, azure-monitor, learn-docs),
     custom skills, and incident filters / response plans all flow through
     Microsoft.App/agents/* ARM resources.
 
@@ -17,6 +17,7 @@
         and there is NO ARM/Bicep property for per-tool state (the agent's
         `permissions` stays null) — Microsoft's own `srectl tool config set` CLI
         exists for exactly this (POST /api/v2/agent/tools/configure).
+      - Agent-global custom instructions sync (the cross-alert correlation nudge)
       - Verification of Bicep-deployed assets
 .EXAMPLE
     .\scripts\setup-sre-agent.ps1
@@ -195,15 +196,32 @@ Write-Host ("  Summary: {0} uploaded, {1} replaced, {2} skipped, {3} failed (of 
 # exactly this. The underlying call is POST /api/v2/agent/tools/configure with
 # merge semantics: { overrides: [{ name, enabled }] }.
 #
-# The tools only appear in the catalog AFTER the microsoft-learn MCP connector
+# The tools only appear in the catalog AFTER the learn-docs connector
 # completes its first tools/list handshake (which needs the GitHub-raw firewall
 # allow in vnet.bicep + a warm connection), so we poll for them before enabling.
 Write-Host "`nStep 2b: Enabling Microsoft Learn MCP tools globally..." -ForegroundColor Yellow
-$learnTools = @(
-    'microsoft-learn_microsoft_docs_search',
-    'microsoft-learn_microsoft_code_sample_search',
-    'microsoft-learn_microsoft_docs_fetch'
+$learnToolSets = @(
+    [pscustomobject]@{
+        Connector = 'learn-docs'
+        Tools = @(
+            'learn-docs_microsoft_docs_search',
+            'learn-docs_microsoft_code_sample_search',
+            'learn-docs_microsoft_docs_fetch'
+        )
+    },
+    # Migration compatibility for an azd run that compiled the old template
+    # before this repository was updated to the azd-safe connector name.
+    [pscustomobject]@{
+        Connector = 'microsoft-learn'
+        Tools = @(
+            'microsoft-learn_microsoft_docs_search',
+            'microsoft-learn_microsoft_code_sample_search',
+            'microsoft-learn_microsoft_docs_fetch'
+        )
+    }
 )
+$learnConnectorName = $learnToolSets[0].Connector
+$learnTools = $learnToolSets[0].Tools
 $catalog = @(); $present = @()
 $toolDeadline = (Get-Date).AddMinutes(3)
 do {
@@ -211,14 +229,22 @@ do {
         $tr = $client.GetAsync("$agentEndpoint/api/v2/agent/tools").Result
         if ($tr.IsSuccessStatusCode) { $catalog = @(($tr.Content.ReadAsStringAsync().Result | ConvertFrom-Json).data) }
     } catch {}
-    $present = @($learnTools | Where-Object { $_ -in $catalog.name })
+
+    foreach ($toolSet in $learnToolSets) {
+        $candidatePresent = @($toolSet.Tools | Where-Object { $_ -in $catalog.name })
+        if ($candidatePresent.Count -gt $present.Count) {
+            $learnConnectorName = $toolSet.Connector
+            $learnTools = $toolSet.Tools
+            $present = $candidatePresent
+        }
+    }
     if ($present.Count -eq $learnTools.Count) { break }
     Start-Sleep -Seconds 15
 } while ((Get-Date) -lt $toolDeadline)
 
 if ($present.Count -lt $learnTools.Count) {
     Write-Host "  [WARN] Only $($present.Count)/$($learnTools.Count) Learn MCP tools visible in the catalog yet — the" -ForegroundColor Yellow
-    Write-Host "         microsoft-learn MCP connection is still warming up (it fetches its server bits from" -ForegroundColor Yellow
+    Write-Host "         $learnConnectorName connection is still warming up (it fetches its server bits from" -ForegroundColor Yellow
     Write-Host "         raw.githubusercontent.com; confirm the allow-github-raw-mcp-bits firewall rule exists)." -ForegroundColor Yellow
     Write-Host "         Re-run this script shortly to finish enabling them." -ForegroundColor Yellow
 }
@@ -239,23 +265,101 @@ if ($present.Count -gt 0) {
     }
 }
 
+# --- Step 2c: Sync custom instructions (data-plane only) --------------------
+# Custom instructions are the agent-scoped, ALWAYS-ON prompt appended to EVERY
+# thread — chat, incident, scheduled task — regardless of which response plan or
+# skill matched. This is the surface the portal's "Custom instructions" box writes.
+#
+# Data-plane contract:
+#   GET/PUT {agentEndpoint}/api/v2/agent/customInstructions
+#   body: { "instructions": "<text>" }
+#
+# We ship the correlation nudge: the cheap always-on trigger telling the agent an
+# alert is a signal rather than the whole story, pointing at the
+# `incident-correlation` SKILL (Bicep) for the actual queries.
+Write-Host "`nStep 2c: Syncing custom instructions..." -ForegroundColor Yellow
+$ciPath = Join-Path $PSScriptRoot "..\sre-config\custom-instructions.md"
+$ciText = $null
+$ciCurrent = $null
+$normalizeInstructions = { param($s) if ($null -eq $s) { '' } else { $s.Replace("`r", '').Trim() } }
+if (-not (Test-Path $ciPath)) {
+    Write-Host "  WARNING: sre-config/custom-instructions.md is missing; correlation guidance cannot be synced." -ForegroundColor Yellow
+} else {
+    # The file content IS the payload verbatim — there is no metadata wrapper and
+    # no comment syntax to strip, so keep rationale in AGENTS.md, never in here.
+    $ciText = ([System.IO.File]::ReadAllText($ciPath)).Replace('@@RG@@', $ResourceGroup).Trim()
+
+    # Compare against what's live so a re-run is a no-op. The service normalises
+    # line endings to CRLF on write, so strip \r on BOTH sides before comparing —
+    # otherwise a file saved with LF looks "changed" on every single run.
+    try {
+        $getResp = $client.GetAsync("$agentEndpoint/api/v2/agent/customInstructions").Result
+        if ($getResp.IsSuccessStatusCode) {
+            $ciCurrent = ($getResp.Content.ReadAsStringAsync().Result | ConvertFrom-Json).instructions
+        }
+    } catch {}
+
+    if ((& $normalizeInstructions $ciCurrent) -eq (& $normalizeInstructions $ciText)) {
+        Write-Host "  [skip] custom instructions unchanged ($($ciText.Length) chars)" -ForegroundColor DarkGray
+    } else {
+        $ciBody = @{ instructions = $ciText } | ConvertTo-Json -Depth 4 -Compress
+        $ciContent = [System.Net.Http.StringContent]::new($ciBody, [System.Text.Encoding]::UTF8, "application/json")
+        $ciResp = $client.PutAsync("$agentEndpoint/api/v2/agent/customInstructions", $ciContent).Result
+        if ($ciResp.IsSuccessStatusCode) {
+            $verb = if ([string]::IsNullOrWhiteSpace($ciCurrent)) { "set" } else { "replaced" }
+            Write-Host "  [ok] custom instructions $verb ($($ciText.Length) chars, appended to every thread)" -ForegroundColor Green
+        } else {
+            # A 403/timeout from inside the agent sandbox usually means the exact-host
+            # allow-agent-data-plane firewall rule is missing.
+            Write-Host "  WARNING: custom instructions returned $($ciResp.StatusCode): $($ciResp.Content.ReadAsStringAsync().Result)" -ForegroundColor Yellow
+        }
+        $ciContent.Dispose()
+    }
+}
+
 # --- Step 3: Verify Bicep-deployed assets ----------------------------------
 Write-Host "`nStep 3: Verifying Bicep-deployed configuration..." -ForegroundColor Yellow
 $allGood = $true
+$armToken = (az account get-access-token --resource "https://management.azure.com/" --query accessToken -o tsv 2>$null).Trim()
+if (-not $armToken) {
+    throw "Could not acquire an Azure Resource Manager token for post-provision verification."
+}
+$armHeaders = @{ Authorization = "Bearer $armToken"; Accept = "application/json" }
 
 function Get-AgentChildren {
     param([string]$Kind)
-    (az rest --method GET --url "${agentArmId}/${Kind}?api-version=$apiVersion" 2>$null | ConvertFrom-Json).value
+
+    $url = "https://management.azure.com${agentArmId}/${Kind}?api-version=$apiVersion"
+    for ($attempt = 1; $attempt -le 6; $attempt++) {
+        try {
+            $response = Invoke-RestMethod -Method Get -Uri $url -Headers $armHeaders
+            $valueProperty = $response.PSObject.Properties['value']
+            if ($valueProperty) {
+                return @($valueProperty.Value)
+            }
+        } catch {
+            if ($attempt -eq 6) {
+                throw "Could not list agent $Kind after $attempt attempts: $($_.Exception.Message)"
+            }
+        }
+
+        if ($attempt -lt 6) { Start-Sleep -Seconds 5 }
+    }
+
+    throw "Agent $Kind list response did not contain a value collection after 6 attempts."
 }
 
 $connectors = @(Get-AgentChildren -Kind "connectors")
-$expectedConnectors = @("app-insights","log-analytics","azure-monitor","microsoft-learn")
+$expectedConnectors = @("app-insights","log-analytics","azure-monitor")
 $missingConnectors = $expectedConnectors | Where-Object { $_ -notin $connectors.name }
-if (-not $missingConnectors) { Write-Host "  [OK] Connectors: $($connectors.Count) (app-insights, log-analytics, azure-monitor, microsoft-learn)" -ForegroundColor Green }
+$learnConnector = $connectors | Where-Object { $_.name -in @("learn-docs", "microsoft-learn") } | Select-Object -First 1
+if (-not $learnConnector) { $missingConnectors += "learn-docs" }
+else { $learnConnectorName = $learnConnector.name }
+if (-not $missingConnectors) { Write-Host "  [OK] Connectors: $($connectors.Count) (app-insights, log-analytics, azure-monitor, $($learnConnector.name))" -ForegroundColor Green }
 else { Write-Host "  [MISSING] Connectors: $($missingConnectors -join ', ') — re-run azd provision" -ForegroundColor Red; $allGood = $false }
 
 $skills = @(Get-AgentChildren -Kind "skills")
-$expectedSkills = @("database-incidents","performance-incidents","application-incidents","general-triage","proactive-health-check")
+$expectedSkills = @("database-incidents","performance-incidents","application-incidents","general-triage","proactive-health-check","incident-correlation")
 $missingSkills = $expectedSkills | Where-Object { $_ -notin $skills.name }
 if (-not $missingSkills) { Write-Host "  [OK] Custom skills: $($skills.Count)" -ForegroundColor Green }
 else { Write-Host "  [MISSING] Skills: $($missingSkills -join ', ') — re-run azd provision" -ForegroundColor Red; $allGood = $false }
@@ -287,6 +391,27 @@ if ($expectedKb.Count -eq 0) {
     Write-Host "  [MISSING] Knowledge files: $($missingKb -join ', ') — re-run Step 2 (upload) above" -ForegroundColor Red; $allGood = $false
 }
 
+$verifiedInstructions = $null
+$customInstructionsVerified = $false
+if (-not $ciText) {
+    Write-Host "  [MISSING] Custom instructions source file — restore sre-config/custom-instructions.md" -ForegroundColor Red
+    $allGood = $false
+} else {
+    try {
+        $verifyCiResp = $client.GetAsync("$agentEndpoint/api/v2/agent/customInstructions").Result
+        if ($verifyCiResp.IsSuccessStatusCode) {
+            $verifiedInstructions = ($verifyCiResp.Content.ReadAsStringAsync().Result | ConvertFrom-Json).instructions
+        }
+    } catch {}
+    if ((& $normalizeInstructions $verifiedInstructions) -eq (& $normalizeInstructions $ciText)) {
+        Write-Host "  [OK] Custom instructions match local source ($($ciText.Length) chars)" -ForegroundColor Green
+        $customInstructionsVerified = $true
+    } else {
+        Write-Host "  [MISSING] Custom instructions do not match local source — re-run Step 2c" -ForegroundColor Red
+        $allGood = $false
+    }
+}
+
 if ($agent.properties.actionConfiguration.mode -ne "autonomous") {
     Write-Host "  [WARN] Agent mode: $($agent.properties.actionConfiguration.mode) (expected autonomous)" -ForegroundColor Yellow; $allGood = $false
 } else { Write-Host "  [OK] Mode: autonomous + access $($agent.properties.actionConfiguration.accessLevel)" -ForegroundColor Green }
@@ -307,11 +432,11 @@ try {
 if ($learnEnabled.Count -eq $learnTools.Count) {
     Write-Host "  [OK] Microsoft Learn MCP tools enabled globally: $($learnEnabled.Count)/$($learnTools.Count)" -ForegroundColor Green
 } else {
-    Write-Host "  [WARN] Learn MCP tools enabled globally: $($learnEnabled.Count)/$($learnTools.Count) (MCP connection may still be warming up)" -ForegroundColor Yellow; $allGood = $false
+    Write-Host "  [WARN] Learn MCP tools enabled globally: $($learnEnabled.Count)/$($learnTools.Count) (MCP connection may still be warming up)" -ForegroundColor Yellow
 }
 
-if ($allGood) { Write-Host "  All Bicep + data-plane assets verified." -ForegroundColor Green }
-else { Write-Host "  Some assets missing — see above." -ForegroundColor Yellow }
+if ($allGood) { Write-Host "  All required Bicep + data-plane assets verified." -ForegroundColor Green }
+else { Write-Host "  Required assets are missing — see above." -ForegroundColor Red }
 
 $client.Dispose()
 
@@ -323,15 +448,28 @@ Write-Host "========================================`n" -ForegroundColor Cyan
 Write-Host "  DEPLOYED BY BICEP (verified above, not done by this script):" -ForegroundColor DarkGray
 Write-Host "  [x] Agent: autonomous mode + High access"
 Write-Host "  [x] Incident platform: Azure Monitor"
-Write-Host "  [x] Connectors: app-insights, log-analytics, azure-monitor, microsoft-learn"
-Write-Host "  [x] Custom skills: database-incidents, performance-incidents, application-incidents, general-triage, proactive-health-check"
+Write-Host "  [x] Connectors: app-insights, log-analytics, azure-monitor, $learnConnectorName"
+Write-Host "  [x] Custom skills: database-incidents, performance-incidents, application-incidents, general-triage, proactive-health-check, incident-correlation"
 Write-Host "  [x] Response plans (incident filters): zava-database, zava-performance, zava-application, zava-unknown"
 Write-Host "`n  DONE BY THIS SCRIPT (data plane — no ARM API yet):" -ForegroundColor Cyan
 Write-Host ("  [x] Knowledge files synced: {0} local file(s) ({1} uploaded, {2} replaced, {3} skipped, {4} failed)" -f $kbLocalFiles.Count, $uploaded, $replaced, $skipped, $failed)
-Write-Host ("  [x] Microsoft Learn MCP tools enabled globally: {0}/{1} (docs_search, code_sample_search, docs_fetch)" -f $learnEnabled.Count, $learnTools.Count)
+if ($learnEnabled.Count -eq $learnTools.Count) {
+    Write-Host ("  [x] Microsoft Learn MCP tools enabled globally: {0}/{1} (docs_search, code_sample_search, docs_fetch)" -f $learnEnabled.Count, $learnTools.Count)
+} else {
+    Write-Host ("  [!] Microsoft Learn MCP tools enabled globally: {0}/{1} (connector warm-up/runtime issue; nonfatal)" -f $learnEnabled.Count, $learnTools.Count) -ForegroundColor Yellow
+}
+if ($customInstructionsVerified) {
+    Write-Host ("  [x] Custom instructions synced and verified: {0} chars" -f $ciText.Length)
+} else {
+    Write-Host "  [ ] Custom instructions not verified" -ForegroundColor Red
+}
 Write-Host "`n  NEXT STEPS:" -ForegroundColor Cyan
 Write-Host "  Run a break scenario:"
 Write-Host "    .\.github\skills\running-demo\scripts\break-sql.ps1      # Stop PostgreSQL"
 Write-Host "    .\.github\skills\running-demo\scripts\break-network.ps1  # Block DB traffic"
 Write-Host "    .\.github\skills\running-demo\scripts\break-db-perf.ps1  # Drop index"
+Write-Host "    .\.github\skills\running-demo\scripts\break-bad-deploy.ps1 # Ship a bad rollout"
+Write-Host "    .\.github\skills\running-demo\scripts\break-compound.ps1  # Two independent faults"
 Write-Host "  Watch the agent: https://sre.azure.com/agents$agentArmId`n"
+
+if (-not $allGood) { exit 1 }

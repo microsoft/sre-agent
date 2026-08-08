@@ -47,9 +47,9 @@ variable "vnet_address_space" {
 }
 
 variable "agent_subnet_prefix" {
-  description = "Delegated subnet the SRE Agent is injected into (Microsoft.App/environments)."
+  description = "Delegated /27-or-larger subnet the SRE Agent is injected into (Microsoft.App/environments)."
   type        = string
-  default     = "10.30.0.0/28"
+  default     = "10.30.0.0/27"
 }
 
 variable "pe_subnet_prefix" {

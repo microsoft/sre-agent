@@ -28,6 +28,11 @@ $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\..\..\..\..\scripts\_aks-helpers.ps1"
 $ctx = Resolve-AksContext -ResourceGroup $ResourceGroup -ClusterName $ClusterName
 
+# Azure Monitor's stateful per-rule instance is separate from agent-side merge.
+# Refuse to inject a new fault while the prior condition is still Fired, and
+# close a resolved prior instance so this run dispatches as a fresh alert.
+Reset-DemoAlertRule -ResourceGroup $ctx.ResourceGroup -AlertRuleName 'Zava-products-query-slow'
+
 # Telemetry precheck. The Zava-products-query-slow alert is a scheduled KQL
 # query against AppRequests. If the api isn't currently sending telemetry to
 # the workspace, the alert can never fire no matter how slow the queries are
