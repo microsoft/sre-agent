@@ -404,7 +404,8 @@ if (Test-Path (Join-Path $dataDir 'repo-instructions.json') -PathType Leaf) {
     $repoInstructions = Get-Content (Join-Path $dataDir 'repo-instructions.json') -Raw
 }
 
-# Auto-discover .md files in data/ and data/knowledge/ → convert to knowledge items for upload
+# Auto-discover .md files in data/, data/knowledge/, data/session-insights/ → knowledge upload
+# Session insights become searchable knowledge on clone/deploy so the new agent inherits investigation learnings.
 $mdFiles = @()
 if (Test-Path $dataDir -PathType Container) {
     $mdFiles += Get-ChildItem $dataDir -Filter '*.md' -File -ErrorAction SilentlyContinue
@@ -412,6 +413,10 @@ if (Test-Path $dataDir -PathType Container) {
 $knowledgeSubdir = Join-Path $dataDir 'knowledge'
 if (Test-Path $knowledgeSubdir -PathType Container) {
     $mdFiles += Get-ChildItem $knowledgeSubdir -Filter '*.md' -File -ErrorAction SilentlyContinue
+}
+$insightsSubdir = Join-Path $dataDir 'session-insights'
+if (Test-Path $insightsSubdir -PathType Container) {
+    $mdFiles += Get-ChildItem $insightsSubdir -Filter '*.md' -File -ErrorAction SilentlyContinue
 }
 
 if ($mdFiles.Count -gt 0) {

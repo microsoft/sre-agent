@@ -301,10 +301,12 @@ fi
 REPO_INSTRUCTIONS="[]"
 [[ -f "${DIR}/data/repo-instructions.json" ]] && REPO_INSTRUCTIONS=$(cat "${DIR}/data/repo-instructions.json")
 
-# Auto-discover .md files in data/ and data/knowledge/ → upload via AgentMemory (data-plane)
+# Auto-discover .md files in data/, data/knowledge/, data/session-insights/ → upload via AgentMemory
 # These show in the portal Knowledge tab (RAG-indexed), NOT as KnowledgeFile connectors.
+# Session insights become searchable knowledge on clone/deploy so the new agent inherits investigation learnings.
 MD_FILES=$(find "${DIR}/data" -maxdepth 1 -name "*.md" -type f 2>/dev/null || true; \
-           find "${DIR}/data/knowledge" -maxdepth 1 -name "*.md" -type f 2>/dev/null || true)
+           find "${DIR}/data/knowledge" -maxdepth 1 -name "*.md" -type f 2>/dev/null || true; \
+           find "${DIR}/data/session-insights" -maxdepth 1 -name "*.md" -type f 2>/dev/null || true)
 if [[ -n "$MD_FILES" ]]; then
   MD_COUNT=$(echo "$MD_FILES" | wc -l | tr -d ' ')
   _log "Found ${MD_COUNT} knowledge .md file(s) in data/"
