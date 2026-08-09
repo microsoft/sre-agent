@@ -497,45 +497,62 @@ if [[ "$count" -gt 0 ]]; then
   fi
 fi
 
-# 4a-2. knowledgeItems — ARM PUT as KnowledgeFile connectors (visible in portal Knowledge Sources)
+# 4a-2. knowledgeItems — data-plane PUT as KnowledgeItem connectors (Knowledge Sources)
 count=$(jq '.knowledgeItems // [] | length' "$FILE")
 if [[ "$count" -gt 0 ]]; then
-  echo "knowledgeItems: ${count} file(s) → Knowledge Sources (ARM)"
-  for i in $(seq 0 $((count - 1))); do
-    fname=$(jq -r --argjson i "$i" '.knowledgeItems[$i].name' "$FILE")
-    content=$(jq -r --argjson i "$i" '.knowledgeItems[$i].content' "$FILE")
-    content_length=${#content}
-    sanitized=$(echo "$fname" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
-    b64=$(echo "$content" | base64)
-    case "$fname" in
-      *.md)   ctype="text/markdown" ;;
-      *.txt)  ctype="text/plain" ;;
-      *.pdf)  ctype="application/pdf" ;;
-      *.json) ctype="application/json" ;;
-      *)      ctype="application/octet-stream" ;;
-    esac
-    body=$(jq -nc \
-      --arg name "$sanitized" \
-      --arg displayName "$fname" \
-      --arg fileName "$fname" \
-      --arg fileContent "$b64" \
-      --arg contentType "$ctype" \
-      '{
-        properties: {
-          dataConnectorType: "KnowledgeFile",
-          dataSource: $name,
-          extendedProperties: {
-            displayName: $displayName,
-            fileName: $fileName,
-            fileContent: $fileContent,
-            contentType: $contentType
+  if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
+    echo "knowledgeItems: ${count} file(s) → Knowledge Sources (data-plane)"
+    for i in $(seq 0 $((count - 1))); do
+      fname=$(jq -r --argjson i "$i" '.knowledgeItems[$i].name' "$FILE")
+      content=$(jq -r --argjson i "$i" '.knowledgeItems[$i].content' "$FILE")
+      sanitized=$(echo "$fname" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
+      b64=$(echo "$content" | base64)
+      case "$fname" in
+        *.md)   ctype="text/markdown" ;;
+        *.txt)  ctype="text/plain" ;;
+        *.pdf)  ctype="application/pdf" ;;
+        *.json) ctype="application/json" ;;
+        *)      ctype="application/octet-stream" ;;
+      esac
+      body=$(jq -nc \
+        --arg name "$sanitized" \
+        --arg displayName "$fname" \
+        --arg fileName "$fname" \
+        --arg fileContent "$b64" \
+        --arg contentType "$ctype" \
+        '{
+          name: $name,
+          type: "KnowledgeItem",
+          tags: [],
+          properties: {
+            dataConnectorType: "KnowledgeFile",
+            dataSource: $name,
+            extendedProperties: {
+              displayName: $displayName,
+              fileName: $fileName,
+              fileContent: $fileContent,
+              contentType: $contentType
+            }
           }
-        }
-      }')
-    arm_put_connector "$sanitized" "$body"
-    # KnowledgeFile connectors need 15s between PUTs to avoid 500s
-    [[ $i -lt $((count - 1)) ]] && sleep 15
-  done
+        }')
+      TOKEN=$(_dp_token)
+      url="${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/$(printf %s "$sanitized" | jq -sRr @uri)"
+      result=$(curl -sS -w "\n%{http_code}" -X PUT "$url" \
+        -H "Authorization: Bearer ${TOKEN}" \
+        -H "Content-Type: application/json" \
+        --data "$body" 2>&1)
+      http_code=$(echo "$result" | tail -1)
+      if [[ "$http_code" =~ ^2 ]]; then
+        echo "  ok knowledgeItems/${sanitized}"
+      else
+        echo "  FAILED — PUT knowledgeItems/${sanitized} (HTTP ${http_code})"
+      fi
+      [[ $i -lt $((count - 1)) ]] && sleep 5
+    done
+  else
+    echo "knowledgeItems: ${count} — ⚠ skipped (no data-plane token)"
+    DP_SKIPPED_ITEMS+=("knowledgeItems (${count} files)")
+  fi
 fi
 
 # 4a-3. synthesizedKnowledge — tar.gz upload to WorkspaceMemory (data-plane)
