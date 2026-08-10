@@ -28,8 +28,8 @@ so the template grants its runtime identity the built-in Reader role there. The
 |-----------|---------|
 | **App** | Zava Athletic e-commerce storefront (Node.js/Express on AKS) |
 | **Database** | PostgreSQL 16 Flexible Server (Entra-only auth, zero passwords) |
-| **Monitoring** | App Insights + Log Analytics (4-day retention on noisy tables, no daily ingestion cap, 100% sampling; probes filtered at the alert KQL so alerts fire fast) + **3 enabled dispatching Azure Monitor alerts**: `postgres-unreachable` (covers both DB-stop and network-partition scenarios), `Zava-products-query-slow`, and `Zava-http-5xx-errors`, so one root cause = one incident thread. The app emits a **custom OpenTelemetry metric** (`zava.products.category.query.duration_ms`) and PG emits `cpu_percent`; the slow-query alert is **paired** with both as corroboration the agent queries during investigation (kept as *disabled* metric-alert examples rather than separate dispatching alerts, to avoid duplicate threads). |
-| **SRE Agent** | Anthropic-backed agent (Preview channel). Connectors, skills, response plans, and Azure Monitor incident binding declared in `infra/modules/sre-agent.bicep`. Knowledge-file upload via `scripts/setup-sre-agent.ps1` (ARM doesn't surface that yet). Default agent + rich skills, no subagent handoff. |
+| **Monitoring** | App Insights, Log Analytics, OpenTelemetry application metrics, PostgreSQL platform metrics, and three dispatching Azure Monitor alerts: database availability, query performance, and application 5xx failures |
+| **SRE Agent** | Preview-channel agent with declarative connectors, skills, response plans, Azure Monitor incident binding, and global custom instructions. The source repository is deliberately not connected in this lab. |
 | **Telemetry access** | App Insights, Log Analytics, and Azure Monitor exposed via **connectors** |
 | **Demo Scenarios** | 5 break/fix scenarios with scripts |
 
@@ -74,65 +74,79 @@ While the UI shows `agent investigating`, the SRE Agent is actually working the 
 ```powershell
 .\.github\skills\running-demo\scripts\break-sql.ps1    # Stops PostgreSQL → 503 errors
 # Agent detects via Azure Monitor, investigates, restarts PostgreSQL
-.\.github\skills\running-demo\scripts\fix-sql.ps1      # Fallback if agent doesn't fix
+.\.github\skills\running-demo\scripts\fix-sql.ps1      # Manual cleanup
 ```
 
 ### Scenario 2: Network Partition
 ```powershell
 .\.github\skills\running-demo\scripts\break-network.ps1  # K8s NetworkPolicy blocks DB traffic
 # Agent sees ETIMEDOUT (not ECONNREFUSED), finds and removes NetworkPolicy
-.\.github\skills\running-demo\scripts\fix-network.ps1    # Fallback
+.\.github\skills\running-demo\scripts\fix-network.ps1    # Manual cleanup
 ```
 
 ### Scenario 3: Missing Index
 ```powershell
 .\.github\skills\running-demo\scripts\break-db-perf.ps1  # Drops category/name index → slow queries
-# One alert dispatches (Zava-products-query-slow); the agent then correlates the
-# paired signals it queries — the custom metric (zava.products.category.query.duration_ms
-# in AppMetrics) + PG cpu_percent (AzureMetrics) + AppDependencies pg-call latency —
-# and applies CREATE INDEX via the in-cluster helper. One root cause, one thread.
-.\.github\skills\running-demo\scripts\fix-db-perf.ps1    # Fallback
+# The agent uses request, dependency, and PostgreSQL metrics to identify and restore the index.
+.\.github\skills\running-demo\scripts\fix-db-perf.ps1    # Manual cleanup
 ```
 
 ### Scenario 4: Bad Deploy / Rollback
 ```powershell
 .\.github\skills\running-demo\scripts\break-bad-deploy.ps1  # kubectl set env FAULT_INJECT=500 → new rollout, GET /api/products returns 500
-# Existing Zava-http-5xx-errors alert fires; agent correlates the 5xx spike with the recent
-# rollout (kubectl rollout history / KubeEvents) and rolls back to the previous good revision.
-.\.github\skills\running-demo\scripts\fix-bad-deploy.ps1    # Fallback: kubectl rollout undo
+# The agent compares the 5xx onset with rollout history and restores the previous revision.
+.\.github\skills\running-demo\scripts\fix-bad-deploy.ps1    # Manual cleanup: kubectl rollout undo
 ```
-Liveness and readiness (`/livez`) stay green, and `/api/health` can stay healthy for app-only regressions, so the platform looks healthy while
-only the app route regresses — deployment-signal correlation is what ties the symptom to its cause.
+Liveness, readiness, and `/api/health` remain healthy because only the product route is affected.
 
-### Scenario 5: Compound — two independent faults, one window
+### Scenario 5: Compound Incident Correlation (Proof of Concept)
 ```powershell
 .\.github\skills\running-demo\scripts\break-compound.ps1  # Scenario 3 + Scenario 4, offset by 90s
-# TWO alerts co-fire (Zava-products-query-slow + Zava-http-5xx-errors) into SEPARATE threads
-# (merge is disabled on every response plan). They are NOT causally related.
-.\.github\skills\running-demo\scripts\fix-compound.ps1    # Fallback: undoes both
+# Two independent alerts fire in separate investigation threads.
+.\.github\skills\running-demo\scripts\fix-compound.ps1    # Manual cleanup: undoes both
 ```
-Scenarios 1–4 inject exactly one fault each, so "diagnose the alert you were handed" always works — a habit that
-breaks in production. This scenario is the counterexample. The tempting read is *"the database got slow, so the API
-started failing"*: it fits the timestamps perfectly and it is **false**. The mechanisms are disjoint —
+This lab-only scenario demonstrates an evidence-based correlation pattern: compare
+nearby alerts, establish onset from telemetry, and confirm a shared mechanism before
+assigning a common cause. In this case, the slow PostgreSQL queries remain successful
+while the HTTP 500 failures are local to the application rollout, so the investigations
+should remain independent.
 
-| Signal | 5xx fault | Slow-query fault |
-|---|---|---|
-| Status code | HTTP **500** | n/a (requests succeed) |
-| Failed dependencies | `localhost:3001` **only** | **none** — queries are slow but *succeed* |
-| PG dependency failures | **zero** | **zero** |
-| PG `cpu_percent` | baseline | pegged ~90% |
+This is a bounded proof of concept, not a comprehensive correlation benchmark.
+Results depend on the deployed configuration, available telemetry, and model behavior.
+Broader correlation patterns and product-level orchestration require additional
+implementation beyond this sample.
 
-If DB saturation were causing the 5xx you would see PG dependency failures or 503 timeouts. Neither appears.
-Two faults, one window, no causal link.
+### Production context and this lab
 
-Two further traps are built in. **Alert fire order is not causal order** — every dispatching rule is `PT5M`/`PT5M`,
-so detection latency swamps the 90-second injection offset. And the *causal* DB signal never alerts at all:
-`Zava-db-cpu-saturation` ships **disabled** (see [`AGENTS.md`](AGENTS.md)), mimicking an org that muted a noisy
-rule months ago, so the agent has to enumerate the alert **rule inventory** — not just fired alerts — to discover it.
+For production investigations, give SRE Agent the strongest available context:
 
-Handling this well is what the `incident-correlation` skill and the always-on
-[`sre-config/custom-instructions.md`](sre-config/custom-instructions.md) nudge
-exist for: an alert is a signal, not the story.
+- maintainable source code and recent change history through a connected GitHub or
+  Azure DevOps repository;
+- actionable logs, metrics, traces, deployments, and alerts with consistent resource
+  and service identity;
+- incident-platform and Azure resource access scoped to the investigation and
+  permitted remediation;
+- curated response plans, skills, runbooks, and architecture knowledge that reflect
+  how the service is actually operated;
+- concise global instructions for durable behavior changes, with detailed procedures
+  kept in targeted skills.
+
+That setup lets the agent correlate alerts with telemetry and deployments, then connect
+production symptoms to specific code and code changes. Microsoft Learn describes these
+inputs as complementary: [Azure Monitor alerts](https://learn.microsoft.com/azure/sre-agent/azure-monitor-alerts)
+provide the incident signal and connected operational data, while
+[connected source code](https://learn.microsoft.com/azure/sre-agent/connect-source-code),
+[response plans](https://learn.microsoft.com/azure/sre-agent/automate-incidents), and
+[skills](https://learn.microsoft.com/azure/sre-agent/skills) provide investigation
+context, routing, procedures, and tools.
+
+This lab intentionally withholds its source repository and incident answer key from the
+deployed agent. The break scripts and application code contain the injected faults, so
+indexing them would reveal the scenario instead of requiring an evidence-based
+investigation. Alert descriptions remain symptom-focused, and the knowledge base
+contains environment facts rather than scenario-specific causes or fixes. This is a
+demo constraint, not production guidance: a real deployment should connect relevant
+source code and provide well-maintained operational context.
 
 The correlation skill reads subscription-scoped Alerts Management and Resource
 Health event feeds. The agent's runtime user-assigned identity therefore receives
@@ -155,11 +169,13 @@ enablement. The script also verifies the Bicep-deployed assets are live. Drop ne
 
 ### Network posture: VNet-injected, egress locked down behind an Azure Firewall
 
-The agent is **injected into a dedicated `/28` agent spoke subnet** and its sandbox egress is **locked down behind an Azure Firewall** with a tight allow-list. Agent skills operate Kubernetes through the built-in `RunKubectlReadCommand` and `RunKubectlWriteCommand` system tools. PostgreSQL SQL runs through the in-cluster helper invoked by the write tool.
+The agent is **injected into a dedicated `/27` agent spoke subnet** and its sandbox egress is **locked down behind an Azure Firewall** with a tight allow-list. Agent skills operate Kubernetes through the built-in `RunKubectlReadCommand` and `RunKubectlWriteCommand` system tools. PostgreSQL SQL runs through the in-cluster helper invoked by the write tool.
 
-> **Kubernetes tool choice:** incident runbooks use the built-in `RunKubectlReadCommand` and `RunKubectlWriteCommand` tools because they own the private-network, identity, and temporary connection setup. For an exceptional ad-hoc terminal command with an already-valid kubeconfig, issue a harmless built-in read against the same cluster first. Do not build runbooks around that fallback.
+> **Kubernetes tool choice:** incident runbooks use `RunKubectlReadCommand` and
+> `RunKubectlWriteCommand`. Terminal-native kubectl is not required for this sample.
 
-> **Learn the full access path:** [`docs/aks-access-and-auth.md`](docs/aks-access-and-auth.md) explains kubeconfig anatomy, managed-identity token acquisition, Azure RBAC, the two TLS trust hops behind the warm-up behavior, private API-server DNS and routing, operator/CI access choices, and why a public FQDN on a private cluster is not a public API endpoint.
+> **Learn the full access path:** [`docs/aks-access-and-auth.md`](docs/aks-access-and-auth.md)
+> covers identity, RBAC, private networking, and operator/CI access options.
 
 > **What "VNet-injected" means here:** the agent's egress mode is **AzureVNet** (real VNet egress) routed through the Azure Firewall. Egress allow/deny decisions are visible in the SRE Agent UI under **Workspace Configuration → Inspect → Network audit** (Preview). Kubernetes access in the skills remains through the built-in system tools.
 
@@ -272,19 +288,27 @@ For repo/IaC author gotchas (Sev4 quirk, NSG-vs-NetworkPolicy, container-image b
 
 ### Incident dispatch and merging
 
-Azure Monitor itself does NOT link or merge incidents across different alert rules. Each alert rule fires independently, and the same rule re-firing just updates the existing alert's count (with `autoMitigate: true`, it flips to `Resolved` when the condition clears).
+Azure Monitor evaluates each alert rule independently. Repeated evaluations of the
+same stateful rule update the existing alert until the condition resolves.
 
-The break scripts make repeat runs fail-safe: before injecting a fault they inspect the relevant stateful alert instance. A still-`Fired` prior condition aborts the script because Azure Monitor cannot produce a fresh dispatch; a resolved prior instance is closed so the next activation arrives as `New`. This is intentionally different from making the rules stateless, which would emit another alert every evaluation and create duplicate investigation threads during one sustained fault.
+Before injecting a fault, the break scripts verify that the relevant alert can create
+a new dispatch. They stop if a prior condition is still active and close resolved demo
+instances when needed.
 
-**Consequence for the two DB scenarios:** they share the single `postgres-unreachable` rule, so while the first alert is still `Fired`, a back-to-back second break just updates that instance instead of opening a new one — and the SRE Agent only dispatches on a *new* alert. To handle this, the `database-incidents` runbook has the agent **close the alert as its final step** once it verifies recovery (it holds the Contributor right for `Microsoft.AlertsManagement/alerts/changestate/action`), so the next DB break dispatches fresh; `autoMitigate` (~15-30 min) is the fallback if it doesn't. The other scenarios use distinct rules, so this only ever affected DB stop ↔ network partition.
+The database outage and network partition scenarios share `postgres-unreachable`.
+After recovery, the database runbook closes that alert so either scenario can be run
+again without waiting for automatic mitigation.
 
-**This sample disables agent-side merge on all four response plans** (`mergeEnabled: false`; `mergeWindowHours: 3` remains a schema-valid but inactive value) — every incident opens its OWN investigation thread, with no deduplication. (For reference: when merge is *on*, the agent folds any matching alert arriving within `mergeWindowHours` into the most recent open thread for that plan instead of dispatching a new one. That deduplication can quietly hide real, distinct incidents, so this demo keeps it off.)
+This sample sets `mergeEnabled: false` on all response plans so each alert starts a
+separate investigation. That configuration makes the proof-of-concept correlation
+scenario observable; it is not a recommendation for every production deployment.
 
-The four response plans / incident filters are `zava-database` (`postgres`), `zava-performance` (`query-slow`), `zava-application` (`http-5xx`), and `zava-unknown` (other `Zava` alerts, Review mode). Response plans do not have a customer-defined priority or "most specific wins" rule, so overlapping matches should be treated as undefined. Prefer purpose-built filters that do not overlap; if you keep a fallback, positively bound its scope and explicitly exclude every known route. This sample does both with `titleContains: 'Zava'` plus `titleNotContains` for the three known tokens.
+The response plans are `zava-database`, `zava-performance`, `zava-application`,
+and the Review-mode `zava-unknown` fallback. Their filters are intentionally
+non-overlapping and the fallback is limited to other `Zava` alerts.
 
-The `Zava-http-5xx-errors` alert also **no longer self-suppresses** on DB errors — a DB outage that returns 5xx will open both a `postgres-unreachable` thread and an app thread, so every real symptom surfaces its own investigation. The only deduplication left is the Azure Monitor shared-rule stateful behavior described in the box above, which affects only back-to-back DB stop ↔ partition.
-
-A brand-new `azd env new` always gets fresh dispatch because the SRE Agent name includes a per-env suffix (e.g. `sre-agent-zava-awpo`), so a new env gets a new agent with an empty thread store.
+Each `azd` environment receives a uniquely named SRE Agent and an independent set of
+demo resources.
 
 ### Microsoft Learn MCP (Streamable-HTTP) connector
 

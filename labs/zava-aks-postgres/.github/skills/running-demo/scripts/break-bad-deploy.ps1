@@ -3,21 +3,16 @@
 #
 # Scenario 4 — Bad Deploy / Rollback (deployment-signal correlation).
 #
-# This simulates the most common real-world incident: a regression introduced by
-# a deployment, not by infra. We flip the app's FAULT_INJECT env var to 500 via
-# `kubectl set env`, which mutates the Deployment's pod template and triggers a
-# NEW rollout revision. That revision IS the deployment signal — the agent is
-# expected to correlate the 5xx spike with `kubectl rollout history` / KubeEvents
-# and roll back with `kubectl rollout undo` (the fix script does the same).
+# Set FAULT_INJECT=500 through `kubectl set env` to create a new rollout revision.
+# The investigation can compare the 5xx onset with rollout history and KubeEvents,
+# then restore the previous revision with `kubectl rollout undo`.
 #
 # Detection reuses the existing Zava-http-5xx-errors scheduled-query alert (it
 # counts failed AppRequests over the window). No external load generator needed:
-# the in-cluster 1 Hz
-# self-probe already hits GET /api/products, so once that route returns 500 the
+# the in-cluster 1 Hz self-probe already hits GET /api/products, so the
 # failed-request count crosses the threshold on its own. The liveness AND readiness
-# probes both hit /livez (shallow, no DB), and /api/health stays green too, so pods stay Running and
-# only the app route regresses — exactly the "looks healthy at the platform layer
-# but the app is broken" shape that makes deployment correlation the key signal.
+# probes both hit /livez, and /api/health stays green, so only the product route
+# regresses.
 #
 # AKS is a PRIVATE cluster — every K8s op runs through `az aks command invoke`
 # (via Invoke-AksCommand), the same path the SRE Agent uses for remediation.
@@ -40,11 +35,8 @@ $ctx = Resolve-AksContext -ResourceGroup $ResourceGroup -ClusterName $ClusterNam
 # close a resolved prior instance so this run dispatches as a fresh alert.
 Reset-DemoAlertRule -ResourceGroup $ctx.ResourceGroup -AlertRuleName 'Zava-http-5xx-errors'
 
-# Telemetry precheck. Zava-http-5xx-errors evaluates the requests/failed metric,
-# which is derived from AppRequests telemetry. If the api isn't currently sending
-# telemetry to the workspace, the alert can never fire no matter how many 500s the
-# route returns, and the demo silently fails (looks like "agent ignored an alert"
-# 30 min later). Fail loudly *before* the break. Pass -SkipTelemetryCheck to bypass.
+# Confirm that AppRequests telemetry is available before injecting the fault.
+# Pass -SkipTelemetryCheck to bypass this guard.
 if (-not $SkipTelemetryCheck) {
     Write-Host "Verifying telemetry pipeline (AppRequests in last 10 min)..." -ForegroundColor Cyan
     $ws = (az monitor log-analytics workspace list -g $ctx.ResourceGroup --query "[0].customerId" -o tsv 2>$null)
@@ -56,7 +48,7 @@ if (-not $SkipTelemetryCheck) {
         $n = 0
         if ($raw) { try { $n = [int]((($raw | ConvertFrom-Json)[0].n)) } catch { $n = 0 } }
         if ($n -lt 1) {
-            Write-Error "Telemetry pipeline is dead: 0 AppRequests from zava-api in the last 10 min. Zava-http-5xx-errors evaluates the requests/failed metric (derived from AppRequests) — without telemetry it can never fire and the SRE Agent will never be dispatched. Possible causes: OTel exporter wedged in api pods, App Insights ingestion throttled, wrong APPLICATIONINSIGHTS_CONNECTION_STRING. Try ``kubectl rollout restart deploy/zava-api -n $Namespace`` to restart the exporter. Pass -SkipTelemetryCheck to override."
+            Write-Error "No AppRequests from zava-api were found in the last 10 minutes. Verify Application Insights configuration and ingestion, or restart the API deployment. Pass -SkipTelemetryCheck to override."
             exit 1
         }
         Write-Host "Telemetry OK ($n AppRequests in last 10 min)." -ForegroundColor Green

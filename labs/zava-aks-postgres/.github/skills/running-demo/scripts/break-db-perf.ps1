@@ -80,16 +80,8 @@ if ($r.exitCode -ne 0) {
 }
 
 Write-Host "Indexes dropped. Forcing api rollout to clear PG plan cache + restart OTel exporter..." -ForegroundColor Yellow
-# Two effects matter here:
-#   1. PG buffer cache for products is shared per-server, but the api's pg
-#      pool retains *cached query plans* on each connection. Without a roll
-#      the existing connections may keep using plans that referenced the
-#      old indexes (now missing) and produce confusing "index does not
-#      exist" errors instead of clean seq_scans.
-#   2. The OTel/AppInsights exporter has occasionally wedged silently on
-#      long-running pods (4h+ uptime in our runs), causing telemetry to
-#      stop without a pod restart. Rolling api here guarantees a fresh
-#      exporter for the upcoming load run.
+# Restart the API to refresh PostgreSQL query plans and the telemetry exporter
+# before starting the load run.
 $rollCmd = "kubectl rollout restart deploy/zava-api -n $Namespace; kubectl rollout status deploy/zava-api -n $Namespace --timeout=180s"
 $rr = Invoke-AksCommand -ResourceGroup $ctx.ResourceGroup -ClusterName $ctx.ClusterName -Command $rollCmd
 if ($rr.exitCode -ne 0) {
@@ -121,10 +113,8 @@ if (-not $NoLoad) {
         $acr = (az acr list -g $ctx.ResourceGroup --query '[0].name' -o tsv 2>$null)
     }
     if (-not $acr) {
-        # Fail loudly: silent skip means the slow-query alert never gets the
-        # traffic it needs to evaluate, and Scenario 3 looks like the agent
-        # ignored a dropped index. Better to fail the break script than to
-        # produce a confusing demo. Pass -NoLoad if you really want to skip.
+        # The slow-query alert requires sustained traffic. Stop when the load
+        # generator cannot be configured unless -NoLoad was explicitly chosen.
         Write-Error "Could not resolve ACR_NAME (azd env, ACR_NAME env, and 'az acr list' all returned empty). Either re-run inside an azd env, set ACR_NAME, or pass -NoLoad to skip the load generator."
         exit 1
     } else {

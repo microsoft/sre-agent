@@ -9,9 +9,8 @@
 # it the other way round leaves the app serving 500s while latency has already
 # recovered, which looks like the DB fix caused an app regression.
 #
-# Both halves run even if the first reports a failure — a partial cleanup that
-# leaves one fault live is worse than a noisy one, and each underlying fix script
-# is independently idempotent.
+# Both cleanup steps run independently so one failure does not prevent the other
+# scenario from being restored.
 param(
     [string]$ResourceGroup = "",
     [string]$ClusterName = "",
