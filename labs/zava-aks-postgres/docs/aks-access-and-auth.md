@@ -111,39 +111,14 @@ The temporary kubeconfig is deleted after the tool call. A built-in call does **
 
 This is why the built-in tools are more than command wrappers. They accept normal kubectl arguments, but the runtime also supplies the managed identity, temporary kubeconfig, certificate handling, private network path, and tool policy.
 
-## Why a built-in call can "warm up" terminal kubectl
+## Terminal kubectl
 
-The current preview runtime has two TLS trust relationships when traffic passes through its egress intermediary:
+Incident runbooks should use the built-in Kubernetes tools. They create temporary
+connection material for each call and do not modify `~/.kube/config`.
 
-1. **Client to intermediary:** kubectl must trust the certificate presented by the runtime intermediary. The built-in path adds the runtime proxy CA to its temporary kubeconfig.
-2. **Intermediary to AKS:** the intermediary must trust the real AKS API-server certificate. The runtime keeps the AKS cluster CA in process-local state.
-
-An existing terminal kubeconfig can already have valid client-side configuration while the second trust relationship is cold. In that state:
-
-- signing in again changes identity state, not upstream TLS trust;
-- `az aks get-credentials` refreshes the terminal kubeconfig, not the intermediary's process-local CA state;
-- `kubelogin convert-kubeconfig` changes token acquisition, not the intermediary's upstream trust;
-- adding a client-side CA can repair the first TLS hop, but not the second.
-
-A successful built-in `RunKubectlReadCommand` or `RunKubectlWriteCommand` against the same cluster registers the AKS CA in the current runtime process. In the live Zava test, terminal `kubectl get nodes` and `kubectl get pods -n zava-demo` then succeeded immediately with the existing kubeconfig and no additional login, credential refresh, `kubelogin`, or CA changes.
-
-That warm-up is:
-
-- process-local;
-- temporary;
-- lost when the runtime restarts;
-- not a replacement for a valid terminal kubeconfig;
-- not something incident runbooks should depend on.
-
-If an exceptional ad-hoc chat truly needs terminal-native kubectl, first complete a harmless built-in read against the same cluster, then use the already-valid terminal kubeconfig. For normal reads, writes, `exec`, rollout, and NetworkPolicy operations, send the kubectl command directly to `RunKubectlReadCommand` or `RunKubectlWriteCommand`.
-
-## Why not preserve the temporary kubeconfig?
-
-The runtime-generated file is temporary and contains no bearer token, password, client private key, or client certificate. Authentication happens when `kubelogin` obtains a short-lived token for the selected managed identity.
-
-Do not treat that as permission to persist arbitrary kubeconfigs. Other kubeconfigs can contain credentials, every copy can reveal cluster and tenant metadata, and certificate or endpoint changes can make a saved copy stale. More importantly, preserving the client file does not repair the separate upstream trust state described above.
-
-For incident automation, let the built-in Kubernetes tools generate current connection material for each call. If terminal-native kubectl is required for an exceptional ad-hoc task, treat its kubeconfig as short-lived configuration and rebuild it rather than storing it as durable agent knowledge.
+Terminal-native kubectl requires its own valid kubeconfig, identity, private
+network path, and TLS configuration. Treat it as an operator access path, not a
+dependency of agent automation.
 
 ## Human and CI access paths
 
@@ -185,7 +160,7 @@ The lab chose the first model because it demonstrates the customer pattern the s
 | API FQDN does not resolve | Private DNS | VNet link, DNS forwarding, and whether the caller uses a connected network |
 | TCP timeout or no route | Network | Peering, route tables, NSGs, firewall rules, VPN/ExpressRoute |
 | `x509: certificate signed by unknown authority` | Client-side TLS trust | Kubeconfig CA data and any runtime intermediary CA |
-| Reset or HTTP/2 error after client trust is correct | Intermediary upstream TLS trust | In the current preview runtime, run a built-in read against the same cluster |
+| Reset or HTTP/2 error after client trust is correct | TLS or intermediary path | Use the built-in Kubernetes tools or validate the operator access path |
 | `kubelogin` or token error | Authentication | Login mode, managed-identity client ID, Entra tenant, token audience |
 | HTTP 403 `Forbidden` | Authorization | AKS Azure RBAC assignment and its scope |
 | `az aks get-credentials` denied | ARM credential retrieval | Cluster User/Admin credential role, which is separate from Kubernetes data-plane RBAC |

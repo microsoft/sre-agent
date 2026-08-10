@@ -70,8 +70,6 @@ load only when relevant.
    table maps alert → ARM-state check → action TYPE — while keeping the actual remediation at
    the action-type level, NOT copy-paste SQL/kubectl recipes. Preserve both halves when
    adding/modifying skills. See AGENTS.md "Non-Obvious Things" for the full rationale.
-6. **Kubernetes tool guidance** — wire `RunKubectlReadCommand` / `RunKubectlWriteCommand`
-   into runtime skills and use them directly. If an ad-hoc chat must use terminal-native
-   kubectl, first issue a built-in read against the same cluster to warm the process-local
-   AKS CA path; the terminal command still needs an already-valid kubeconfig, and the warm-up
-   is lost on runtime restart. This is a side note, not a reason to add `RunInTerminal` to skills.
+6. **Kubernetes tool guidance** — use `RunKubectlReadCommand` and
+   `RunKubectlWriteCommand` directly in runtime skills. Do not make runbooks
+   depend on terminal-native kubectl.

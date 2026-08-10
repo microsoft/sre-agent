@@ -84,13 +84,8 @@ $client.Timeout = [TimeSpan]::FromSeconds(30)
 Write-Host "  Token acquired (audience: azuresre.dev)" -ForegroundColor Green
 
 # --- Step 2: Sync knowledge files (data-plane only — no ARM equivalent) ----
-# Knowledge files are stored as data-plane "connectors" of type KnowledgeFile,
-# under the same /api/v2/extendedAgent/connectors collection that holds
-# AppInsights/LogAnalytics/MCP connectors. The Builder UI > Knowledge Sources
-# view filters this collection to dataConnectorType == "KnowledgeFile".
-# PUT to /connectors/{filename} is idempotent (creates or replaces), so we
-# don't need a separate DELETE step. The body shape mirrors what the portal
-# UI sends, captured via Playwright network trace.
+# Knowledge files are stored as data-plane connectors of type KnowledgeFile.
+# PUT to /connectors/{filename} creates or replaces the named file.
 #
 # Sync semantics: for every local *.md file in sre-config/knowledge-base/, we
 # compute a SHA256 of the bytes and compare to a local hash cache. If the
@@ -274,16 +269,14 @@ if ($present.Count -gt 0) {
 #   GET/PUT {agentEndpoint}/api/v2/agent/customInstructions
 #   body: { "instructions": "<text>" }
 #
-# We ship the correlation nudge: the cheap always-on trigger telling the agent an
-# alert is a signal rather than the whole story, pointing at the
-# `incident-correlation` SKILL (Bicep) for the actual queries.
+# The global instructions cover correlation and bounded parallel investigation.
 Write-Host "`nStep 2c: Syncing custom instructions..." -ForegroundColor Yellow
 $ciPath = Join-Path $PSScriptRoot "..\sre-config\custom-instructions.md"
 $ciText = $null
 $ciCurrent = $null
 $normalizeInstructions = { param($s) if ($null -eq $s) { '' } else { $s.Replace("`r", '').Trim() } }
 if (-not (Test-Path $ciPath)) {
-    Write-Host "  WARNING: sre-config/custom-instructions.md is missing; correlation guidance cannot be synced." -ForegroundColor Yellow
+    Write-Host "  WARNING: sre-config/custom-instructions.md is missing; global guidance cannot be synced." -ForegroundColor Yellow
 } else {
     # The file content IS the payload verbatim — there is no metadata wrapper and
     # no comment syntax to strip, so keep rationale in AGENTS.md, never in here.

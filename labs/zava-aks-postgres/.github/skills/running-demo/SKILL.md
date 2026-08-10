@@ -24,11 +24,8 @@ $storeUrl = "http://$ip"
 $agentUrl = (azd env get-value AGENT_PORTAL_URL)  # deep-links to this agent's blade — sign in if prompted
 ```
 
-When observing or prompting the SRE Agent, prefer its built-in `RunKubectlReadCommand` and
-`RunKubectlWriteCommand`; they accept the same kubectl commands used in a terminal. If a manual
-test absolutely requires terminal-native kubectl, run a built-in read against the cluster first
-to warm the process-local AKS CA path, then use the existing valid terminal kubeconfig. The warm-up
-does not survive a runtime restart.
+When observing or prompting the SRE Agent, use its built-in
+`RunKubectlReadCommand` and `RunKubectlWriteCommand` tools for Kubernetes.
 
 ## Scenario 1: Database Outage
 
@@ -178,8 +175,9 @@ If the script aborts with "Telemetry pipeline is dead", the api pods stopped sen
 
 ## Scenario 5: Compound Independent Faults
 
-This scenario overlaps Scenario 3 and Scenario 4 by 90 seconds. It should
-produce two separate alerts and two independent causes, not one causal story.
+This proof-of-concept scenario overlaps Scenario 3 and Scenario 4 by 90 seconds.
+It demonstrates how to compare two nearby alerts before deciding whether they share
+a cause.
 
 ### Step 1: Confirm healthy state
 1. Navigate to `$storeUrl` and `$storeUrl/api/health`
@@ -198,15 +196,17 @@ waits 90 seconds, then deploys `FAULT_INJECT=500`.
 3. Confirm the `zava-cat-load` Job is active through `Invoke-AksCommand`.
 4. Expect both `Zava-products-query-slow` and `Zava-http-5xx-errors` within 5-10 minutes.
 
-### Step 4: Grade the investigation
-A correct investigation enumerates the nearby alerts and disabled rule inventory,
-then proves the mechanisms are independent:
+### Step 4: Review the investigation
+Confirm that the investigation compares the available evidence:
 - 5xx failures are app-local (`localhost:3001`) and correlate with the rollout.
 - PostgreSQL CPU/latency rises, but its slow queries succeed and create no failed PG dependencies.
 - `Zava-db-cpu-saturation` is present but disabled.
 
-Do not accept alert timestamps alone as causality; every dispatching rule uses
-PT5M evaluation and the 90-second injection order can be reversed at alert time.
+Alert timestamps identify temporal overlap, not causation. Use request, dependency,
+deployment, and PostgreSQL telemetry to establish whether a mechanism is shared.
+
+This scenario is intentionally narrow. It demonstrates one correlation approach and
+does not represent every incident pattern or guarantee a particular model outcome.
 
 ### Step 5: Cleanup
 Let the SRE Agent remediate during a demo. For post-demo cleanup or test teardown:
@@ -228,20 +228,15 @@ This is a read/diagnostic demonstration, not a break/fix — the firewall gates 
 
 ## Watching the SRE Agent
 
-In a separate shell, tail the agent's reasoning live via its data-plane API:
+In a separate shell, view investigation progress through the data-plane API:
 ```powershell
 .\scripts\watch-agent.ps1                              # list all threads
-.\scripts\watch-agent.ps1 -Show -Title slow            # full transcript of latest matching incident
+.\scripts\watch-agent.ps1 -Show -Title slow            # details for latest matching incident
 .\scripts\watch-agent.ps1 -Tail -Title slow            # poll for new messages until Resolved/Closed/Mitigated
 ```
 
-**Be patient.** Agent runtime varies a lot by scenario:
-- S1 (PG stop): typically 3–5 min
-- S2 (NetworkPolicy): can take 30 min to 3+ hours (it has to investigate the NSG red-herring + pods)
-- S3 (missing index): typically 20–40 min
-- S4 (bad deploy): typically 5–15 min (correlate 5xx with rollout history, then `rollout undo`)
-
-Polling "is the symptom gone yet?" is NOT a valid stall signal. The agent may be deep in investigation. Use `-Tail` to see what it is actually doing — only declare a stall if you see repeated re-investigation with no new actions for a long stretch.
+Investigation time varies by scenario and environment. Use `-Tail` to follow progress
+before deciding whether manual cleanup is needed.
 
 ## Playwright MCP Usage
 

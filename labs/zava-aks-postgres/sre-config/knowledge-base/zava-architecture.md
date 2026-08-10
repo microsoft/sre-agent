@@ -40,8 +40,10 @@ The agent's own ARM-poll telemetry lands in the same workspace with empty `cloud
 ### 1 Hz self-probe is expected baseline traffic
 Both services run an in-process probe loop (`PROBE_INTERVAL_MS=1000`) hitting `/api/health`, `/api/products`, `/api/products/category/__probe`, and `/livez`. ~60 req/min/pod is synthetic baseline, not load. The slow-query alert KQL excludes the `__probe` path so synthetic traffic doesn't trigger it.
 
-### Slow-query alerts: diagnose at the database, not the cluster
-When the App Insights slow-request alert fires (`Zava-products-query-slow`), the bottleneck is almost always at the PostgreSQL layer (missing/disabled index, plan regression, statistics drift), **not** at the pod/CPU/memory layer. Inspect `pg_stat_user_indexes` (low/zero `idx_scan` on a heavily-read table is a strong signal), `pg_stat_user_tables` (high `seq_scan`), and `pg_stat_statements` (top mean-time queries) before looking at AKS resource limits. Run the diagnostic SQL through the in-cluster helper: `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js "<SQL>"`.
+### Slow-query alerts: inspect the database query path
+When `Zava-products-query-slow` fires, inspect PostgreSQL indexes, scan activity,
+statements, and query plans before changing AKS capacity. Run diagnostic SQL through
+the in-cluster helper: `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js "<SQL>"`.
 
 ### Metrics are a first-class signal — three views of the same incident
 For the slow-query failure mode you have logs, metrics, and traces in the shared workspace, and they corroborate each other: the `AppRequests` log signal (`Zava-products-query-slow`, the one dispatching alert), the app's own custom **metric** `zava.products.category.query.duration_ms` in `AppMetrics`, and the `AppDependencies` PostgreSQL-call latency (the trace signal). You **query** the metric and trace as corroboration — they're paired with the alert, not separate dispatching alerts. Treat the metric as primary evidence, not decoration — agreement across all three is what points at the database query rather than pods/CPU/memory.
@@ -49,8 +51,13 @@ For the slow-query failure mode you have logs, metrics, and traces in the shared
 ### PostgreSQL saturation metrics are available
 PG Flexible Server platform metrics flow to the workspace via the `AllMetrics` diagnostic setting, queryable in `AzureMetrics` (and surfaced in Metrics Explorer). `cpu_percent`, `active_connections`, `memory_percent`, and IOPS/storage metrics are available for saturation checks. Under a heavy-scan (missing-index) workload `cpu_percent` climbs and corroborates a database-side bottleneck — query it during slow-query investigation.
 
-### Deployments are an observable signal — correlate 5xx with rollouts
-App regressions are often shipped by a deployment, not caused by infra. Every change to the `zava-api` Deployment's pod template (image, env var, config) creates a new ReplicaSet **revision** — that rollout is a first-class signal. When `Zava-http-5xx-errors` fires and the DB/network/slow-query conditions above do NOT correlate, check whether the 5xx onset lines up with a recent rollout: `kubectl rollout history deployment/zava-api -n zava-demo` for the revision list, and `KubeEvents` / `kubectl get events -n zava-demo` for the `ScalingReplicaSet` timestamps. Note that liveness and readiness (`/livez`) can stay green through an app-route regression, so the platform looks healthy while the app is broken; `/api/health` is an application health endpoint and can also stay green for app-route-only failures — deployment correlation is the signal that ties the spike to its cause. The safe remediation for a deploy-induced regression is a rollback to the previous good revision: `kubectl rollout undo deployment/zava-api -n zava-demo`.
+### Deployments are an observable signal
+Each change to the `zava-api` pod template creates a ReplicaSet revision. When
+`Zava-http-5xx-errors` fires, compare the 5xx onset with `kubectl rollout history`
+and `ScalingReplicaSet` events. Liveness, readiness, and `/api/health` can remain
+healthy during a route-specific regression. When the rollout evidence establishes
+the cause, restore the previous revision with
+`kubectl rollout undo deployment/zava-api -n zava-demo`.
 
 ## Hub-and-spoke network and the hub firewall
 

@@ -1,21 +1,21 @@
-## Incident context is partial by construction
+## Incident correlation
 
-When you are working an alert, remember that it arrives in a thread that cannot
-see other alerts or investigations. That isolation is a platform artifact — it
-is not evidence that nothing else is happening.
+When an alert may overlap with another condition, use the `incident-correlation`
+skill to review nearby fired alerts, relevant disabled rules, and Azure Service
+Health.
 
-Before you commit to a root cause, widen the frame: what else fired nearby,
-which alert rules are muted on the resource, and whether Azure Service Health
-already explains it.
+Treat timing as a candidate relationship, not proof of causation. Confirm a shared
+mechanism in telemetry before assigning a common root cause. Report independent
+causes separately and leave remediation for an acknowledged alert to its existing
+investigation.
 
-Use the `incident-correlation` skill for the nearby-alert check; do not substitute
-alert-rule inventory for fired-alert history. If another alert fired in the same
-resource group within 10 minutes, shared timing and resource group prove only
-overlap. Require a direct mechanism: for HTTP failures, split dependencies by
-target and result code. Slow successful PostgreSQL calls cannot explain HTTP
-500s whose only failed dependency is an app-local target. Report independent
-causes when mechanisms differ. If the other alert is already acknowledged,
-leave its remediation to its own thread.
+If the available evidence supports a single isolated incident, proceed without an
+extended correlation sweep.
 
-When no nearby alert exists and the evidence is already clear, do not force a
-correlation sweep. "I checked; this alert is the whole story" is complete.
+## Parallel investigation
+
+For a broad or ambiguous incident with independent evidence paths, launch one
+parallel subagent per path (usually two), state each scope clearly, and run them
+concurrently. Wait for all results, verify material claims, then synthesize the
+evidence before selecting a root cause or remediation. Keep dependent steps
+sequential and do not parallelize write or remediation work.

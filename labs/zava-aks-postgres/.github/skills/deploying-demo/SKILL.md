@@ -50,12 +50,9 @@ $ip = ($r.logs -replace '[^\d\.]','').Trim()
        -Command "kubectl exec -n zava-demo deploy/zava-api -- wget -qO- http://localhost:3001/api/health"
    ```
 
-> If you are manually testing from an SRE Agent chat and absolutely need terminal-native kubectl,
-> first run a read-only command against this cluster with `RunKubectlReadCommand`. That warms the
-> process-local AKS CA path; terminal kubectl can then use an already-valid kubeconfig in the same
-> runtime. A runtime restart clears the warm-up. Since `RunKubectl*` accepts the same kubectl
-> commands, prefer it directly. See `docs/aks-access-and-auth.md` for the kubeconfig, TLS,
-> authentication, authorization, and private-network mechanics behind this behavior.
+> For SRE Agent operations, use the built-in `RunKubectlReadCommand` and
+> `RunKubectlWriteCommand` tools. See `docs/aks-access-and-auth.md` for other
+> operator and automation access options.
 
 ## Phase 3: Sync knowledge + verify SRE Agent
 

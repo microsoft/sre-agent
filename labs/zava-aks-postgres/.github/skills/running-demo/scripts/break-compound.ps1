@@ -1,45 +1,10 @@
 #Requires -Version 7.4
-# Break COMPOUND (Scenario 5): two INDEPENDENT faults, overlapping in time.
+# Break COMPOUND (Scenario 5): two independent faults with overlapping impact.
 #
-# Why this scenario exists
-# ------------------------
-# Scenarios 1-4 each inject exactly one fault, so every alert the agent sees has
-# exactly one cause and "diagnose the alert you were handed" always works. Real
-# incidents are not that tidy, and the lab was teaching a habit that breaks in
-# production: treating the dispatched alert as the whole story.
-#
-# This scenario runs Scenario 3 (drop the category indexes + load generator) and
-# Scenario 4 (FAULT_INJECT=500 bad deploy) so their impact windows overlap. Two
-# alerts then fire within seconds of each other:
-#
-#   Zava-products-query-slow   <- category endpoints breach the 30 ms threshold
-#   Zava-http-5xx-errors       <- GET /api/products returns 500
-#
-# The tempting-but-WRONG read is "the database got slow, so the API started
-# failing" — a clean causal story that fits the timestamps perfectly and is
-# false. The mechanisms are disjoint and the telemetry says so:
-#
-#   5xx path   : HTTP 500, failed dependencies ONLY on localhost:3001,
-#                ZERO failed dependencies against the PG target.
-#   slow path  : PG cpu_percent pegs ~90%, queries are SLOW BUT SUCCEED, so
-#                they produce no dependency FAILURES at all.
-#
-# If DB saturation were causing the 5xx you would see PG dependency failures or
-# 503 timeouts. Neither appears. Two faults, one window, no causal link.
-#
-# What to watch for
-# -----------------
-# A good investigation notices there are two alerts, checks whether one explains
-# the other, finds it does not, and reports two independent incidents. A weak one
-# merges them into a single tidy narrative and "fixes" the DB while the bad deploy
-# keeps serving 500s. Note also that `Zava-db-cpu-saturation` ships DISABLED
-# (infra/modules/monitoring.bicep), so the causal DB signal never alerts at all —
-# the agent has to enumerate the alert RULE inventory to discover it was muted.
-#
-# Ordering note: the two breaks are deliberately started close together but NOT
-# atomically. Alert fire order will NOT match fault-injection order — every
-# dispatching rule is PT5M/PT5M, so detection latency swamps the 90-second offset.
-# That is the point: alert timestamps cannot establish causality here.
+# This proof-of-concept combines the missing-index and bad-deploy scenarios. It
+# demonstrates an evidence-based correlation pattern: use timing to find related
+# candidates, then compare dependency, deployment, and database telemetry before
+# assigning a common cause. The two faults in this scenario are independent.
 param(
     [string]$ResourceGroup = "",
     [string]$ClusterName = "",
@@ -58,20 +23,17 @@ $ctx = Resolve-AksContext -ResourceGroup $ResourceGroup -ClusterName $ClusterNam
 
 Write-Host "=== Scenario 5: COMPOUND break (two independent faults) ===" -ForegroundColor Magenta
 Write-Host "This injects a DB-performance fault and an APP fault so their alerts co-fire." -ForegroundColor Magenta
-Write-Host "They are NOT causally related. See the header of this script for why." -ForegroundColor Magenta
+Write-Host "Use telemetry, not timing alone, to confirm that the causes are independent." -ForegroundColor Magenta
 Write-Host ""
 
 # Delegate to the existing single-fault scripts rather than duplicating their
-# logic. They already carry the load-bearing details (telemetry precheck, drop
-# BOTH indexes, roll the deployment to clear PG plan cache and rewake the OTel
-# exporter, Job-based load generator) and those must not drift out of sync here.
+# logic and keep their setup and cleanup behavior aligned.
 $dbPerf = Join-Path $PSScriptRoot 'break-db-perf.ps1'
 $badDeploy = Join-Path $PSScriptRoot 'break-bad-deploy.ps1'
 
 # --- Fault A: DB performance (index drop + sustained category load) ---------
-# Run this FIRST: it rolls the api deployment as part of its normal flow. Doing
-# it after the FAULT_INJECT change would create another rollout revision and
-# muddy the deployment-correlation signal the agent uses for the 5xx fault.
+# Run this first because it restarts the API deployment. The bad-deploy revision
+# must remain the latest rollout for the application investigation.
 Write-Host "[1/2] Injecting DB-performance fault (drop category indexes + load)..." -ForegroundColor Yellow
 $dbArgs = @{
     ResourceGroup = $ctx.ResourceGroup
