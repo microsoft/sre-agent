@@ -264,8 +264,10 @@ while IFS="=" read -r key _val || [[ -n "$key" ]]; do
     env_name=$(echo "$key" | sed 's/[a-z]/\U&/g;s/[^A-Z0-9]/_/g')
     # Map known secrets to their connector env var names
     case "$key" in
-      dtToken) echo "DYNATRACE_BEARER_TOKEN=$(_get "$VALUES_FILE" "$key")" >> "$SECRETS_ENV" ;;
-      *)       echo "${env_name}=$(_get "$VALUES_FILE" "$key")" >> "$SECRETS_ENV" ;;
+      dtToken)       echo "DYNATRACE_BEARER_TOKEN=$(_get "$VALUES_FILE" "$key")" >> "$SECRETS_ENV" ;;
+      snowPassword)  echo "SERVICENOW_PASSWORD=$(_get "$VALUES_FILE" "$key")" >> "$SECRETS_ENV" ;;
+      gitlabPat)     echo "GITLAB_PAT=$(_get "$VALUES_FILE" "$key")" >> "$SECRETS_ENV" ;;
+      *)             echo "${env_name}=$(_get "$VALUES_FILE" "$key")" >> "$SECRETS_ENV" ;;
     esac
   fi
 done < "$VALUES_FILE"

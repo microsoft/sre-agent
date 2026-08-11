@@ -1,0 +1,49 @@
+{
+  "_description": "Expected configuration for azmon-alert-noise-filter-snow. Used by verify-agent.sh to validate deployments.",
+  "_scenario": "azmon-alert-noise-filter-snow",
+
+  "agent": {
+    "accessLevel": "High",
+    "actionMode": "Review",
+    "upgradeChannel": "Preview",
+    "defaultModelProvider": "Anthropic",
+    "incidentPlatform": "AzMonitor"
+  },
+
+  "connectors": [
+    { "name": "app-insights", "type": "AppInsights" },
+    { "name": "log-analytics", "type": "LogAnalytics" },
+    { "name": "servicenow-mcp", "type": "Mcp" }
+  ],
+
+  "skills": [
+    "alert-noise-filter"
+  ],
+
+  "subagents": [
+    "alert-triage-agent"
+  ],
+
+  "tools": [
+    { "name": "wait-and-recheck-timer", "type": "PythonFunctionTool" }
+  ],
+
+  "hooks": [
+    "deny-prod-deletes",
+    "require-approval-for-restarts",
+    "verify-alert-state-before-action"
+  ],
+
+  "commonPrompts": [
+    "investigation-guidelines",
+    "safety-rules"
+  ],
+
+  "scheduledTasks": [],
+
+  "responsePlans": [
+    { "name": "azmon-all-severities", "handlingAgent": "alert-triage-agent", "mergeEnabled": true, "mergeWindowHours": 1 }
+  ],
+
+  "repos": []
+}

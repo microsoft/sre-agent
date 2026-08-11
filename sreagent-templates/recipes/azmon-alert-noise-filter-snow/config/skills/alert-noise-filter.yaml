@@ -1,0 +1,15 @@
+metadata:
+  name: alert-noise-filter
+  description: "Triages Azure Monitor alerts: runs a 15-minute transient check to classify as noisy vs real, closes noisy alerts, and for real alerts performs investigation and creates a ServiceNow incident ticket."
+  spec:
+    tools:
+    - wait-and-recheck-timer
+    - RunAzCliReadCommands
+    - QueryAppInsightsUsingAppId
+    - QueryLogAnalyticsByWorkspaceId
+    - ExecutePythonCode
+    - PlotAreaChartWithCorrelation
+    - PlotBarChart
+    - SearchMemory
+skillContent: skills/alert-noise-filter.md
+additionalFiles: []

@@ -1,0 +1,13 @@
+{
+  "allow": [
+    "RunInTerminal",
+    "ExecutePythonCode"
+  ],
+  "ask": [
+    "RunAzCliWriteCommands"
+  ],
+  "deny": [
+    "FetchWebpage",
+    "SearchWebpage"
+  ]
+}
