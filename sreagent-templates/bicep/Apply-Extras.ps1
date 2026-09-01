@@ -671,44 +671,67 @@ if ($kCount -gt 0) {
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 4a-2. knowledgeItems — ARM PUT as KnowledgeFile connectors
+# 4a-2. knowledgeItems — data-plane PUT as KnowledgeItem connectors (Knowledge Sources)
 # ═════════════════════════════════════════════════════════════════════════════
 $knowledgeItems = $extras.knowledgeItems
 $kiCount = ($knowledgeItems | Measure-Object).Count
 if ($kiCount -gt 0) {
-    Write-Host "knowledgeItems: $kiCount file(s) -> Knowledge Sources (ARM)"
-    for ($i = 0; $i -lt $kiCount; $i++) {
-        $ki = $knowledgeItems[$i]
-        $fname = $ki.name
-        $content = $ki.content
-        if ([string]::IsNullOrEmpty($content)) {
-            Write-Host "  skip $fname (no content)"
-            continue
-        }
-        $sanitized = ($fname.ToLower() -replace '[^a-z0-9-]', '-') -replace '-+', '-' -replace '^-|-$', ''
-        $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($content))
-        $ctype = switch -Regex ($fname) {
-            '\.md$'   { "text/markdown" }
-            '\.txt$'  { "text/plain" }
-            '\.pdf$'  { "application/pdf" }
-            '\.json$' { "application/json" }
-            default   { "application/octet-stream" }
-        }
-        $body = @{
-            properties = @{
-                dataConnectorType  = "KnowledgeFile"
-                dataSource         = $sanitized
-                extendedProperties = @{
-                    displayName = $fname
-                    fileName    = $fname
-                    fileContent = $b64
-                    contentType = $ctype
-                }
+    if ($dpTokenAvailable) {
+        Write-Host "knowledgeItems: $kiCount file(s) -> Knowledge Sources (data-plane)"
+        for ($i = 0; $i -lt $kiCount; $i++) {
+            $ki = $knowledgeItems[$i]
+            $fname = $ki.name
+            $content = $ki.content
+            if ([string]::IsNullOrEmpty($content)) {
+                Write-Host "  skip $fname (no content)"
+                continue
             }
-        } | ConvertTo-Json -Compress -Depth 10
-        Arm-PutConnector -Name $sanitized -BodyJson $body
-        # KnowledgeFile connectors need 15s between PUTs to avoid 500s
-        if ($i -lt ($kiCount - 1)) { Start-Sleep -Seconds 15 }
+            $sanitized = ($fname.ToLower() -replace '[^a-z0-9-]', '-') -replace '-+', '-' -replace '^-|-$', ''
+            $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($content))
+            $ctype = switch -Regex ($fname) {
+                '\.md$'   { "text/markdown" }
+                '\.txt$'  { "text/plain" }
+                '\.pdf$'  { "application/pdf" }
+                '\.json$' { "application/json" }
+                default   { "application/octet-stream" }
+            }
+            $body = @{
+                name       = $sanitized
+                type       = "KnowledgeItem"
+                tags       = @()
+                properties = @{
+                    dataConnectorType  = "KnowledgeFile"
+                    dataSource         = $sanitized
+                    extendedProperties = @{
+                        displayName = $fname
+                        fileName    = $fname
+                        fileContent = $b64
+                        contentType = $ctype
+                    }
+                }
+            } | ConvertTo-Json -Compress -Depth 10
+            $token = Get-DpToken
+            $url = "${AgentEndpoint}/api/v2/extendedAgent/connectors/$([Uri]::EscapeDataString($sanitized))"
+            try {
+                $result = curl -sS -w "`n%{http_code}" -X PUT $url `
+                    -H "Authorization: Bearer $token" `
+                    -H "Content-Type: application/json" `
+                    --data $body 2>$null
+                $lines = $result -split "`n"
+                $httpCode = $lines[-1]
+                if ($httpCode -match '^2') {
+                    Write-Host "  ok knowledgeItems/$sanitized"
+                } else {
+                    Write-Host "  FAILED - PUT knowledgeItems/$sanitized (HTTP $httpCode)"
+                }
+            } catch {
+                Write-Host "  FAILED - PUT knowledgeItems/$sanitized (exception)"
+            }
+            if ($i -lt ($kiCount - 1)) { Start-Sleep -Seconds 5 }
+        }
+    } else {
+        Write-Host "knowledgeItems: $kiCount - skipped (no data-plane token)"
+        $dpSkippedItems += "knowledgeItems ($kiCount files)"
     }
 }
 

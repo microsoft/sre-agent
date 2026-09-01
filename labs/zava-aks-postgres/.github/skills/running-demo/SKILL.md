@@ -12,7 +12,7 @@ This skill drives the full demo using Playwright MCP for browser control. Execut
 ```powershell
 # AKS is a private cluster — kubectl from your local workstation won't work without VPN/jumpbox.
 # Use `Invoke-AksCommand` (wraps `az aks command invoke` for human-operator polling/diagnostics).
-# The SRE Agent uses native kubectl; this helper is for human operators without the agent's VNet/DNS/proxy setup.
+# The SRE Agent uses the built-in RunKubectl* system tools; this helper is for human operators.
 . .\scripts\_aks-helpers.ps1
 $rg  = (azd env get-value RESOURCE_GROUP)
 $aks = (azd env get-value AKS_CLUSTER_NAME)
@@ -23,6 +23,9 @@ $ip = ($r.logs -replace '[^\d\.]','').Trim()
 $storeUrl = "http://$ip"
 $agentUrl = (azd env get-value AGENT_PORTAL_URL)  # deep-links to this agent's blade — sign in if prompted
 ```
+
+When observing or prompting the SRE Agent, use its built-in
+`RunKubectlReadCommand` and `RunKubectlWriteCommand` tools for Kubernetes.
 
 ## Scenario 1: Database Outage
 
@@ -81,7 +84,7 @@ Wait 30 seconds.
 
 ### Step 4: Watch the agent
 1. Check SRE Agent portal for investigation
-2. Agent needs to find the K8s NetworkPolicy via native `kubectl get networkpolicy -n zava-demo -o yaml` and remove it via `kubectl delete networkpolicy database-tier-isolation -n zava-demo` (run in its sandbox terminal) — this is harder than Scenario 1 and may take longer
+2. Agent needs to find the K8s NetworkPolicy with `RunKubectlReadCommand` using `kubectl get networkpolicy -n zava-demo -o yaml`, then remove it with `RunKubectlWriteCommand` using `kubectl delete networkpolicy database-tier-isolation -n zava-demo` - this is harder than Scenario 1 and may take longer
 3. Poll for NetworkPolicy removal (the AKS API server is private — go through ARM):
    ```powershell
    Invoke-AksCommand -ResourceGroup $rg -ClusterName $aks -Command "kubectl get networkpolicy -n zava-demo"
@@ -117,7 +120,7 @@ If the script aborts with "Telemetry pipeline is dead", the api pods stopped sen
 4. (`break-db-perf.ps1` already launched a 15-min in-cluster Kubernetes Job (`zava-cat-load` in the `zava-demo` namespace) that hammers `/api/products/category/<X>` over the cluster-internal Service DNS. This pushes real traffic past the alert's 30ms threshold — the 1Hz `__probe` is excluded by the alert KQL. The Job auto-cleans 60s after completion via `ttlSecondsAfterFinished`; `fix-db-perf.ps1` also deletes it explicitly. Run with `-NoLoad` to skip.)
 
 ### Step 4: Watch agent
-1. Monitor SRE Agent portal — it should detect slow response times via App Insights, identify the missing index, and run `CREATE INDEX CONCURRENTLY` in-cluster via `bin/run-sql.js` (the agent runs native `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js "<SQL>"` from its sandbox terminal — the helper reuses the pod's workload identity)
+1. Monitor SRE Agent portal - it should detect slow response times via App Insights, identify the missing index, and run `CREATE INDEX CONCURRENTLY` in-cluster via `bin/run-sql.js` (`RunKubectlWriteCommand` executes `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js "<SQL>"`; the helper reuses the pod's workload identity)
 2. Do not run `fix-db-perf.ps1` as part of the demo — same rule as the other scenarios: the script is post-demo cleanup, not an agent-failure fallback.
 
 ### Step 5: Show recovery
@@ -170,6 +173,48 @@ If the script aborts with "Telemetry pipeline is dead", the api pods stopped sen
 1. Navigate to `$storeUrl/api/products` — returns 200 again
 2. Navigate to `$storeUrl` — products load; take screenshot
 
+## Scenario 5: Compound Independent Faults
+
+This proof-of-concept scenario overlaps Scenario 3 and Scenario 4 by 90 seconds.
+It demonstrates how to compare two nearby alerts before deciding whether they share
+a cause.
+
+### Step 1: Confirm healthy state
+1. Navigate to `$storeUrl` and `$storeUrl/api/health`
+2. Confirm products load and the database is connected
+
+### Step 2: Break both paths
+```powershell
+.\.github\skills\running-demo\scripts\break-compound.ps1
+```
+The script drops both category indexes, starts the sustained category load,
+waits 90 seconds, then deploys `FAULT_INJECT=500`.
+
+### Step 3: Verify the overlap
+1. `$storeUrl/api/products` returns HTTP 500 while `/api/health` remains healthy.
+2. Query `/api/diagnostics`; both category indexes are absent and product scans are sequential.
+3. Confirm the `zava-cat-load` Job is active through `Invoke-AksCommand`.
+4. Expect both `Zava-products-query-slow` and `Zava-http-5xx-errors` within 5-10 minutes.
+
+### Step 4: Review the investigation
+Confirm that the investigation compares the available evidence:
+- 5xx failures are app-local (`localhost:3001`) and correlate with the rollout.
+- PostgreSQL CPU/latency rises, but its slow queries succeed and create no failed PG dependencies.
+- `Zava-db-cpu-saturation` is present but disabled.
+
+Alert timestamps identify temporal overlap, not causation. Use request, dependency,
+deployment, and PostgreSQL telemetry to establish whether a mechanism is shared.
+
+This scenario is intentionally narrow. It demonstrates one correlation approach and
+does not represent every incident pattern or guarantee a particular model outcome.
+
+### Step 5: Cleanup
+Let the SRE Agent remediate during a demo. For post-demo cleanup or test teardown:
+```powershell
+.\.github\skills\running-demo\scripts\fix-compound.ps1
+```
+Verify `/api/products` returns 200, both indexes exist, and the load Job is gone.
+
 ## Chat demo: interrogate the hub firewall (network device)
 
 No break needed — this shows the agent treating the **hub Azure Firewall** as a queryable "network device" in the hub-and-spoke topology.
@@ -183,20 +228,15 @@ This is a read/diagnostic demonstration, not a break/fix — the firewall gates 
 
 ## Watching the SRE Agent
 
-In a separate shell, tail the agent's reasoning live via its data-plane API:
+In a separate shell, view investigation progress through the data-plane API:
 ```powershell
 .\scripts\watch-agent.ps1                              # list all threads
-.\scripts\watch-agent.ps1 -Show -Title slow            # full transcript of latest matching incident
+.\scripts\watch-agent.ps1 -Show -Title slow            # details for latest matching incident
 .\scripts\watch-agent.ps1 -Tail -Title slow            # poll for new messages until Resolved/Closed/Mitigated
 ```
 
-**Be patient.** Agent runtime varies a lot by scenario:
-- S1 (PG stop): typically 3–5 min
-- S2 (NetworkPolicy): can take 30 min to 3+ hours (it has to investigate the NSG red-herring + pods)
-- S3 (missing index): typically 20–40 min
-- S4 (bad deploy): typically 5–15 min (correlate 5xx with rollout history, then `rollout undo`)
-
-Polling "is the symptom gone yet?" is NOT a valid stall signal. The agent may be deep in investigation. Use `-Tail` to see what it is actually doing — only declare a stall if you see repeated re-investigation with no new actions for a long stretch.
+Investigation time varies by scenario and environment. Use `-Tail` to follow progress
+before deciding whether manual cleanup is needed.
 
 ## Playwright MCP Usage
 

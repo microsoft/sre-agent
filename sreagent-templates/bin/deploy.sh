@@ -207,6 +207,7 @@ fi
 
 # ── Run the deployment with progress visible ──
 TMP=$(mktemp)
+TMP_ERR=$(mktemp)
 
 # ── Pre-deploy: auto-create VNet subnet with delegation if networkConfiguration.type=vnet ──
 AGENT_JSON_FILE="${INPUT}/agent.json"
@@ -217,7 +218,7 @@ if [[ -f "$AGENT_JSON_FILE" ]]; then
     NET_RG=$(jq -r '.networkConfiguration.resourceGroup // ""' "$AGENT_JSON_FILE")
     NET_VNET=$(jq -r '.networkConfiguration.vnetName // ""' "$AGENT_JSON_FILE")
     NET_SUBNET_NAME=$(jq -r '.networkConfiguration.subnetName // "agent-subnet"' "$AGENT_JSON_FILE")
-    NET_SUBNET_PREFIX=$(jq -r '.networkConfiguration.subnetPrefix // "10.2.0.0/27"' "$AGENT_JSON_FILE")
+    NET_SUBNET_PREFIX=$(jq -r '.networkConfiguration.subnetPrefix // "10.2.0.0/28"' "$AGENT_JSON_FILE")
 
     # Resolve subnet ID from broken-out fields if not given directly
     if [[ -z "$NET_SUBNET_ID" && -n "$NET_VNET" && -n "$NET_RG" ]]; then
@@ -278,15 +279,16 @@ az deployment sub create \
   --name "$NAME" \
   --template-file "$TEMPLATE" \
   --parameters "@${FILE}" ${SKIP_RBAC:+--parameters $SKIP_RBAC} \
-  --output json > "$TMP" 2>&1
-AZ_RC=$?
+  --output json > "$TMP" 2>"$TMP_ERR" || true
 cat "$TMP"
+[[ -s "$TMP_ERR" ]] && cat "$TMP_ERR" >&2
 
 # ── Post-deploy: print key links ──
-STATE=$(jq -r '.properties.provisioningState // "?"' "$TMP" 2>/dev/null || echo "Failed")
+STATE=$(jq -r '.properties.provisioningState // "?"' "$TMP" 2>/dev/null || echo "?")
 # If az exited non-zero but jq can't parse the output, fall back to querying ARM
-if [[ "$STATE" == "?" && $AZ_RC -ne 0 ]]; then
+if [[ -z "$STATE" || "$STATE" == "?" ]]; then
   STATE=$(az deployment sub show -n "$NAME" --query 'properties.provisioningState' -o tsv 2>/dev/null || echo "Failed")
+  [[ -n "$STATE" ]] || STATE="Failed"
 fi
 # ── Colors (if terminal supports it) ──
 if [[ -t 1 ]]; then

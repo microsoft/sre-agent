@@ -16,6 +16,7 @@ This repository is the official community hub for Azure SRE Agent. Here you'll f
 | Portal (Create & Manage Agents) | <https://aka.ms/sreagent> |
 | Documentation | <https://aka.ms/sreagent/newdocs> |
 | Pricing & Billing | <https://aka.ms/sreagent/pricing> |
+| Designing & Practicing ZeroOps using Azure SRE Agent | <https://aka.ms/sreagent/zeroops> |
 | All Blogs | <https://aka.ms/sreagent/blog> |
 | YouTube Channel | <https://aka.ms/sreagent/youtube> |
 | GitHub — Azure SRE Agent (Report Issues, Official Labs & Resources) | <https://aka.ms/sreagent/github> |

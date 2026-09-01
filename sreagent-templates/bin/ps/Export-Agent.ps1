@@ -140,11 +140,24 @@ if (Test-Path $PrereqScript) {
     . $PrereqScript
     if (-not (Test-Prerequisites -IncludePython -IncludeCurl)) { exit 1 }
 } else {
-    foreach ($cmd in @('jq', 'az', 'python3', 'curl')) {
+    foreach ($cmd in @('jq', 'az', 'curl')) {
         if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
             Write-Host "Error: $cmd is required but not found." -ForegroundColor Red
             exit 1
         }
+    }
+    # Python: accept python3 (macOS/Linux) or python (Windows)
+    if (-not (Get-Command python3 -ErrorAction SilentlyContinue)) {
+        if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
+            Write-Host "Error: python3 or python is required but not found." -ForegroundColor Red
+            exit 1
+        }
+    }
+}
+# Ensure 'python3' resolves everywhere — on Windows only 'python' may exist
+if (-not (Get-Command python3 -ErrorAction SilentlyContinue)) {
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        Set-Alias -Name python3 -Value python -Scope Script
     }
 }
 . (Join-Path $PSScriptRoot 'Invoke-Jq.ps1')
@@ -456,33 +469,106 @@ $CONNECTORS = $RAW_CONNECTORS | Invoke-Jq -Compact -Filter '[.[] |
 Remove-Item $dpTmpFile -Force -ErrorAction SilentlyContinue
 $CONNECTORS = Invoke-Sanitize $CONNECTORS
 
-# ── Tools (opaque) ──
-_log 'Reading tools...'
+# ── Tools (opaque; data-plane fallback for 3P tenants) ──
+_log 'Reading tools (ARM)...'
 $RAW_TOOLS = Invoke-ArmList 'tools'
-$TOOL_COUNT = ($RAW_TOOLS | jq 'length') -as [int]
-_log "  Found ${TOOL_COUNT} tool(s)"
-$TOOLS = ConvertFrom-OpaqueArm $RAW_TOOLS
+$TOOLS_ARM_COUNT = ($RAW_TOOLS | jq 'length') -as [int]
+if ($TOOLS_ARM_COUNT -gt 0) {
+    $TOOLS = ConvertFrom-OpaqueArm $RAW_TOOLS
+    $TOOL_COUNT = $TOOLS_ARM_COUNT
+    _log "  Found ${TOOLS_ARM_COUNT} tool(s) via ARM"
+} else {
+    _log '  None via ARM, trying data-plane...'
+    $RAW_TOOLS_DP = Invoke-DpGet '/api/v2/extendedAgent/tools'
+    if ($RAW_TOOLS_DP -ne 'null') {
+        $TOOLS = $RAW_TOOLS_DP | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {
+            metadata: { name: .name },
+            spec: (.properties // {})
+        }]'
+        if (-not $TOOLS) { $TOOLS = '[]' }
+    } else {
+        $TOOLS = '[]'
+    }
+    $TOOL_COUNT = ($TOOLS | jq 'length') -as [int]
+    _log "  Found ${TOOL_COUNT} tool(s) via data-plane"
+}
 
-# ── Skills (opaque, special shape) ──
-_log 'Reading skills...'
+# ── Skills (opaque, special shape; data-plane fallback for 3P tenants) ──
+_log 'Reading skills (ARM)...'
 $RAW_SKILLS = Invoke-ArmList 'skills'
-$SKILL_COUNT = ($RAW_SKILLS | jq 'length') -as [int]
-_log "  Found ${SKILL_COUNT} skill(s)"
-$SKILLS = ConvertFrom-SkillsArm $RAW_SKILLS
+$SKILLS_ARM_COUNT = ($RAW_SKILLS | jq 'length') -as [int]
+if ($SKILLS_ARM_COUNT -gt 0) {
+    $SKILLS = ConvertFrom-SkillsArm $RAW_SKILLS
+    $SKILL_COUNT = $SKILLS_ARM_COUNT
+    _log "  Found ${SKILLS_ARM_COUNT} skill(s) via ARM"
+} else {
+    _log '  None via ARM, trying data-plane...'
+    $RAW_SKILLS_DP = Invoke-DpGet '/api/v2/extendedAgent/skills'
+    if ($RAW_SKILLS_DP -ne 'null') {
+        $SKILLS = $RAW_SKILLS_DP | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {
+            metadata: {
+                name: .name,
+                description: (.properties.description // ""),
+                spec: { tools: (.properties.tools // []) }
+            },
+            skillContent: (.properties.skillContent // ""),
+            additionalFiles: (.properties.additionalFiles // [])
+        }]'
+        if (-not $SKILLS) { $SKILLS = '[]' }
+    } else {
+        $SKILLS = '[]'
+    }
+    $SKILL_COUNT = ($SKILLS | jq 'length') -as [int]
+    _log "  Found ${SKILL_COUNT} skill(s) via data-plane"
+}
 
-# ── Scheduled Tasks (opaque) ──
-_log 'Reading scheduled tasks...'
+# ── Scheduled Tasks (opaque; data-plane fallback for 3P tenants) ──
+_log 'Reading scheduled tasks (ARM)...'
 $RAW_TASKS = Invoke-ArmList 'scheduledTasks'
-$TASK_COUNT = ($RAW_TASKS | jq 'length') -as [int]
-_log "  Found ${TASK_COUNT} scheduled task(s)"
-$SCHEDULED_TASKS = ConvertFrom-OpaqueArm $RAW_TASKS
+$TASKS_ARM_COUNT = ($RAW_TASKS | jq 'length') -as [int]
+if ($TASKS_ARM_COUNT -gt 0) {
+    $SCHEDULED_TASKS = ConvertFrom-OpaqueArm $RAW_TASKS
+    $TASK_COUNT = $TASKS_ARM_COUNT
+    _log "  Found ${TASKS_ARM_COUNT} scheduled task(s) via ARM"
+} else {
+    _log '  None via ARM, trying data-plane...'
+    $RAW_TASKS_DP = Invoke-DpGet '/api/v2/extendedAgent/scheduledtasks'
+    if ($RAW_TASKS_DP -ne 'null') {
+        $SCHEDULED_TASKS = $RAW_TASKS_DP | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {
+            metadata: { name: .name },
+            spec: (.properties // {})
+        }]'
+        if (-not $SCHEDULED_TASKS) { $SCHEDULED_TASKS = '[]' }
+    } else {
+        $SCHEDULED_TASKS = '[]'
+    }
+    $TASK_COUNT = ($SCHEDULED_TASKS | jq 'length') -as [int]
+    _log "  Found ${TASK_COUNT} scheduled task(s) via data-plane"
+}
 
-# ── Incident Filters (opaque) ──
-_log 'Reading incident filters...'
+# ── Incident Filters (opaque; data-plane fallback for 3P tenants) ──
+_log 'Reading incident filters (ARM)...'
 $RAW_FILTERS = Invoke-ArmList 'incidentFilters'
-$FILTER_COUNT = ($RAW_FILTERS | jq 'length') -as [int]
-_log "  Found ${FILTER_COUNT} incident filter(s)"
-$INCIDENT_FILTERS = ConvertFrom-OpaqueArm $RAW_FILTERS
+$FILTERS_ARM_COUNT = ($RAW_FILTERS | jq 'length') -as [int]
+if ($FILTERS_ARM_COUNT -gt 0) {
+    $INCIDENT_FILTERS = ConvertFrom-OpaqueArm $RAW_FILTERS
+    $FILTER_COUNT = $FILTERS_ARM_COUNT
+    _log "  Found ${FILTERS_ARM_COUNT} incident filter(s) via ARM"
+} else {
+    _log '  None via ARM, trying data-plane...'
+    $RAW_FILTERS_DP = Invoke-DpGet '/api/v2/extendedAgent/incidentFilters'
+    if ($RAW_FILTERS_DP -ne 'null') {
+        $INCIDENT_FILTERS = $RAW_FILTERS_DP | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {
+            metadata: { name: .name },
+            spec: (.properties // {})
+        }]'
+        if (-not $INCIDENT_FILTERS) { $INCIDENT_FILTERS = '[]' }
+    } else {
+        $INCIDENT_FILTERS = '[]'
+    }
+    $FILTER_COUNT = ($INCIDENT_FILTERS | jq 'length') -as [int]
+    _log "  Found ${FILTER_COUNT} incident filter(s) via data-plane"
+}
 
 # ── Incident Handlers (data-plane) — merge customInstructions ──
 _log 'Reading incident handlers (data-plane)...'
@@ -506,12 +592,29 @@ if ($DP_HANDLER_COUNT -gt 0) {
     _log '  Merged customInstructions into filters'
 }
 
-# ── Subagents (opaque) ──
-_log 'Reading subagents...'
+# ── Subagents (opaque; data-plane fallback for 3P tenants) ──
+_log 'Reading subagents (ARM)...'
 $RAW_SUBAGENTS = Invoke-ArmList 'subagents'
-$SUBAGENT_COUNT = ($RAW_SUBAGENTS | jq 'length') -as [int]
-_log "  Found ${SUBAGENT_COUNT} subagent(s)"
-$SUBAGENTS = ConvertFrom-OpaqueArm $RAW_SUBAGENTS
+$SUBAGENTS_ARM_COUNT = ($RAW_SUBAGENTS | jq 'length') -as [int]
+if ($SUBAGENTS_ARM_COUNT -gt 0) {
+    $SUBAGENTS = ConvertFrom-OpaqueArm $RAW_SUBAGENTS
+    $SUBAGENT_COUNT = $SUBAGENTS_ARM_COUNT
+    _log "  Found ${SUBAGENTS_ARM_COUNT} subagent(s) via ARM"
+} else {
+    _log '  None via ARM, trying data-plane...'
+    $RAW_SUBAGENTS_DP = Invoke-DpGet '/api/v2/extendedAgent/agents'
+    if ($RAW_SUBAGENTS_DP -ne 'null') {
+        $SUBAGENTS = $RAW_SUBAGENTS_DP | Invoke-Jq -Compact -Filter '[(.value // . // [])[] | {
+            metadata: { name: .name },
+            spec: (.properties // {})
+        }]'
+        if (-not $SUBAGENTS) { $SUBAGENTS = '[]' }
+    } else {
+        $SUBAGENTS = '[]'
+    }
+    $SUBAGENT_COUNT = ($SUBAGENTS | jq 'length') -as [int]
+    _log "  Found ${SUBAGENT_COUNT} subagent(s) via data-plane"
+}
 
 # ── Hooks (ARM) ──
 _log 'Reading hooks (ARM)...'
@@ -806,7 +909,7 @@ if ($INCLUDE_KNOWLEDGE) {
     _log 'Skipping AgentMemory documents (use -IncludeAll to include)'
 }
 
-# 2. Knowledge items (via connectors API)
+# 2. Knowledge items (via connectors API) — preserved as knowledgeItems for data-plane deploy
 if ($INCLUDE_KNOWLEDGE_ITEMS) {
     _log 'Reading knowledge items from connectors API...'
     $RAW_KNOWLEDGE_ITEMS = Invoke-DpGet '/api/v2/extendedAgent/connectors'
@@ -816,11 +919,11 @@ if ($INCLUDE_KNOWLEDGE_ITEMS) {
             select(.properties.dataConnectorType // "" | test("^Knowledge")) |
             {
                 name: .name,
-                type: .properties.dataConnectorType,
-                displayName: (.properties.displayName // .name),
+                type: (.type // "KnowledgeItem"),
+                dataConnectorType: .properties.dataConnectorType,
+                displayName: (.properties.displayName // .properties.extendedProperties.displayName // .name),
                 sourceUrl: (.properties.sourceUrl // ""),
-                metadata: (.properties.metadata // {}),
-                fileSize: (.properties.fileSize // 0)
+                properties: .properties
             }
         ]'
         if (-not $KNOWLEDGE_ITEMS) { $KNOWLEDGE_ITEMS = '[]' }
@@ -828,49 +931,27 @@ if ($INCLUDE_KNOWLEDGE_ITEMS) {
     $KI_COUNT = ($KNOWLEDGE_ITEMS | jq 'length') -as [int]
     _log "  Found ${KI_COUNT} knowledge item(s)"
 
-    # Download knowledge item content; KnowledgeText → .md in data/ (AgentMemory path on redeploy)
+    # Download content for knowledge items if requested
     if ($DOWNLOAD_FILES -and $KI_COUNT -gt 0) {
         _log '  Downloading knowledge item content...'
         $KI_DIR = Join-Path $FILES_DIR 'knowledge-items'
         if (-not (Test-Path $KI_DIR)) { New-Item -ItemType Directory -Path $KI_DIR -Force | Out-Null }
-        $KI_TEXT_EXPORTED = 0
-        $KI_OTHER_ITEMS = '[]'
         for ($i = 0; $i -lt $KI_COUNT; $i++) {
             $kiname = $KNOWLEDGE_ITEMS | jq -r --argjson i $i '.[$i].name'
-            $kitype = $KNOWLEDGE_ITEMS | jq -r --argjson i $i '.[$i].type'
+            $kitype = $KNOWLEDGE_ITEMS | jq -r --argjson i $i '.[$i].dataConnectorType'
             $encodedName = [System.Uri]::EscapeDataString($kiname)
-            if ($kitype -eq 'KnowledgeText') {
-                # Export as .md file in data/ → will be uploaded via AgentMemory on redeploy
-                $fname = "${kiname}.md"
-                if ($kiname -match '-md$') { $fname = ($kiname -replace '-md$', '') + '.md' }
-                $ok = Invoke-DpDownload "/api/v2/extendedAgent/connectors/${encodedName}/content" (Join-Path $KI_DIR $fname)
-                if ($ok) {
-                    _log "    + ${kiname} -> data/${fname} (will use AgentMemory on redeploy)"
-                    $KI_TEXT_EXPORTED++
-                } else {
-                    _log "    x ${kiname} (could not download content)"
-                }
-            } else {
-                # Non-text items (WebPage, File, Repository) stay as knowledgeItems
-                $ext = switch ($kitype) {
-                    'KnowledgeWebPage' { '.html' }
-                    'KnowledgeFile'    { '' }
-                    default            { '.json' }
-                }
-                $ok = Invoke-DpDownload "/api/v2/extendedAgent/connectors/${encodedName}/content" (Join-Path $KI_DIR "${kiname}${ext}")
-                if ($ok) {
-                    _log "    + ${kiname} (${kitype})"
-                } else {
-                    _log "    x ${kiname} (could not download content)"
-                }
-                $KI_OTHER_ITEMS = $KI_OTHER_ITEMS | Invoke-Jq -Compact -Filter '. + [$item + {localPath: ($dir + "/" + $item.name + $ext)}]' `
-                    -ExtraArgs @('--argjson', 'item', ($KNOWLEDGE_ITEMS | jq --argjson i $i '.[$i]'), '--arg', 'dir', $KI_DIR, '--arg', 'ext', $ext)
+            $ext = switch ($kitype) {
+                'KnowledgeText'    { '.md' }
+                'KnowledgeWebPage' { '.html' }
+                'KnowledgeFile'    { '' }
+                default            { '.json' }
             }
-        }
-        # Only keep non-text items in KNOWLEDGE_ITEMS (text ones became .md files)
-        $KNOWLEDGE_ITEMS = $KI_OTHER_ITEMS
-        if ($KI_TEXT_EXPORTED -gt 0) {
-            _log "  Migrated ${KI_TEXT_EXPORTED} KnowledgeText item(s) to data/ .md files (AgentMemory path)"
+            $ok = Invoke-DpDownload "/api/v2/extendedAgent/connectors/${encodedName}/content" (Join-Path $KI_DIR "${kiname}${ext}")
+            if ($ok) {
+                _log "    + ${kiname} (${kitype})"
+            } else {
+                _log "    x ${kiname} (could not download content)"
+            }
         }
     }
 } else {
@@ -961,6 +1042,27 @@ if ($INCLUDE_REPO_INSTRUCTIONS -and $REPO_COUNT -gt 0) {
     _log 'Skipping repo instructions (use -IncludeRepoInstructions to include)'
 }
 
+# Session Insights (data-plane — learned patterns from past sessions)
+_log 'Reading session insights...'
+$RAW_SESSION_INSIGHTS = Invoke-DpGet '/api/v1/threads/insights?skip=0&take=1000'
+if ($RAW_SESSION_INSIGHTS -ne 'null') {
+    $SESSION_INSIGHTS = $RAW_SESSION_INSIGHTS | Invoke-Jq -Compact -Filter '[(.insights // [])[] | {
+        id: .id,
+        threadId: .threadId,
+        title: .title,
+        generatedTimestamp: .generatedTimestamp,
+        insightMarkdown: .insightMarkdown,
+        feedbackCount: (.feedbackCount // 0),
+        positiveFeedbackCount: (.positiveFeedbackCount // 0),
+        negativeFeedbackCount: (.negativeFeedbackCount // 0)
+    }]'
+    if (-not $SESSION_INSIGHTS) { $SESSION_INSIGHTS = '[]' }
+} else {
+    $SESSION_INSIGHTS = '[]'
+}
+$SESSION_INSIGHT_COUNT = ($SESSION_INSIGHTS | jq 'length') -as [int]
+_log "  Found ${SESSION_INSIGHT_COUNT} session insight(s)"
+
 Write-Host ''
 
 # ═══════════════════════════════════════════════════════════════════
@@ -998,6 +1100,7 @@ Write-Host "  Webhook bridge:     $(if ($BRIDGE_EXISTS) { 'yes' } else { 'no' })
 Write-Host "  Incident platforms: ${INCIDENT_PLATFORM_COUNT}"
 Write-Host "  Scheduled tasks:    ${TASK_COUNT}"
 Write-Host "  Incident filters:   ${FILTER_COUNT}"
+Write-Host "  Session insights:   ${SESSION_INSIGHT_COUNT}"
 
 if ($DryRun) {
     Write-Host ''
@@ -1011,7 +1114,13 @@ Write-Host ''
 # Phase 5: Write structured output
 # ═══════════════════════════════════════════════════════════════════
 
-$EXPORT_DIR = $Output
+# Resolve to absolute path — [System.IO.File]::WriteAllText uses .NET CWD which
+# can diverge from PowerShell CWD, causing "Could not find a part of the path" errors.
+if ([System.IO.Path]::IsPathRooted($Output)) {
+    $EXPORT_DIR = $Output
+} else {
+    $EXPORT_DIR = Join-Path $PWD $Output
+}
 if (-not (Test-Path (Join-Path $EXPORT_DIR 'config'))) {
     New-Item -ItemType Directory -Path (Join-Path $EXPORT_DIR 'config') -Force | Out-Null
 }
@@ -1542,7 +1651,7 @@ if ($piCount -gt 0) {
     }
 }
 
-# ═══════ 4. data/ — knowledge, memories, repo instructions ═══════
+# ═══════ 4. data/ — knowledge, memories, repo instructions, session insights ═══════
 
 _info 'Writing data/ files'
 
@@ -1552,6 +1661,29 @@ foreach ($subDir in @('knowledge', 'synthesized-knowledge')) {
     if (-not (Test-Path $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null }
     $gitkeep = Join-Path $p '.gitkeep'
     if (-not (Test-Path $gitkeep)) { '' | Set-Content $gitkeep }
+}
+
+# Session insights → individual .md files + metadata YAML
+if ($SESSION_INSIGHT_COUNT -gt 0) {
+    $siDir = Join-Path $DATA_DIR 'session-insights'
+    if (-not (Test-Path $siDir)) { New-Item -ItemType Directory -Path $siDir -Force | Out-Null }
+    for ($i = 0; $i -lt $SESSION_INSIGHT_COUNT; $i++) {
+        $siId = $SESSION_INSIGHTS | jq -r --argjson i $i '.[$i].id'
+        $siTitle = $SESSION_INSIGHTS | jq -r --argjson i $i '.[$i].title'
+        # Sanitize title for filename
+        $siFname = ($siTitle -replace '[^a-zA-Z0-9]', '-' -replace '-+', '-' -replace '^-|-$', '').ToLower()
+        if ($siFname.Length -gt 80) { $siFname = $siFname.Substring(0, 80) }
+        if (-not $siFname) { $siFname = $siId }
+        # Write insight markdown content
+        $siMd = $SESSION_INSIGHTS | Invoke-Jq -Raw -Filter '.[$i].insightMarkdown // ""' -ExtraArgs @('--argjson', 'i', "$i")
+        if ($siMd) {
+            [System.IO.File]::WriteAllText((Join-Path $siDir "${siFname}.md"), $siMd)
+        }
+        # Write metadata YAML (without the large markdown blob)
+        $SESSION_INSIGHTS | Invoke-Jq -Filter '.[$i] | del(.insightMarkdown) | . + {insightMarkdown: ("session-insights/" + $fname + ".md")}' -ExtraArgs @('--argjson', 'i', "$i", '--arg', 'fname', $siFname) |
+            ConvertTo-Yaml | Set-Content -Path (Join-Path $siDir "${siFname}.yaml") -NoNewline -Encoding utf8
+    }
+    _log "  session-insights: ${SESSION_INSIGHT_COUNT} file(s)"
 }
 
 $knowledgeCount = ($KNOWLEDGE | jq 'length') -as [int]
@@ -1588,21 +1720,13 @@ if ($DOWNLOAD_FILES -and (Test-Path $FILES_DIR)) {
             Copy-Item -Path (Join-Path $srcDir '*') -Destination $destDir -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
-    # KnowledgeText .md files go to data/ root so assemble auto-discovers them
-    # for AgentMemory upload (not back into knowledge-items which creates ARM connectors)
+    # Knowledge items stay in knowledge-items/ for data-plane connector PUT on redeploy
     $kiSrcDir = Join-Path $FILES_DIR 'knowledge-items'
     if (Test-Path $kiSrcDir) {
-        foreach ($f in Get-ChildItem -Path $kiSrcDir -Filter '*.md' -File -ErrorAction SilentlyContinue) {
-            Copy-Item $f.FullName (Join-Path $DATA_DIR $f.Name) -Force
-        }
-        # Non-.md files (WebPage, File) stay in knowledge-items/
-        $nonMdFiles = Get-ChildItem -Path $kiSrcDir -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -ne '.md' }
-        if ($nonMdFiles) {
-            $kiDestDir = Join-Path $DATA_DIR 'knowledge-items'
-            if (-not (Test-Path $kiDestDir)) { New-Item -ItemType Directory -Path $kiDestDir -Force | Out-Null }
-            foreach ($f in $nonMdFiles) {
-                Copy-Item $f.FullName (Join-Path $kiDestDir $f.Name) -Force
-            }
+        $kiDestDir = Join-Path $DATA_DIR 'knowledge-items'
+        if (-not (Test-Path $kiDestDir)) { New-Item -ItemType Directory -Path $kiDestDir -Force | Out-Null }
+        foreach ($f in Get-ChildItem -Path $kiSrcDir -File -ErrorAction SilentlyContinue) {
+            Copy-Item $f.FullName (Join-Path $kiDestDir $f.Name) -Force
         }
     }
     if ($FILES_DIR -ne $DATA_DIR -and $FILES_DIR -ne (Join-Path $EXPORT_DIR 'data')) {

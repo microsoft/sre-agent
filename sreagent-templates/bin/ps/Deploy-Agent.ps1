@@ -407,7 +407,7 @@ if ($IsDirectory) {
             $netRg = if ($netCfg.resourceGroup) { $netCfg.resourceGroup } else { '' }
             $netVnet = if ($netCfg.vnetName) { $netCfg.vnetName } else { '' }
             $netSubnetName = if ($netCfg.subnetName) { $netCfg.subnetName } else { 'agent-subnet' }
-            $netSubnetPrefix = if ($netCfg.subnetPrefix) { $netCfg.subnetPrefix } else { '10.2.0.0/27' }
+            $netSubnetPrefix = if ($netCfg.subnetPrefix) { $netCfg.subnetPrefix } else { '10.2.0.0/28' }
 
             # Resolve subnet ID from broken-out fields if not given directly
             if (-not $netSubnetId -and $netVnet -and $netRg) {

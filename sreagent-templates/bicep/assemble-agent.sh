@@ -177,7 +177,7 @@ NET_SUBNET_ID=$(echo "$AGENT_JSON" | jq -r '.networkConfiguration.subnetId // ""
 NET_RG=$(echo "$AGENT_JSON" | jq -r '.networkConfiguration.resourceGroup // ""')
 NET_VNET=$(echo "$AGENT_JSON" | jq -r '.networkConfiguration.vnetName // ""')
 NET_SUBNET_NAME=$(echo "$AGENT_JSON" | jq -r '.networkConfiguration.subnetName // "agent-subnet"')
-NET_SUBNET_PREFIX=$(echo "$AGENT_JSON" | jq -r '.networkConfiguration.subnetPrefix // "10.2.0.0/27"')
+NET_SUBNET_PREFIX=$(echo "$AGENT_JSON" | jq -r '.networkConfiguration.subnetPrefix // "10.2.0.0/28"')
 NET_ALLOWED_HOSTS=$(echo "$AGENT_JSON" | jq -c '.networkConfiguration.allowedHosts // []')
 NET_ALLOWED_REGISTRIES=$(echo "$AGENT_JSON" | jq -c '.networkConfiguration.allowedRegistries // []')
 NET_ALLOWED_CODE_REPOS=$(echo "$AGENT_JSON" | jq -c '.networkConfiguration.allowedCodeRepositories // []')
@@ -301,18 +301,20 @@ fi
 REPO_INSTRUCTIONS="[]"
 [[ -f "${DIR}/data/repo-instructions.json" ]] && REPO_INSTRUCTIONS=$(cat "${DIR}/data/repo-instructions.json")
 
-# Auto-discover .md files in data/ and data/knowledge/ → upload via AgentMemory (data-plane)
-# These show in the portal Knowledge tab (RAG-indexed), NOT as KnowledgeFile connectors.
+# Auto-discover .md files in data/, data/knowledge/, data/session-insights/ → knowledgeItems
+# Deployed via data-plane PUT /api/v2/extendedAgent/connectors/{name} as KnowledgeItem.
+# Session insights from a prior agent are made available as knowledge items on the new agent.
 MD_FILES=$(find "${DIR}/data" -maxdepth 1 -name "*.md" -type f 2>/dev/null || true; \
-           find "${DIR}/data/knowledge" -maxdepth 1 -name "*.md" -type f 2>/dev/null || true)
+           find "${DIR}/data/knowledge" -maxdepth 1 -name "*.md" -type f 2>/dev/null || true; \
+           find "${DIR}/data/session-insights" -maxdepth 1 -name "*.md" -type f 2>/dev/null || true)
 if [[ -n "$MD_FILES" ]]; then
   MD_COUNT=$(echo "$MD_FILES" | wc -l | tr -d ' ')
   _log "Found ${MD_COUNT} knowledge .md file(s) in data/"
   for mdf in $MD_FILES; do
     fname=$(basename "$mdf")
-    abs_path=$(cd "$(dirname "$mdf")" && pwd)/$(basename "$mdf")
-    KNOWLEDGE=$(echo "$KNOWLEDGE" | jq --arg fname "$fname" --arg path "$abs_path" \
-      '. + [{"filename": $fname, "mimeType": "text/markdown", "triggerIndexing": true, "localPath": $path}]')
+    content=$(cat "$mdf")
+    KNOWLEDGE_ITEMS=$(echo "$KNOWLEDGE_ITEMS" | jq --arg name "$fname" --arg content "$content" \
+      '. + [{"name": $name, "type": "KnowledgeText", "content": $content}]')
   done
 fi
 
@@ -444,7 +446,7 @@ jq -n \
       "marketplaces": $marketplaces,
       "installations": $installations
     },
-    "connectors": [$connectors[] | select(.properties.dataConnectorType == "Mcp" or .properties.dataConnectorType == "KnowledgeFile")],
+    "connectors": [$connectors[] | select(.properties.dataConnectorType == "Mcp")],
     "skills": $skills,
     "subagents": $subagents,
     "tools": $tools,

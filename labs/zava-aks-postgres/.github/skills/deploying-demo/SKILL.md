@@ -10,10 +10,14 @@ Run these and install anything missing:
 - `az version` — need 2.60+
 - `azd version` — need 1.9+
 - `pwsh -v` — need 7.4+
+- Azure permission: Owner, User Access Administrator, or equivalent
+  `Microsoft.Authorization/roleAssignments/write` at subscription scope. The
+  template grants the agent runtime identity subscription Reader for correlation
+  context and removes it during `azd down`.
 
 > Note: `kubectl` is **not** required on your local workstation. The cluster is private. Operator
 > scripts in this repo go through `az aks command invoke` (wrapped by `scripts/_aks-helpers.ps1`).
-> The SRE Agent reaches the cluster the same way through its `az` CLI tools — no kubeconfig either side.
+> The SRE Agent uses its built-in `RunKubectlReadCommand` and `RunKubectlWriteCommand` tools instead.
 
 ## Phase 1: Azure Deployment
 1. Check if user has a subscription: `az account show`
@@ -25,7 +29,7 @@ Run these and install anything missing:
 
 ## Phase 2: Verify Deployment
 The AKS API server is private (`enablePrivateCluster: true`) — local kubectl
-will not work. Use the same path the SRE Agent uses:
+will not work. Human operators use the Azure-proxied command-invoke path:
 
 ```powershell
 . .\scripts\_aks-helpers.ps1
@@ -46,17 +50,25 @@ $ip = ($r.logs -replace '[^\d\.]','').Trim()
        -Command "kubectl exec -n zava-demo deploy/zava-api -- wget -qO- http://localhost:3001/api/health"
    ```
 
-## Phase 3: Sync knowledge + verify SRE Agent
+> For SRE Agent operations, use the built-in `RunKubectlReadCommand` and
+> `RunKubectlWriteCommand` tools. See `docs/aks-access-and-auth.md` for other
+> operator and automation access options.
 
-The agent itself — connectors, custom skills, response plans, autonomous mode,
-Azure Monitor binding — is already provisioned by Bicep during `azd up`. This
-script just uploads knowledge files (the one data-plane piece with no ARM API)
-and prints a verification readout of the Bicep-deployed assets.
+## Phase 3: Configure + verify SRE Agent
+
+Bicep provisions the agent, supported connectors, autonomous mode, and Azure
+Monitor binding. The setup script applies custom skills and response plans
+from the repository, uploads knowledge files, syncs global instructions,
+enables the Microsoft Learn tools, and verifies the result.
+
+`azd up` runs `setup-sre-agent.ps1` through the post-provision hook. Run it
+manually only to retry or apply later configuration changes:
 
 1. Get azd values: `$env:SRE_AGENT_ENDPOINT = azd env get-value SRE_AGENT_ENDPOINT` (and RESOURCE_GROUP, SRE_AGENT_NAME)
 2. Run: `.\scripts\setup-sre-agent.ps1` (auto-detects ResourceGroup and AgentName from `azd env`)
-3. If anything in Step 3's verification output reports `[MISSING]`, re-run
-   `azd provision` to converge the Bicep state.
+3. If Step 7 reports a missing skill or response plan, re-run
+   `setup-sre-agent.ps1`. If a connector or core agent setting is missing,
+   re-run `azd provision`.
 
 ## Optional: confirm the agent is reachable
 

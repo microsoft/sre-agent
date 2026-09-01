@@ -1,28 +1,19 @@
 #Requires -Version 7.4
 <#
 .SYNOPSIS
-    Configures the SRE Agent's data-plane-only state after `azd provision`.
+    Configures the Zava SRE Agent after `azd provision`.
 .DESCRIPTION
-    Most agent configuration is now declarative in Bicep
-    (infra/modules/sre-agent.bicep): autonomous mode, AzMonitor incident
-    platform, connectors (app-insights, log-analytics, azure-monitor, microsoft-learn),
-    custom skills, and incident filters / response plans all flow through
-    Microsoft.App/agents/* ARM resources.
-
-    What stays in this script is the residual data-plane work that ARM does
-    not yet expose:
+    Bicep deploys the agent, supported connectors, identity, networking, mode,
+    and Azure Monitor incident binding. This script applies:
+      - Custom skills
+      - Incident filters / response plans
       - Knowledge file upload (Builder UI > Knowledge sources)
       - Global tool enablement: turn the Microsoft Learn MCP tools ON for every
         agent loop. MCP connector tools ship `defaultMode: disabled` (skill-gated),
         and there is NO ARM/Bicep property for per-tool state (the agent's
         `permissions` stays null) — Microsoft's own `srectl tool config set` CLI
         exists for exactly this (POST /api/v2/agent/tools/configure).
-      - Global tool DISABLEMENT: turn the built-in RunKubectl* tools OFF for every
-        agent loop. The lab is fully kube-native — the agent runs `kubectl` in its
-        sandbox terminal via managed-identity `kubelogin` — so these built-in tools
-        are disabled at the agent level via the same POST
-        /api/v2/agent/tools/configure API used to enable the Learn tools above.
-      - Verification of Bicep-deployed assets
+      - Agent-global custom instructions
 .EXAMPLE
     .\scripts\setup-sre-agent.ps1
 #>
@@ -56,8 +47,8 @@ if (-not $ResourceGroup -or -not $AgentName) {
 $ErrorActionPreference = "Stop"
 
 Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "  SRE Agent Knowledge Sync + Verify" -ForegroundColor Cyan
-Write-Host "  (agent itself is provisioned by Bicep)" -ForegroundColor DarkGray
+Write-Host "  Zava SRE Agent Configuration" -ForegroundColor Cyan
+Write-Host "  (infrastructure + agent configuration)" -ForegroundColor DarkGray
 Write-Host "========================================`n" -ForegroundColor Cyan
 
 if (-not $SubscriptionId) {
@@ -79,22 +70,190 @@ try {
     exit 1
 }
 
-# --- Step 1: Acquire data plane token --------------------------------------
-Write-Host "`nStep 1: Acquiring data plane token..." -ForegroundColor Yellow
-$token = az account get-access-token --resource "https://azuresre.dev" --query accessToken -o tsv
+# --- Step 1: Authenticate --------------------------------------------------
+Write-Host "`nStep 1: Authenticating..." -ForegroundColor Yellow
+$tokenOutput = az account get-access-token --resource "https://azuresre.dev" --query accessToken -o tsv 2>&1
+$tokenText = ($tokenOutput | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or -not $tokenText) {
+    throw "Could not authenticate with the SRE Agent. Sign in to Azure CLI with an account that can configure this agent, then rerun the script."
+}
+$token = $tokenText
 $client = [System.Net.Http.HttpClient]::new()
 $client.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::new("Bearer", $token)
 $client.Timeout = [TimeSpan]::FromSeconds(30)
-Write-Host "  Token acquired (audience: azuresre.dev)" -ForegroundColor Green
+Write-Host "  Authentication succeeded" -ForegroundColor Green
 
-# --- Step 2: Sync knowledge files (data-plane only — no ARM equivalent) ----
-# Knowledge files are stored as data-plane "connectors" of type KnowledgeFile,
-# under the same /api/v2/extendedAgent/connectors collection that holds
-# AppInsights/LogAnalytics/MCP connectors. The Builder UI > Knowledge Sources
-# view filters this collection to dataConnectorType == "KnowledgeFile".
-# PUT to /connectors/{filename} is idempotent (creates or replaces), so we
-# don't need a separate DELETE step. The body shape mirrors what the portal
-# UI sends, captured via Playwright network trace.
+# --- Helpers ---------------------------------------------------------------
+function Invoke-DataPlanePut {
+    param(
+        [string]$Path,
+        [object]$Body,
+        [string]$Label,
+        [int]$MaxAttempts = 1,
+        [int]$RetryDelaySeconds = 15
+    )
+
+    $json = $Body | ConvertTo-Json -Depth 20 -Compress
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        $content = [System.Net.Http.StringContent]::new($json, [System.Text.Encoding]::UTF8, "application/json")
+        try {
+            $response = $client.PutAsync("$agentEndpoint$Path", $content).Result
+            $responseBody = $response.Content.ReadAsStringAsync().Result
+            if ($response.IsSuccessStatusCode) {
+                Write-Host "  [ok] $Label" -ForegroundColor Green
+                return $true
+            }
+
+            if ($attempt -eq $MaxAttempts) {
+                Write-Host "  [failed] $Label returned HTTP $([int]$response.StatusCode): $responseBody" -ForegroundColor Red
+                return $false
+            }
+        } catch {
+            if ($attempt -eq $MaxAttempts) {
+                Write-Host "  [failed] ${Label}: $($_.Exception.Message)" -ForegroundColor Red
+                return $false
+            }
+        } finally {
+            $content.Dispose()
+        }
+
+        Write-Host "  [retry] $Label attempt $attempt/$MaxAttempts; waiting ${RetryDelaySeconds}s for platform initialization" -ForegroundColor Yellow
+        Start-Sleep -Seconds $RetryDelaySeconds
+    }
+}
+
+function Get-DataPlaneCollection {
+    param([string]$Path)
+
+    $response = $client.GetAsync("$agentEndpoint$Path").Result
+    $responseBody = $response.Content.ReadAsStringAsync().Result
+    if (-not $response.IsSuccessStatusCode) {
+        throw "GET $Path returned HTTP $([int]$response.StatusCode): $responseBody"
+    }
+
+    $parsed = $responseBody | ConvertFrom-Json
+    if ($parsed -is [array]) { return @($parsed) }
+    if ($parsed.PSObject.Properties['value']) { return @($parsed.value) }
+    return @()
+}
+
+function Compare-ExpectedProperties {
+    param(
+        [object]$Expected,
+        [object]$Actual,
+        [string]$Path,
+        [System.Collections.Generic.List[string]]$Differences
+    )
+
+    $keys = if ($Expected -is [System.Collections.IDictionary]) {
+        @($Expected.Keys)
+    } else {
+        @($Expected.PSObject.Properties.Name)
+    }
+
+    foreach ($key in $keys) {
+        if ($Expected -is [System.Collections.IDictionary]) {
+            $expectedValue = $Expected[$key]
+        } else {
+            $expectedValue = $Expected.PSObject.Properties[$key].Value
+        }
+        $actualProperty = $Actual.PSObject.Properties[$key]
+        if (-not $actualProperty) {
+            $Differences.Add("$Path.$key is missing")
+            continue
+        }
+
+        $expectedJson = ConvertTo-Json -InputObject $expectedValue -Depth 20 -Compress
+        $actualJson = ConvertTo-Json -InputObject $actualProperty.Value -Depth 20 -Compress
+        if ($expectedJson -cne $actualJson) {
+            $Differences.Add("$Path.$key differs")
+        }
+    }
+}
+
+# --- Step 2: Sync skills ---------------------------------------------------
+Write-Host "`nStep 2: Syncing custom skills..." -ForegroundColor Yellow
+$configPath = Join-Path $PSScriptRoot "..\sre-config\agent-config.json"
+$configRoot = Split-Path $configPath -Parent
+if (-not (Test-Path $configPath)) {
+    throw "Missing agent configuration: $configPath"
+}
+
+$agentConfig = Get-Content -Raw $configPath | ConvertFrom-Json
+$sharedContextPath = Join-Path $configRoot "skills\shared-context.md"
+if (-not (Test-Path $sharedContextPath)) {
+    throw "Missing shared skill context: $sharedContextPath"
+}
+$sharedContext = ([System.IO.File]::ReadAllText($sharedContextPath)).Replace('@@RG@@', $ResourceGroup).Trim()
+
+$skillFailures = 0
+$expectedSkillProperties = @{}
+foreach ($skill in @($agentConfig.skills)) {
+    $skillPath = Join-Path $configRoot $skill.skillContentFile
+    if (-not (Test-Path $skillPath)) {
+        Write-Host "  [failed] $($skill.name): missing $skillPath" -ForegroundColor Red
+        $skillFailures++
+        continue
+    }
+
+    $skillContent = ([System.IO.File]::ReadAllText($skillPath)).
+        Replace('@@SHARED@@', $sharedContext).
+        Replace('@@RG@@', $ResourceGroup).
+        Trim()
+    $expectedProperties = [ordered]@{
+        description = $skill.description
+        tools = @($skill.tools)
+        skillContent = $skillContent
+        additionalFiles = @()
+        sourcePluginInstallation = $null
+    }
+    $expectedSkillProperties[$skill.name] = $expectedProperties
+    $body = @{
+        name = $skill.name
+        type = "Skill"
+        tags = @()
+        properties = [ordered]@{
+            name = $skill.name
+            description = $expectedProperties.description
+            tools = $expectedProperties.tools
+            skillContent = $expectedProperties.skillContent
+            additionalFiles = $expectedProperties.additionalFiles
+            sourcePluginInstallation = $expectedProperties.sourcePluginInstallation
+        }
+    }
+    $encodedName = [uri]::EscapeDataString($skill.name)
+    if (-not (Invoke-DataPlanePut -Path "/api/v2/extendedAgent/skills/$encodedName" -Body $body -Label "skill/$($skill.name)")) {
+        $skillFailures++
+    }
+}
+if ($skillFailures -gt 0) {
+    throw "$skillFailures custom skill(s) failed to synchronize."
+}
+
+# --- Step 3: Sync response plans -------------------------------------------
+Write-Host "`nStep 3: Syncing incident response plans..." -ForegroundColor Yellow
+$filterFailures = 0
+$expectedFilterProperties = @{}
+foreach ($filter in @($agentConfig.incidentFilters)) {
+    $expectedFilterProperties[$filter.name] = $filter.properties
+    $body = @{
+        name = $filter.name
+        type = "IncidentFilter"
+        tags = @()
+        properties = $filter.properties
+    }
+    $encodedName = [uri]::EscapeDataString($filter.name)
+    if (-not (Invoke-DataPlanePut -Path "/api/v2/extendedAgent/incidentFilters/$encodedName" -Body $body -Label "response-plan/$($filter.name)" -MaxAttempts 4)) {
+        $filterFailures++
+    }
+}
+if ($filterFailures -gt 0) {
+    throw "$filterFailures incident response plan(s) failed to synchronize."
+}
+
+# --- Step 4: Sync knowledge files (data-plane only — no ARM equivalent) ----
+# Knowledge files are stored as data-plane connectors of type KnowledgeFile.
+# PUT to /connectors/{filename} creates or replaces the named file.
 #
 # Sync semantics: for every local *.md file in sre-config/knowledge-base/, we
 # compute a SHA256 of the bytes and compare to a local hash cache. If the
@@ -102,7 +261,7 @@ Write-Host "  Token acquired (audience: azuresre.dev)" -ForegroundColor Green
 # skip. Otherwise we PUT the file (which replaces any existing copy with the
 # same name) and update the cache. The agent KB API does not surface a content
 # hash on its file list, so a local sidecar cache is the simplest robust signal.
-Write-Host "`nStep 2: Syncing knowledge files..." -ForegroundColor Yellow
+Write-Host "`nStep 4: Syncing knowledge files..." -ForegroundColor Yellow
 $kbDir = Resolve-Path "$PSScriptRoot\..\sre-config\knowledge-base"
 $kbLocalFiles = @(Get-ChildItem -Path $kbDir -Filter "*.md" -File)
 $hashCachePath = Join-Path $kbDir ".upload-hashes.json"
@@ -189,8 +348,12 @@ try {
 }
 
 Write-Host ("  Summary: {0} uploaded, {1} replaced, {2} skipped, {3} failed (of {4} local files)" -f $uploaded, $replaced, $skipped, $failed, $kbLocalFiles.Count) -ForegroundColor Yellow
+if ($failed -gt 0) {
+    $client.Dispose()
+    throw "$failed knowledge file upload(s) failed. The remote content may be stale."
+}
 
-# --- Step 2b: Enable Microsoft Learn MCP tools globally (data-plane only) ----
+# --- Step 5: Enable Microsoft Learn MCP tools globally ---------------------
 # MCP connector tools ship `defaultMode: disabled` — they are skill-gated, i.e.
 # only surface when an incident skill that lists them is active. To make the
 # Microsoft Learn docs tools part of the GLOBAL tool roster (available to every
@@ -200,15 +363,32 @@ Write-Host ("  Summary: {0} uploaded, {1} replaced, {2} skipped, {3} failed (of 
 # exactly this. The underlying call is POST /api/v2/agent/tools/configure with
 # merge semantics: { overrides: [{ name, enabled }] }.
 #
-# The tools only appear in the catalog AFTER the microsoft-learn MCP connector
+# The tools only appear in the catalog AFTER the learn-docs connector
 # completes its first tools/list handshake (which needs the GitHub-raw firewall
 # allow in vnet.bicep + a warm connection), so we poll for them before enabling.
-Write-Host "`nStep 2b: Enabling Microsoft Learn MCP tools globally..." -ForegroundColor Yellow
-$learnTools = @(
-    'microsoft-learn_microsoft_docs_search',
-    'microsoft-learn_microsoft_code_sample_search',
-    'microsoft-learn_microsoft_docs_fetch'
+Write-Host "`nStep 5: Enabling Microsoft Learn MCP tools globally..." -ForegroundColor Yellow
+$learnToolSets = @(
+    [pscustomobject]@{
+        Connector = 'learn-docs'
+        Tools = @(
+            'learn-docs_microsoft_docs_search',
+            'learn-docs_microsoft_code_sample_search',
+            'learn-docs_microsoft_docs_fetch'
+        )
+    },
+    # Migration compatibility for an azd run that compiled the old template
+    # before this repository was updated to the azd-safe connector name.
+    [pscustomobject]@{
+        Connector = 'microsoft-learn'
+        Tools = @(
+            'microsoft-learn_microsoft_docs_search',
+            'microsoft-learn_microsoft_code_sample_search',
+            'microsoft-learn_microsoft_docs_fetch'
+        )
+    }
 )
+$learnConnectorName = $learnToolSets[0].Connector
+$learnTools = $learnToolSets[0].Tools
 $catalog = @(); $present = @()
 $toolDeadline = (Get-Date).AddMinutes(3)
 do {
@@ -216,14 +396,22 @@ do {
         $tr = $client.GetAsync("$agentEndpoint/api/v2/agent/tools").Result
         if ($tr.IsSuccessStatusCode) { $catalog = @(($tr.Content.ReadAsStringAsync().Result | ConvertFrom-Json).data) }
     } catch {}
-    $present = @($learnTools | Where-Object { $_ -in $catalog.name })
+
+    foreach ($toolSet in $learnToolSets) {
+        $candidatePresent = @($toolSet.Tools | Where-Object { $_ -in $catalog.name })
+        if ($candidatePresent.Count -gt $present.Count) {
+            $learnConnectorName = $toolSet.Connector
+            $learnTools = $toolSet.Tools
+            $present = $candidatePresent
+        }
+    }
     if ($present.Count -eq $learnTools.Count) { break }
     Start-Sleep -Seconds 15
 } while ((Get-Date) -lt $toolDeadline)
 
 if ($present.Count -lt $learnTools.Count) {
     Write-Host "  [WARN] Only $($present.Count)/$($learnTools.Count) Learn MCP tools visible in the catalog yet — the" -ForegroundColor Yellow
-    Write-Host "         microsoft-learn MCP connection is still warming up (it fetches its server bits from" -ForegroundColor Yellow
+    Write-Host "         $learnConnectorName connection is still warming up (it fetches its server bits from" -ForegroundColor Yellow
     Write-Host "         raw.githubusercontent.com; confirm the allow-github-raw-mcp-bits firewall rule exists)." -ForegroundColor Yellow
     Write-Host "         Re-run this script shortly to finish enabling them." -ForegroundColor Yellow
 }
@@ -244,71 +432,130 @@ if ($present.Count -gt 0) {
     }
 }
 
-# --- Step 2c: Disable the built-in RunKubectl* tools globally (data-plane) --
-# This lab is fully kube-native: the agent runs `kubectl` itself in its sandbox
-# terminal (RunInTerminal), authenticated by its managed identity via `kubelogin`.
-# The built-in RunKubectl* tools are turned OFF at the agent level so the agent
-# uses that native path. This is the same POST /api/v2/agent/tools/configure API
-# Step 2b uses to enable the Learn tools, with a symmetric payload:
-# { overrides: [{ name, enabled: false }] }. We disable the two raw-kubectl tools
-# present in this agent's catalog (Read + Write) and union in any other tool whose
-# name starts with 'RunKubectl' the live catalog reports, so we never POST a name
-# the catalog can't confirm.
-Write-Host "`nStep 2c: Disabling built-in RunKubectl* tools globally (kube-native)..." -ForegroundColor Yellow
-$kubectlCore = @('RunKubectlReadCommand', 'RunKubectlWriteCommand')
-$kcat = @()
-try {
-    $ktr = $client.GetAsync("$agentEndpoint/api/v2/agent/tools").Result
-    if ($ktr.IsSuccessStatusCode) { $kcat = @(($ktr.Content.ReadAsStringAsync().Result | ConvertFrom-Json).data) }
-} catch {}
-# Always disable the two raw-kubectl tools; union in any other RunKubectl* the
-# live catalog actually reports so we never POST a name it can't confirm.
-$kubeFromCat = @($kcat | Where-Object { $_.name -like 'RunKubectl*' } | ForEach-Object { $_.name })
-$kubectlTools = @($kubectlCore + $kubeFromCat | Select-Object -Unique)
-# Built-in tools may not surface in the catalog readout, so skip only when the
-# catalog positively confirms every target is present AND already disabled.
-$kubePresent = @($kubectlTools | Where-Object { $_ -in $kcat.name })
-$kubeStillOn = @($kcat | Where-Object { ($_.name -in $kubectlTools) -and $_.enabled } | ForEach-Object { $_.name })
-if ($kubePresent.Count -gt 0 -and $kubePresent.Count -eq $kubectlTools.Count -and $kubeStillOn.Count -eq 0) {
-    Write-Host "  [skip] RunKubectl* tools already disabled globally ($($kubectlTools -join ', '))" -ForegroundColor DarkGray
+# --- Step 6: Sync custom instructions (data-plane only) ---------------------
+# Custom instructions are the agent-scoped, ALWAYS-ON prompt appended to EVERY
+# thread — chat, incident, scheduled task — regardless of which response plan or
+# skill matched. This is the surface the portal's "Custom instructions" box writes.
+#
+# Data-plane contract:
+#   GET/PUT {agentEndpoint}/api/v2/agent/customInstructions
+#   body: { "instructions": "<text>" }
+#
+# The global instructions cover correlation and bounded parallel investigation.
+Write-Host "`nStep 6: Syncing custom instructions..." -ForegroundColor Yellow
+$ciPath = Join-Path $PSScriptRoot "..\sre-config\custom-instructions.md"
+$ciText = $null
+$ciCurrent = $null
+$normalizeInstructions = { param($s) if ($null -eq $s) { '' } else { $s.Replace("`r", '').Trim() } }
+if (-not (Test-Path $ciPath)) {
+    Write-Host "  WARNING: sre-config/custom-instructions.md is missing; global guidance cannot be synced." -ForegroundColor Yellow
 } else {
-    $kPayload = @{ overrides = @($kubectlTools | ForEach-Object { @{ name = $_; enabled = $false } }) } | ConvertTo-Json -Depth 4 -Compress
-    $kContent = [System.Net.Http.StringContent]::new($kPayload, [System.Text.Encoding]::UTF8, "application/json")
-    $kResp = $client.PostAsync("$agentEndpoint/api/v2/agent/tools/configure", $kContent).Result
-    if ($kResp.IsSuccessStatusCode) {
-        Write-Host "  [ok] Disabled built-in kubectl tools globally ($($kubectlTools -join ', ')) — agent uses native kubectl via RunInTerminal" -ForegroundColor Green
+    # The file content IS the payload verbatim — there is no metadata wrapper and
+    # no comment syntax to strip, so keep rationale in AGENTS.md, never in here.
+    $ciText = ([System.IO.File]::ReadAllText($ciPath)).Replace('@@RG@@', $ResourceGroup).Trim()
+
+    # Compare against what's live so a re-run is a no-op. The service normalises
+    # line endings to CRLF on write, so strip \r on BOTH sides before comparing —
+    # otherwise a file saved with LF looks "changed" on every single run.
+    try {
+        $getResp = $client.GetAsync("$agentEndpoint/api/v2/agent/customInstructions").Result
+        if ($getResp.IsSuccessStatusCode) {
+            $ciCurrent = ($getResp.Content.ReadAsStringAsync().Result | ConvertFrom-Json).instructions
+        }
+    } catch {}
+
+    if ((& $normalizeInstructions $ciCurrent) -eq (& $normalizeInstructions $ciText)) {
+        Write-Host "  [skip] custom instructions unchanged ($($ciText.Length) chars)" -ForegroundColor DarkGray
     } else {
-        Write-Host "  WARNING: kubectl tool disable returned $($kResp.StatusCode): $($kResp.Content.ReadAsStringAsync().Result)" -ForegroundColor Yellow
+        $ciBody = @{ instructions = $ciText } | ConvertTo-Json -Depth 4 -Compress
+        $ciContent = [System.Net.Http.StringContent]::new($ciBody, [System.Text.Encoding]::UTF8, "application/json")
+        $ciResp = $client.PutAsync("$agentEndpoint/api/v2/agent/customInstructions", $ciContent).Result
+        if ($ciResp.IsSuccessStatusCode) {
+            $verb = if ([string]::IsNullOrWhiteSpace($ciCurrent)) { "set" } else { "replaced" }
+            Write-Host "  [ok] custom instructions $verb ($($ciText.Length) chars, appended to every thread)" -ForegroundColor Green
+        } else {
+            # A 403/timeout from inside the agent sandbox usually means the exact-host
+            # allow-agent-data-plane firewall rule is missing.
+            Write-Host "  WARNING: custom instructions returned $($ciResp.StatusCode): $($ciResp.Content.ReadAsStringAsync().Result)" -ForegroundColor Yellow
+        }
+        $ciContent.Dispose()
     }
-    $kContent.Dispose()
 }
 
-# --- Step 3: Verify Bicep-deployed assets ----------------------------------
-Write-Host "`nStep 3: Verifying Bicep-deployed configuration..." -ForegroundColor Yellow
+# --- Step 7: Verify the combined configuration -----------------------------
+Write-Host "`nStep 7: Verifying ARM + data-plane configuration..." -ForegroundColor Yellow
 $allGood = $true
+$armToken = (az account get-access-token --resource "https://management.azure.com/" --query accessToken -o tsv 2>$null).Trim()
+if (-not $armToken) {
+    throw "Could not acquire an Azure Resource Manager token for post-provision verification."
+}
+$armHeaders = @{ Authorization = "Bearer $armToken"; Accept = "application/json" }
 
 function Get-AgentChildren {
     param([string]$Kind)
-    (az rest --method GET --url "${agentArmId}/${Kind}?api-version=$apiVersion" 2>$null | ConvertFrom-Json).value
+
+    $url = "https://management.azure.com${agentArmId}/${Kind}?api-version=$apiVersion"
+    for ($attempt = 1; $attempt -le 6; $attempt++) {
+        try {
+            $response = Invoke-RestMethod -Method Get -Uri $url -Headers $armHeaders
+            $valueProperty = $response.PSObject.Properties['value']
+            if ($valueProperty) {
+                return @($valueProperty.Value)
+            }
+        } catch {
+            if ($attempt -eq 6) {
+                throw "Could not list agent $Kind after $attempt attempts: $($_.Exception.Message)"
+            }
+        }
+
+        if ($attempt -lt 6) { Start-Sleep -Seconds 5 }
+    }
+
+    throw "Agent $Kind list response did not contain a value collection after 6 attempts."
 }
 
 $connectors = @(Get-AgentChildren -Kind "connectors")
-$expectedConnectors = @("app-insights","log-analytics","azure-monitor","microsoft-learn")
+$expectedConnectors = @("app-insights","log-analytics","azure-monitor")
 $missingConnectors = $expectedConnectors | Where-Object { $_ -notin $connectors.name }
-if (-not $missingConnectors) { Write-Host "  [OK] Connectors: $($connectors.Count) (app-insights, log-analytics, azure-monitor, microsoft-learn)" -ForegroundColor Green }
+$learnConnector = $connectors | Where-Object { $_.name -in @("learn-docs", "microsoft-learn") } | Select-Object -First 1
+if (-not $learnConnector) { $missingConnectors += "learn-docs" }
+else { $learnConnectorName = $learnConnector.name }
+if (-not $missingConnectors) { Write-Host "  [OK] Connectors: $($connectors.Count) (app-insights, log-analytics, azure-monitor, $($learnConnector.name))" -ForegroundColor Green }
 else { Write-Host "  [MISSING] Connectors: $($missingConnectors -join ', ') — re-run azd provision" -ForegroundColor Red; $allGood = $false }
 
-$skills = @(Get-AgentChildren -Kind "skills")
-$expectedSkills = @("database-incidents","performance-incidents","application-incidents","general-triage","proactive-health-check")
-$missingSkills = $expectedSkills | Where-Object { $_ -notin $skills.name }
-if (-not $missingSkills) { Write-Host "  [OK] Custom skills: $($skills.Count)" -ForegroundColor Green }
-else { Write-Host "  [MISSING] Skills: $($missingSkills -join ', ') — re-run azd provision" -ForegroundColor Red; $allGood = $false }
+$skills = @(Get-DataPlaneCollection -Path "/api/v2/extendedAgent/skills")
+$skillDifferences = [System.Collections.Generic.List[string]]::new()
+foreach ($skillName in @($agentConfig.skills.name)) {
+    $deployedSkill = $skills | Where-Object { $_.name -eq $skillName } | Select-Object -First 1
+    if (-not $deployedSkill) {
+        $skillDifferences.Add("$skillName is missing")
+        continue
+    }
+    Compare-ExpectedProperties -Expected ($expectedSkillProperties[$skillName]) -Actual $deployedSkill.properties -Path $skillName -Differences $skillDifferences
+}
+if ($skillDifferences.Count -eq 0) {
+    Write-Host "  [OK] Custom skills: $($expectedSkillProperties.Count) match source" -ForegroundColor Green
+} else {
+    Write-Host "  [MISMATCH] Skills: $($skillDifferences -join '; ')" -ForegroundColor Red
+    $allGood = $false
+}
 
-$filters = @(Get-AgentChildren -Kind "incidentFilters")
-$expectedFilters = @("zava-database","zava-performance","zava-application","zava-unknown")
-$missingFilters = $expectedFilters | Where-Object { $_ -notin $filters.name }
-if (-not $missingFilters) { Write-Host "  [OK] Response plans: $($filters.Count)" -ForegroundColor Green }
-else { Write-Host "  [MISSING] Response plans: $($missingFilters -join ', ') — re-run azd provision" -ForegroundColor Red; $allGood = $false }
+$filters = @(Get-DataPlaneCollection -Path "/api/v2/extendedAgent/incidentFilters")
+$filterDifferences = [System.Collections.Generic.List[string]]::new()
+foreach ($filterName in @($agentConfig.incidentFilters.name)) {
+    $deployedFilter = $filters | Where-Object { $_.name -eq $filterName } | Select-Object -First 1
+    if (-not $deployedFilter) {
+        $filterDifferences.Add("$filterName is missing")
+        continue
+    }
+    Compare-ExpectedProperties -Expected ($expectedFilterProperties[$filterName]) -Actual $deployedFilter.properties -Path $filterName -Differences $filterDifferences
+}
+if ($filterDifferences.Count -eq 0) {
+    Write-Host "  [OK] Response plans: $($expectedFilterProperties.Count) match source" -ForegroundColor Green
+} else {
+    Write-Host "  [MISMATCH] Response plans: $($filterDifferences -join '; ')" -ForegroundColor Red
+    $allGood = $false
+}
 
 $kbResp = $client.GetAsync("$agentEndpoint/api/v2/extendedAgent/connectors").Result
 $knowledgeFiles = @()
@@ -331,6 +578,27 @@ if ($expectedKb.Count -eq 0) {
     Write-Host "  [MISSING] Knowledge files: $($missingKb -join ', ') — re-run Step 2 (upload) above" -ForegroundColor Red; $allGood = $false
 }
 
+$verifiedInstructions = $null
+$customInstructionsVerified = $false
+if (-not $ciText) {
+    Write-Host "  [MISSING] Custom instructions source file — restore sre-config/custom-instructions.md" -ForegroundColor Red
+    $allGood = $false
+} else {
+    try {
+        $verifyCiResp = $client.GetAsync("$agentEndpoint/api/v2/agent/customInstructions").Result
+        if ($verifyCiResp.IsSuccessStatusCode) {
+            $verifiedInstructions = ($verifyCiResp.Content.ReadAsStringAsync().Result | ConvertFrom-Json).instructions
+        }
+    } catch {}
+    if ((& $normalizeInstructions $verifiedInstructions) -eq (& $normalizeInstructions $ciText)) {
+        Write-Host "  [OK] Custom instructions match local source ($($ciText.Length) chars)" -ForegroundColor Green
+        $customInstructionsVerified = $true
+    } else {
+        Write-Host "  [MISSING] Custom instructions do not match local source - re-run Step 6" -ForegroundColor Red
+        $allGood = $false
+    }
+}
+
 if ($agent.properties.actionConfiguration.mode -ne "autonomous") {
     Write-Host "  [WARN] Agent mode: $($agent.properties.actionConfiguration.mode) (expected autonomous)" -ForegroundColor Yellow; $allGood = $false
 } else { Write-Host "  [OK] Mode: autonomous + access $($agent.properties.actionConfiguration.accessLevel)" -ForegroundColor Green }
@@ -351,19 +619,15 @@ try {
 if ($learnEnabled.Count -eq $learnTools.Count) {
     Write-Host "  [OK] Microsoft Learn MCP tools enabled globally: $($learnEnabled.Count)/$($learnTools.Count)" -ForegroundColor Green
 } else {
-    Write-Host "  [WARN] Learn MCP tools enabled globally: $($learnEnabled.Count)/$($learnTools.Count) (MCP connection may still be warming up)" -ForegroundColor Yellow; $allGood = $false
+    Write-Host "  [WARN] Learn MCP tools enabled globally: $($learnEnabled.Count)/$($learnTools.Count) (MCP connection may still be warming up)" -ForegroundColor Yellow
 }
 
-$kubeVerifyOn = @($vcat | Where-Object { ($_.name -in $kubectlTools) -and $_.enabled } | ForEach-Object { $_.name })
-if ($kubeVerifyOn.Count -eq 0) {
-    Write-Host "  [OK] Built-in RunKubectl* tools disabled globally (agent is kube-native via RunInTerminal)" -ForegroundColor Green
-} else {
-    Write-Host "  [WARN] RunKubectl* still enabled: $($kubeVerifyOn -join ', ') — re-run Step 2c to disable" -ForegroundColor Yellow; $allGood = $false
+if (-not $allGood) {
+    $client.Dispose()
+    throw "Required SRE Agent assets are missing or misconfigured. Review the verification failures above."
 }
 
-if ($allGood) { Write-Host "  All Bicep + data-plane assets verified." -ForegroundColor Green }
-else { Write-Host "  Some assets missing — see above." -ForegroundColor Yellow }
-
+Write-Host "  All required Bicep + data-plane assets verified." -ForegroundColor Green
 $client.Dispose()
 
 # --- Summary ---------------------------------------------------------------
@@ -371,20 +635,29 @@ Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "  Done" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
-Write-Host "  DEPLOYED BY BICEP (verified above, not done by this script):" -ForegroundColor DarkGray
+Write-Host "  DEPLOYED BY BICEP:" -ForegroundColor DarkGray
 Write-Host "  [x] Agent: autonomous mode + High access"
 Write-Host "  [x] Incident platform: Azure Monitor"
-Write-Host "  [x] Connectors: app-insights, log-analytics, azure-monitor, microsoft-learn"
-Write-Host "  [x] Custom skills: database-incidents, performance-incidents, application-incidents, general-triage, proactive-health-check"
+Write-Host "  [x] Connectors: app-insights, log-analytics, azure-monitor, $learnConnectorName"
+Write-Host "`n  APPLIED BY SETUP SCRIPT:" -ForegroundColor Cyan
+Write-Host "  [x] Custom skills: database-incidents, performance-incidents, application-incidents, general-triage, proactive-health-check, incident-correlation"
 Write-Host "  [x] Response plans (incident filters): zava-database, zava-performance, zava-application, zava-unknown"
-Write-Host "`n  DONE BY THIS SCRIPT (data plane — no ARM API yet):" -ForegroundColor Cyan
 Write-Host ("  [x] Knowledge files synced: {0} local file(s) ({1} uploaded, {2} replaced, {3} skipped, {4} failed)" -f $kbLocalFiles.Count, $uploaded, $replaced, $skipped, $failed)
-Write-Host ("  [x] Microsoft Learn MCP tools enabled globally: {0}/{1} (docs_search, code_sample_search, docs_fetch)" -f $learnEnabled.Count, $learnTools.Count)
-Write-Host ("  [x] Built-in RunKubectl* tools disabled globally: {0}/{1} (kube-native — agent runs kubectl in its sandbox terminal)" -f ($kubectlTools.Count - $kubeVerifyOn.Count), $kubectlTools.Count)
-
+if ($learnEnabled.Count -eq $learnTools.Count) {
+    Write-Host ("  [x] Microsoft Learn MCP tools enabled globally: {0}/{1} (docs_search, code_sample_search, docs_fetch)" -f $learnEnabled.Count, $learnTools.Count)
+} else {
+    Write-Host ("  [!] Microsoft Learn MCP tools enabled globally: {0}/{1} (connector warm-up/runtime issue; nonfatal)" -f $learnEnabled.Count, $learnTools.Count) -ForegroundColor Yellow
+}
+if ($customInstructionsVerified) {
+    Write-Host ("  [x] Custom instructions synced and verified: {0} chars" -f $ciText.Length)
+} else {
+    Write-Host "  [ ] Custom instructions not verified" -ForegroundColor Red
+}
 Write-Host "`n  NEXT STEPS:" -ForegroundColor Cyan
 Write-Host "  Run a break scenario:"
 Write-Host "    .\.github\skills\running-demo\scripts\break-sql.ps1      # Stop PostgreSQL"
 Write-Host "    .\.github\skills\running-demo\scripts\break-network.ps1  # Block DB traffic"
 Write-Host "    .\.github\skills\running-demo\scripts\break-db-perf.ps1  # Drop index"
+Write-Host "    .\.github\skills\running-demo\scripts\break-bad-deploy.ps1 # Ship a bad rollout"
+Write-Host "    .\.github\skills\running-demo\scripts\break-compound.ps1  # Two independent faults"
 Write-Host "  Watch the agent: https://sre.azure.com/agents$agentArmId`n"

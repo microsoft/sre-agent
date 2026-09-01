@@ -10,7 +10,7 @@ function Check($name, $cmd) {
   else { Write-Host "  ✗ $name (missing)" -ForegroundColor Red; $script:ok = $false }
 }
 Write-Host "Zava Learning — environment check" -ForegroundColor Cyan
-Check "Azure CLI"        { az version --query '"azure-cli"' -o tsv }
+Check "Azure CLI"        { az version | ConvertFrom-Json | Select-Object -ExpandProperty 'azure-cli' }
 Check "Bicep"            { az bicep version }
 Check "Azure Developer CLI (azd)" { azd version }
 Check "PowerShell 7+ (pwsh)" { pwsh -v }

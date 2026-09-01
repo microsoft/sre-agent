@@ -10,6 +10,9 @@ param postgresServerName string
 @description('Resource group ID — scope for activity-log-based alerts.')
 param resourceGroupId string
 
+@description('Enable the PostgreSQL CPU-saturation metric alert. Deployed DISABLED by default on purpose — see the resource comment: the disabled causal alert is what makes the correlation scenario teach anything.')
+param enableDbCpuSaturationAlert bool = false
+
 var lawName = 'law-Zava-${uniqueSuffix}'
 var aiName = 'ai-Zava-${uniqueSuffix}'
 
@@ -299,6 +302,58 @@ resource alertProductsSlow 'Microsoft.Insights/scheduledQueryRules@2023-03-15-pr
 //   az monitor activity-log alert update -g <rg> -n Zava-unknown-test --enabled true
 //   az tag update --operation merge --tags zava-drill=on --resource-id <rg-id>
 // Disable again afterwards.
+// Alert: PostgreSQL CPU saturation (metric alert on cpu_percent).
+//
+// DEPLOYED DISABLED ON PURPOSE. This is not an oversight and not dead code —
+// it is the load-bearing piece of the cross-alert correlation scenario, and it
+// was previously drift (it existed in several live demo RGs but in no template,
+// so `azd up` and reality disagreed). Declaring it here fixes the drift while
+// preserving the teaching value.
+//
+// Why disabled: when Scenario 3 (missing index) runs, PG `cpu_percent` pegs at
+// ~90% for the length of the load run, but the ONLY alerts that fire are the
+// downstream symptom alerts (`Zava-products-query-slow`, and `Zava-http-5xx-errors`
+// if the app is also degraded). The *causal* signal is silent. That is exactly the
+// real-world failure mode this lab should teach: an operator muted a noisy rule
+// months ago, so the alert that would have named the cause never fires and the
+// responder only ever sees symptoms. An agent that reasons only from the alert it
+// was dispatched on cannot recover the cause; an agent that enumerates the alert
+// RULE inventory (not just fired alerts) finds a disabled rule sitting on the very
+// resource it is investigating, and knows to go query that metric directly.
+//
+// Set enableDbCpuSaturationAlert=true to turn it on — the scenario then becomes a
+// genuine multi-alert co-firing case (causal + symptom) instead of a silent-cause
+// case. Both are useful; the default teaches the harder lesson.
+resource alertDbCpuSaturation 'Microsoft.Insights/metricAlerts@2018-03-01' = {
+  name: 'Zava-db-cpu-saturation'
+  location: 'global'
+  properties: {
+    severity: 3
+    enabled: enableDbCpuSaturationAlert
+    evaluationFrequency: 'PT1M'
+    windowSize: 'PT5M'
+    scopes: [pgServer.id]
+    criteria: {
+      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+      allOf: [
+        {
+          criterionType: 'StaticThresholdCriterion'
+          name: 'pgCpu'
+          metricName: 'cpu_percent'
+          metricNamespace: 'Microsoft.DBforPostgreSQL/flexibleServers'
+          operator: 'GreaterThan'
+          threshold: 80
+          timeAggregation: 'Average'
+        }
+      ]
+    }
+    actions: [{ actionGroupId: actionGroup.id }]
+    autoMitigate: true
+    // Symptom-only by design — do NOT name a suspected index, query, or scenario here.
+    description: 'Zava Demo: PostgreSQL server CPU averaged above 80% over 5 minutes.'
+  }
+}
+
 resource alertUnknownTest 'Microsoft.Insights/activityLogAlerts@2023-01-01-preview' = {
   name: 'Zava-unknown-test'
   location: 'global'

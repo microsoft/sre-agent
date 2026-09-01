@@ -1,0 +1,193 @@
+{
+  "skills": [
+    {
+      "name": "database-incidents",
+      "description": "Use for Zava PostgreSQL AVAILABILITY incidents — alert `postgres-unreachable` (zava-api cannot reach PostgreSQL; connection refused or, more often, timeout). Diagnose the cause from ARM state — stopped server vs network partition — and remediate: restart the server, or remove the in-cluster Kubernetes NetworkPolicy / matching NSG deny rule that blocks PG egress.",
+      "tools": [
+        "RunAzCliReadCommands",
+        "RunAzCliWriteCommands",
+        "RunKubectlReadCommand",
+        "RunKubectlWriteCommand",
+        "SearchMemory",
+        "learn-docs_microsoft_docs_search",
+        "learn-docs_microsoft_docs_fetch"
+      ],
+      "skillContentFile": "skills/database-incidents.md"
+    },
+    {
+      "name": "performance-incidents",
+      "description": "Use for Zava query-LATENCY / slow-endpoint incidents — alert `Zava-products-query-slow` (a /api/products/category endpoint breached its latency threshold). Diagnose the PostgreSQL query path, check nearby alerts with `incident-correlation`, and do not treat a co-firing 5xx as the same cause without a direct dependency-failure mechanism. Apply read-mostly DDL (CREATE INDEX) via the in-cluster SQL helper when the query plan proves it is needed.",
+      "tools": [
+        "RunAzCliReadCommands",
+        "RunAzCliWriteCommands",
+        "RunKubectlReadCommand",
+        "RunKubectlWriteCommand",
+        "SearchMemory",
+        "learn-docs_microsoft_docs_search",
+        "learn-docs_microsoft_docs_fetch"
+      ],
+      "skillContentFile": "skills/performance-incidents.md"
+    },
+    {
+      "name": "application-incidents",
+      "description": "Use for Zava APPLICATION-layer HTTP 5xx incidents — alert `Zava-http-5xx-errors` (zava-api returning HTTP 5xx). Rule out a direct DB failure path, check nearby alerts with `incident-correlation`, and correlate the 5xx onset with a recent rollout. Do not attribute it to a co-firing latency alert unless dependency failures prove that mechanism.",
+      "tools": [
+        "RunAzCliReadCommands",
+        "RunAzCliWriteCommands",
+        "RunKubectlReadCommand",
+        "RunKubectlWriteCommand",
+        "SearchMemory",
+        "learn-docs_microsoft_docs_search",
+        "learn-docs_microsoft_docs_fetch"
+      ],
+      "skillContentFile": "skills/application-incidents.md"
+    },
+    {
+      "name": "general-triage",
+      "description": "Use for ANY Zava incident that does not match a specific known scenario — novel / unknown alerts routed to the unknown response plan. Triage from first principles: identify the impacted resource, gather telemetry, form hypotheses, and propose a remediation for human approval (this path runs in Review mode). Do not auto-remediate beyond clearly read-only/safe steps.",
+      "tools": [
+        "RunAzCliReadCommands",
+        "SearchMemory",
+        "learn-docs_microsoft_docs_search",
+        "learn-docs_microsoft_docs_fetch"
+      ],
+      "skillContentFile": "skills/general-triage.md"
+    },
+    {
+      "name": "proactive-health-check",
+      "description": "Use when a human operator asks for a proactive health check of the Zava Athletic API — request success rate, latency, exception patterns, PostgreSQL state — to detect anomalies before they become alerts. Hands off to the matching domain skill (database / performance / application) if a known failure mode is found; otherwise completes silently.",
+      "tools": [
+        "RunAzCliReadCommands",
+        "SearchMemory",
+        "ExecutePythonCode",
+        "learn-docs_microsoft_code_sample_search",
+        "learn-docs_microsoft_docs_fetch",
+        "learn-docs_microsoft_docs_search"
+      ],
+      "skillContentFile": "skills/proactive-health-check.md"
+    },
+    {
+      "name": "incident-correlation",
+      "description": "Use during a Zava incident when nearby alerts or conflicting evidence require correlation. Review fired alerts, relevant disabled rules, Azure Service Health, and telemetry to determine whether conditions share a mechanism or should remain independent.",
+      "tools": [
+        "RunAzCliReadCommands",
+        "SearchMemory"
+      ],
+      "skillContentFile": "skills/incident-correlation.md"
+    }
+  ],
+  "incidentFilters": [
+    {
+      "name": "zava-database",
+      "properties": {
+        "incidentPlatform": "AzMonitor",
+        "impactedService": "",
+        "priorities": ["Sev0", "Sev1", "Sev2", "Sev3", "Sev4"],
+        "incidentType": "",
+        "alertId": "",
+        "titleContains": "postgres",
+        "titleContainsAll": [],
+        "titleContainsAny": [],
+        "titleNotContains": [],
+        "agentMode": "autonomous",
+        "handlingAgent": "meta_agent",
+        "handlingAgents": null,
+        "owningTeamId": "",
+        "owningTeamIds": [],
+        "maxAutomatedInvestigationAttempts": 3,
+        "mergeEnabled": false,
+        "mergeWindowHours": 3,
+        "isEnabled": true,
+        "icmFilterSettings": null,
+        "azMonitorFilterSettings": {
+          "targetResourceType": "",
+          "targetResource": ""
+        }
+      }
+    },
+    {
+      "name": "zava-performance",
+      "properties": {
+        "incidentPlatform": "AzMonitor",
+        "impactedService": "",
+        "priorities": ["Sev0", "Sev1", "Sev2", "Sev3", "Sev4"],
+        "incidentType": "",
+        "alertId": "",
+        "titleContains": "query-slow",
+        "titleContainsAll": [],
+        "titleContainsAny": [],
+        "titleNotContains": [],
+        "agentMode": "autonomous",
+        "handlingAgent": "meta_agent",
+        "handlingAgents": null,
+        "owningTeamId": "",
+        "owningTeamIds": [],
+        "maxAutomatedInvestigationAttempts": 3,
+        "mergeEnabled": false,
+        "mergeWindowHours": 3,
+        "isEnabled": true,
+        "icmFilterSettings": null,
+        "azMonitorFilterSettings": {
+          "targetResourceType": "",
+          "targetResource": ""
+        }
+      }
+    },
+    {
+      "name": "zava-application",
+      "properties": {
+        "incidentPlatform": "AzMonitor",
+        "impactedService": "",
+        "priorities": ["Sev0", "Sev1", "Sev2", "Sev3", "Sev4"],
+        "incidentType": "",
+        "alertId": "",
+        "titleContains": "http-5xx",
+        "titleContainsAll": [],
+        "titleContainsAny": [],
+        "titleNotContains": [],
+        "agentMode": "autonomous",
+        "handlingAgent": "meta_agent",
+        "handlingAgents": null,
+        "owningTeamId": "",
+        "owningTeamIds": [],
+        "maxAutomatedInvestigationAttempts": 3,
+        "mergeEnabled": false,
+        "mergeWindowHours": 3,
+        "isEnabled": true,
+        "icmFilterSettings": null,
+        "azMonitorFilterSettings": {
+          "targetResourceType": "",
+          "targetResource": ""
+        }
+      }
+    },
+    {
+      "name": "zava-unknown",
+      "properties": {
+        "incidentPlatform": "AzMonitor",
+        "impactedService": "",
+        "priorities": ["Sev0", "Sev1", "Sev2", "Sev3", "Sev4"],
+        "incidentType": "",
+        "alertId": "",
+        "titleContains": "Zava",
+        "titleContainsAll": [],
+        "titleContainsAny": [],
+        "titleNotContains": ["postgres", "query-slow", "http-5xx"],
+        "agentMode": "review",
+        "handlingAgent": "meta_agent",
+        "handlingAgents": null,
+        "owningTeamId": "",
+        "owningTeamIds": [],
+        "maxAutomatedInvestigationAttempts": 2,
+        "mergeEnabled": false,
+        "mergeWindowHours": 3,
+        "isEnabled": true,
+        "icmFilterSettings": null,
+        "azMonitorFilterSettings": {
+          "targetResourceType": "",
+          "targetResource": ""
+        }
+      }
+    }
+  ]
+}

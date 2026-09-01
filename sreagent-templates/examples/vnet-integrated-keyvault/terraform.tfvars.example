@@ -12,5 +12,5 @@ key_vault_name = "my-sre-agent-kv"
 
 # Address space (safe to leave as-is unless it collides with existing networks).
 vnet_address_space  = "10.30.0.0/24"
-agent_subnet_prefix = "10.30.0.0/27"
+agent_subnet_prefix = "10.30.0.0/28"
 pe_subnet_prefix    = "10.30.0.32/27"

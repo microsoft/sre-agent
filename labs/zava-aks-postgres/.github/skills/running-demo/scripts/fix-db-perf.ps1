@@ -3,7 +3,7 @@
 # Runs the DDL inside an app pod via `az aks command invoke` (PG is private).
 #
 # Uses the in-image `bin/run-sql.js` helper — same path the SRE Agent runbook
-# (infra/modules/sre-agent.bicep) tells the agent to use for autonomous
+# (sre-config/skills/performance-incidents.md) tells the agent to use for autonomous
 # remediation of Scenario 3 (missing index).
 param(
     [string]$ResourceGroup = "",

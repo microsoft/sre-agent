@@ -87,6 +87,15 @@ done
 command -v jq >/dev/null || { echo "Error: jq is required" >&2; exit 1; }
 command -v az >/dev/null || { echo "Error: az CLI is required" >&2; exit 1; }
 
+# Resolve python command — python3 on macOS/Linux, python on Windows/MINGW
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON=python3
+elif command -v python >/dev/null 2>&1; then
+  PYTHON=python
+else
+  echo "Error: python3 or python is required" >&2; exit 1
+fi
+
 API_VERSION="2025-05-01-preview"
 ARM_BASE="https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.App/agents/${AGENT}"
 
@@ -99,7 +108,7 @@ _fail() { echo "  ERROR: $*" >&2; exit 1; }
 
 # JSON → YAML conversion (for human-editable config files)
 json2yaml() {
-  python3 -c "
+  $PYTHON -c "
 import sys, json, yaml
 
 def strip_nulls(obj):
@@ -331,33 +340,102 @@ CONNECTORS=$(echo "$RAW_CONNECTORS" | jq -c --argjson dp "$DP_CONNECTORS" '[.[] 
 # Sanitize any embedded secrets in connector datasource strings
 CONNECTORS=$(sanitize "$CONNECTORS")
 
-# Tools (opaque — base64-encoded)
-_log "Reading tools..."
-RAW_TOOLS=$(arm_list "tools")
-TOOL_COUNT=$(echo "$RAW_TOOLS" | jq 'length')
-_log "  Found ${TOOL_COUNT} tool(s)"
-TOOLS=$(decode_opaque "$RAW_TOOLS")
+# Tools (opaque — base64-encoded; data-plane fallback for 3P tenants)
+_log "Reading tools (ARM)..."
+RAW_TOOLS=$(arm_list "tools" 2>/dev/null || echo "[]")
+TOOLS_ARM_COUNT=$(echo "$RAW_TOOLS" | jq 'length')
+if [[ "$TOOLS_ARM_COUNT" -gt 0 ]]; then
+  TOOLS=$(decode_opaque "$RAW_TOOLS")
+  TOOL_COUNT="$TOOLS_ARM_COUNT"
+  _log "  Found ${TOOLS_ARM_COUNT} tool(s) via ARM"
+else
+  _log "  None via ARM, trying data-plane..."
+  RAW_TOOLS_DP=$(dp_get "/api/v2/extendedAgent/tools")
+  if [[ "$RAW_TOOLS_DP" != "null" ]]; then
+    TOOLS=$(echo "$RAW_TOOLS_DP" | jq -c '[(.value // . // [])[] | {
+      metadata: { name: .name },
+      spec: (.properties // {})
+    }]' 2>/dev/null || echo "[]")
+  else
+    TOOLS="[]"
+  fi
+  TOOL_COUNT=$(echo "$TOOLS" | jq 'length')
+  _log "  Found ${TOOL_COUNT} tool(s) via data-plane"
+fi
 
-# Skills (opaque — special shape: Bicep encodes {name,description,tools,skillContent,additionalFiles})
-_log "Reading skills..."
-RAW_SKILLS=$(arm_list "skills")
-SKILL_COUNT=$(echo "$RAW_SKILLS" | jq 'length')
-_log "  Found ${SKILL_COUNT} skill(s)"
-SKILLS=$(decode_skills "$RAW_SKILLS")
+# Skills (opaque — special shape; data-plane fallback for 3P tenants)
+_log "Reading skills (ARM)..."
+RAW_SKILLS=$(arm_list "skills" 2>/dev/null || echo "[]")
+SKILLS_ARM_COUNT=$(echo "$RAW_SKILLS" | jq 'length')
+if [[ "$SKILLS_ARM_COUNT" -gt 0 ]]; then
+  SKILLS=$(decode_skills "$RAW_SKILLS")
+  SKILL_COUNT="$SKILLS_ARM_COUNT"
+  _log "  Found ${SKILLS_ARM_COUNT} skill(s) via ARM"
+else
+  _log "  None via ARM, trying data-plane..."
+  RAW_SKILLS_DP=$(dp_get "/api/v2/extendedAgent/skills")
+  if [[ "$RAW_SKILLS_DP" != "null" ]]; then
+    SKILLS=$(echo "$RAW_SKILLS_DP" | jq -c '[(.value // . // [])[] | {
+      metadata: {
+        name: .name,
+        description: (.properties.description // ""),
+        spec: { tools: (.properties.tools // []) }
+      },
+      skillContent: (.properties.skillContent // ""),
+      additionalFiles: (.properties.additionalFiles // [])
+    }]' 2>/dev/null || echo "[]")
+  else
+    SKILLS="[]"
+  fi
+  SKILL_COUNT=$(echo "$SKILLS" | jq 'length')
+  _log "  Found ${SKILL_COUNT} skill(s) via data-plane"
+fi
 
-# Scheduled Tasks (opaque)
-_log "Reading scheduled tasks..."
-RAW_TASKS=$(arm_list "scheduledTasks")
-TASK_COUNT=$(echo "$RAW_TASKS" | jq 'length')
-_log "  Found ${TASK_COUNT} scheduled task(s)"
-SCHEDULED_TASKS=$(decode_opaque "$RAW_TASKS")
+# Scheduled Tasks (opaque; data-plane fallback for 3P tenants)
+_log "Reading scheduled tasks (ARM)..."
+RAW_TASKS=$(arm_list "scheduledTasks" 2>/dev/null || echo "[]")
+TASKS_ARM_COUNT=$(echo "$RAW_TASKS" | jq 'length')
+if [[ "$TASKS_ARM_COUNT" -gt 0 ]]; then
+  SCHEDULED_TASKS=$(decode_opaque "$RAW_TASKS")
+  TASK_COUNT="$TASKS_ARM_COUNT"
+  _log "  Found ${TASKS_ARM_COUNT} scheduled task(s) via ARM"
+else
+  _log "  None via ARM, trying data-plane..."
+  RAW_TASKS_DP=$(dp_get "/api/v2/extendedAgent/scheduledtasks")
+  if [[ "$RAW_TASKS_DP" != "null" ]]; then
+    SCHEDULED_TASKS=$(echo "$RAW_TASKS_DP" | jq -c '[(.value // . // [])[] | {
+      metadata: { name: .name },
+      spec: (.properties // {})
+    }]' 2>/dev/null || echo "[]")
+  else
+    SCHEDULED_TASKS="[]"
+  fi
+  TASK_COUNT=$(echo "$SCHEDULED_TASKS" | jq 'length')
+  _log "  Found ${TASK_COUNT} scheduled task(s) via data-plane"
+fi
 
-# Incident Filters (opaque)
-_log "Reading incident filters..."
-RAW_FILTERS=$(arm_list "incidentFilters")
-FILTER_COUNT=$(echo "$RAW_FILTERS" | jq 'length')
-_log "  Found ${FILTER_COUNT} incident filter(s)"
-INCIDENT_FILTERS=$(decode_opaque "$RAW_FILTERS")
+# Incident Filters (opaque; data-plane fallback for 3P tenants)
+_log "Reading incident filters (ARM)..."
+RAW_FILTERS=$(arm_list "incidentFilters" 2>/dev/null || echo "[]")
+FILTERS_ARM_COUNT=$(echo "$RAW_FILTERS" | jq 'length')
+if [[ "$FILTERS_ARM_COUNT" -gt 0 ]]; then
+  INCIDENT_FILTERS=$(decode_opaque "$RAW_FILTERS")
+  FILTER_COUNT="$FILTERS_ARM_COUNT"
+  _log "  Found ${FILTERS_ARM_COUNT} incident filter(s) via ARM"
+else
+  _log "  None via ARM, trying data-plane..."
+  RAW_FILTERS_DP=$(dp_get "/api/v2/extendedAgent/incidentFilters")
+  if [[ "$RAW_FILTERS_DP" != "null" ]]; then
+    INCIDENT_FILTERS=$(echo "$RAW_FILTERS_DP" | jq -c '[(.value // . // [])[] | {
+      metadata: { name: .name },
+      spec: (.properties // {})
+    }]' 2>/dev/null || echo "[]")
+  else
+    INCIDENT_FILTERS="[]"
+  fi
+  FILTER_COUNT=$(echo "$INCIDENT_FILTERS" | jq 'length')
+  _log "  Found ${FILTER_COUNT} incident filter(s) via data-plane"
+fi
 
 # Incident Handlers — data-plane (customInstructions lives here, not on the filter)
 _log "Reading incident handlers (data-plane)..."
@@ -376,12 +454,28 @@ if [[ "$DP_HANDLER_COUNT" -gt 0 ]]; then
   _log "  Merged customInstructions into filters"
 fi
 
-# Subagents (opaque)
-_log "Reading subagents..."
-RAW_SUBAGENTS=$(arm_list "subagents")
-SUBAGENT_COUNT=$(echo "$RAW_SUBAGENTS" | jq 'length')
-_log "  Found ${SUBAGENT_COUNT} subagent(s)"
-SUBAGENTS=$(decode_opaque "$RAW_SUBAGENTS")
+# Subagents (opaque; data-plane fallback for 3P tenants)
+_log "Reading subagents (ARM)..."
+RAW_SUBAGENTS=$(arm_list "subagents" 2>/dev/null || echo "[]")
+SUBAGENTS_ARM_COUNT=$(echo "$RAW_SUBAGENTS" | jq 'length')
+if [[ "$SUBAGENTS_ARM_COUNT" -gt 0 ]]; then
+  SUBAGENTS=$(decode_opaque "$RAW_SUBAGENTS")
+  SUBAGENT_COUNT="$SUBAGENTS_ARM_COUNT"
+  _log "  Found ${SUBAGENTS_ARM_COUNT} subagent(s) via ARM"
+else
+  _log "  None via ARM, trying data-plane..."
+  RAW_SUBAGENTS_DP=$(dp_get "/api/v2/extendedAgent/agents")
+  if [[ "$RAW_SUBAGENTS_DP" != "null" ]]; then
+    SUBAGENTS=$(echo "$RAW_SUBAGENTS_DP" | jq -c '[(.value // . // [])[] | {
+      metadata: { name: .name },
+      spec: (.properties // {})
+    }]' 2>/dev/null || echo "[]")
+  else
+    SUBAGENTS="[]"
+  fi
+  SUBAGENT_COUNT=$(echo "$SUBAGENTS" | jq 'length')
+  _log "  Found ${SUBAGENT_COUNT} subagent(s) via data-plane"
+fi
 
 # Hooks (opaque — try ARM first; public Bicep deploys these via ARM now)
 _log "Reading hooks (ARM)..."
@@ -670,9 +764,8 @@ else
 fi
 
 # ── 2. Knowledge items (KnowledgeText/File/WebPage/Repository via connectors API) ──
-# NOTE: KnowledgeText items are exported as plain .md files in data/ so that
-# on re-deploy they go through the AgentMemory data-plane upload (Knowledge tab)
-# instead of being re-created as ARM KnowledgeFile connectors.
+# Knowledge items are preserved as-is and redeployed via data-plane connector PUT
+# (not converted to AgentMemory .md uploads) so they appear under Knowledge Sources.
 if [[ "$INCLUDE_KNOWLEDGE_ITEMS" == "true" ]]; then
   _log "Reading knowledge items from connectors API..."
   RAW_KNOWLEDGE_ITEMS=$(dp_get "/api/v2/extendedAgent/connectors")
@@ -682,62 +775,37 @@ if [[ "$INCLUDE_KNOWLEDGE_ITEMS" == "true" ]]; then
       select(.properties.dataConnectorType // "" | test("^Knowledge")) |
       {
         name: .name,
-        type: .properties.dataConnectorType,
-        displayName: (.properties.displayName // .name),
+        type: (.type // "KnowledgeItem"),
+        dataConnectorType: .properties.dataConnectorType,
+        displayName: (.properties.displayName // .properties.extendedProperties.displayName // .name),
         sourceUrl: (.properties.sourceUrl // ""),
-        metadata: (.properties.metadata // {}),
-        fileSize: (.properties.fileSize // 0)
+        properties: .properties
       }
     ]' 2>/dev/null || echo "[]")
   fi
   KI_COUNT=$(echo "$KNOWLEDGE_ITEMS" | jq 'length')
   _log "  Found ${KI_COUNT} knowledge item(s)"
 
-  # Download knowledge item content and write KnowledgeText as .md in data/
+  # Download content for knowledge items if requested
   if [[ "$DOWNLOAD_FILES" == "true" && "$KI_COUNT" -gt 0 ]]; then
     _log "  Downloading knowledge item content..."
     KI_DIR="${FILES_DIR}/knowledge-items"
     mkdir -p "$KI_DIR"
-    KI_TEXT_EXPORTED=0
-    KI_OTHER_ITEMS="[]"
     for i in $(seq 0 $((KI_COUNT - 1))); do
       kiname=$(echo "$KNOWLEDGE_ITEMS" | jq -r --argjson i "$i" '.[$i].name')
-      kitype=$(echo "$KNOWLEDGE_ITEMS" | jq -r --argjson i "$i" '.[$i].type')
+      kitype=$(echo "$KNOWLEDGE_ITEMS" | jq -r --argjson i "$i" '.[$i].dataConnectorType')
+      ext=""
       case "$kitype" in
-        KnowledgeText)
-          # Export as .md file in data/ → will be uploaded via AgentMemory on redeploy
-          fname="${kiname}.md"
-          # Try to strip trailing -md suffix from connector name for cleaner filenames
-          [[ "$kiname" == *-md ]] && fname="${kiname%-md}.md"
-          dp_download "/api/v2/extendedAgent/connectors/$(printf %s "$kiname" | jq -sRr @uri)/content" \
-            "${KI_DIR}/${fname}" 2>/dev/null && {
-            _log "    ✓ ${kiname} → data/${fname} (will use AgentMemory on redeploy)"
-            KI_TEXT_EXPORTED=$((KI_TEXT_EXPORTED + 1))
-          } || _log "    ✗ ${kiname} (could not download content)"
-          ;;
-        *)
-          # Non-text items (WebPage, File, Repository) stay as knowledgeItems
-          ext=""
-          case "$kitype" in
-            KnowledgeWebPage) ext=".html" ;;
-            KnowledgeFile)    ext="" ;;
-            *)                ext=".json" ;;
-          esac
-          dp_download "/api/v2/extendedAgent/connectors/$(printf %s "$kiname" | jq -sRr @uri)/content" \
-            "${KI_DIR}/${kiname}${ext}" 2>/dev/null && \
-            _log "    ✓ ${kiname} (${kitype})" || \
-            _log "    ✗ ${kiname} (could not download content)"
-          KI_OTHER_ITEMS=$(echo "$KI_OTHER_ITEMS" | jq --argjson i "$i" --arg dir "$KI_DIR" --arg ext "$ext" \
-            --slurpfile items <(echo "$KNOWLEDGE_ITEMS") \
-            '. + [$items[0][$i] + {localPath: ($dir + "/" + $items[0][$i].name + $ext)}]')
-          ;;
+        KnowledgeText)    ext=".md" ;;
+        KnowledgeWebPage) ext=".html" ;;
+        KnowledgeFile)    ext="" ;;
+        *)                ext=".json" ;;
       esac
+      dp_download "/api/v2/extendedAgent/connectors/$(printf %s "$kiname" | jq -sRr @uri)/content" \
+        "${KI_DIR}/${kiname}${ext}" 2>/dev/null && \
+        _log "    ✓ ${kiname} (${kitype})" || \
+        _log "    ✗ ${kiname} (could not download content)"
     done
-    # Only keep non-text items in KNOWLEDGE_ITEMS (text ones became .md files)
-    KNOWLEDGE_ITEMS="$KI_OTHER_ITEMS"
-    if [[ "$KI_TEXT_EXPORTED" -gt 0 ]]; then
-      _log "  Migrated ${KI_TEXT_EXPORTED} KnowledgeText item(s) to data/ .md files (AgentMemory path)"
-    fi
   fi
 else
   _log "Skipping knowledge items (use --include-knowledge-items to include)"
@@ -814,6 +882,26 @@ else
   _log "Skipping repo instructions (use --include-repo-instructions to include)"
 fi
 
+# Session Insights (data-plane — learned patterns from past sessions)
+_log "Reading session insights..."
+RAW_SESSION_INSIGHTS=$(dp_get "/api/v1/threads/insights?skip=0&take=1000")
+if [[ "$RAW_SESSION_INSIGHTS" != "null" ]]; then
+  SESSION_INSIGHTS=$(echo "$RAW_SESSION_INSIGHTS" | jq -c '[(.insights // [])[] | {
+    id: .id,
+    threadId: .threadId,
+    title: .title,
+    generatedTimestamp: .generatedTimestamp,
+    insightMarkdown: .insightMarkdown,
+    feedbackCount: (.feedbackCount // 0),
+    positiveFeedbackCount: (.positiveFeedbackCount // 0),
+    negativeFeedbackCount: (.negativeFeedbackCount // 0)
+  }]' 2>/dev/null || echo "[]")
+else
+  SESSION_INSIGHTS="[]"
+fi
+SESSION_INSIGHT_COUNT=$(echo "$SESSION_INSIGHTS" | jq 'length')
+_log "  Found ${SESSION_INSIGHT_COUNT} session insight(s)"
+
 echo
 
 # ────────────────────── Phase 4: Dry-run summary ──────────────────────
@@ -848,6 +936,7 @@ echo "  Webhook bridge:     $([[ "$BRIDGE_EXISTS" == true ]] && echo "yes" || ec
 echo "  Incident platforms: ${INCIDENT_PLATFORM_COUNT}"
 echo "  Scheduled tasks:    ${TASK_COUNT}"
 echo "  Incident filters:   ${FILTER_COUNT}"
+echo "  Session insights:   ${SESSION_INSIGHT_COUNT}"
 
 if [[ "$DRY_RUN" == "true" ]]; then
   echo
@@ -1013,7 +1102,7 @@ if [[ ${#SET_OVERRIDES[@]} -gt 0 ]]; then
         # Inject connectionKey into incident platform YAML
         for pf in "${EXPORT_DIR}/automations/incident-platforms"/*.yaml; do
           [[ -f "$pf" ]] || continue
-          python3 -c "
+          $PYTHON -c "
 import yaml, sys
 with open('$pf') as f: d = yaml.safe_load(f)
 d.setdefault('spec',{})['connectionKey'] = '$val'
@@ -1350,11 +1439,11 @@ if [[ $(echo "$INCIDENT_PLATFORMS" | jq 'length') -gt 0 ]]; then
     ptype=$(echo "$INCIDENT_PLATFORMS" | jq -r --argjson i "$i" '.[$i].spec.platformType // .[$i].spec.incidentPlatform // ""')
     case "$ptype" in
       PagerDuty|ServiceNow)
-        has_key=$(python3 -c "import yaml; d=yaml.safe_load(open('${EXPORT_DIR}/automations/incident-platforms/${ipname}.yaml')); print('yes' if d.get('spec',{}).get('connectionKey') else 'no')" 2>/dev/null || echo "no")
+        has_key=$($PYTHON -c "import yaml; d=yaml.safe_load(open('${EXPORT_DIR}/automations/incident-platforms/${ipname}.yaml')); print('yes' if d.get('spec',{}).get('connectionKey') else 'no')" 2>/dev/null || echo "no")
         if [[ "$has_key" != "yes" ]]; then
           # Add connectionKey as env var reference so assemble-agent.sh substitutes it
           env_var="$(echo "${ptype}" | tr '[:lower:]' '[:upper:]')_API_KEY"
-          python3 -c "
+          $PYTHON -c "
 import yaml
 f='${EXPORT_DIR}/automations/incident-platforms/${ipname}.yaml'
 with open(f) as fh: d = yaml.safe_load(fh)
@@ -1400,7 +1489,7 @@ if [[ $(echo "$PLUGIN_INSTALLATIONS" | jq 'length') -gt 0 ]]; then
   done
 fi
 
-# ═══════ 4. data/ — knowledge, memories, repo instructions ═══════
+# ═══════ 4. data/ — knowledge, memories, repo instructions, session insights ═══════
 
 _info "Writing data/ files"
 
@@ -1411,6 +1500,26 @@ mkdir -p "${DATA_DIR}/knowledge"
 mkdir -p "${DATA_DIR}/synthesized-knowledge"
 touch "${DATA_DIR}/knowledge/.gitkeep"
 touch "${DATA_DIR}/synthesized-knowledge/.gitkeep"
+
+# Session insights → individual .md files + metadata YAML
+if [[ "$SESSION_INSIGHT_COUNT" -gt 0 ]]; then
+  SI_DIR="${DATA_DIR}/session-insights"
+  mkdir -p "$SI_DIR"
+  for i in $(seq 0 $((SESSION_INSIGHT_COUNT - 1))); do
+    si_id=$(echo "$SESSION_INSIGHTS" | jq -r --argjson i "$i" '.[$i].id')
+    si_title=$(echo "$SESSION_INSIGHTS" | jq -r --argjson i "$i" '.[$i].title')
+    # Sanitize title for filename
+    si_fname=$(echo "$si_title" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//' | head -c 80)
+    [[ -z "$si_fname" ]] && si_fname="$si_id"
+    # Write insight markdown content
+    si_md=$(echo "$SESSION_INSIGHTS" | jq -r --argjson i "$i" '.[$i].insightMarkdown // ""')
+    [[ -n "$si_md" ]] && printf '%s' "$si_md" > "${SI_DIR}/${si_fname}.md"
+    # Write metadata YAML (without the large markdown blob)
+    echo "$SESSION_INSIGHTS" | jq --argjson i "$i" '.[$i] | del(.insightMarkdown) | . + {insightMarkdown: ("session-insights/" + $fname + ".md")}' \
+      --arg fname "$si_fname" | json2yaml > "${SI_DIR}/${si_fname}.yaml"
+  done
+  _log "  session-insights: ${SESSION_INSIGHT_COUNT} file(s)"
+fi
 
 if [[ $(echo "$KNOWLEDGE" | jq 'length') -gt 0 ]]; then
   mkdir -p "${DATA_DIR}"
