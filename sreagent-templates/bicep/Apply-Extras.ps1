@@ -97,7 +97,7 @@ if (-not (Test-Path $ExtrasFile)) {
 # many optional keys on $extras that may be absent for minimal recipes.
 Set-StrictMode -Off
 
-$ApiVersion = "2025-05-01-preview"
+$ApiVersion = "2026-01-01"
 $ArmBase = "https://management.azure.com/subscriptions/$Subscription/resourceGroups/$ResourceGroup/providers/Microsoft.App/agents/$AgentName"
 
 # ── Resolve agent endpoint and UAMI ────────────────────────────────────────
@@ -154,29 +154,6 @@ function Get-DpToken {
         throw "Could not get data-plane token (audience https://azuresre.dev)"
     }
     return $tok
-}
-
-# ── Helper: ARM PUT sub-resource with base64-encoded value envelope ─────────
-# Used for incidentFilters, scheduledTasks, commonPrompts.
-function Arm-PutSubresource {
-    param([string]$Type, [string]$Name, [string]$SpecJson)
-    $url = "$ArmBase/$Type/$Name`?api-version=$ApiVersion"
-    $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($SpecJson))
-    $body = @{ properties = @{ value = $encoded } } | ConvertTo-Json -Compress -Depth 10
-    $tmp = [System.IO.Path]::GetTempFileName()
-    try {
-        Set-Content -Path $tmp -Value $body -NoNewline
-        Write-Host "  ARM PUT $Type/$Name"
-        $result = az rest -m PUT --url $url --body "@$tmp" --headers "Content-Type=application/json" -o json 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "    ok"
-        } else {
-            $msg = ($result | Out-String) -replace '(?s).*"message":"([^"]*)".*', '$1'
-            Write-Host "    FAILED - $msg"
-        }
-    } finally {
-        Remove-Item $tmp -ErrorAction SilentlyContinue
-    }
 }
 
 # ── Helper: ARM PUT connector sub-resource (native properties, no base64) ──

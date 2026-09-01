@@ -130,7 +130,7 @@ if ($null -ne $Set) {
     }
 }
 
-$API_VERSION = '2025-05-01-preview'
+$API_VERSION = '2026-01-01'
 $ARM_BASE    = "https://management.azure.com/subscriptions/${Subscription}/resourceGroups/${ResourceGroup}/providers/Microsoft.App/agents/${AgentName}"
 
 # ─────────────────────────── Prerequisites ───────────────────────────
@@ -435,26 +435,26 @@ $RAW_CONNECTORS = Invoke-ArmList 'connectors'
 $CONNECTOR_COUNT = ($RAW_CONNECTORS | jq 'length') -as [int]
 _log "  Found ${CONNECTOR_COUNT} connector(s) from ARM"
 
-$DP_CONNECTORS = Invoke-DpGet '/api/v2/extendedAgent/connectors' | Invoke-Jq -Compact -Filter '.value // []'
-if (-not $DP_CONNECTORS -or $DP_CONNECTORS -eq 'null') { $DP_CONNECTORS = '[]' }
-$DP_COUNT = ($DP_CONNECTORS | jq 'length') -as [int]
-_log "  Found ${DP_COUNT} connector(s) from data-plane"
+$FULL_CONNECTORS = (az rest -m POST --url "${ARM_BASE}/listConnectorsWithSecrets?api-version=${API_VERSION}" --query 'value' -o json 2>$null) -join "`n"
+if ($LASTEXITCODE -ne 0 -or -not $FULL_CONNECTORS) { $FULL_CONNECTORS = '[]' }
+$FULL_CONNECTOR_COUNT = ($FULL_CONNECTORS | jq 'length') -as [int]
+_log "  Found ${FULL_CONNECTOR_COUNT} connector(s) with details from ARM"
 
-# Prefer data-plane connectors (ARM redacts secrets)
-$dpTmpFile = [System.IO.Path]::GetTempFileName()
-$DP_CONNECTORS | Set-Content -Path $dpTmpFile -Encoding utf8 -NoNewline
+# Prefer the stable control-plane action results where available.
+$fullTmpFile = [System.IO.Path]::GetTempFileName()
+$FULL_CONNECTORS | Set-Content -Path $fullTmpFile -Encoding utf8 -NoNewline
 $CONNECTORS = $RAW_CONNECTORS | Invoke-Jq -Compact -Filter '[.[] |
     . as $arm |
     ($arm.name | split("/") | last) as $cname |
     ($arm.properties.dataConnectorType) as $ctype |
-    ([$dp[0][] | select(.name == $cname)] | first) as $dpconn |
-    if $dpconn then {
+    ([$full[0][] | select((.name | split("/") | last) == $cname)] | first) as $fullconn |
+    if $fullconn then {
         name: $cname,
         properties: {
-            dataConnectorType: ($dpconn.properties.dataConnectorType // $ctype),
-            dataSource: ($dpconn.properties.dataSource // $arm.properties.dataSource // ""),
-            extendedProperties: ($dpconn.properties.extendedProperties // $arm.properties.extendedProperties // {}),
-            identity: ($dpconn.properties.identity // $arm.properties.identity // "system")
+            dataConnectorType: ($fullconn.properties.dataConnectorType // $ctype),
+            dataSource: ($fullconn.properties.dataSource // $arm.properties.dataSource // ""),
+            extendedProperties: ($fullconn.properties.extendedProperties // $arm.properties.extendedProperties // {}),
+            identity: ($fullconn.properties.identity // $arm.properties.identity // "system")
         }
     } else {
         name: $cname,
@@ -465,8 +465,8 @@ $CONNECTORS = $RAW_CONNECTORS | Invoke-Jq -Compact -Filter '[.[] |
             identity: ($arm.properties.identity // "system")
         }
     } end
-]' -ExtraArgs @('--slurpfile', 'dp', $dpTmpFile)
-Remove-Item $dpTmpFile -Force -ErrorAction SilentlyContinue
+]' -ExtraArgs @('--slurpfile', 'full', $fullTmpFile)
+Remove-Item $fullTmpFile -Force -ErrorAction SilentlyContinue
 $CONNECTORS = Invoke-Sanitize $CONNECTORS
 
 # ── Tools (opaque; data-plane fallback for 3P tenants) ──
@@ -912,10 +912,9 @@ if ($INCLUDE_KNOWLEDGE) {
 # 2. Knowledge items (via connectors API) — preserved as knowledgeItems for data-plane deploy
 if ($INCLUDE_KNOWLEDGE_ITEMS) {
     _log 'Reading knowledge items from connectors API...'
-    $RAW_KNOWLEDGE_ITEMS = Invoke-DpGet '/api/v2/extendedAgent/connectors'
-    if ($RAW_KNOWLEDGE_ITEMS -ne 'null') {
-        $KNOWLEDGE_ITEMS = $RAW_KNOWLEDGE_ITEMS | Invoke-Jq -Compact -Filter '[
-            (.value // . // [])[] |
+    if ($FULL_CONNECTORS -ne 'null') {
+        $KNOWLEDGE_ITEMS = $FULL_CONNECTORS | Invoke-Jq -Compact -Filter '[
+            .[] |
             select(.properties.dataConnectorType // "" | test("^Knowledge")) |
             {
                 name: .name,

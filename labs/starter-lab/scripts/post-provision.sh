@@ -340,7 +340,7 @@ echo ""
 echo "🚨 Step 3/5: Enabling Azure Monitor incident platform..."
 SUBSCRIPTION_ID=$(az account show --query id -o tsv 2>/dev/null)
 AGENT_RESOURCE_ID="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.App/agents/${AGENT_NAME}"
-API_VERSION="2025-05-01-preview"
+API_VERSION="2026-01-01"
 
 # Enable Azure Monitor as the incident platform (ARM PATCH)
   if az rest --method PATCH \
@@ -398,18 +398,15 @@ echo ""
 if [ -n "$GITHUB_REPO" ]; then
 echo "🔗 Step 4/5: GitHub integration..."
 
-# Create GitHub OAuth connector via data plane API (no PAT needed)
-echo "   Creating GitHub OAuth connector..."
-TOKEN=$(get_token)
-RESULT=$(curl -s -o /dev/null -w "%{http_code}" \
-  -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
-  -H "Authorization: Bearer ${TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"github","type":"AgentConnector","properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}')
-if [ "$RESULT" = "200" ] || [ "$RESULT" = "201" ]; then
-  echo "   ✅ GitHub OAuth connector created"
+# Create the GitHub OAuth connector through the stable ARM child resource.
+echo "   Creating GitHub OAuth connector through ARM..."
+if az rest --method PUT \
+  --url "https://management.azure.com${AGENT_RESOURCE_ID}/connectors/github?api-version=${API_VERSION}" \
+  --body '{"properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}' \
+  --output none 2>/dev/null; then
+  echo "   ✅ GitHub OAuth connector created through ARM"
 else
-  echo "   ⚠️  GitHub connector returned HTTP ${RESULT}"
+  echo "   ⚠️  GitHub connector creation failed"
 fi
 
 # Get OAuth login URL for user to authorize
@@ -422,15 +419,6 @@ try:
     print(d.get('oAuthUrl', '') or d.get('OAuthUrl', '') or '')
 except: print('')
 " 2>/dev/null)
-
-# Create GitHub OAuth connector via ARM (needed for OAuth flow to fully work)
-echo "   Creating GitHub OAuth connector via ARM..."
-TOKEN=$(get_token)
-ARM_RESULT=$(az rest --method PUT \
-  --url "https://management.azure.com${AGENT_RESOURCE_ID}/DataConnectors/github?api-version=${API_VERSION}" \
-  --body '{"properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}' \
-  -o none 2>&1 || true)
-echo "   ✅ GitHub OAuth connector (ARM)"
 
 # Upload triage runbook
 TOKEN=$(get_token)

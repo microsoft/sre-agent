@@ -188,7 +188,7 @@ echo -e "\n${YELLOW}[4/7] Configuring Azure access and incident platform...${NC}
 SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 AGENT_NAME=$(az resource list --resource-group "$RESOURCE_GROUP" --resource-type "Microsoft.App/agents" --query "[0].name" -o tsv)
 AGENT_RESOURCE_ID="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.App/agents/${AGENT_NAME}"
-API_VERSION="2025-05-01-preview"
+API_VERSION="2026-01-01"
 
 # The agent queries LAW using built-in Azure observability tools (no ADX connector needed).
 # Activity Logs flow to LAW via diagnostic settings (Step 2).
@@ -386,27 +386,16 @@ rm -f /tmp/task-body.json
 # ---- Step 8: GitHub connector + code repo ----
 echo -e "\n${YELLOW}[8/8] Configuring GitHub connector and code repository...${NC}"
 
-# Create GitHub OAuth connector via data plane API (PUT is idempotent)
-TOKEN=$(get_agent_token)
-GITHUB_RESULT=$(curl -s -o /dev/null -w "%{http_code}" \
-  -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
-  -H "Authorization: Bearer ${TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"github","type":"AgentConnector","properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}')
-if [ "$GITHUB_RESULT" = "200" ] || [ "$GITHUB_RESULT" = "201" ]; then
-  echo -e "${GREEN}  ✓ GitHub OAuth connector created (data plane).${NC}"
-else
-  echo -e "${YELLOW}  GitHub connector returned HTTP ${GITHUB_RESULT}. May need manual setup.${NC}"
-fi
-
-# Also create at ARM level so it's visible in the portal Full Setup page
-echo "   Creating GitHub connector at ARM level..."
-az rest --method PUT \
-  --url "https://management.azure.com${AGENT_RESOURCE_ID}/DataConnectors/github?api-version=${API_VERSION}" \
+# Create the GitHub OAuth connector through the stable ARM child resource.
+echo "   Creating GitHub connector through ARM..."
+if az rest --method PUT \
+  --url "https://management.azure.com${AGENT_RESOURCE_ID}/connectors/github?api-version=${API_VERSION}" \
   --body '{"properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}' \
-  --output none 2>/dev/null \
-  && echo -e "${GREEN}  ✓ GitHub connector created at ARM level.${NC}" \
-  || echo -e "${YELLOW}  ⚠️  ARM-level connector creation failed (non-critical — data plane connector is active).${NC}"
+  --output none 2>/dev/null; then
+  echo -e "${GREEN}  ✓ GitHub connector created through ARM.${NC}"
+else
+  echo -e "${YELLOW}  GitHub connector creation failed.${NC}"
+fi
 
 # Get the OAuth login URL
 TOKEN=$(get_agent_token)
@@ -463,7 +452,7 @@ TOKEN=$(get_agent_token)
 VERIFY_PASS=0
 VERIFY_FAIL=0
 
-# Check connectors via data plane API
+# Check connectors
 echo -e "\n  ${YELLOW}Connectors:${NC}"
 
 # Check LAW access (built-in, verified by diagnostic settings + role assignment in steps 2-3)
@@ -475,16 +464,11 @@ else
   VERIFY_FAIL=$((VERIFY_FAIL + 1))
 fi
 
-# Check GitHub connector
-GITHUB_CHECK=$(curl -s "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
-  -H "Authorization: Bearer ${TOKEN}" 2>/dev/null | python3 -c "
-import sys,json
-try:
-    d=json.load(sys.stdin)
-    print('ok' if d.get('name')=='github' else 'missing')
-except: print('missing')
-" 2>/dev/null)
-if [ "$GITHUB_CHECK" = "ok" ]; then
+# Check the GitHub connector through the stable ARM resource.
+GITHUB_CHECK=$(az rest --method GET \
+  --url "https://management.azure.com${AGENT_RESOURCE_ID}/connectors/github?api-version=${API_VERSION}" \
+  --query "name" -o tsv 2>/dev/null || echo "")
+if [[ "$GITHUB_CHECK" == "github" || "$GITHUB_CHECK" == */github ]]; then
   echo -e "    ${GREEN}✓ GitHub connector: Connected${NC}"
   VERIFY_PASS=$((VERIFY_PASS + 1))
 else

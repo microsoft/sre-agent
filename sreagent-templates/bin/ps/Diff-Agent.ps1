@@ -72,7 +72,7 @@ if (Test-Path $PrereqScript) {
 
 # ─────────────────────────── ARM setup ───────────────────────────
 
-$API_VERSION = '2025-05-01-preview'
+$API_VERSION = '2026-01-01'
 $ARM_BASE    = "https://management.azure.com/subscriptions/${Subscription}/resourceGroups/${ResourceGroup}/providers/Microsoft.App/agents/${AgentName}"
 
 # ─────────────────────────── Check if agent exists ───────────────────────────

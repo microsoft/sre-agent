@@ -401,7 +401,7 @@ def poll_azmon_alert(sub: str, rule_name: str, since: datetime) -> bool:
     if not sub:
         return False
     url = (f"https://management.azure.com/subscriptions/{sub}/providers/"
-           f"Microsoft.AlertsManagement/alerts?api-version=2019-05-05-preview"
+           f"Microsoft.AlertsManagement/alerts?api-version=2019-03-01"
            f"&timeRange=1h")
     out = _az(f'az rest --method GET --url "{url}"')
     if not out:
@@ -496,7 +496,7 @@ def _agent_dataplane_endpoint(cfg: dict):
     ep = None
     if sub and rg and name:
         arm = (f"https://management.azure.com/subscriptions/{sub}/resourceGroups/{rg}"
-               f"/providers/Microsoft.App/agents/{name}?api-version=2025-05-01-preview")
+               f"/providers/Microsoft.App/agents/{name}?api-version=2026-01-01")
         out = _az(f'az rest --method GET --url "{arm}"')
         if out:
             try:

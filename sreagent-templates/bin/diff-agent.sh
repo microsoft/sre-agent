@@ -19,7 +19,7 @@ RG="${2:?resource-group required}"
 AGENT="${3:?agent-name required}"
 CONFIG_DIR="${4:?config-directory required}"
 
-API_VERSION="2025-05-01-preview"
+API_VERSION="2026-01-01"
 ARM_BASE="https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.App/agents/${AGENT}"
 
 # Check if agent exists

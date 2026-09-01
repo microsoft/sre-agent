@@ -57,7 +57,7 @@ command -v jq    >/dev/null || { echo "jq is required"    >&2; exit 1; }
 command -v tar   >/dev/null || { echo "tar is required"   >&2; exit 1; }
 command -v curl  >/dev/null || { echo "curl is required"  >&2; exit 1; }
 
-API_VERSION="2025-05-01-preview"
+API_VERSION="2026-01-01"
 ARM_BASE="https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.App/agents/${AGENT}"
 
 # Look up the data-plane endpoint and the agent's user-assigned MI (we use it
@@ -85,30 +85,6 @@ else
   echo "Data-plane:     token unavailable (hooks, repos, httpTriggers will be skipped)"
   echo "                To apply later: az login --scope \"https://azuresre.dev/.default\" && re-run"
 fi
-
-# ---------------------------------------------------------------------------
-# Helper: PUT an ARM sub-resource with base64-encoded value envelope.
-# Used for incidentFilters, scheduledTasks, commonPrompts.
-# Body: { properties: { value: "<base64 of JSON spec>" } }
-# ---------------------------------------------------------------------------
-arm_put_subresource() {
-  local type="$1" name="$2" spec_json="$3"
-  local url="${ARM_BASE}/${type}/${name}?api-version=${API_VERSION}"
-  local encoded
-  encoded=$(printf '%s' "$spec_json" | base64)
-  local tmp
-  tmp=$(mktemp)
-  printf '{"properties":{"value":"%s"}}' "$encoded" > "$tmp"
-  echo "  ARM PUT ${type}/${name}"
-  local result
-  result=$(az rest -m PUT --url "$url" --body "@${tmp}" \
-       --headers "Content-Type=application/json" -o json 2>&1) && {
-    echo "    ok"
-  } || {
-    echo "    FAILED — $(echo "$result" | grep -o '"message":"[^"]*"' | head -1 | cut -d'"' -f4)"
-  }
-  rm -f "$tmp"
-}
 
 # ---------------------------------------------------------------------------
 # Helper: PUT an ARM connector sub-resource (native properties, no base64).
