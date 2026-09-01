@@ -95,7 +95,7 @@ Every agent (created, exported, or cloned) uses this structure:
 │   ├── repos/                                Code repo bindings (GitHub/ADO)
 │   └── plugin-configs/                       Plugin settings
 ├── automations/                            ← Incident platform config
-│   ├── incident-platforms/                   Platform type (AzureMonitor, PagerDuty, etc.)
+│   ├── incident-platforms/                   Platform type (AzMonitor, PagerDuty, etc.)
 │   └── incident-filters/                     Response plans (routing rules)
 └── data/                                   ← Knowledge files (optional)
     └── synthesized-knowledge/                Learned patterns
@@ -105,7 +105,7 @@ Every agent (created, exported, or cloned) uses this structure:
 
 | Connector type | Auth method | How |
 |---|---|---|
-| AppInsights, LogAnalytics, AzureMonitor | Managed Identity | RBAC on target resource |
+| AppInsights, LogAnalytics | Managed Identity | RBAC on target resource |
 | Kusto, AzureMcpKusto | Managed Identity | Viewer role on ADX cluster |
 | Mcp, DynatraceMcp, DatadogMcp | Bearer token | `connectors.secrets.env` |
 | GitHubOAuth | OAuth browser flow | Portal sign-in or `GITHUB_PAT` env var |

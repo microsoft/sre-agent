@@ -19,8 +19,8 @@ Log Analytics / Application Insights only via the AMPLS private endpoint over th
 
 The agent remains fully functional under this lockdown: it queries Log Analytics / Application
 Insights and remediates incidents end-to-end over the private path. (The agent\'s Monitor query
-connector is platform-brokered, so dropping the public `AzureMonitor` tag from the agent-VNet
-firewall does not gate it.) Set false to keep the public allow-listed Monitor path instead.''')
+tools are platform-brokered, so dropping the public `AzureMonitor` tag from the agent-VNet
+firewall does not gate them.) Set false to keep the public allow-listed Monitor path instead.''')
 param lockAgentToPrivateMonitor bool = true
 
 @description('''Allow the agent to reach its OWN data-plane endpoint (`*.azuresre.ai`) through the hub

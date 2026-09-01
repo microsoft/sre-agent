@@ -528,8 +528,6 @@ $paramsObj = [ordered]@{
         'appInsightsAppId'            = @{ value = [string](Get-Prop $ctogObj  'appInsightsAppId'            '') }
         'enableLogAnalyticsConnector' = @{ value = [bool](Get-Prop $ctogObj    'enableLogAnalyticsConnector' $false) }
         'lawResourceId'               = @{ value = [string](Get-Prop $ctogObj  'lawResourceId'               '') }
-        'enableAzureMonitorConnector' = @{ value = [bool](Get-Prop $ctogObj    'enableAzureMonitorConnector' $false) }
-        'azureMonitorLookbackDays'    = @{ value = [int](Get-Prop $ctogObj     'azureMonitorLookbackDays'    7) }
         'enableDailyHealthCheckTask'  = @{ value = [bool](Get-Prop $togglesObj 'enableDailyHealthCheckTask'  $false) }
         'enableDenyProdDeletesHook'   = @{ value = [bool](Get-Prop $togglesObj 'enableDenyProdDeletesHook'   $false) }
         'enableSafetyRulesPrompt'     = @{ value = [bool](Get-Prop $togglesObj 'enableSafetyRulesPrompt'     $false) }

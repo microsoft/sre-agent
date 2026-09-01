@@ -15,9 +15,9 @@
 
 ### Scenario 1: AzMonitor + core config
 
-- Connectors: AppInsights, AzureMonitor, GitHub, Teams
+- Connectors: AppInsights, GitHub, Teams
 - Config: 2 skills, 2 subagents (handoff chain), 2 hooks, 2 common prompts, scheduled task, HTTP trigger, incident filter (AzMon Sev0+1), GitHub repo
-- Auth: MI (AI, AzMon), OAuth (GitHub), api-connection (Teams)
+- Auth: MI (App Insights), OAuth (GitHub), api-connection (Teams)
 - Real Azure
 
 ### Scenario 2: PagerDuty + Kusto/MCP/ADO
@@ -42,7 +42,6 @@
 |---|:---:|:---:|:---:|
 | AppInsights | ✅ | | ✅ |
 | LogAnalytics | | ✅ | |
-| AzureMonitor | ✅ | | |
 | Kusto/ADX | | ✅ | |
 | Dynatrace MCP | | ✅ | |
 | Datadog MCP | | | ✅ |

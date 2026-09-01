@@ -88,13 +88,12 @@ if (-not $Endpoint -or $Endpoint -eq 'null') {
     # Count connectors from connectors.json
     $connFile = Join-Path $ConfigDir 'connectors.json'
     if (Test-Path $connFile) {
-        foreach ($tog in @('enableLogAnalyticsConnector', 'enableAppInsightsConnector', 'enableAzureMonitorConnector')) {
+        foreach ($tog in @('enableLogAnalyticsConnector', 'enableAppInsightsConnector')) {
             $v = Get-Content $connFile -Raw | Invoke-Jq -Raw -Filter ".toggles.${tog} // false"
             if ($v -eq 'true') {
                 $label = switch ($tog) {
                     'enableLogAnalyticsConnector' { 'Log Analytics (toggle)' }
                     'enableAppInsightsConnector'  { 'App Insights (toggle)' }
-                    'enableAzureMonitorConnector'  { 'Azure Monitor (toggle)' }
                 }
                 Write-Host "    + connector: $label" -ForegroundColor Green
             }

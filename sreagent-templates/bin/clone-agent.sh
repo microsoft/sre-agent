@@ -399,7 +399,7 @@ echo "  These checks ensure the agent will have a good user experience."
 echo
 
 # 4a. Must have at least 1 connector (otherwise agent can't observe anything)
-TOTAL_CONNECTORS=$((CONNECTOR_COUNT + $(jq '.parameters.enableAppInsightsConnector.value // false | if . then 1 else 0 end' "$SOURCE" 2>/dev/null || echo 0) + $(jq '.parameters.enableLogAnalyticsConnector.value // false | if . then 1 else 0 end' "$SOURCE" 2>/dev/null || echo 0) + $(jq '.parameters.enableAzureMonitorConnector.value // false | if . then 1 else 0 end' "$SOURCE" 2>/dev/null || echo 0)))
+TOTAL_CONNECTORS=$((CONNECTOR_COUNT + $(jq '.parameters.enableAppInsightsConnector.value // false | if . then 1 else 0 end' "$SOURCE" 2>/dev/null || echo 0) + $(jq '.parameters.enableLogAnalyticsConnector.value // false | if . then 1 else 0 end' "$SOURCE" 2>/dev/null || echo 0)))
 if [[ "$TOTAL_CONNECTORS" -ge 2 ]]; then
   _ok "Connectors: ${TOTAL_CONNECTORS} configured (good — agent has observability data)"
 elif [[ "$TOTAL_CONNECTORS" -eq 1 ]]; then
@@ -462,7 +462,7 @@ for i in $(seq 0 $((CONNECTOR_COUNT - 1))); do
   ident=$(jq -r --argjson i "$i" '.parameters.connectors.value[$i].properties.identity // "system"' "$SOURCE")
 
   case "$ctype" in
-    AppInsights|LogAnalytics|AzureMonitor|MonitorClient)
+    AppInsights|LogAnalytics)
       # Managed Identity — no user action needed if MI has RBAC on the resource
       _ok "Connector '${cname}' (${ctype}): uses Managed Identity — ensure MI has Reader on target resource"
       ;;

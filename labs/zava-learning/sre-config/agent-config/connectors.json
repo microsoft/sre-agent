@@ -22,12 +22,6 @@
       "identity": "system"
     },
     {
-      "name": "azure-monitor",
-      "dataConnectorType": "MonitorClient",
-      "dataSource": "n/a",
-      "identity": "system"
-    },
-    {
       "name": "microsoft-learn",
       "dataConnectorType": "Mcp",
       "dataSource": "zava-learning-microsoft-learn-mcp",

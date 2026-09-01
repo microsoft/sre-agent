@@ -30,7 +30,7 @@ so the template grants its runtime identity the built-in Reader role there. The
 | **Database** | PostgreSQL 16 Flexible Server (Entra-only auth, zero passwords) |
 | **Monitoring** | App Insights, Log Analytics, OpenTelemetry application metrics, PostgreSQL platform metrics, and three dispatching Azure Monitor alerts: database availability, query performance, and application 5xx failures |
 | **SRE Agent** | Preview-channel agent with ARM-deployed core infrastructure and connectors, plus script-applied skills, response plans, knowledge, and global instructions. The source repository is deliberately not connected in this lab. |
-| **Telemetry access** | App Insights, Log Analytics, and Azure Monitor exposed via **connectors** |
+| **Telemetry access** | App Insights and Log Analytics exposed via **connectors**; Azure Monitor configured as the incident platform |
 | **Demo Scenarios** | 5 break/fix scenarios with scripts |
 
 ## Architecture
@@ -206,7 +206,7 @@ kubectl exec deploy/zava-api -n zava-demo -- node bin/run-sql.js '<SQL>'
 | **Kubernetes** | `RunKubectlReadCommand` | `RunKubectlWriteCommand` for NetworkPolicy deletion, rollout undo, and in-pod SQL helper execution |
 | **PostgreSQL** | Control: `az postgres flexible-server show / parameter list / backup list / server-logs list / replica list`. Data (reads + DDL): in-cluster helper through `RunKubectlWriteCommand` | `az postgres flexible-server start` (**Scenario 1**), `restart`, `update`, `parameter set`, `replica create`, `restore`, `ad-admin create` |
 | **Networking** | `az network nsg / vnet / private-dns show`, plus the hub firewall as a device: `az network firewall [policy] show` (Reader-covered) and its `AZFW*` logs (KQL) | `az network nsg rule create / delete` (Scenario 2 cleanup) |
-| **Telemetry** | App Insights, Log Analytics, and Azure Monitor connectors (KQL + metrics) — API-based, no network reachability needed | Alert / action group create / update |
+| **Telemetry** | App Insights and Log Analytics connectors (KQL + metrics) — API-based, no network reachability needed | Azure Monitor incident and alert/action group create/update |
 
 ### Running PostgreSQL SQL
 
@@ -272,7 +272,7 @@ The on-prem example is therefore just **one instance** of the general rule, not 
 
 The Log Analytics workspace and Application Insights are scoped to an **Azure Monitor Private Link Scope** with a private endpoint in the hub (`infra/modules/monitor-private-link.bicep`). By default (`lockAgentToPrivateMonitor = true`) the **agent is locked to the private path**: its Monitor private-DNS zones are linked to the agent VNet and the public `AzureMonitor` service tag is dropped from the firewall L4 allow-list, so the agent reaches Log Analytics / Application Insights only over the AMPLS private endpoint (maximum restraint). Set `lockAgentToPrivateMonitor = false` to keep the public allow-listed Monitor path instead.
 
-> **The agent stays fully functional under the lockdown.** With the lockdown on, the agent still queries Log Analytics / Application Insights and remediates incidents end-to-end through Monitor and the built-in Kubernetes tools. The agent's Monitor query connector is platform-brokered, so dropping the public `AzureMonitor` tag from the agent-VNet firewall doesn't gate it.
+> **The agent stays fully functional under the lockdown.** With the lockdown on, the agent still queries Log Analytics / Application Insights and remediates incidents end-to-end through Monitor and the built-in Kubernetes tools. The agent's Monitor query tools are platform-brokered, so dropping the public `AzureMonitor` tag from the agent-VNet firewall doesn't gate them.
 
 > **Workload (app) telemetry stays public by default.** `linkWorkloadVnetsToPrivateMonitor = false` on purpose: linking the *platform* spoke to the Monitor private-DNS zones forces the app's App Insights traffic onto the private endpoint, which only works if every endpoint in its connection string is served by the AMPLS zones. The regional App Insights **ingestion** host (`<region>-N.in.applicationinsights.azure.com`, from the component's connection string) is the classic gap: if it resolves into the private zone without a matching record it returns NXDOMAIN and the app silently stops shipping telemetry — a [documented private-link DNS pitfall](https://learn.microsoft.com/azure/azure-monitor/logs/private-link-security). This lab doesn't validate the workload's private path, so it's left public; the agent's lockdown is independent (it only *queries* Monitor, over its own spoke). Enable the toggle only after validating the workload's ingestion endpoints. For resource-level lockdown, switch the AMPLS access mode to `PrivateOnly` (riskier — can block operator public queries region-wide).
 

@@ -467,6 +467,11 @@ $CONNECTORS = $RAW_CONNECTORS | Invoke-Jq -Compact -Filter '[.[] |
     } end
 ]' -ExtraArgs @('--slurpfile', 'full', $fullTmpFile)
 Remove-Item $fullTmpFile -Force -ErrorAction SilentlyContinue
+$CONNECTORS = $CONNECTORS | Invoke-Jq -Compact -Filter '[.[] | select(
+    .properties.dataConnectorType != "AzureMonitor" and
+    .properties.dataConnectorType != "MonitorClient"
+)]'
+$CONNECTOR_COUNT = ($CONNECTORS | jq 'length') -as [int]
 $CONNECTORS = Invoke-Sanitize $CONNECTORS
 
 # ── Tools (opaque; data-plane fallback for 3P tenants) ──
@@ -1131,7 +1136,6 @@ _info 'Writing agent.json'
 # Toggle inference from connectors
 $ENABLE_AI = $false; $AI_RESOURCE_ID = ''; $AI_APP_ID = ''
 $ENABLE_LAW = $false; $LAW_RESOURCE_ID = ''
-$ENABLE_AZMON = $false; $AZMON_LOOKBACK = 7
 
 for ($i = 0; $i -lt $CONNECTOR_COUNT; $i++) {
     $ctype = $CONNECTORS | jq -r --argjson i $i '.[$i].properties.dataConnectorType'
@@ -1144,10 +1148,6 @@ for ($i = 0; $i -lt $CONNECTOR_COUNT; $i++) {
         'LogAnalytics' {
             $ENABLE_LAW = $true
             $LAW_RESOURCE_ID = $CONNECTORS | Invoke-Jq -Raw -Filter '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""' -ExtraArgs @('--argjson', 'i', "$i")
-        }
-        'AzureMonitor' {
-            $ENABLE_AZMON = $true
-            $AZMON_LOOKBACK = ($CONNECTORS | Invoke-Jq -Raw -Filter '.[$i].properties.extendedProperties.lookbackDays // 7' -ExtraArgs @('--argjson', 'i', "$i")) -as [int]
         }
     }
 }
@@ -1288,12 +1288,11 @@ for ($i = 0; $i -lt $CONNECTOR_COUNT; $i++) {
 $CONNECTORS_CLEAN = Invoke-Sanitize $CONNECTORS_CLEAN
 
 # Separate toggle-managed connectors from array connectors
-$TOGGLE_TYPES = 'AppInsights|LogAnalytics|AzureMonitor'
+$TOGGLE_TYPES = 'AppInsights|LogAnalytics'
 $CONNECTORS_ARRAY = $CONNECTORS_CLEAN | Invoke-Jq -Compact -Filter '[.[] | select(.properties.dataConnectorType | test("^(\($tt))$") | not)]' -ExtraArgs @('--arg', 'tt', $TOGGLE_TYPES)
 
 $enableAIStr   = if ($ENABLE_AI)    { 'true' } else { 'false' }
 $enableLAWStr  = if ($ENABLE_LAW)   { 'true' } else { 'false' }
-$enableAzMonStr = if ($ENABLE_AZMON) { 'true' } else { 'false' }
 
 # PowerShell drops empty-string arguments when calling native commands, which
 # misaligns jq --arg pairs.  Default to a single space so the arg is preserved;
@@ -1308,12 +1307,10 @@ $CONNECTORS_ARRAY | Invoke-Jq -Filter '{
             "appInsightsResourceId": ($aiResId | ltrimstr(" ")),
             "appInsightsAppId": ($aiAppId | ltrimstr(" ")),
             "enableLogAnalyticsConnector": ($enableLAW | test("true")),
-            "lawResourceId": ($lawResId | ltrimstr(" ")),
-            "enableAzureMonitorConnector": ($enableAzMon | test("true")),
-            "azureMonitorLookbackDays": ($azMonLookback | tonumber)
+            "lawResourceId": ($lawResId | ltrimstr(" "))
         },
         "connectors": .
-    }' -ExtraArgs @('--arg', 'enableAI', $enableAIStr, '--arg', 'aiResId', $AI_RESOURCE_ID, '--arg', 'aiAppId', $AI_APP_ID, '--arg', 'enableLAW', $enableLAWStr, '--arg', 'lawResId', $LAW_RESOURCE_ID, '--arg', 'enableAzMon', $enableAzMonStr, '--arg', 'azMonLookback', "$AZMON_LOOKBACK") | Set-Content -Path (Join-Path $EXPORT_DIR 'connectors.json') -Encoding utf8
+    }' -ExtraArgs @('--arg', 'enableAI', $enableAIStr, '--arg', 'aiResId', $AI_RESOURCE_ID, '--arg', 'aiAppId', $AI_APP_ID, '--arg', 'enableLAW', $enableLAWStr, '--arg', 'lawResId', $LAW_RESOURCE_ID) | Set-Content -Path (Join-Path $EXPORT_DIR 'connectors.json') -Encoding utf8
 
 $CONN_COUNT = ($CONNECTORS_ARRAY | jq 'length') -as [int]
 _log "Wrote connectors.json (${CONN_COUNT} connector(s) + toggles)"
@@ -1354,8 +1351,6 @@ _log 'Generating expected-config.json'
 $EXPECTED_CONNECTORS = '[]'
 if ($ENABLE_LAW)   { $EXPECTED_CONNECTORS = $EXPECTED_CONNECTORS | Invoke-Jq -Filter '. + [{"name":"log-analytics","type":"LogAnalytics"}]' }
 if ($ENABLE_AI)    { $EXPECTED_CONNECTORS = $EXPECTED_CONNECTORS | Invoke-Jq -Filter '. + [{"name":"app-insights","type":"AppInsights"}]' }
-if ($ENABLE_AZMON)  { $EXPECTED_CONNECTORS = $EXPECTED_CONNECTORS | Invoke-Jq -Filter '. + [{"name":"azure-monitor","type":"AzureMonitor"}]' }
-
 $connArrayCount = ($CONNECTORS_ARRAY | jq 'length') -as [int]
 for ($i = 0; $i -lt $connArrayCount; $i++) {
     $cname = $CONNECTORS_ARRAY | jq -r --argjson i $i '.[$i].name'

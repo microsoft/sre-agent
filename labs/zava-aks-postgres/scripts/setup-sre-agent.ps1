@@ -515,12 +515,12 @@ function Get-AgentChildren {
 }
 
 $connectors = @(Get-AgentChildren -Kind "connectors")
-$expectedConnectors = @("app-insights","log-analytics","azure-monitor")
+$expectedConnectors = @("app-insights","log-analytics")
 $missingConnectors = $expectedConnectors | Where-Object { $_ -notin $connectors.name }
 $learnConnector = $connectors | Where-Object { $_.name -in @("learn-docs", "microsoft-learn") } | Select-Object -First 1
 if (-not $learnConnector) { $missingConnectors += "learn-docs" }
 else { $learnConnectorName = $learnConnector.name }
-if (-not $missingConnectors) { Write-Host "  [OK] Connectors: $($connectors.Count) (app-insights, log-analytics, azure-monitor, $($learnConnector.name))" -ForegroundColor Green }
+if (-not $missingConnectors) { Write-Host "  [OK] Connectors: $($connectors.Count) (app-insights, log-analytics, $($learnConnector.name))" -ForegroundColor Green }
 else { Write-Host "  [MISSING] Connectors: $($missingConnectors -join ', ') — re-run azd provision" -ForegroundColor Red; $allGood = $false }
 
 $skills = @(Get-DataPlaneCollection -Path "/api/v2/extendedAgent/skills")
@@ -638,7 +638,7 @@ Write-Host "========================================`n" -ForegroundColor Cyan
 Write-Host "  DEPLOYED BY BICEP:" -ForegroundColor DarkGray
 Write-Host "  [x] Agent: autonomous mode + High access"
 Write-Host "  [x] Incident platform: Azure Monitor"
-Write-Host "  [x] Connectors: app-insights, log-analytics, azure-monitor, $learnConnectorName"
+Write-Host "  [x] Connectors: app-insights, log-analytics, $learnConnectorName"
 Write-Host "`n  APPLIED BY SETUP SCRIPT:" -ForegroundColor Cyan
 Write-Host "  [x] Custom skills: database-incidents, performance-incidents, application-incidents, general-triage, proactive-health-check, incident-correlation"
 Write-Host "  [x] Response plans (incident filters): zava-database, zava-performance, zava-application, zava-unknown"

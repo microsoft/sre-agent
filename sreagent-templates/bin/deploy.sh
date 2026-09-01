@@ -95,13 +95,12 @@ echo "  Bicep (ARM) resources:"
 WH=$(jq -r '.parameters.enableWebhookBridge.value // false' "$FILE")
 [[ "$WH" == "true" ]] && echo "    ✓ Webhook bridge (Logic App)"
 # Toggle connectors
-for tog in enableLogAnalyticsConnector enableAppInsightsConnector enableAzureMonitorConnector; do
+for tog in enableLogAnalyticsConnector enableAppInsightsConnector; do
   v=$(jq -r ".parameters.${tog}.value // false" "$FILE")
   if [[ "$v" == "true" ]]; then
     case "$tog" in
       enableLogAnalyticsConnector) echo "    ✓ Log Analytics connector" ;;
       enableAppInsightsConnector)  echo "    ✓ App Insights connector" ;;
-      enableAzureMonitorConnector) echo "    ✓ Azure Monitor connector" ;;
     esac
   fi
 done

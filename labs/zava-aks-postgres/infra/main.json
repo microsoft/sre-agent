@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "6972014545667625315"
+      "templateHash": "1922876681430478220"
     }
   },
   "parameters": {
@@ -41,7 +41,7 @@
       "type": "bool",
       "defaultValue": true,
       "metadata": {
-        "description": "Lock the SRE Agent down to PRIVATE-ONLY Azure Monitor (maximum restraint).\nWhen true (default): the agent\\'s Monitor private-DNS zones are linked to the agent VNet AND the\npublic `AzureMonitor` service tag is removed from the firewall L4 allow-list, so the agent reaches\nLog Analytics / Application Insights only via the AMPLS private endpoint over the hub/spoke.\n\nThe agent remains fully functional under this lockdown: it queries Log Analytics / Application\nInsights and remediates incidents end-to-end over the private path. (The agent\\'s Monitor query\nconnector is platform-brokered, so dropping the public `AzureMonitor` tag from the agent-VNet\nfirewall does not gate it.) Set false to keep the public allow-listed Monitor path instead."
+        "description": "Lock the SRE Agent down to PRIVATE-ONLY Azure Monitor (maximum restraint).\nWhen true (default): the agent\\'s Monitor private-DNS zones are linked to the agent VNet AND the\npublic `AzureMonitor` service tag is removed from the firewall L4 allow-list, so the agent reaches\nLog Analytics / Application Insights only via the AMPLS private endpoint over the hub/spoke.\n\nThe agent remains fully functional under this lockdown: it queries Log Analytics / Application\nInsights and remediates incidents end-to-end over the private path. (The agent\\'s Monitor query\ntools are platform-brokered, so dropping the public `AzureMonitor` tag from the agent-VNet\nfirewall does not gate them.) Set false to keep the public allow-listed Monitor path instead."
       }
     },
     "allowAgentSelfManagement": {
@@ -2140,19 +2140,6 @@
                   ]
                 },
                 "identity": ""
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.App/agents', parameters('agentName'))]"
-              ]
-            },
-            {
-              "type": "Microsoft.App/agents/connectors",
-              "apiVersion": "2025-05-01-preview",
-              "name": "[format('{0}/{1}', parameters('agentName'), 'azure-monitor')]",
-              "properties": {
-                "dataConnectorType": "MonitorClient",
-                "dataSource": "n/a",
-                "identity": "system"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.App/agents', parameters('agentName'))]"

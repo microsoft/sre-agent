@@ -375,7 +375,7 @@ if ($ifCount -gt 0) {
             # Build filter properties
             $platform = if ($spec.incidentPlatform) { $spec.incidentPlatform }
                         elseif ($spec.platformType) { $spec.platformType }
-                        else { "AzureMonitor" }
+                        else { "AzMonitor" }
             $handling = if ($spec.handlingAgent -and $spec.handlingAgent -ne "") { $spec.handlingAgent } else { "default" }
 
             $propsObj = $spec.PSObject.Copy()
