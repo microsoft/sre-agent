@@ -96,6 +96,11 @@ else
   echo "Error: python3 or python is required" >&2; exit 1
 fi
 
+if ! "$PYTHON" -c "import yaml" 2>/dev/null; then
+  echo "Error: PyYAML is required for $PYTHON — install it with: $PYTHON -m pip install pyyaml" >&2
+  exit 1
+fi
+
 API_VERSION="2026-01-01"
 ARM_BASE="https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.App/agents/${AGENT}"
 
