@@ -10,7 +10,7 @@ apply the same configuration the same way.
 
 | Artifact | Purpose | Applied as |
 |---|---|---|
-| `connectors.json` | App Insights, Log Analytics, Azure Monitor, Microsoft Learn (MCP) data connectors | connector create |
+| `connectors.json` | App Insights, Log Analytics, and Microsoft Learn (MCP) data connectors | connector create |
 | `skills/connectivity-triage/SKILL.md` | Edge/network incident runbook (App Gateway → NSG → ACA LB → APIs) | srectl skill apply |
 | `skills/performance-investigation/SKILL.md` | App-tier incident runbook | srectl skill apply |
 | `skills/rbac-audit/SKILL.md` | Read-only least-privilege audit | srectl skill apply |

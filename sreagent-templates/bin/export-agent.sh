@@ -343,6 +343,13 @@ CONNECTORS=$(echo "$RAW_CONNECTORS" | jq -c --argjson full "$FULL_CONNECTORS" '[
     }
   } end
 ]')
+# Azure Monitor is an incident platform, not a data connector. Older agents can
+# expose an azure-monitor ARM child; do not turn that projection into a recipe connector.
+CONNECTORS=$(echo "$CONNECTORS" | jq -c '[.[] | select(
+  .properties.dataConnectorType != "AzureMonitor" and
+  .properties.dataConnectorType != "MonitorClient"
+)]')
+CONNECTOR_COUNT=$(echo "$CONNECTORS" | jq 'length')
 # Sanitize any embedded secrets in connector datasource strings
 CONNECTORS=$(sanitize "$CONNECTORS")
 
@@ -1005,7 +1012,6 @@ _info "Writing agent.json"
 # Toggle inference
 ENABLE_AI=false; AI_RESOURCE_ID=""; AI_APP_ID=""
 ENABLE_LAW=false; LAW_RESOURCE_ID=""
-ENABLE_AZMON=false; AZMON_LOOKBACK=7
 
 for i in $(seq 0 $((CONNECTOR_COUNT - 1))); do
   ctype=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.dataConnectorType')
@@ -1023,13 +1029,6 @@ for i in $(seq 0 $((CONNECTOR_COUNT - 1))); do
       if [[ "$ENABLE_LAW" == "false" ]]; then
         ENABLE_LAW=true
         LAW_RESOURCE_ID=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""')
-      fi
-      ;;
-    AzureMonitor)
-      # Only capture the FIRST AzureMonitor connector for the toggle
-      if [[ "$ENABLE_AZMON" == "false" ]]; then
-        ENABLE_AZMON=true
-        AZMON_LOOKBACK=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.extendedProperties.lookbackDays // 7')
       fi
       ;;
   esac
@@ -1170,7 +1169,7 @@ done
 CONNECTORS_CLEAN=$(sanitize "$CONNECTORS_CLEAN")
 
 # ── Write connectors.json ──
-# Toggle-managed types (AppInsights, LogAnalytics, AzureMonitor) map to Bicep
+# Toggle-managed types (AppInsights and LogAnalytics) map to Bicep
 # parameters that create ARM resources. The FIRST connector of each toggle type
 # goes into toggles; any ADDITIONAL connectors of the same type (e.g. a second
 # LAW workspace) stay in the connectors array (deployed via data-plane).
@@ -1183,10 +1182,6 @@ TOGGLE_NAMES=""
   first_law=$(echo "$CONNECTORS_CLEAN" | jq -r '[.[] | select(.properties.dataConnectorType == "LogAnalytics")][0].name')
   [[ "$first_law" != "null" ]] && TOGGLE_NAMES="${TOGGLE_NAMES}${first_law}|"
 }
-[[ "$ENABLE_AZMON" == "true" ]] && {
-  first_azmon=$(echo "$CONNECTORS_CLEAN" | jq -r '[.[] | select(.properties.dataConnectorType == "AzureMonitor")][0].name')
-  [[ "$first_azmon" != "null" ]] && TOGGLE_NAMES="${TOGGLE_NAMES}${first_azmon}|"
-}
 TOGGLE_NAMES="${TOGGLE_NAMES%|}"  # strip trailing |
 if [[ -n "$TOGGLE_NAMES" ]]; then
   CONNECTORS_ARRAY=$(echo "$CONNECTORS_CLEAN" | jq -c --arg tn "$TOGGLE_NAMES" '[.[] | select(.name | test("^(\($tn))$") | not)]')
@@ -1196,16 +1191,13 @@ fi
 
 echo "$CONNECTORS_ARRAY" | jq --argjson enableAI "$ENABLE_AI" --arg aiResId "$AI_RESOURCE_ID" --arg aiAppId "$AI_APP_ID" \
   --argjson enableLAW "$ENABLE_LAW" --arg lawResId "$LAW_RESOURCE_ID" \
-  --argjson enableAzMon "$ENABLE_AZMON" --argjson azMonLookback "$AZMON_LOOKBACK" \
   '{
     "toggles": {
       "enableAppInsightsConnector": $enableAI,
       "appInsightsResourceId": $aiResId,
       "appInsightsAppId": $aiAppId,
       "enableLogAnalyticsConnector": $enableLAW,
-      "lawResourceId": $lawResId,
-      "enableAzureMonitorConnector": $enableAzMon,
-      "azureMonitorLookbackDays": $azMonLookback
+      "lawResourceId": $lawResId
     },
     "connectors": .
   }' > "${EXPORT_DIR}/connectors.json"
@@ -1249,10 +1241,7 @@ fi
 if [[ "$ENABLE_AI" == "true" ]]; then
   EXPECTED_CONNECTORS=$(echo "$EXPECTED_CONNECTORS" | jq '. + [{"name":"app-insights","type":"AppInsights"}]')
 fi
-if [[ "$ENABLE_AZMON" == "true" ]]; then
-  EXPECTED_CONNECTORS=$(echo "$EXPECTED_CONNECTORS" | jq '. + [{"name":"azure-monitor","type":"AzureMonitor"}]')
-fi
-# Array connectors (MCP, extra LAW/AI/AzMon, Kusto, etc.)
+# Array connectors (MCP, extra LAW/AI, Kusto, etc.)
 for i in $(seq 0 $(($(echo "$CONNECTORS_ARRAY" | jq 'length') - 1))); do
   cname=$(echo "$CONNECTORS_ARRAY" | jq -r --argjson i "$i" '.[$i].name')
   ctype=$(echo "$CONNECTORS_ARRAY" | jq -r --argjson i "$i" '.[$i].properties.dataConnectorType')

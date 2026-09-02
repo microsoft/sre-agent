@@ -17,29 +17,29 @@ data "azurerm_subscription" "current" {}
 data "azurerm_client_config" "current" {}
 
 locals {
-  suffix                = substr(sha256("${data.azurerm_subscription.current.subscription_id}-${var.resource_group_name}-${var.agent_name}"), 0, 13)
-  create_identity       = var.existing_managed_identity_id == ""
-  effective_identity_id = local.create_identity ? azurerm_user_assigned_identity.agent[0].id : var.existing_managed_identity_id
+  suffix                 = substr(sha256("${data.azurerm_subscription.current.subscription_id}-${var.resource_group_name}-${var.agent_name}"), 0, 13)
+  create_identity        = var.existing_managed_identity_id == ""
+  effective_identity_id  = local.create_identity ? azurerm_user_assigned_identity.agent[0].id : var.existing_managed_identity_id
   effective_principal_id = local.create_identity ? azurerm_user_assigned_identity.agent[0].principal_id : data.azurerm_user_assigned_identity.existing[0].principal_id
 
-  create_app_insights        = var.existing_agent_app_insights_id == ""
-  effective_ai_app_id        = local.create_app_insights ? azurerm_application_insights.ai[0].app_id : data.azurerm_application_insights.existing_ai[0].app_id
-  effective_ai_conn_str      = local.create_app_insights ? azurerm_application_insights.ai[0].connection_string : data.azurerm_application_insights.existing_ai[0].connection_string
+  create_app_insights   = var.existing_agent_app_insights_id == ""
+  effective_ai_app_id   = local.create_app_insights ? azurerm_application_insights.ai[0].app_id : data.azurerm_application_insights.existing_ai[0].app_id
+  effective_ai_conn_str = local.create_app_insights ? azurerm_application_insights.ai[0].connection_string : data.azurerm_application_insights.existing_ai[0].connection_string
 
   # Well-known role definition IDs
-  reader_role_id             = "acdd72a7-3385-48ef-bd42-f606fba81ae7"
-  log_analytics_reader_id    = "73c42c96-874c-492b-b04d-ab87d138a893"
-  monitoring_reader_id       = "43d0d8ad-25c7-4714-9337-8ba259a9fe05"
-  contributor_role_id        = "b24988ac-6180-42a0-ab88-20f7382dd24c"
-  sre_agent_admin_role_id    = "e79298df-d852-4c6d-84f9-5d13249d1e55"
+  reader_role_id          = "acdd72a7-3385-48ef-bd42-f606fba81ae7"
+  log_analytics_reader_id = "73c42c96-874c-492b-b04d-ab87d138a893"
+  monitoring_reader_id    = "43d0d8ad-25c7-4714-9337-8ba259a9fe05"
+  contributor_role_id     = "b24988ac-6180-42a0-ab88-20f7382dd24c"
+  sre_agent_admin_role_id = "e79298df-d852-4c6d-84f9-5d13249d1e55"
 
   # Merge toggle-generated connectors with caller-supplied array
   toggle_connectors = concat(
     var.enable_app_insights_connector ? [{
       name = "app-insights"
       properties = {
-        dataConnectorType  = "AppInsights"
-        dataSource         = var.app_insights_resource_id
+        dataConnectorType = "AppInsights"
+        dataSource        = var.app_insights_resource_id
         extendedProperties = {
           armResourceId = var.app_insights_resource_id
           resource      = { name = var.app_insights_resource_id != "" ? element(split("/", var.app_insights_resource_id), length(split("/", var.app_insights_resource_id)) - 1) : "" }
@@ -51,23 +51,11 @@ locals {
     var.enable_log_analytics_connector ? [{
       name = "log-analytics"
       properties = {
-        dataConnectorType  = "LogAnalytics"
-        dataSource         = var.law_resource_id
+        dataConnectorType = "LogAnalytics"
+        dataSource        = var.law_resource_id
         extendedProperties = {
           armResourceId = var.law_resource_id
           resource      = { name = var.law_resource_id != "" ? element(split("/", var.law_resource_id), length(split("/", var.law_resource_id)) - 1) : "" }
-        }
-        identity = "system"
-      }
-    }] : [],
-    var.enable_azure_monitor_connector ? [{
-      name = "azure-monitor"
-      properties = {
-        dataConnectorType  = "AzureMonitor"
-        dataSource         = data.azurerm_subscription.current.id
-        extendedProperties = {
-          armResourceId = data.azurerm_subscription.current.id
-          lookbackDays  = var.azure_monitor_lookback_days
         }
         identity = "system"
       }
@@ -160,8 +148,8 @@ resource "azapi_resource" "sre_agent" {
           connectionString = local.effective_ai_conn_str
         }
       }
-      upgradeChannel         = var.upgrade_channel
-      monthlyAgentUnitLimit  = var.monthly_agent_unit_limit
+      upgradeChannel        = var.upgrade_channel
+      monthlyAgentUnitLimit = var.monthly_agent_unit_limit
       defaultModel = {
         provider = var.default_model_provider
         name     = var.default_model_name
@@ -176,10 +164,10 @@ resource "azapi_resource" "sre_agent" {
       } : null
       sandboxConfiguration = var.egress_mode != "Unrestricted" ? {
         egress = {
-          mode                           = var.egress_mode
-          allowedHosts                   = var.allowed_hosts
-          allowedRegistries              = var.allowed_registries
-          allowedCodeRepositories        = var.allowed_code_repositories
+          mode                            = var.egress_mode
+          allowedHosts                    = var.allowed_hosts
+          allowedRegistries               = var.allowed_registries
+          allowedCodeRepositories         = var.allowed_code_repositories
           allowHttpMcpServerNetworkAccess = var.allow_http_mcp_server_network_access
           vnetConfiguration = var.egress_mode == "AzureVNet" ? {
             usePrivateDnsResolution = var.use_private_dns_resolution
@@ -206,8 +194,8 @@ resource "azapi_resource" "connector" {
   for_each                  = { for c in local.all_connectors : c.name => c }
   schema_validation_enabled = false
   type                      = "Microsoft.App/agents/connectors@2025-05-01-preview"
-  name      = each.key
-  parent_id = azapi_resource.sre_agent.id
+  name                      = each.key
+  parent_id                 = azapi_resource.sre_agent.id
 
   body = {
     properties = each.value.properties

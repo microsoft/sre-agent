@@ -1,6 +1,6 @@
 {
   "_scenario": "pagerduty-law-vmcosmos",
-  "_description": "SRE Agent for PagerDuty incident response with VM, Cosmos DB, and HTTP error investigation skills. Uses AppInsights + Log Analytics + Azure Monitor connectors.",
+  "_description": "SRE Agent for PagerDuty incident response with VM, Cosmos DB, and HTTP error investigation skills. Uses App Insights and Log Analytics connectors.",
   "_prerequisites": [
     "Azure subscription with resource groups to monitor",
     "PagerDuty account (OAuth configured post-deploy in portal)",

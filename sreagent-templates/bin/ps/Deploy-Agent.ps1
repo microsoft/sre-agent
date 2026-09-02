@@ -243,13 +243,12 @@ if ($WebhookBridge -eq $true) {
     Write-Host '    ✓ Webhook bridge (Logic App)'
 }
 
-foreach ($toggle in @('enableLogAnalyticsConnector', 'enableAppInsightsConnector', 'enableAzureMonitorConnector')) {
+foreach ($toggle in @('enableLogAnalyticsConnector', 'enableAppInsightsConnector')) {
     $val = Get-Param $toggle $false
     if ($val -eq $true) {
         switch ($toggle) {
             'enableLogAnalyticsConnector' { Write-Host '    ✓ Log Analytics connector' }
             'enableAppInsightsConnector'  { Write-Host '    ✓ App Insights connector' }
-            'enableAzureMonitorConnector' { Write-Host '    ✓ Azure Monitor connector' }
         }
     }
 }

@@ -198,18 +198,6 @@ variable "law_resource_id" {
   default     = ""
 }
 
-variable "enable_azure_monitor_connector" {
-  description = "Enable an Azure Monitor connector (subscription-scoped alerts)."
-  type        = bool
-  default     = false
-}
-
-variable "azure_monitor_lookback_days" {
-  description = "Lookback window in days for the Azure Monitor connector."
-  type        = number
-  default     = 7
-}
-
 # ── Extension arrays (advanced) ──
 
 variable "skills" {
@@ -232,8 +220,8 @@ variable "subagents" {
 
 variable "connectors" {
   description = "Additional connector definitions (beyond toggle-generated ones). Each entry: { name, properties = { dataConnectorType, dataSource, extendedProperties, identity } }."
-  type    = any
-  default = []
+  type        = any
+  default     = []
 }
 
 variable "common_prompts" {

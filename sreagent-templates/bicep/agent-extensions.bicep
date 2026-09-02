@@ -30,8 +30,6 @@ param appInsightsResourceId string = ''
 param appInsightsAppId string = ''
 param enableLogAnalyticsConnector bool = false
 param lawResourceId string = ''
-param enableAzureMonitorConnector bool = false
-param azureMonitorLookbackDays int = 7
 param enableDailyHealthCheckTask bool = false
 param enableDenyProdDeletesHook bool = false
 param enableSafetyRulesPrompt bool = false
@@ -66,20 +64,6 @@ var builtInConnectors = concat(
         extendedProperties: {
           armResourceId: lawResourceId
           resource: { name: empty(lawResourceId) ? '' : last(split(lawResourceId, '/')) }
-        }
-        identity: 'system'
-      }
-    }
-  ] : [],
-  enableAzureMonitorConnector ? [
-    {
-      name: 'azure-monitor'
-      properties: {
-        dataConnectorType: 'AzureMonitor'
-        dataSource: subscription().id
-        extendedProperties: {
-          armResourceId: subscription().id
-          lookbackDays: azureMonitorLookbackDays
         }
         identity: 'system'
       }

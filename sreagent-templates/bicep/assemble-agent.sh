@@ -382,8 +382,6 @@ jq -n \
       "appInsightsAppId":              { "value": ($ctog.appInsightsAppId // "") },
       "enableLogAnalyticsConnector":   { "value": ($ctog.enableLogAnalyticsConnector // false) },
       "lawResourceId":                 { "value": ($ctog.lawResourceId // "") },
-      "enableAzureMonitorConnector":   { "value": ($ctog.enableAzureMonitorConnector // false) },
-      "azureMonitorLookbackDays":      { "value": ($ctog.azureMonitorLookbackDays // 7) },
       "enableDailyHealthCheckTask":    { "value": ($toggles.enableDailyHealthCheckTask // false) },
       "enableDenyProdDeletesHook":     { "value": ($toggles.enableDenyProdDeletesHook // false) },
       "enableSafetyRulesPrompt":       { "value": ($toggles.enableSafetyRulesPrompt // false) },

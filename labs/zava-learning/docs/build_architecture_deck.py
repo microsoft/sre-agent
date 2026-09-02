@@ -735,7 +735,7 @@ def response_slide(key):
                 ")  \u00b7  ServiceNow CR  \u00b7  RCA  \u00b7  before/after evidence  \u00b7  HTML report  \u00b7  PagerDuty resolved",
             sub_size=10, sub_color=INK)
     add_text(s, 0.5, 6.82, 12.3, 0.4,
-             "Connectors the agent reads:  App Insights \u00b7 Log Analytics \u00b7 Azure Monitor \u00b7 Microsoft Learn (MCP)",
+             "Connectors:  App Insights \u00b7 Log Analytics \u00b7 Microsoft Learn (MCP)  |  Incident platform:  Azure Monitor",
              size=10, color=GRAY, italic=True)
     return s
 

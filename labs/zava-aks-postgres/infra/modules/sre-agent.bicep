@@ -231,17 +231,6 @@ resource microsoftLearnConnector 'Microsoft.App/agents/connectors@2025-05-01-pre
   }
 }
 
-#disable-next-line BCP081
-resource azureMonitorConnector 'Microsoft.App/agents/connectors@2025-05-01-preview' = {
-  parent: sreAgent
-  name: 'azure-monitor'
-  properties: {
-    dataConnectorType: 'MonitorClient'
-    dataSource: 'n/a'
-    identity: 'system'
-  }
-}
-
 output agentName string = sreAgent.name
 output agentId string = sreAgent.id
 output agentEndpoint string = sreAgent.properties.agentEndpoint

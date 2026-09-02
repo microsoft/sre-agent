@@ -110,12 +110,6 @@ param enableLogAnalyticsConnector bool = false
 @description('Conditional. Required when enableLogAnalyticsConnector=true. Full Azure resource ID of the LAW workspace.')
 param lawResourceId string = ''
 
-// ── Connector: Azure Monitor (subscription-scoped alerts) ──
-@description('Optional. Enable an Azure Monitor connector that reads alerts at the subscription level.')
-param enableAzureMonitorConnector bool = false
-@description('Optional. Lookback window in days for the Azure Monitor connector.')
-param azureMonitorLookbackDays int = 7
-
 // ── Scheduled task: daily health check ──
 @description('Optional. Enable a daily 8am health summary scheduled task.')
 param enableDailyHealthCheckTask bool = false
@@ -230,8 +224,6 @@ module extensions './agent-extensions.bicep' = {
     appInsightsAppId: appInsightsAppId
     enableLogAnalyticsConnector: enableLogAnalyticsConnector
     lawResourceId: lawResourceId
-    enableAzureMonitorConnector: enableAzureMonitorConnector
-    azureMonitorLookbackDays: azureMonitorLookbackDays
     enableDailyHealthCheckTask: enableDailyHealthCheckTask
     enableDenyProdDeletesHook: enableDenyProdDeletesHook
     enableSafetyRulesPrompt: enableSafetyRulesPrompt

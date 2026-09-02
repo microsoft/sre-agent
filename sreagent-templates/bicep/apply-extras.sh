@@ -320,7 +320,7 @@ if [[ "$count" -gt 0 ]]; then
       spec=$(jq -c --argjson i "$i" '.incidentFilters[$i].spec' "$FILE")
 
       # Build filter properties
-      platform=$(echo "$spec" | jq -r '.incidentPlatform // .platformType // "AzureMonitor"')
+      platform=$(echo "$spec" | jq -r '.incidentPlatform // .platformType // "AzMonitor"')
       handling=$(echo "$spec" | jq -r 'if .handlingAgent == "" or .handlingAgent == null then "default" else .handlingAgent end')
       props=$(echo "$spec" | jq -c --arg p "$platform" --arg h "$handling" \
         '. + {incidentPlatform: $p, handlingAgent: $h, isEnabled: true}')

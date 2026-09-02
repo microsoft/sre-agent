@@ -9,7 +9,7 @@ For **this demo**, core agent configuration is declared in Bicep
 (`infra/modules/sre-agent.bicep`):
 
 - **Agent settings** — autonomous mode, High access level, Azure Monitor incident binding
-- **Connectors** — `app-insights`, `log-analytics`, `azure-monitor` (MonitorClient), `learn-docs` (Microsoft Learn no-auth MCP)
+- **Connectors** — `app-insights`, `log-analytics`, `learn-docs` (Microsoft Learn no-auth MCP)
 - **RBAC** — system-assigned managed identity granted Reader, Monitoring Reader,
   Contributor, and AKS RBAC Cluster Admin on the resource group; the runtime
   user-assigned identity also has subscription-level Reader so the

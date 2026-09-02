@@ -98,7 +98,7 @@ Bicep deploys the shell; this step gives the agent everything it needs to act:
 - **17 skills**, each with its structured `tools:` — triage, RCA, evidence, recommendations,
   PR delivery, ServiceNow change management, reporting, the three audits, and redaction
 - **2 custom PythonTools** — `CreateServiceNowChangeRequest`, `UploadServiceNowAttachment`
-- **Connectors** — App Insights, Log Analytics, Azure Monitor, Microsoft Learn (MCP), PagerDuty
+- **Connectors** — App Insights, Log Analytics, Microsoft Learn (MCP), PagerDuty; Azure Monitor is the incident platform
 - **Incident filter** `zava-learning-response` — symptom-keyed, autonomous, routed to the incident agent
 - **Knowledge base** — architecture + the brand / report / audit / redaction standards
 - **3 weekly audit scheduled tasks** — NSG, RBAC, cost
@@ -128,7 +128,7 @@ One script applies **everything** above. It drives two CLIs:
 
 All of it is portal-configurable. In the SRE Agent blade for your agent, working from `sre-config/`:
 
-1. **Connectors** → add App Insights, Log Analytics, Azure Monitor, the Microsoft Learn MCP endpoint
+1. **Connectors** → add App Insights, Log Analytics, and the Microsoft Learn MCP endpoint
    (`https://learn.microsoft.com/api/mcp`), and PagerDuty.
 2. **Knowledge** → add each file under `sre-config/knowledge-base/` and `sre-config/templates/`
    (architecture KB + the `zava-brand` / `zava-report-template` / `zava-audit-report` / `zava-redaction`

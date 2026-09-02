@@ -135,8 +135,6 @@ $jqFilter = @'
   app_insights_app_id:           (.parameters.appInsightsAppId.value // ""),
   enable_log_analytics_connector:(.parameters.enableLogAnalyticsConnector.value // false),
   law_resource_id:               (.parameters.lawResourceId.value // ""),
-  enable_azure_monitor_connector:(.parameters.enableAzureMonitorConnector.value // false),
-  azure_monitor_lookback_days:   (.parameters.azureMonitorLookbackDays.value // 7),
 
   enable_webhook_bridge:         (.parameters.enableWebhookBridge.value // false),
   webhook_bridge_trigger_url:    (.parameters.webhookBridgeTriggerUrl.value // ""),

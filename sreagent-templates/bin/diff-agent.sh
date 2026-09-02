@@ -32,14 +32,13 @@ if [[ -z "$ENDPOINT" || "$ENDPOINT" == "null" ]]; then
   # Count connectors from connectors.json
   if [[ -f "${CONFIG_DIR}/connectors.json" ]]; then
     toggle_ct=0
-    for tog in enableLogAnalyticsConnector enableAppInsightsConnector enableAzureMonitorConnector; do
+    for tog in enableLogAnalyticsConnector enableAppInsightsConnector; do
       v=$(jq -r ".toggles.${tog} // false" "${CONFIG_DIR}/connectors.json" 2>/dev/null)
       if [[ "$v" == "true" ]]; then
         toggle_ct=$((toggle_ct + 1))
         case "$tog" in
           enableLogAnalyticsConnector) echo "    + connector: Log Analytics (toggle)" ;;
           enableAppInsightsConnector)  echo "    + connector: App Insights (toggle)" ;;
-          enableAzureMonitorConnector) echo "    + connector: Azure Monitor (toggle)" ;;
         esac
       fi
     done

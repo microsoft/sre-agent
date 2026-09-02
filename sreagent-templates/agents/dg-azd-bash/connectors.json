@@ -5,8 +5,6 @@
     "appInsightsAppId": "",
     "enableLogAnalyticsConnector": true,
     "lawResourceId": "/subscriptions/cbf44432-7f45-4906-a85d-d2b14a1e8328/resourceGroups/rg-contoso-swe/providers/Microsoft.OperationalInsights/workspaces/law-7defkiyvn3r44",
-    "enableAzureMonitorConnector": false,
-    "azureMonitorLookbackDays": 7,
     "grafanaUrl": "",
     "grafanaApiKey": ""
   },
