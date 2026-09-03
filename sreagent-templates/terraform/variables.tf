@@ -20,13 +20,13 @@ variable "resource_group_name" {
 }
 
 variable "location" {
-  description = "Azure region. Only regions supported by the SRE Agent RP."
+  description = "Azure region. Only regions supported by the SRE Agent RP. See https://learn.microsoft.com/azure/sre-agent/supported-regions"
   type        = string
   default     = "eastus2"
 
   validation {
-    condition     = contains(["swedencentral", "uksouth", "eastus2", "australiaeast"], var.location)
-    error_message = "location must be one of: swedencentral, uksouth, eastus2, australiaeast."
+    condition     = contains(["australiaeast", "canadacentral", "centralus", "eastasia", "eastus2", "francecentral", "italynorth", "japaneast", "koreacentral", "northcentralus", "southafricanorth", "southeastasia", "spaincentral", "swedencentral", "uksouth", "westcentralus", "westus2", "westus3"], var.location)
+    error_message = "location must be one of: australiaeast, canadacentral, centralus, eastasia, eastus2, francecentral, italynorth, japaneast, koreacentral, northcentralus, southafricanorth, southeastasia, spaincentral, swedencentral, uksouth, westcentralus, westus2, westus3."
   }
 }
 

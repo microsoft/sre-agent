@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Expanded the supported-regions allowlist from 4 to the current 18 regions (adds `japaneast`, `canadacentral`, `centralus`, `eastasia`, `francecentral`, `italynorth`, `koreacentral`, `northcentralus`, `southafricanorth`, `southeastasia`, `spaincentral`, `westcentralus`, `westus2`, `westus3`) in `bicep/main.bicep`, `terraform/variables.tf`, `bin/clone-agent.sh`, and `docs/GETTING-STARTED.md` to match the [official supported-regions reference](https://learn.microsoft.com/azure/sre-agent/supported-regions). Fixes #247.
+
 ## [1.0.0] — 2026-05-07
 
 ### Deploy Backends
