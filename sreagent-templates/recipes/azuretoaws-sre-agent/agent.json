@@ -18,10 +18,10 @@
     "location": {
       "ask": "Region",
       "options": [
-        "eastus2",
-        "swedencentral",
-        "uksouth",
-        "australiaeast"
+        "australiaeast", "canadacentral", "centralus", "eastasia", "eastus2",
+        "francecentral", "italynorth", "japaneast", "koreacentral", "northcentralus",
+        "polandcentral", "southafricanorth", "southcentralus", "southeastasia", "spaincentral",
+        "swedencentral", "uksouth", "westcentralus", "westus2", "westus3"
       ],
       "required": true
     },

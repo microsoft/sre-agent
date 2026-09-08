@@ -4,6 +4,7 @@
 # Usage:
 #   ./bin/install-prerequisites.sh              # install missing tools
 #   ./bin/install-prerequisites.sh --check      # check only, don't install
+#   ./bin/install-prerequisites.sh --python-only # install/check only Python + PyYAML
 #   ./bin/install-prerequisites.sh --terraform  # also install Terraform
 #   ./bin/install-prerequisites.sh --all        # install everything (incl. Terraform + azd)
 
@@ -13,15 +14,18 @@ set -euo pipefail
 CHECK_ONLY=""
 INSTALL_TF=""
 INSTALL_AZD=""
+PYTHON_ONLY=""
 for arg in "$@"; do
   case "$arg" in
     --check)     CHECK_ONLY="true" ;;
+    --python-only) PYTHON_ONLY="true" ;;
     --terraform) INSTALL_TF="true" ;;
     --azd)       INSTALL_AZD="true" ;;
     --all)       INSTALL_TF="true"; INSTALL_AZD="true" ;;
     -h|--help)
-      echo "Usage: install-prerequisites.sh [--check] [--terraform] [--azd] [--all]"
+      echo "Usage: install-prerequisites.sh [--check] [--python-only] [--terraform] [--azd] [--all]"
       echo "  --check      Check only, don't install"
+      echo "  --python-only  Install/check only Python and PyYAML"
       echo "  --terraform  Also install Terraform"
       echo "  --azd        Also install Azure Developer CLI (azd)"
       echo "  --all        Install everything"
@@ -68,11 +72,21 @@ check_jq() {
 }
 
 check_python() {
-  local py=""
-  if command -v python3 &>/dev/null; then
-    py="python3"
-  elif command -v python &>/dev/null; then
-    py="python"
+  local py="" candidate
+  local cache_root="${SRE_AGENT_PYTHON_HOME:-${XDG_CACHE_HOME:-${HOME:-$PWD/.cache}/.cache}/sre-agent/python}"
+  for candidate in python3 python "$cache_root/bin/python" "$cache_root/Scripts/python.exe"; do
+    if command -v "$candidate" &>/dev/null && "$candidate" -c "import yaml" 2>/dev/null; then
+      py="$candidate"
+      break
+    fi
+  done
+
+  if [[ -z "$py" ]]; then
+    if command -v python3 &>/dev/null; then
+      py="python3"
+    elif command -v python &>/dev/null; then
+      py="python"
+    fi
   fi
 
   if [[ -n "$py" ]]; then
@@ -175,8 +189,25 @@ install_python() {
 }
 
 install_pyyaml() {
-  local py=$(command -v python3 || command -v python)
-  "$py" -m pip install --user pyyaml 2>/dev/null || pip3 install pyyaml 2>/dev/null || pip install pyyaml
+  local py cache_root venv_python
+  py=$(command -v python3 || command -v python || true)
+  [[ -n "$py" ]] || return 1
+
+  if "$py" -m pip install --user pyyaml; then
+    return 0
+  fi
+
+  cache_root="${SRE_AGENT_PYTHON_HOME:-${XDG_CACHE_HOME:-${HOME:-$PWD/.cache}/.cache}/sre-agent/python}"
+  echo "  User installation was unavailable; creating an isolated environment at $cache_root"
+  "$py" -m venv "$cache_root" || return 1
+  if [[ -x "$cache_root/bin/python" ]]; then
+    venv_python="$cache_root/bin/python"
+  elif [[ -x "$cache_root/Scripts/python.exe" ]]; then
+    venv_python="$cache_root/Scripts/python.exe"
+  else
+    return 1
+  fi
+  "$venv_python" -m pip install pyyaml
 }
 
 install_curl() {
@@ -230,10 +261,14 @@ echo "════════════════════════�
 echo
 
 echo "── Required tools ──"
-check_az
-check_jq
+if [[ -z "$PYTHON_ONLY" ]]; then
+  check_az
+  check_jq
+fi
 check_python
-check_curl
+if [[ -z "$PYTHON_ONLY" ]]; then
+  check_curl
+fi
 echo
 
 if [[ -n "$INSTALL_TF" ]]; then
@@ -274,7 +309,13 @@ for tool in "${MISSING[@]}"; do
       ;;
     "Python 3")
       echo "  Installing Python 3..."
-      if install_python; then INSTALLED+=("Python 3"); else SKIPPED+=("Python 3"); fi
+      if install_python; then
+        INSTALLED+=("Python 3")
+        echo "  Installing PyYAML..."
+        if install_pyyaml; then INSTALLED+=("PyYAML"); else SKIPPED+=("PyYAML"); fi
+      else
+        SKIPPED+=("Python 3")
+      fi
       ;;
     "PyYAML"*)
       echo "  Installing PyYAML..."
@@ -310,10 +351,14 @@ echo "════════════════════════�
 echo
 echo "── Verifying ──"
 MISSING=()
-check_az
-check_jq
+if [[ -z "$PYTHON_ONLY" ]]; then
+  check_az
+  check_jq
+fi
 check_python
-check_curl
+if [[ -z "$PYTHON_ONLY" ]]; then
+  check_curl
+fi
 [[ -n "$INSTALL_TF" ]] && check_terraform
 [[ -n "$INSTALL_AZD" ]] && check_azd
 

@@ -37,6 +37,8 @@ To include optional tools (Terraform, azd):
 
 </details>
 
+The exporter installs PyYAML automatically when needed. Use `--no-install-dependencies` to require preinstalled dependencies, or run `./bin/install-prerequisites.sh --python-only` to prepare Python and PyYAML explicitly.
+
 ## Quick Start
 
 ```bash

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Expanded deployment and recipe region allowlists from 4 to all 20 live regions, including `polandcentral` and `southcentralus`, and added a consistency test to prevent future drift.
+- Made `export-agent.sh` detect and install PyYAML before export, with an isolated-environment fallback and actionable failure guidance.
+
 ## [1.0.0] — 2026-05-07
 
 ### Deploy Backends
