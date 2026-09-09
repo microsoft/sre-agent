@@ -14,8 +14,13 @@ extended correlation sweep.
 
 ## Parallel investigation
 
-For a broad or ambiguous incident with independent evidence paths, launch one
-parallel subagent per path (usually two), state each scope clearly, and run them
-concurrently. Wait for all results, verify material claims, then synthesize the
-evidence before selecting a root cause or remediation. Keep dependent steps
-sequential and do not parallelize write or remediation work.
+For overlapping application and database symptoms or conflicting evidence, read
+`zava-investigation-coordination`. Prefer the configured evidence specialists when
+their capabilities fit: usually two independent read-only paths, run concurrently.
+Wait for all results and verify sources before synthesis. Handle simple checks
+directly, preserve incident ownership, and do not confuse agreement with causation.
+Keep dependent steps sequential and never parallelize remediation.
+
+If a tool or policy blocks a remediation action, report the blocked step.
+Do not route around the restriction with another tool or a broader configuration
+change. Continue only with separately authorized actions.

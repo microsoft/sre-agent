@@ -9,7 +9,7 @@ Azure SRE Agent demo — AKS + PostgreSQL e-commerce app with break/fix scenario
 When a user clones this repo, guide them through setup:
 1. Check prerequisites: `az`, `azd`, `pwsh`, plus Owner/User Access Administrator (or equivalent role-assignment write permission) at subscription scope — install anything missing. (`kubectl` is **not** required on the operator workstation: the AKS cluster is private, operator operations use `az aks command invoke`, and the SRE Agent uses its built-in Kubernetes tools.)
 2. Run `azd up` — pick their default subscription, use `swedencentral` region
-3. `azd up` runs `scripts/setup-sre-agent.ps1` to apply and verify skills, response plans, knowledge, global instructions, and tool settings. Run it manually only to retry or apply later configuration changes.
+3. `azd up` runs `scripts/setup-sre-agent.ps1` to wait for API readiness, deploy the staged connector template, then apply skills, guarded custom agents, response plans, knowledge, global instructions, and tool settings. Run it manually only to retry or apply later configuration changes. Existing managed drift stops before configuration writes; review it before explicitly using `-UpdateExisting`. `-ResourceGroup rg-example -RenderOnly` previews the runtime configuration offline.
 4. Open the storefront in browser to verify it works
 5. Run a break scenario to demonstrate the SRE Agent
 
@@ -25,7 +25,7 @@ These are gotchas for someone editing this repo's IaC or Bicep — they're *not*
 - **Response plans use three purpose-built routes and one bounded fallback.** `zava-database`, `zava-performance`, and `zava-application` run autonomously; `zava-unknown` handles other `Zava` alerts in Review mode. Keep filters mutually exclusive and explicitly exclude known routes from the fallback.
 - **The demo has three enabled dispatching alerts.** `postgres-unreachable` covers database availability, `Zava-products-query-slow` covers query performance, and `Zava-http-5xx-errors` covers application failures. Supporting metrics remain available for investigation even when they do not dispatch a separate alert.
 - **Dispatching scheduled-query alerts use `evaluationFrequency: PT5M`.** The deployed and validated contract for `postgres-unreachable`, `Zava-products-query-slow`, and `Zava-http-5xx-errors` is `PT5M` evaluation with a `PT5M` window. Keep new demo dispatching alerts aligned with that configuration.
-- **Both database scenarios use `postgres-unreachable`.** Diagnose a stopped server versus a network block from PostgreSQL ARM state and network configuration, not error text alone. The runbook closes the alert after verified recovery so repeat demo runs can dispatch a new investigation.
+- **Both database scenarios use `postgres-unreachable`.** Diagnose a stopped server versus a network block from PostgreSQL ARM state and network configuration, not error text alone. After verified recovery, close only the owned alert when the tool supports it; otherwise report blocked closure. Wait for `monitorCondition == Resolved` before the next run, even if the alert state is already Closed.
 - **Updating an existing deployment leaves orphans — incremental ARM doesn't delete removed resources.** A fresh `azd up` (new RG) is clean, but applying this on top of a prior deploy keeps the old alerts/filters/skills firing. Delete the retired ones: alerts `Zava-slow-response-time`, `Zava-nsg-change`, `Zava-nsg-rule-deleted`, `postgres-server-stopped`, `postgres-server-down`, `postgres-network-blocked`, and the OLD metric `Zava-http-5xx-errors` (it's now a scheduled query of the same name); incidentFilters `zava-db-response`, `zava-app-response`; skill `db-incident-investigation`.
 - **`PT3M` is an invalid `windowSize`** for Azure Monitor metric alerts — only `PT1M, PT5M, PT10M, PT15M, PT30M, PT45M, PT1H+` are accepted. Deployment fails with a misleading error.
 - **Scenario 3 is tuned for the demo dataset.** Its seed size, PostgreSQL cost setting, alert threshold, and load generator work together. Review the inline comments in `seed.js`, `logger.js`, `monitoring.bicep`, and the performance runbook before changing them.
@@ -52,10 +52,12 @@ These are gotchas for someone editing this repo's IaC or Bicep — they're *not*
 - **Agent skills use the built-in Kubernetes system tools.** Use `RunKubectlReadCommand` and `RunKubectlWriteCommand` directly; do not make incident runbooks depend on terminal-native kubectl.
 - **The Microsoft Learn MCP connector uses the hub firewall path.** Keep `allowHttpMcpServerNetworkAccess: false`, allow-list `learn.microsoft.com` and `raw.githubusercontent.com`, and use the `learn-docs` connector name and selected tool IDs declared in Bicep.
 - **Agent self-management is explicitly controlled.** `firewall-agent-dataplane.bicep` allows the agent data-plane FQDN only when `allowAgentSelfManagement=true`; otherwise it deploys an empty rule collection to revoke that path.
+- **Stage connectors after API readiness.** Keep connector resources out of `sre-agent.bicep` and the core `main.bicep` graph. `setup-sre-agent.ps1` applies `sre-agent-connectors.bicep` from manifest definitions only after an authenticated configuration GET succeeds. Do not replace this gate with fixed sleeps or make the firewall module depend on connector completion. ARM redacts some connector settings; verify exposed fields without claiming complete readback.
 - **Keep custom instructions concise and broadly applicable.** `sre-config/custom-instructions.md` identifies when to use the correlation skill and when independent evidence paths justify parallel subagents. Describe the behavior rather than a tool name: use an explicit count and scope, run independent tracks concurrently, wait for all results, verify claims, and synthesize before acting. Keep detailed procedures in skills and keep writes/remediation out of parallel fan-out.
 - **The hub Azure Firewall is the demo's "network device".** `firewall-diagnostics.bicep` ships its logs to Log Analytics as resource-specific `AZFW*` tables (`logAnalyticsDestinationType: 'Dedicated'`) so the agent can interrogate it *indirectly* (KQL on `AZFWNetworkRule` / `AZFWApplicationRule` / …) as well as *directly* (ARM reads of its policy/rules). Don't drop the diagnostic setting or the `Dedicated` flag — the KB points the agent at those tables, which only exist in Dedicated mode. The agent already holds Reader/Monitoring Reader on the RG, so no new role is needed for the direct path.
 - **Agent AMPLS lockdown is ON by default (`lockAgentToPrivateMonitor = true`).** `monitor-private-link.bicep` always creates the Azure Monitor Private Link Scope, scoped resources (LA + App Insights), the private endpoint, and the five `privatelink.*` DNS zones (linked to the hub). By default it ALSO links those zones to the **agent** spoke, and `vnet.bicep` drops the public `AzureMonitor` service tag from the firewall L4 rule, so the agent reaches Log Analytics / App Insights only over the AMPLS private endpoint (maximum restraint). The agent remains fully functional under it: it queries Log Analytics / App Insights and remediates incidents end-to-end through Monitor and the built-in Kubernetes tools. The Monitor query connector is platform-brokered, so dropping the public `AzureMonitor` tag from the agent-VNet firewall doesn't gate it. Set `lockAgentToPrivateMonitor = false` to keep the public Monitor path. The **platform/workload** spoke is a separate concern: `linkWorkloadVnetsToPrivateMonitor` stays **false** by default because linking it forces the app's App Insights traffic onto the private endpoint — and the regional ingestion host (`<region>-N.in.applicationinsights.azure.com`, from the component's connection string) can resolve into the private zone without a matching record → NXDOMAIN → the app silently stops shipping telemetry (a documented private-link DNS pitfall; this lab doesn't validate the workload's private path). The agent's lockdown is independent (it only queries Monitor, over its own spoke). Don't switch the AMPLS access mode to `PrivateOnly` (resource-level) without testing — that can block operator public queries region-wide.
 - **Use a distinct resource group for each demo environment.** The default `rg-$AZURE_ENV_NAME` and resource-name suffix isolate deployments. Create a new environment name after teardown rather than reusing a deleted Log Analytics workspace identity.
+- **Post-provision must fail on required application steps.** Wait for concrete Kubernetes permissions, not just `kubectl version`, before applying manifests. Use the known operator object ID and principal type for role assignment to avoid a redundant directory lookup. Do not ignore failed ingress, manifest, rollout, or endpoint commands.
 
 ## Project-local skills (Copilot CLI)
 
@@ -67,9 +69,24 @@ For agents that support Copilot CLI's project-local skills under `.github/skills
 
 ## Agent configuration
 
-`scripts/setup-sre-agent.ps1` synchronizes the configuration not deployed by
-the Bicep template: skills, response plans, knowledge files,
+`scripts/setup-sre-agent.ps1` applies the staged connector Bicep template after
+API readiness, then synchronizes skills, named evidence agents with child-specific hooks, response plans, knowledge files,
 Microsoft Learn MCP tool enablement, and agent-global custom instructions.
+
+`sre-config/agent-config.json` is authoritative for skill descriptions and
+`properties.tools` dependencies, and for connector definitions consumed by the
+staged Bicep template. Agent references load `sre-config/agents/` and
+embed the one `sre-config/hooks/readonly-evidence.py` source; never make this a
+global hook. Keep the agents' useful explicit `ReadFile` base and nonempty skill
+selection. Empty tool lists can restore workspace defaults, so successful
+Monitor use alone is not proof of skill-owned loading. Keep the existing response
+plans and authorized parent remediation intact.
+
+Use `python -B -m unittest discover -s .\tests -p 'test_*.py' -v` from the lab
+directory for offline configuration/hook contracts. The
+[`configuration verification guide`](docs/skills-agents-validation.md)
+requires separate authorization for live changes and is not replaced by local
+tests. Private snapshots, traces, and deployment identifiers must not be committed.
 
 The source of truth for custom instructions is
 [`sre-config/custom-instructions.md`](sre-config/custom-instructions.md). Keep

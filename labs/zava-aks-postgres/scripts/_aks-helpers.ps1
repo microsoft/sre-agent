@@ -166,6 +166,83 @@ function Invoke-AksCommand {
     return $result
 }
 
+function Assert-ZavaRequestTelemetry {
+    param([Parameter(Mandatory)][string]$ResourceGroup)
+
+    $workspace = az monitor log-analytics workspace list -g $ResourceGroup --query '[0].customerId' -o tsv
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($workspace)) {
+        throw "Could not resolve the Log Analytics workspace in $ResourceGroup. No fault was injected."
+    }
+    $query = "AppRequests | where TimeGenerated > ago(10m) | where AppRoleName == 'zava-api' | summarize n=count()"
+    $raw = az monitor log-analytics query -w $workspace --analytics-query $query -o json --only-show-errors 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        throw "Telemetry query failed; request count is unknown. No fault was injected. $($raw.Trim())"
+    }
+    $rows = @(ConvertFrom-Json -InputObject $raw -ErrorAction Stop)
+    $count = 0L
+    if ($rows.Count -ne 1 -or -not $rows[0].PSObject.Properties['n'] -or
+        -not [long]::TryParse([string]$rows[0].n, [ref]$count) -or $count -lt 0) {
+        throw 'Telemetry query returned an invalid request count. No fault was injected.'
+    }
+    if ($count -eq 0) {
+        throw 'No AppRequests from zava-api were found in the last 10 minutes. Verify ingestion before injecting a fault; use -SkipTelemetryCheck only when an empty workspace is intentional.'
+    }
+    Write-Host "Telemetry OK ($count AppRequests in last 10 min)." -ForegroundColor Green
+}
+
+function Assert-AksCommandSucceeded {
+    param([object]$Result, [string]$Operation)
+    if (-not $Result -or $Result.exitCode -ne 0) {
+        $details = if ($Result) { $Result.logs } else { 'No command result returned.' }
+        throw "${Operation} failed: $details"
+    }
+}
+
+function Wait-AksOperatorAccess {
+    param([string]$ResourceGroup, [string]$ClusterName, [string]$Namespace = 'zava-demo', [int]$MaxAttempts = 30, [int]$DelaySeconds = 10)
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        # A version check succeeds without the permissions needed to deploy.
+        $result = Invoke-AksCommand -ResourceGroup $ResourceGroup -ClusterName $ClusterName `
+            -Command "kubectl get namespaces -o name >/dev/null && kubectl auth can-i create deployments.apps -n $Namespace" -Quiet
+        if ($result -and $result.exitCode -eq 0 -and $result.logs.Trim() -eq 'yes') { return }
+        if ($attempt -lt $MaxAttempts) {
+            Write-Host "  Waiting for AKS operator access ($attempt/$MaxAttempts)..." -ForegroundColor DarkGray
+            Start-Sleep -Seconds $DelaySeconds
+        }
+    }
+    throw "AKS operator access did not become ready. Verify the operator's AKS RBAC Cluster Admin assignment on $ClusterName before retrying."
+}
+
+function Wait-AksIngressAddress {
+    param(
+        [string]$ResourceGroup,
+        [string]$ClusterName,
+        [ValidateRange(1, 3600)][int]$TimeoutSeconds = 300,
+        [ValidateRange(0, 60)][int]$PollSeconds = 10
+    )
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    Write-Host "  Waiting for the ingress public IP (up to $TimeoutSeconds seconds)..." -ForegroundColor DarkGray
+    while ($clock.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+        $result = Invoke-AksCommand -ResourceGroup $ResourceGroup -ClusterName $ClusterName `
+            -Command "kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}'" -Quiet
+        Assert-AksCommandSucceeded $result 'Public endpoint lookup'
+        $address = ([string]$result.logs).Trim()
+        if ($address -and $address -notin @('pending', '<pending>')) {
+            $parsedAddress = $null
+            if ($address -notmatch '^\d{1,3}(\.\d{1,3}){3}$' -or
+                -not [Net.IPAddress]::TryParse($address, [ref]$parsedAddress)) {
+                throw "Public endpoint lookup returned an invalid IPv4 address: $address"
+            }
+            return $address
+        }
+        $remaining = $TimeoutSeconds - $clock.Elapsed.TotalSeconds
+        if ($remaining -gt 0 -and $PollSeconds -gt 0) {
+            Start-Sleep -Milliseconds ([int](1000 * [Math]::Min($PollSeconds, $remaining)))
+        }
+    }
+    throw "Ingress public IP was not assigned within $TimeoutSeconds seconds. Inspect service ingress-nginx/ingress-nginx-controller on $ClusterName and retry post-provision; agent configuration has not run."
+}
+
 function Resolve-AksContext {
     <#
     .SYNOPSIS

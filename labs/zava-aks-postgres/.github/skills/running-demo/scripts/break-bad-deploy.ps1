@@ -39,20 +39,7 @@ Reset-DemoAlertRule -ResourceGroup $ctx.ResourceGroup -AlertRuleName 'Zava-http-
 # Pass -SkipTelemetryCheck to bypass this guard.
 if (-not $SkipTelemetryCheck) {
     Write-Host "Verifying telemetry pipeline (AppRequests in last 10 min)..." -ForegroundColor Cyan
-    $ws = (az monitor log-analytics workspace list -g $ctx.ResourceGroup --query "[0].customerId" -o tsv 2>$null)
-    if (-not $ws) {
-        Write-Warning "Could not find Log Analytics workspace in $($ctx.ResourceGroup); skipping telemetry precheck."
-    } else {
-        $kql = "AppRequests | where TimeGenerated > ago(10m) | where AppRoleName == 'zava-api' | summarize n=count()"
-        $raw = (az monitor log-analytics query -w $ws --analytics-query $kql 2>$null)
-        $n = 0
-        if ($raw) { try { $n = [int]((($raw | ConvertFrom-Json)[0].n)) } catch { $n = 0 } }
-        if ($n -lt 1) {
-            Write-Error "No AppRequests from zava-api were found in the last 10 minutes. Verify Application Insights configuration and ingestion, or restart the API deployment. Pass -SkipTelemetryCheck to override."
-            exit 1
-        }
-        Write-Host "Telemetry OK ($n AppRequests in last 10 min)." -ForegroundColor Green
-    }
+    Assert-ZavaRequestTelemetry -ResourceGroup $ctx.ResourceGroup
 }
 
 # Ship the bad deploy. `kubectl set env` mutates the pod template, which creates a

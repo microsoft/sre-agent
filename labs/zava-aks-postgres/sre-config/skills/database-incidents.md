@@ -22,6 +22,21 @@ The alert `postgres-unreachable` means zava-api cannot reach PostgreSQL — it l
 PG `state == Ready`; zava-api connection-error traces stop.
 
 ## Close the loop (resolve the alert)
-After confirming recovery, **resolve the `postgres-unreachable` alert you were handling** instead of waiting for Azure Monitor's auto-mitigate. Auto-mitigate lags ~15-30 min, and while the alert lingers in a fired state Azure Monitor dedupes the NEXT distinct database incident into this same alert instance — so no new investigation dispatches until it clears. Closing it yourself keeps the loop tight. Take the alert's ARM id from your incident context (form `/subscriptions/.../providers/Microsoft.AlertsManagement/alerts/<guid>`); if you don't have it, list open ones with `az rest --method GET --url "https://management.azure.com/subscriptions/<sub>/providers/Microsoft.AlertsManagement/alerts?api-version=2018-05-05&alertRule=postgres-unreachable"`. Then close it:
+After confirming recovery, **close only the `postgres-unreachable` alert you were
+handling**, using its ARM ID from the incident context. Do not close another
+thread's alert, even when it has the same cause. If the ID is missing, list alerts
+with `az rest --method GET --url "https://management.azure.com/subscriptions/<sub>/providers/Microsoft.AlertsManagement/alerts?api-version=2018-05-05&alertRule=postgres-unreachable"`
+and confirm the resource group and incident identity before proceeding.
+
+When supported by the available tool and its policy, close the alert with:
 `az rest --method POST --url "https://management.azure.com<ALERT_ID>/changestate?api-version=2018-05-05&newState=Closed"`
-(your Contributor role grants `Microsoft.AlertsManagement/alerts/changestate/action`).
+(requires `Microsoft.AlertsManagement/alerts/changestate/action`).
+
+If the tool rejects this operation, report **service recovered; alert closure
+blocked** and stop retrying it. Do not switch HTTP methods or tools to evade the
+restriction. Do not label the alert resolved while its condition remains Fired.
+
+Alert state and monitor condition are separate. Closing the alert does not force
+the rule's condition to Resolved. Before another database scenario, wait for
+Azure Monitor to report `monitorCondition == Resolved`; otherwise a new fault can
+remain part of the previous stateful alert.

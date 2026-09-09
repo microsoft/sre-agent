@@ -30,7 +30,6 @@ param agentSubnetPrefix string = '10.30.0.0/27'
 param enabled bool = true
 
 // Extract the FQDN from the full endpoint URL.
-// agentEndpoint is e.g. 'https://sre-agent-zava-g5kb--c618a660.6d6a35f1.swedencentral.azuresre.ai'
 var agentFqdn = split(replace(agentEndpoint, 'https://', ''), '/')[0]
 
 resource firewallPolicy 'Microsoft.Network/firewallPolicies@2023-11-01' existing = {

@@ -33,37 +33,15 @@ $ctx = Resolve-AksContext -ResourceGroup $ResourceGroup -ClusterName $ClusterNam
 # close a resolved prior instance so this run dispatches as a fresh alert.
 Reset-DemoAlertRule -ResourceGroup $ctx.ResourceGroup -AlertRuleName 'Zava-products-query-slow'
 
-# Telemetry precheck. The Zava-products-query-slow alert is a scheduled KQL
-# query against AppRequests. If the api isn't currently sending telemetry to
-# the workspace, the alert can never fire no matter how slow the queries are
-# and the demo silently fails (we hit this multiple times — agent gets blamed
-# for ignoring an alert that never got dispatched). Fail loudly *before* the
-# break, not 30 minutes later. Pass -SkipTelemetryCheck to bypass.
+# Confirm the alert's data source before changing the database. Query failures
+# and an empty result both stop the scenario, but need different diagnostics.
 if (-not $SkipTelemetryCheck) {
     Write-Host "Verifying telemetry pipeline (AppRequests in last 10 min)..." -ForegroundColor Cyan
-    $ws = (az monitor log-analytics workspace list -g $ctx.ResourceGroup --query "[0].customerId" -o tsv 2>$null)
-    if (-not $ws) {
-        Write-Warning "Could not find Log Analytics workspace in $($ctx.ResourceGroup); skipping telemetry precheck."
-    } else {
-        $kql = "AppRequests | where TimeGenerated > ago(10m) | where AppRoleName == 'zava-api' | summarize n=count()"
-        $raw = (az monitor log-analytics query -w $ws --analytics-query $kql 2>$null)
-        $n = 0
-        if ($raw) { try { $n = [int]((($raw | ConvertFrom-Json)[0].n)) } catch { $n = 0 } }
-        if ($n -lt 1) {
-            Write-Error "Telemetry pipeline is dead: 0 AppRequests from zava-api in the last 10 min. The slow-query alert evaluates against AppRequests — without telemetry it can never fire and the SRE Agent will never be dispatched. Possible causes: OTel exporter wedged in api pods, App Insights ingestion throttled, wrong APPLICATIONINSIGHTS_CONNECTION_STRING. Try `kubectl rollout restart deploy/zava-api -n $Namespace` to restart the exporter. Pass -SkipTelemetryCheck to override."
-            exit 1
-        }
-        Write-Host "Telemetry OK ($n AppRequests in last 10 min)." -ForegroundColor Green
-    }
+    Assert-ZavaRequestTelemetry -ResourceGroup $ctx.ResourceGroup
 }
 
-# Drop BOTH the composite (category, name) AND the single-column (category)
-# indexes. Dropping only the composite is insufficient: the single-column
-# `idx_products_category` still gives PG a fast index range scan, and with
-# the per-category row count and warm buffer cache the residual sort+limit
-# stays under the 30 ms alert threshold (we measured 3 ms in production
-# logs). Forcing seq_scan requires removing both. seed.js recreates both on
-# a fresh deploy; fix-db-perf.ps1 puts them back for cleanup.
+# Remove both existing category indexes so neither masks the missing-index
+# scenario. The cleanup script restores both baseline definitions.
 Write-Host "Dropping category indexes (composite + single-col) via kubectl exec deploy/zava-api -- node bin/run-sql.js ..." -ForegroundColor Red
 
 $sql = "DROP INDEX IF EXISTS idx_products_category_name; DROP INDEX IF EXISTS idx_products_category"

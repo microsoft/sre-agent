@@ -18,14 +18,9 @@ resource appIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-3
   location: location
 }
 
-// The @azure/monitor-opentelemetry SDK in the api uses the workload identity
-// (AZURE_CLIENT_ID injected by the AKS workload-identity webhook) to acquire
-// an AAD token for the AI ingestion endpoint when the pod has a federated
-// credential — even if APPLICATIONINSIGHTS_CONNECTION_STRING is set. Without
-// this role grant, OTel ingestion is silently rejected (HTTP 403/Unauthorized
-// on the breeze endpoint), no AppRequests/AppTraces flow, and every
-// scheduled-query alert that reads those tables can never fire. We hit this
-// in Scenario 3 — queries genuinely slowed to >1s but the alert never fired.
+// The API's OpenTelemetry SDK authenticates ingestion with its workload identity,
+// even when a connection string is present. This scoped role enables telemetry
+// ingestion and the scheduled-query alerts that depend on it.
 resource aiAppIdentity 'Microsoft.Insights/components@2020-02-02' existing = {
   name: appInsightsName
 }

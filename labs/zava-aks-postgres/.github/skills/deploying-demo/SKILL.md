@@ -56,8 +56,9 @@ $ip = ($r.logs -replace '[^\d\.]','').Trim()
 
 ## Phase 3: Configure + verify SRE Agent
 
-Bicep provisions the agent, supported connectors, autonomous mode, and Azure
-Monitor binding. The setup script applies custom skills and response plans
+Bicep provisions the agent, identity, networking, autonomous mode, and Azure
+Monitor binding. The setup script waits for the authenticated configuration API,
+then applies the separate connector Bicep template. It applies custom skills and response plans
 from the repository, uploads knowledge files, syncs global instructions,
 enables the Microsoft Learn tools, and verifies the result.
 
@@ -66,9 +67,18 @@ manually only to retry or apply later configuration changes:
 
 1. Get azd values: `$env:SRE_AGENT_ENDPOINT = azd env get-value SRE_AGENT_ENDPOINT` (and RESOURCE_GROUP, SRE_AGENT_NAME)
 2. Run: `.\scripts\setup-sre-agent.ps1` (auto-detects ResourceGroup and AgentName from `azd env`)
-3. If Step 7 reports a missing skill or response plan, re-run
-   `setup-sre-agent.ps1`. If a connector or core agent setting is missing,
-   re-run `azd provision`.
+3. For missing connectors, skills, or response plans, inspect the reported
+   failure and rerun `setup-sre-agent.ps1`. If core agent infrastructure is
+   missing, rerun `azd provision`. Do not add sleeps to hide readiness failures:
+   `-ReadinessTimeoutSeconds` and `-ConnectorTimeoutSeconds` bound the existing
+   readiness/deployment gates. A timed-out connector deployment is canceled on a
+   best-effort basis; inspect its status before retrying.
+
+Post-provision waits for the operator's Kubernetes access before applying
+manifests and fails if ingress installation, application rollout, or endpoint
+lookup fails. After correcting a transient failure, retry
+`.\scripts\post-provision.ps1 -SkipImageBuild` only if both image builds already
+succeeded. Do not treat ARM provisioning success as proof that the app is ready.
 
 ## Optional: confirm the agent is reachable
 

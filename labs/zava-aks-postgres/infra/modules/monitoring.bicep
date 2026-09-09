@@ -172,30 +172,17 @@ output appInsightsAppId string = appInsights.properties.AppId
 // Alert: PostgreSQL unreachable from the app — covers BOTH Scenario 1 (server
 // stopped) and Scenario 2 (network partition). One symptom-based alert, not two.
 //
-// Empirically, BOTH a stopped PG Flexible Server and a NetworkPolicy/NSG
-// block present at the app as connection TIMEOUTS — a deallocated private endpoint
-// and a dropped packet both time out (measured ~1650 timeout traces vs ~42
-// ECONNREFUSED on a stop). So the failure mode CANNOT be distinguished by error
-// text. We alert on the symptom ("zava-api cannot reach PostgreSQL") and let the
-// SRE Agent diagnose the cause from ARM state: PG `Stopped` -> start it; PG `Ready`
-// but unreachable -> find the blocking Kubernetes NetworkPolicy / NSG rule. Routes
-// to `zava-database` via titleContains:'postgres'. The database response plan has
-// merge DISABLED so the agent won't fold the two DB scenarios into one thread. NOTE:
-// both scenarios share THIS one rule, so Azure Monitor won't emit a fresh alert
-// instance while the prior one is still Fired. The database-incidents runbook has the
-// agent CLOSE this alert as its final step once recovery is verified (using its
-// Contributor changestate right), so back-to-back runs dispatch fresh; autoMitigate
-// (~15-30 min) is the fallback if the agent doesn't close it.
+// Either a stopped server or a network block can cause connection timeouts.
+// Diagnose from server state and network evidence, not error text alone.
+// Both scenarios share this stateful rule: wait for monitorCondition == Resolved
+// before rerunning. Closing an alert does not reset an active condition.
 resource alertDbUnreachable 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = {
   name: 'postgres-unreachable'
   location: location
   properties: {
     severity: 1
     enabled: true
-    // PT5M (not PT1M): verified that at 1-minute evaluation the SRE agent acknowledges
-    // this alert but does not open an autonomous investigation; at 5-minute evaluation
-    // (matching the http-5xx alert) it dispatches and remediates end-to-end. The DB-outage
-    // signal is unambiguous, so the slightly later fire is well within demo tolerance.
+    // Keep the evaluation interval aligned with the other dispatching alerts.
     evaluationFrequency: 'PT5M'
     windowSize: 'PT5M'
     scopes: [law.id]
@@ -298,10 +285,11 @@ resource alertProductsSlow 'Microsoft.Insights/scheduledQueryRules@2023-03-15-pr
 // skill with no real failure. The title carries the `Zava-` prefix (so it stays
 // inside the demo's bounded unknown bucket) but matches NONE of the known routing
 // tokens (db / query-slow / http-5xx), so it falls through to general triage.
-// To demo: enable it, then write a tag on the resource group to fire it:
-//   az monitor activity-log alert update -g <rg> -n Zava-unknown-test --enabled true
+// To demo: enable it in Azure Portal, or PATCH only properties.enabled through
+// ARM. Preserve the category and conditions when toggling the rule.
+// Then write a tag on the resource group to fire it:
 //   az tag update --operation merge --tags zava-drill=on --resource-id <rg-id>
-// Disable again afterwards.
+// Disable again afterwards using the same field-only update.
 // Alert: PostgreSQL CPU saturation (metric alert on cpu_percent).
 //
 // DEPLOYED DISABLED ON PURPOSE. This is not an oversight and not dead code —
