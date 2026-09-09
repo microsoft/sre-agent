@@ -25,9 +25,19 @@ $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\..\..\..\..\scripts\_aks-helpers.ps1"
 $ctx = Resolve-AksContext -ResourceGroup $ResourceGroup -ClusterName $ClusterName
 
+$inspection = Invoke-AksCommand -ResourceGroup $ctx.ResourceGroup -ClusterName $ctx.ClusterName `
+    -Command "kubectl get deployment zava-api -n $Namespace -o json" -Quiet
+Assert-AksCommandSucceeded $inspection 'Application configuration inspection'
+$deployment = $inspection.logs | ConvertFrom-Json -ErrorAction Stop
+$faultVariables = @($deployment.spec.template.spec.containers.env | Where-Object name -eq 'FAULT_INJECT')
+if ($faultVariables.Count -eq 0) {
+    Write-Host 'FAULT_INJECT is absent; no demo rollback is needed.' -ForegroundColor Green
+    exit 0
+}
+
 # Preferred remediation: roll back to the previous good revision.
 Write-Host "Rolling back: kubectl rollout undo deployment/zava-api -n $Namespace ..." -ForegroundColor Green
-$undoCmd = "kubectl rollout undo deployment/zava-api -n $Namespace; kubectl rollout status deployment/zava-api -n $Namespace --timeout=180s"
+$undoCmd = "kubectl rollout undo deployment/zava-api -n $Namespace && kubectl rollout status deployment/zava-api -n $Namespace --timeout=180s"
 $r = Invoke-AksCommand -ResourceGroup $ctx.ResourceGroup -ClusterName $ctx.ClusterName -Command $undoCmd
 if ($r.exitCode -ne 0) {
     Write-Error "kubectl rollout undo / rollout status failed (exit $($r.exitCode)). Logs: $($r.logs)"
@@ -36,7 +46,8 @@ if ($r.exitCode -ne 0) {
 
 # Defensive: ensure FAULT_INJECT is gone regardless of which revision undo landed on.
 Write-Host "Ensuring FAULT_INJECT is cleared (defensive no-op if already clean)..." -ForegroundColor Green
-$clearCmd = "kubectl set env deployment/zava-api FAULT_INJECT- -n $Namespace; kubectl rollout status deployment/zava-api -n $Namespace --timeout=180s"
-Invoke-AksCommand -ResourceGroup $ctx.ResourceGroup -ClusterName $ctx.ClusterName -Command $clearCmd -Quiet | Out-Null
+$clearCmd = "kubectl set env deployment/zava-api FAULT_INJECT- -n $Namespace && kubectl rollout status deployment/zava-api -n $Namespace --timeout=180s"
+$clearResult = Invoke-AksCommand -ResourceGroup $ctx.ResourceGroup -ClusterName $ctx.ClusterName -Command $clearCmd -Quiet
+Assert-AksCommandSucceeded $clearResult 'Fault configuration cleanup'
 
 Write-Host "Rollback complete. GET /api/products returns 200; Zava-http-5xx-errors will auto-mitigate." -ForegroundColor Green

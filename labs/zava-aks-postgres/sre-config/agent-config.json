@@ -1,4 +1,60 @@
 {
+  "connectors": [
+    {
+      "name": "app-insights",
+      "properties": {
+        "dataConnectorType": "AppInsights",
+        "dataSource": "@@APPINSIGHTS_ID@@",
+        "extendedProperties": {
+          "armResourceId": "@@APPINSIGHTS_ID@@",
+          "resource": { "name": "@@APPINSIGHTS_NAME@@" }
+        },
+        "identity": "system"
+      }
+    },
+    {
+      "name": "log-analytics",
+      "properties": {
+        "dataConnectorType": "LogAnalytics",
+        "dataSource": "@@WORKSPACE_ID@@",
+        "extendedProperties": {
+          "armResourceId": "@@WORKSPACE_ID@@",
+          "resource": { "name": "@@WORKSPACE_NAME@@" }
+        },
+        "identity": "system"
+      }
+    },
+    {
+      "name": "learn-docs",
+      "properties": {
+        "dataConnectorType": "Mcp",
+        "dataSource": "placeholder",
+        "extendedProperties": {
+          "type": "http",
+          "endpoint": "https://learn.microsoft.com/api/mcp",
+          "selectedTools": [
+            "learn-docs_microsoft_docs_search",
+            "learn-docs_microsoft_code_sample_search",
+            "learn-docs_microsoft_docs_fetch"
+          ],
+          "toolsVisibleToMetaAgent": [
+            "learn-docs_microsoft_docs_search",
+            "learn-docs_microsoft_code_sample_search",
+            "learn-docs_microsoft_docs_fetch"
+          ]
+        },
+        "identity": ""
+      }
+    },
+    {
+      "name": "azure-monitor",
+      "properties": {
+        "dataConnectorType": "MonitorClient",
+        "dataSource": "n/a",
+        "identity": "system"
+      }
+    }
+  ],
   "skills": [
     {
       "name": "database-incidents",
@@ -74,6 +130,42 @@
         "SearchMemory"
       ],
       "skillContentFile": "skills/incident-correlation.md"
+    },
+    {
+      "name": "zava-investigation-coordination",
+      "description": "Use for Zava incidents with overlapping application failures, database latency, or conflicting evidence that need independent evidence paths before assigning a cause. Coordinate the configured read-only specialists, check sources, and synthesize without taking over other incidents.",
+      "tools": [],
+      "skillContentFile": "skills/zava-investigation-coordination.md"
+    },
+    {
+      "name": "zava-application-evidence",
+      "description": "Collect read-only Zava application request, error, and dependency evidence for supplied telemetry resource IDs and an absolute UTC window. Distinguish route-local failures from dependency failures and report sources, alternatives, and gaps.",
+      "tools": [
+        "system-mcp-monitor_monitor_resource_log_query",
+        "system-mcp-monitor_monitor_metrics_query"
+      ],
+      "skillContentFile": "skills/zava-application-evidence.md"
+    },
+    {
+      "name": "zava-database-evidence",
+      "description": "Collect read-only Zava PostgreSQL platform metrics and application database-dependency evidence for a supplied scope and UTC window. Distinguish slow successful calls, dependency errors, and platform pressure without inferring a missing index.",
+      "tools": [
+        "system-mcp-monitor_monitor_resource_log_query",
+        "system-mcp-monitor_monitor_metrics_query"
+      ],
+      "skillContentFile": "skills/zava-database-evidence.md"
+    }
+  ],
+  "agents": [
+    {
+      "name": "app-investigator",
+      "propertiesFile": "agents/app-investigator.json",
+      "preToolUseScriptFile": "hooks/readonly-evidence.py"
+    },
+    {
+      "name": "database-investigator",
+      "propertiesFile": "agents/database-investigator.json",
+      "preToolUseScriptFile": "hooks/readonly-evidence.py"
     }
   ],
   "incidentFilters": [

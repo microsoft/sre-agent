@@ -10,7 +10,8 @@
     3. Set up AKS workload identity federation
     4. Install NGINX ingress controller
     5. Deploy K8s manifests with environment substitution
-    6. Wait for pods and print endpoints
+    6. Wait for pods and ingress IP assignment, then print endpoints
+    7. Configure and verify the SRE Agent
 .NOTES
     Requires: az CLI, azd. (kubectl is NOT required — all in-cluster ops run through `az aks command invoke`.)
     Run from the project root directory.
@@ -18,7 +19,8 @@
 param(
     [switch]$SkipImageBuild,
     [switch]$SkipIngressInstall,
-    [string]$Namespace = "zava-demo"
+    [string]$Namespace = "zava-demo",
+    [ValidateRange(1, 3600)][int]$IngressTimeoutSeconds = 300
 )
 
 $ErrorActionPreference = "Stop"
@@ -127,15 +129,17 @@ Write-Host ""
 if (-not $SkipImageBuild) {
     Write-Host "=== Step 1: Building container images ===" -ForegroundColor Green
     Write-Host "Building API image..."
-    az acr build --registry $ACR_NAME --image zava-api:latest ./src/api --no-logs 2>$null
+    az acr build --registry $ACR_NAME --image zava-api:latest ./src/api --no-logs -o none 2>$null
     if ($LASTEXITCODE -ne 0) {
         az acr build --registry $ACR_NAME --image zava-api:latest ./src/api
+        if ($LASTEXITCODE -ne 0) { throw 'API image build failed.' }
     }
 
     Write-Host "Building Storefront image..."
-    az acr build --registry $ACR_NAME --image zava-storefront:latest ./src/storefront --no-logs 2>$null
+    az acr build --registry $ACR_NAME --image zava-storefront:latest ./src/storefront --no-logs -o none 2>$null
     if ($LASTEXITCODE -ne 0) {
         az acr build --registry $ACR_NAME --image zava-storefront:latest ./src/storefront
+        if ($LASTEXITCODE -ne 0) { throw 'Storefront image build failed.' }
     }
     Write-Host "  Images built and pushed to $ACR_LOGIN" -ForegroundColor Green
 } else {
@@ -154,16 +158,18 @@ $isInteractiveUser = ($accountInfo.type -eq 'user')
 
 if ($isInteractiveUser) {
     $currentUserOid  = az ad signed-in-user show --query id -o tsv
+    if ($LASTEXITCODE -ne 0 -or -not $currentUserOid) { throw 'Could not resolve the signed-in operator.' }
     $currentUserName = az ad signed-in-user show --query userPrincipalName -o tsv
+    if ($LASTEXITCODE -ne 0 -or -not $currentUserName) { throw 'Could not resolve the operator name.' }
     Write-Host "  Setting Entra admin: $currentUserName ($currentUserOid)"
 
     az postgres flexible-server microsoft-entra-admin create `
         -g $RG -s $PG_SERVER `
         --object-id $currentUserOid `
         --display-name $currentUserName `
-        --type User 2>$null
+        --type User -o none
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "  (Entra admin may already be configured)" -ForegroundColor DarkGray
+        throw 'Could not configure the PostgreSQL operator administrator.'
     }
 } else {
     Write-Host "  Skipping signed-in-user PostgreSQL Entra admin step (running as $($accountInfo.type): $($accountInfo.name))" -ForegroundColor Yellow
@@ -180,14 +186,15 @@ az identity federated-credential create `
     -g $RG `
     --issuer $OIDC_ISSUER `
     --subject "system:serviceaccount:${Namespace}:zava-workload-identity" `
-    --audiences "api://AzureADTokenExchange" 2>$null
+    --audiences "api://AzureADTokenExchange" -o none
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "  (Federated credential may already exist)" -ForegroundColor DarkGray
+    throw 'Could not configure the application federated credential.'
 }
 
 # Attach ACR to AKS (ensures kubelet can pull images)
 Write-Host "  Attaching ACR to AKS..."
-az aks update -g $RG -n $AKS_NAME --attach-acr $ACR_NAME 2>$null
+az aks update -g $RG -n $AKS_NAME --attach-acr $ACR_NAME -o none
+if ($LASTEXITCODE -ne 0) { throw 'Could not attach the container registry to AKS.' }
 Write-Host ""
 
 # ── Step 4: Configure AKS RBAC (operator only) ───────────────────────────────
@@ -205,31 +212,19 @@ Write-Host "=== Step 4: AKS RBAC (operator) ===" -ForegroundColor Green
 
 # Grant deployer AKS RBAC Cluster Admin (required when Azure RBAC for K8s is enabled)
 $aksScope = az aks show -g $RG -n $AKS_NAME --query id -o tsv
+if ($LASTEXITCODE -ne 0 -or -not $aksScope) { throw 'Could not resolve the AKS resource ID.' }
 if ($isInteractiveUser) {
-    $currentUserOid = az ad signed-in-user show --query id -o tsv
-    az role assignment create --assignee $currentUserOid `
+    az role assignment create --assignee-object-id $currentUserOid --assignee-principal-type User `
         --role "Azure Kubernetes Service RBAC Cluster Admin" `
-        --scope $aksScope 2>$null
+        --scope $aksScope -o none
+    if ($LASTEXITCODE -ne 0) { throw 'Could not assign AKS operator access.' }
 } else {
     Write-Host "  Skipping signed-in-user AKS RBAC step (running as $($accountInfo.type))" -ForegroundColor Yellow
 }
 
 # Wait for command-invoke availability + RBAC propagation
-Write-Host "  Waiting for control-plane proxy to be ready..."
-$proxyReady = $false
-for ($i = 1; $i -le 12; $i++) {
-    $ping = Invoke-AksCommand -ResourceGroup $RG -ClusterName $AKS_NAME `
-        -Command "kubectl version --short=true 2>/dev/null || kubectl version" -Quiet
-    if ($ping -and $ping.exitCode -eq 0) { Write-Host "  Control-plane proxy live" -ForegroundColor Green; $proxyReady = $true; break }
-    Write-Host "  Attempt $i/12: waiting 10s..." -ForegroundColor DarkGray
-    Start-Sleep 10
-}
-if (-not $proxyReady) {
-    Write-Host "ERROR: az aks command invoke did not become ready after 2 minutes." -ForegroundColor Red
-    Write-Host "  Possible causes: RBAC propagation delay, Azure Policy blocking aks-command pod, cluster not fully provisioned." -ForegroundColor Red
-    Write-Host "  Try: az aks command invoke -g $RG -n $AKS_NAME --command 'kubectl version'" -ForegroundColor Yellow
-    exit 1
-}
+Write-Host "  Waiting for AKS operator access..."
+Wait-AksOperatorAccess -ResourceGroup $RG -ClusterName $AKS_NAME -Namespace $Namespace
 Write-Host ""
 
 # ── Step 4b: Link AKS private DNS zone to the agent VNet ─────────────────────
@@ -265,13 +260,11 @@ if (-not $SkipIngressInstall) {
     $ingressUrl = "https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.15.1/deploy/static/provider/cloud/deploy.yaml"
     $r = Invoke-AksCommand -ResourceGroup $RG -ClusterName $AKS_NAME `
         -Command "kubectl apply -f $ingressUrl"
-    if ($r.exitCode -ne 0) { Write-Host "  Ingress apply returned $($r.exitCode); continuing..." -ForegroundColor Yellow }
+    Assert-AksCommandSucceeded $r 'Ingress installation'
     Write-Host "  Waiting for ingress controller pods..."
     $r = Invoke-AksCommand -ResourceGroup $RG -ClusterName $AKS_NAME `
         -Command "kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=180s"
-    if ($r.exitCode -ne 0) {
-        Write-Host "  Ingress controller still starting — will continue..." -ForegroundColor Yellow
-    }
+    Assert-AksCommandSucceeded $r 'Ingress readiness'
 } else {
     Write-Host "=== Step 5: SKIPPED (ingress install) ===" -ForegroundColor DarkGray
 }
@@ -298,8 +291,7 @@ $k8sFiles = @(
 $stagedFiles = @()
 foreach ($f in $k8sFiles) {
     if (-not (Test-Path $f)) {
-        Write-Host "  MISSING: $f" -ForegroundColor Red
-        continue
+        throw "Missing Kubernetes manifest: $f"
     }
     $content = Get-Content $f -Raw
     $content = $content -replace '\$\{ACR_NAME\}', $ACR_NAME
@@ -324,33 +316,21 @@ Write-Host "  Applying all manifests via az aks command invoke..."
 $applyCmd = "kubectl create namespace $Namespace 2>/dev/null; kubectl apply -n $Namespace -f ."
 $r = Invoke-AksCommand -ResourceGroup $RG -ClusterName $AKS_NAME `
     -Command $applyCmd -Files $stagedFiles
-if ($r.exitCode -ne 0) {
-    Write-Host "  Manifest apply returned $($r.exitCode) — see logs above." -ForegroundColor Yellow
-}
 Remove-Item -Recurse -Force $stageDir
+Assert-AksCommandSucceeded $r 'Application manifest deployment'
 Write-Host ""
 
 # ── Step 7: Wait for deployments to be ready ─────────────────────────────────
 Write-Host "=== Step 7: Waiting for pods ===" -ForegroundColor Green
-Invoke-AksCommand -ResourceGroup $RG -ClusterName $AKS_NAME `
-    -Command "kubectl rollout status deployment/zava-api -n $Namespace --timeout=180s; kubectl rollout status deployment/zava-storefront -n $Namespace --timeout=180s" | Out-Null
+$r = Invoke-AksCommand -ResourceGroup $RG -ClusterName $AKS_NAME `
+    -Command "kubectl rollout status deployment/zava-api -n $Namespace --timeout=180s && kubectl rollout status deployment/zava-storefront -n $Namespace --timeout=180s"
+Assert-AksCommandSucceeded $r 'Application rollout'
 Write-Host ""
 
 # ── Step 8: Get public endpoint ──────────────────────────────────────────────
 Write-Host "=== Step 8: Getting public endpoint ===" -ForegroundColor Green
-Start-Sleep -Seconds 10
-$ipResult = Invoke-AksCommand -ResourceGroup $RG -ClusterName $AKS_NAME `
-    -Command "kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}'" -Quiet
-$ingressIP = if ($ipResult -and $ipResult.exitCode -eq 0) { ($ipResult.logs -replace "[^\d\.]","").Trim() } else { "" }
-if (-not $ingressIP) {
-    $ingressIP = "pending (re-run: az aks command invoke -g $RG -n $AKS_NAME --command 'kubectl get svc -n ingress-nginx ingress-nginx-controller')"
-}
+$ingressIP = Wait-AksIngressAddress -ResourceGroup $RG -ClusterName $AKS_NAME -TimeoutSeconds $IngressTimeoutSeconds
 
-Write-Host ""
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  Zava Demo Deployed Successfully!" -ForegroundColor Cyan
-Write-Host "  Auth: Managed Identity (no passwords)" -ForegroundColor Cyan
-Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  Storefront:   http://$ingressIP/" -ForegroundColor White
 Write-Host "  API Health:   http://$ingressIP/api/health" -ForegroundColor White
@@ -358,8 +338,8 @@ Write-Host "  API Products: http://$ingressIP/api/products" -ForegroundColor Whi
 Write-Host "  Diagnostics:  http://$ingressIP/api/diagnostics" -ForegroundColor White
 Write-Host ""
 Write-Host "  SRE Agent:" -ForegroundColor Yellow
-Write-Host "  - Agent + supported connectors + mode + incident binding = Bicep" -ForegroundColor DarkGray
-Write-Host "  - Skills + response plans + knowledge + verification = setup-sre-agent.ps1 (next)" -ForegroundColor DarkGray
+Write-Host "  - Agent + identity + networking + mode + incident binding = core Bicep" -ForegroundColor DarkGray
+Write-Host "  - Readiness + staged connectors + runtime configuration = setup-sre-agent.ps1 (next)" -ForegroundColor DarkGray
 Write-Host "========================================" -ForegroundColor Cyan
 
 # === Agent configuration + verification ===
@@ -371,7 +351,13 @@ $agentName = try { Get-AzdValue "SRE_AGENT_NAME" } catch { "" }
 if ($agentName) {
     Write-Host "Running setup-sre-agent.ps1..." -ForegroundColor Yellow
     & "$PSScriptRoot\setup-sre-agent.ps1" -ResourceGroup $RG -AgentName $agentName
+    if (-not $?) { throw 'SRE Agent configuration failed. Inspect the setup output before retrying post-provision.' }
 } else {
     Write-Host "SRE_AGENT_NAME not set - skipping agent configuration." -ForegroundColor Yellow
     Write-Host "Run scripts\setup-sre-agent.ps1 manually after creating the agent." -ForegroundColor Yellow
+}
+
+if ($agentName) {
+    Write-Host "`nZava Demo Deployed Successfully!" -ForegroundColor Cyan
+    Write-Host "Auth: Managed Identity (no passwords)" -ForegroundColor Cyan
 }

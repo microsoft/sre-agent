@@ -39,7 +39,10 @@ Per-resource availability:
 
 ## 4. Confirm the mechanism
 
-Filter every App Insights query by `AppRoleName == 'zava-api'`; the workspace also contains the agent's own ARM-poll telemetry.
+Use `zava-application-evidence` and `zava-database-evidence` for the relevant
+telemetry procedures. Match role scoping to the target: Application Insights
+uses `cloud_RoleName == 'zava-api'`; Log Analytics uses
+`AppRoleName == 'zava-api'`. Pass the subscription ID explicitly in Monitor calls.
 
 Alert timestamps show overlap but do not establish causal order. Use raw telemetry
 in 1-2 minute buckets to compare onset.

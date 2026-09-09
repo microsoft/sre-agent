@@ -64,9 +64,9 @@ The storefront is a normal e-commerce app — when the backend breaks, the UI de
 | ![Healthy storefront](docs/images/storefront-healthy.png) | ![Broken storefront](docs/images/storefront-broken.png) |
 | `ALL SYSTEMS OPERATIONAL` · 50 products · ~1 ms DB response | `SERVICE DISRUPTION` · 503 · `database unreachable` · `agent investigating` |
 
-While the UI shows `agent investigating`, the SRE Agent is actually working the incident in the Azure portal — investigating telemetry, picking a runbook, and (with autonomous mode + High access enabled by Bicep) executing the fix. Screenshot of an agent thread resolving Scenario 1 goes here:
-
-![SRE Agent resolving the incident](docs/images/agent-resolving.png)
+The storefront's `agent investigating` text is a static failure-state label, not live
+agent status. Open the SRE Agent portal to confirm alert dispatch, investigation
+progress, and any remediation or approval request.
 
 ## Demo Scenarios
 
@@ -156,14 +156,84 @@ rights remain limited to the demo resource group.
 ## SRE Agent Management
 
 Core infrastructure remains declarative in **`infra/modules/sre-agent.bicep`**:
-the agent, supported connectors, autonomous mode, identity, networking, and
+the agent, autonomous mode, identity, networking, and
 Azure Monitor incident binding.
 
-Custom skills and response plans are not deployed by Bicep.
+Connectors use the separate **`infra/modules/sre-agent-connectors.bicep`** template,
+which reads their definitions from `sre-config/agent-config.json`. The setup
+script deploys this template through ARM only after the agent's authenticated
+configuration API responds successfully. Core infrastructure and the agent's
+exact-host firewall rule therefore do not wait for connector startup.
+
+Custom skills, named evidence agents, and response plans are not deployed by Bicep.
 `scripts/setup-sre-agent.ps1` applies them from
-`sre-config/agent-config.json` and `sre-config/skills/`. The same script syncs
+`sre-config/agent-config.json`, `sre-config/skills/`, and `sre-config/agents/`.
+It embeds the single `sre-config/hooks/readonly-evidence.py` source into each
+specialist's PreToolUse hook. The same script syncs
 knowledge files, global custom instructions, and Microsoft Learn tools, then
 verifies the complete configuration.
+
+### Reusable evidence skills and named specialists
+
+Response plans route to `meta_agent`. Database, performance, and application
+incidents run autonomously; unknown Zava incidents run in Review mode. The main
+agent owns the incident and any authorized remediation.
+
+| Layer | Responsibility |
+|---|---|
+| `zava-investigation-coordination` | Split independent evidence paths, brief specialists, wait, check sources, and synthesize. No cloud tools of its own; simple checks stay with the parent. |
+| `zava-application-evidence` / `zava-database-evidence` | Reusable read-only procedures and Monitor log/metric dependencies. Existing application/performance runbooks read these, then retain their original authorized remediation. |
+| `app-investigator` / `database-investigator` | Discoverable specialist role, selected domain skill, `ReadFile` access for supplied references, and a child-specific guard. |
+
+The manifest's `skills[].tools` supplies **`properties.tools`** in the skill API
+payload. In the default `SkillOwned` mode, the evidence skills declare the Monitor
+dependencies, while each specialist selects `ReadFile` for supplied references.
+The coordinator invokes specialists only when their independent scopes are useful.
+
+The shared hook permits only its exact read-tool names and hard-denies everything
+else. It is **not global** and does not restrict the parent's authorized
+remediation or bypass platform permissions. Resource access remains governed by
+the agent's permissions; query and row budgets are procedural limits, not enforced
+by this tool-name guard.
+
+### Configuration preview and controlled updates
+
+From the lab directory, preview without sign-in or network access:
+
+```powershell
+.\scripts\setup-sre-agent.ps1 -ResourceGroup rg-example -RenderOnly
+python -B -m unittest discover -s .\tests -p 'test_*.py' -v
+```
+
+Setup waits for authenticated API readiness, deploys connectors, checks Monitor
+registration, and applies skills before agents. It reads the configuration back
+before publishing coordination instructions.
+
+Matching skills, agents, response plans, and instructions skip writes. Inspect
+reported differences and live definitions before using `-UpdateExisting`,
+including for source-controlled runbook updates. Existing agents use PATCH to
+preserve unrelated operator settings. Connectors are reapplied incrementally;
+unmanaged objects are not deleted.
+
+Before writes, setup saves private snapshots under the user's local
+application-data `sre-agent/snapshots` directory. Use `-SnapshotDirectory` to choose
+another location outside Git, and never commit snapshots. Connector snapshots
+cannot fully restore redacted settings; the manifest remains authoritative.
+
+See the [configuration verification guide](docs/skills-agents-validation.md) for
+timeout defaults, retry and cancellation behavior, readback limits, and recovery
+after partial writes.
+
+**Deployment validation is required.** Follow the
+[configuration verification guide](docs/skills-agents-validation.md) before relying
+on skill-owned tool availability or automatic specialist selection.
+`-EvidenceToolMode ExplicitAgent` is a compatibility option that also selects
+Monitor tools directly on agents; it is never enabled automatically.
+
+Worked prompt (replace scope and times): *"Zava has HTTP 5xx errors and slow category
+queries. Investigate `<telemetry resource ID>` and `<PostgreSQL resource ID>` from
+`<UTC start>` to `<UTC end>` without changing anything. Gather separate evidence
+and explain what supports or rules out a shared cause."*
 
 ## How the Agent Operates Against a Private Backend
 
@@ -296,8 +366,9 @@ a new dispatch. They stop if a prior condition is still active and close resolve
 instances when needed.
 
 The database outage and network partition scenarios share `postgres-unreachable`.
-After recovery, the database runbook closes that alert so either scenario can be run
-again without waiting for automatic mitigation.
+After recovery, wait for `monitorCondition == Resolved` before running either
+scenario again. Closing the owned alert is a separate action, subject to tool
+permissions; `Closed` does not reset a condition that is still `Fired`.
 
 This sample sets `mergeEnabled: false` on all response plans so each alert starts a
 separate investigation. That configuration makes the proof-of-concept correlation
@@ -312,15 +383,29 @@ demo resources.
 
 ### Microsoft Learn MCP (Streamable-HTTP) connector
 
-The `learn-docs` connector is a no-auth remote **Streamable-HTTP** MCP server for Microsoft Learn (`https://learn.microsoft.com/api/mcp`). The neutral ARM name avoids `azd`'s generic reserved-word warning for names containing `microsoft`; it does not change the service or endpoint. Its three tools are selected in Bicep and it routes **entirely through the hub Azure Firewall** — no platform bypass. Three non-obvious things:
+The `learn-docs` connector uses the public **Streamable-HTTP** MCP endpoint at
+`https://learn.microsoft.com/api/mcp`; no user credentials are required. Its three
+tools are declared in `sre-config/agent-config.json` and provisioned by the staged
+connector Bicep template.
 
-0. **No platform escape hatch (`allowHttpMcpServerNetworkAccess: false`).** Left at its default-off on purpose. When `true`, the platform routes the MCP runtime endpoint as `Rewrite{RoutingMode=Platform}` — a broker that egresses *outside* the VNet, bypassing this firewall (it never even appears in the `AZFW*` logs). With it off, the MCP host falls under AzureVNet's default-Allow and egresses via the VNet → forced-tunnel → the firewall, so the runtime stream to `learn.microsoft.com` is gated by **our** allow-list like everything else — consistent with the lockdown thesis. (The only true pod-side bypass is the platform `ExperimentalSettings.HttpMcpInSandbox` flag, which defaults to the locked-down in-sandbox broker and isn't exposed here.)
-1. **Its server bits come from GitHub raw.** The in-sandbox `mcp-broker` fetches the connector's server bits from `raw.githubusercontent.com` (the `microsoftdocs/mcp` repo) during the `tools/list` handshake. The firewall therefore allow-lists `raw.githubusercontent.com` (`allow-github-raw-mcp-bits` in `vnet.bicep`). Without it the connector provisions but shows *"no active connection"* with **zero tools**, even though `learn.microsoft.com` itself is reachable (a raw GET to `/api/mcp` returns `405` "use a streamable HTTP transport"). The connection idle-disconnects and re-handshakes, so the rule is needed durably, not just on first use. It's scoped to that single host — this is a **Standard** firewall, which matches FQDN/SNI only; pinning the exact repo path (`raw.githubusercontent.com/microsoftdocs/mcp/*`) would require Azure Firewall **Premium** + TLS inspection (`targetUrls`).
-2. **MCP tools ship disabled (skill-gated).** MCP connector tools have `defaultMode: disabled` — they only surface when an incident skill that lists them is active. There is **no ARM/Bicep property** for per-tool enablement (the agent's `permissions` stays `null`), so `scripts/setup-sre-agent.ps1` (run post-provision) turns the three Learn tools on for the **global** roster via `POST /api/v2/agent/tools/configure` (`{overrides:[{name,enabled}]}`, merge semantics). Microsoft's own `srectl tool config set` CLI exists for exactly this gap.
+1. **Keep the VNet egress policy.** The sample sets
+   `allowHttpMcpServerNetworkAccess: false` and allows `learn.microsoft.com`
+   through the hub firewall. Do not enable a different network path to work
+   around a denied connection.
+2. **Retain the connector's GitHub dependency.** The firewall also allows
+   `raw.githubusercontent.com`, which is needed for connector initialization.
+   Keep this rule for subsequent connections as well as initial setup. Standard
+   Azure Firewall filters by hostname, not repository path; narrower HTTPS URL
+   filtering requires Premium with TLS inspection.
+3. **Apply tool settings after connector registration.**
+   `scripts/setup-sre-agent.ps1` enables the three Learn tools globally through
+   the configuration API. Connector provisioning alone does not enable them.
+   The setup script also verifies that the required tools are registered.
 
 ## Prerequisites
 
-- Azure subscription with Contributor access
+- Azure subscription with Owner, or Contributor plus User Access Administrator
+  (or equivalent deployment and role-assignment permissions)
 - [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) (2.60+)
 - [Azure Developer CLI (azd)](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) (1.9+)
 - [PowerShell 7.4+](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) — **required on Windows, WSL, Linux, or macOS**; `azd up` runs a pre-provision check and fast-fails if `pwsh` is missing

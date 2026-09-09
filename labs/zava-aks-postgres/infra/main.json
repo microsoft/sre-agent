@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.46.1.21595",
-      "templateHash": "6972014545667625315"
+      "version": "0.42.1.51946",
+      "templateHash": "13463374783617981532"
     }
   },
   "parameters": {
@@ -89,8 +89,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "5837008584246589353"
+              "version": "0.42.1.51946",
+              "templateHash": "1522027209987142253"
             }
           },
           "parameters": {
@@ -732,8 +732,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "10767509125508658252"
+              "version": "0.42.1.51946",
+              "templateHash": "17480536039515911558"
             }
           },
           "parameters": {
@@ -817,8 +817,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "17040189143100669098"
+              "version": "0.42.1.51946",
+              "templateHash": "2780827486819952173"
             }
           },
           "parameters": {
@@ -1215,8 +1215,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "1274217705573017748"
+              "version": "0.42.1.51946",
+              "templateHash": "16600624925514353524"
             }
           },
           "parameters": {
@@ -1424,8 +1424,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "11509668957522726089"
+              "version": "0.42.1.51946",
+              "templateHash": "1641231188956360063"
             }
           },
           "parameters": {
@@ -1597,8 +1597,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "3373644113743355904"
+              "version": "0.42.1.51946",
+              "templateHash": "14290555692999582225"
             }
           },
           "parameters": {
@@ -1767,8 +1767,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "8599675467029169051"
+              "version": "0.42.1.51946",
+              "templateHash": "1534538610064046419"
             }
           },
           "parameters": {
@@ -1829,9 +1829,6 @@
           "appInsightsId": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'monitoring'), '2025-04-01').outputs.appInsightsResourceId.value]"
           },
-          "logAnalyticsId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'monitoring'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
-          },
           "managedResourceGroupId": {
             "value": "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
           },
@@ -1848,8 +1845,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "4355090022003897083"
+              "version": "0.42.1.51946",
+              "templateHash": "12122559219255243442"
             }
           },
           "parameters": {
@@ -1887,12 +1884,6 @@
               "type": "string",
               "metadata": {
                 "description": "Application Insights resource ID"
-              }
-            },
-            "logAnalyticsId": {
-              "type": "string",
-              "metadata": {
-                "description": "Log Analytics workspace resource ID"
               }
             },
             "managedResourceGroupId": {
@@ -1944,9 +1935,7 @@
             }
           },
           "variables": {
-            "sreAgentAdminRoleId": "e79298df-d852-4c6d-84f9-5d13249d1e55",
-            "aiResourceName": "[last(split(parameters('appInsightsId'), '/'))]",
-            "lawResourceName": "[last(split(parameters('logAnalyticsId'), '/'))]"
+            "sreAgentAdminRoleId": "e79298df-d852-4c6d-84f9-5d13249d1e55"
           },
           "resources": [
             {
@@ -2079,84 +2068,6 @@
               "dependsOn": [
                 "[resourceId('Microsoft.App/agents', parameters('agentName'))]"
               ]
-            },
-            {
-              "type": "Microsoft.App/agents/connectors",
-              "apiVersion": "2025-05-01-preview",
-              "name": "[format('{0}/{1}', parameters('agentName'), 'app-insights')]",
-              "properties": {
-                "dataConnectorType": "AppInsights",
-                "dataSource": "[parameters('appInsightsId')]",
-                "extendedProperties": {
-                  "armResourceId": "[parameters('appInsightsId')]",
-                  "resource": {
-                    "name": "[variables('aiResourceName')]"
-                  }
-                },
-                "identity": "system"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.App/agents', parameters('agentName'))]"
-              ]
-            },
-            {
-              "type": "Microsoft.App/agents/connectors",
-              "apiVersion": "2025-05-01-preview",
-              "name": "[format('{0}/{1}', parameters('agentName'), 'log-analytics')]",
-              "properties": {
-                "dataConnectorType": "LogAnalytics",
-                "dataSource": "[parameters('logAnalyticsId')]",
-                "extendedProperties": {
-                  "armResourceId": "[parameters('logAnalyticsId')]",
-                  "resource": {
-                    "name": "[variables('lawResourceName')]"
-                  }
-                },
-                "identity": "system"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.App/agents', parameters('agentName'))]"
-              ]
-            },
-            {
-              "type": "Microsoft.App/agents/connectors",
-              "apiVersion": "2025-05-01-preview",
-              "name": "[format('{0}/{1}', parameters('agentName'), 'learn-docs')]",
-              "properties": {
-                "dataConnectorType": "Mcp",
-                "dataSource": "placeholder",
-                "extendedProperties": {
-                  "type": "http",
-                  "endpoint": "https://learn.microsoft.com/api/mcp",
-                  "selectedTools": [
-                    "learn-docs_microsoft_docs_search",
-                    "learn-docs_microsoft_code_sample_search",
-                    "learn-docs_microsoft_docs_fetch"
-                  ],
-                  "toolsVisibleToMetaAgent": [
-                    "learn-docs_microsoft_docs_search",
-                    "learn-docs_microsoft_code_sample_search",
-                    "learn-docs_microsoft_docs_fetch"
-                  ]
-                },
-                "identity": ""
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.App/agents', parameters('agentName'))]"
-              ]
-            },
-            {
-              "type": "Microsoft.App/agents/connectors",
-              "apiVersion": "2025-05-01-preview",
-              "name": "[format('{0}/{1}', parameters('agentName'), 'azure-monitor')]",
-              "properties": {
-                "dataConnectorType": "MonitorClient",
-                "dataSource": "n/a",
-                "identity": "system"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.App/agents', parameters('agentName'))]"
-              ]
             }
           ],
           "outputs": {
@@ -2221,8 +2132,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "16388085622553756897"
+              "version": "0.42.1.51946",
+              "templateHash": "10588782725774421165"
             }
           },
           "parameters": {
@@ -2326,8 +2237,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "18024135756634250635"
+              "version": "0.42.1.51946",
+              "templateHash": "17682626619172123953"
             }
           },
           "parameters": {
@@ -2629,8 +2540,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "7364371582948711019"
+              "version": "0.42.1.51946",
+              "templateHash": "16198709998746038686"
             }
           },
           "parameters": {
@@ -2706,8 +2617,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "2636686641641561681"
+              "version": "0.42.1.51946",
+              "templateHash": "14756717451055550202"
             }
           },
           "parameters": {
@@ -2789,8 +2700,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "2636686641641561681"
+              "version": "0.42.1.51946",
+              "templateHash": "14756717451055550202"
             }
           },
           "parameters": {
@@ -2873,8 +2784,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "2636686641641561681"
+              "version": "0.42.1.51946",
+              "templateHash": "14756717451055550202"
             }
           },
           "parameters": {

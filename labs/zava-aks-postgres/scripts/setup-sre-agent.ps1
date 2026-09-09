@@ -3,25 +3,47 @@
 .SYNOPSIS
     Configures the Zava SRE Agent after `azd provision`.
 .DESCRIPTION
-    Bicep deploys the agent, supported connectors, identity, networking, mode,
-    and Azure Monitor incident binding. This script applies:
+    Bicep deploys the agent, identity, networking, mode, and Azure Monitor
+    incident binding. After authenticated API readiness, this script applies:
+      - Supported connectors through the staged Bicep template
       - Custom skills
+      - Named evidence agents with child-specific read-only hooks
       - Incident filters / response plans
       - Knowledge file upload (Builder UI > Knowledge sources)
-      - Global tool enablement: turn the Microsoft Learn MCP tools ON for every
-        agent loop. MCP connector tools ship `defaultMode: disabled` (skill-gated),
-        and there is NO ARM/Bicep property for per-tool state (the agent's
-        `permissions` stays null) — Microsoft's own `srectl tool config set` CLI
-        exists for exactly this (POST /api/v2/agent/tools/configure).
+      - Global Microsoft Learn MCP tool enablement through the configuration API
+        after connector tools are registered.
       - Agent-global custom instructions
 .EXAMPLE
     .\scripts\setup-sre-agent.ps1
+.EXAMPLE
+    .\scripts\setup-sre-agent.ps1 -ResourceGroup rg-example -RenderOnly
+    Render and validate locally, without Azure sign-in or network calls.
+.EXAMPLE
+    .\scripts\setup-sre-agent.ps1 -UpdateExisting
+    After reviewing drift, snapshot existing managed definitions and update them.
 #>
 param(
     [string]$ResourceGroup = "",
     [string]$AgentName = "",
-    [string]$SubscriptionId = ""
+    [string]$SubscriptionId = "",
+    [switch]$RenderOnly,
+    [switch]$UpdateExisting,
+    [string]$SnapshotDirectory = "",
+    [ValidateRange(1, 3600)][int]$ReadinessTimeoutSeconds = 900,
+    [ValidateRange(1, 3600)][int]$ConnectorTimeoutSeconds = 600,
+    [ValidateSet('SkillOwned', 'ExplicitAgent')]
+    [string]$EvidenceToolMode = 'SkillOwned'
 )
+
+$ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot '_sre-config.ps1')
+. (Join-Path $PSScriptRoot '_sre-connectors.ps1')
+$configRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\sre-config'))
+if ($RenderOnly) {
+    if (-not $ResourceGroup) { throw '-RenderOnly requires -ResourceGroup for local token substitution.' }
+    Get-ZavaConfiguration $configRoot $ResourceGroup $EvidenceToolMode | ConvertTo-Json -Depth 30
+    return
+}
 
 # Auto-detect from azd env if not provided
 if (-not $ResourceGroup -or -not $AgentName) {
@@ -44,7 +66,7 @@ if (-not $ResourceGroup -or -not $AgentName) {
     exit 1
 }
 
-$ErrorActionPreference = "Stop"
+$configuration = Get-ZavaConfiguration $configRoot $ResourceGroup $EvidenceToolMode
 
 Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "  Zava SRE Agent Configuration" -ForegroundColor Cyan
@@ -84,20 +106,26 @@ $client.Timeout = [TimeSpan]::FromSeconds(30)
 Write-Host "  Authentication succeeded" -ForegroundColor Green
 
 # --- Helpers ---------------------------------------------------------------
-function Invoke-DataPlanePut {
+function Invoke-DataPlaneWrite {
     param(
         [string]$Path,
         [object]$Body,
         [string]$Label,
         [int]$MaxAttempts = 1,
-        [int]$RetryDelaySeconds = 15
+        [int]$RetryDelaySeconds = 15,
+        [ValidateSet('Put', 'Patch')][string]$Method = 'Put'
     )
 
     $json = $Body | ConvertTo-Json -Depth 20 -Compress
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         $content = [System.Net.Http.StringContent]::new($json, [System.Text.Encoding]::UTF8, "application/json")
+        $response = $null
         try {
-            $response = $client.PutAsync("$agentEndpoint$Path", $content).Result
+            $response = if ($Method -eq 'Patch') {
+                $client.PatchAsync("$agentEndpoint$Path", $content).Result
+            } else {
+                $client.PutAsync("$agentEndpoint$Path", $content).Result
+            }
             $responseBody = $response.Content.ReadAsStringAsync().Result
             if ($response.IsSuccessStatusCode) {
                 Write-Host "  [ok] $Label" -ForegroundColor Green
@@ -114,6 +142,7 @@ function Invoke-DataPlanePut {
                 return $false
             }
         } finally {
+            if ($response) { $response.Dispose() }
             $content.Dispose()
         }
 
@@ -122,133 +151,141 @@ function Invoke-DataPlanePut {
     }
 }
 
-function Get-DataPlaneCollection {
+function Get-DataPlaneJson {
     param([string]$Path)
 
     $response = $client.GetAsync("$agentEndpoint$Path").Result
-    $responseBody = $response.Content.ReadAsStringAsync().Result
-    if (-not $response.IsSuccessStatusCode) {
-        throw "GET $Path returned HTTP $([int]$response.StatusCode): $responseBody"
+    try {
+        $responseBody = $response.Content.ReadAsStringAsync().Result
+        if (-not $response.IsSuccessStatusCode) {
+            throw "GET $Path returned HTTP $([int]$response.StatusCode): $responseBody"
+        }
+        return ConvertFrom-Json -InputObject $responseBody -NoEnumerate
+    } finally {
+        $response.Dispose()
     }
+}
 
-    $parsed = $responseBody | ConvertFrom-Json
+function Get-DataPlaneCollection {
+    param([string]$Path)
+    $parsed = Get-DataPlaneJson $Path
+    $nextLink = $parsed.PSObject.Properties['nextLink']
+    if ($nextLink -and $nextLink.Value) { throw "GET $Path returned a paginated collection; refusing a partial configuration comparison." }
     if ($parsed -is [array]) { return @($parsed) }
-    if ($parsed.PSObject.Properties['value']) { return @($parsed.value) }
-    return @()
+    if ($parsed.PSObject.Properties['value'] -and $parsed.value -is [array]) { return @($parsed.value) }
+    throw "GET $Path did not return a resource collection."
 }
 
-function Compare-ExpectedProperties {
+$armToken = az account get-access-token --resource 'https://management.azure.com/' --query accessToken -o tsv
+if ($LASTEXITCODE -ne 0 -or -not $armToken) { throw 'Could not authenticate for connector provisioning.' }
+$armClient = [Net.Http.HttpClient]::new()
+$armClient.DefaultRequestHeaders.Authorization = [Net.Http.Headers.AuthenticationHeaderValue]::new('Bearer', $armToken.Trim())
+$armClient.Timeout = [TimeSpan]::FromSeconds(30)
+
+function Invoke-ZavaArmRequest {
     param(
-        [object]$Expected,
-        [object]$Actual,
         [string]$Path,
-        [System.Collections.Generic.List[string]]$Differences
+        [ValidateSet('Get', 'Put', 'Post')][string]$Method = 'Get',
+        [object]$Body,
+        [ValidateRange(0.000001, 30)][double]$TimeoutSeconds = 30
     )
-
-    $keys = if ($Expected -is [System.Collections.IDictionary]) {
-        @($Expected.Keys)
-    } else {
-        @($Expected.PSObject.Properties.Name)
-    }
-
-    foreach ($key in $keys) {
-        if ($Expected -is [System.Collections.IDictionary]) {
-            $expectedValue = $Expected[$key]
-        } else {
-            $expectedValue = $Expected.PSObject.Properties[$key].Value
+    if (-not $Path.StartsWith('/subscriptions/')) { throw 'Expected a subscription-scoped ARM path.' }
+    $request = [Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::new($Method), "https://management.azure.com$Path")
+    $response = $null
+    $cancellation = [Threading.CancellationTokenSource]::new([TimeSpan]::FromSeconds($TimeoutSeconds))
+    try {
+        if ($null -ne $Body) {
+            $request.Content = [Net.Http.StringContent]::new(
+                (ConvertTo-Json -InputObject $Body -Depth 100 -Compress), [Text.Encoding]::UTF8, 'application/json')
         }
-        $actualProperty = $Actual.PSObject.Properties[$key]
-        if (-not $actualProperty) {
-            $Differences.Add("$Path.$key is missing")
-            continue
-        }
-
-        $expectedJson = ConvertTo-Json -InputObject $expectedValue -Depth 20 -Compress
-        $actualJson = ConvertTo-Json -InputObject $actualProperty.Value -Depth 20 -Compress
-        if ($expectedJson -cne $actualJson) {
-            $Differences.Add("$Path.$key differs")
-        }
+        $response = $armClient.SendAsync($request, $cancellation.Token).GetAwaiter().GetResult()
+        $text = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        $parsed = if ($text.TrimStart().StartsWith('{')) { ConvertFrom-Json -InputObject $text -ErrorAction Stop } else { $null }
+        return [pscustomobject]@{ StatusCode = [int]$response.StatusCode; Body = $parsed; Text = $text }
+    } finally {
+        if ($response) { $response.Dispose() }
+        $request.Dispose()
+        $cancellation.Dispose()
     }
 }
 
-# --- Step 2: Sync skills ---------------------------------------------------
-Write-Host "`nStep 2: Syncing custom skills..." -ForegroundColor Yellow
-$configPath = Join-Path $PSScriptRoot "..\sre-config\agent-config.json"
-$configRoot = Split-Path $configPath -Parent
-if (-not (Test-Path $configPath)) {
-    throw "Missing agent configuration: $configPath"
-}
+Write-Host "`nWaiting for the agent configuration API..." -ForegroundColor Yellow
+Wait-ZavaDataPlane -Client $client -Endpoint $agentEndpoint -TimeoutSeconds $ReadinessTimeoutSeconds
 
-$agentConfig = Get-Content -Raw $configPath | ConvertFrom-Json
-$sharedContextPath = Join-Path $configRoot "skills\shared-context.md"
-if (-not (Test-Path $sharedContextPath)) {
-    throw "Missing shared skill context: $sharedContextPath"
+# Resolve the lab's linked telemetry resources, not the operator's default environment.
+$appInsightsProperty = if ($agent.PSObject.Properties['tags'] -and $agent.tags) {
+    $agent.tags.PSObject.Properties['hidden-link: /app-insights-resource-id']
+} else { $null }
+$appInsightsId = if ($appInsightsProperty) { [string]$appInsightsProperty.Value } else { '' }
+$scopePattern = '^' + [regex]::Escape("/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup")
+if ($appInsightsId -notmatch "$scopePattern/providers/Microsoft.Insights/components/[^/]+$") {
+    throw 'The agent must have a linked Application Insights resource in this lab resource group.'
 }
-$sharedContext = ([System.IO.File]::ReadAllText($sharedContextPath)).Replace('@@RG@@', $ResourceGroup).Trim()
+$appInsights = Invoke-ZavaArmRequest -Path "$appInsightsId`?api-version=2020-02-02"
+if ($appInsights.StatusCode -ne 200) { throw "Could not read linked Application Insights (HTTP $($appInsights.StatusCode))." }
+$workspaceProperty = $appInsights.Body.properties.PSObject.Properties['WorkspaceResourceId']
+$workspaceId = if ($workspaceProperty) { [string]$workspaceProperty.Value } else { '' }
+if ($workspaceId -notmatch "$scopePattern/providers/Microsoft.OperationalInsights/workspaces/[^/]+$") {
+    throw 'The linked Application Insights resource must use a Log Analytics workspace in this lab resource group.'
+}
+$connectorPlan = Get-ZavaConnectorPlan -ConfigRoot $configRoot `
+    -Existing @(Get-ZavaArmConnectors $agentArmId) -UpdateExisting:$UpdateExisting
 
-$skillFailures = 0
-$expectedSkillProperties = @{}
-foreach ($skill in @($agentConfig.skills)) {
-    $skillPath = Join-Path $configRoot $skill.skillContentFile
-    if (-not (Test-Path $skillPath)) {
-        Write-Host "  [failed] $($skill.name): missing $skillPath" -ForegroundColor Red
-        $skillFailures++
-        continue
+# Preflight every managed name before the first write. Do not overwrite manually
+# created specialists (or other managed drift) merely because their names match.
+$collections = @{}
+foreach ($kind in @('skills', 'agents', 'incidentFilters')) {
+    $collections[$kind] = @(Get-DataPlaneCollection "/api/v2/extendedAgent/$kind")
+}
+$currentInstructions = Get-DataPlaneJson '/api/v2/agent/customInstructions'
+if (-not $currentInstructions.PSObject.Properties['instructions']) {
+    throw 'Custom-instruction readback is missing instructions; refusing to overwrite unknown state.'
+}
+$syncPlan = New-ZavaSyncPlan $configuration $collections $currentInstructions.instructions
+Assert-ZavaUpdateApproved $syncPlan -UpdateExisting:$UpdateExisting
+$snapshotItems = @($syncPlan.Items) + @($connectorPlan.Definitions | ForEach-Object {
+    [pscustomobject]@{
+        Resource = @{ Path = "$agentArmId/connectors/$($_.name)?api-version=$apiVersion" }
+        Previous = $connectorPlan.Existing | Where-Object name -ceq $_.name | Select-Object -First 1
+        Action = 'apply'
     }
+})
+$snapshotPlan = [pscustomobject]@{ Items = $snapshotItems; PreviousInstructions = $syncPlan.PreviousInstructions }
+$null = Save-ZavaSnapshot $snapshotPlan $SnapshotDirectory $agentArmId
+Write-Host "  Evidence tool mode: $EvidenceToolMode" -ForegroundColor Yellow
 
-    $skillContent = ([System.IO.File]::ReadAllText($skillPath)).
-        Replace('@@SHARED@@', $sharedContext).
-        Replace('@@RG@@', $ResourceGroup).
-        Trim()
-    $expectedProperties = [ordered]@{
-        description = $skill.description
-        tools = @($skill.tools)
-        skillContent = $skillContent
-        additionalFiles = @()
-        sourcePluginInstallation = $null
-    }
-    $expectedSkillProperties[$skill.name] = $expectedProperties
-    $body = @{
-        name = $skill.name
-        type = "Skill"
-        tags = @()
-        properties = [ordered]@{
-            name = $skill.name
-            description = $expectedProperties.description
-            tools = $expectedProperties.tools
-            skillContent = $expectedProperties.skillContent
-            additionalFiles = $expectedProperties.additionalFiles
-            sourcePluginInstallation = $expectedProperties.sourcePluginInstallation
-        }
-    }
-    $encodedName = [uri]::EscapeDataString($skill.name)
-    if (-not (Invoke-DataPlanePut -Path "/api/v2/extendedAgent/skills/$encodedName" -Body $body -Label "skill/$($skill.name)")) {
-        $skillFailures++
-    }
-}
-if ($skillFailures -gt 0) {
-    throw "$skillFailures custom skill(s) failed to synchronize."
-}
+Write-Host "`nApplying connector infrastructure after API readiness..." -ForegroundColor Yellow
+Sync-ZavaConnectors -Plan $connectorPlan -TemplatePath (Join-Path $PSScriptRoot '..\infra\modules\sre-agent-connectors.bicep') `
+    -AgentArmId $agentArmId -AppInsightsId $appInsightsId -LogAnalyticsId $workspaceId -TimeoutSeconds $ConnectorTimeoutSeconds
+
+# Check registration, not global enablement: skill-gated tools need not be global.
+$requiredEvidenceTools = @($configuration.Resources |
+    Where-Object { $_.Kind -eq 'skills' -and $_.Name -like 'zava-*-evidence' } |
+    ForEach-Object { $_.Body.properties.tools } | Sort-Object -Unique)
+$deadline = (Get-Date).AddMinutes(3)
+do {
+    $toolCatalog = Get-DataPlaneJson '/api/v2/agent/tools'
+    if ($toolCatalog.data -isnot [array]) { throw 'Tool catalog is missing its data array.' }
+    $missing = @($requiredEvidenceTools | Where-Object { $_ -cnotin $toolCatalog.data.name })
+    if ($missing.Count -eq 0) { break }
+    if ((Get-Date) -ge $deadline) { throw "Evidence tool dependencies are not registered: $($missing -join ', '). No tool permissions were changed." }
+    Start-Sleep -Seconds 15
+} while ($true)
+
+# --- Step 2: Sync skills, then agents and their hooks ----------------------
+Write-Host "`nStep 2: Syncing skills and named evidence agents..." -ForegroundColor Yellow
+Sync-ZavaResources $syncPlan 'skills'
+Sync-ZavaResources $syncPlan 'agents'
 
 # --- Step 3: Sync response plans -------------------------------------------
 Write-Host "`nStep 3: Syncing incident response plans..." -ForegroundColor Yellow
-$filterFailures = 0
+Sync-ZavaResources $syncPlan 'incidentFilters'
+
+$expectedSkillProperties = @{}
 $expectedFilterProperties = @{}
-foreach ($filter in @($agentConfig.incidentFilters)) {
-    $expectedFilterProperties[$filter.name] = $filter.properties
-    $body = @{
-        name = $filter.name
-        type = "IncidentFilter"
-        tags = @()
-        properties = $filter.properties
-    }
-    $encodedName = [uri]::EscapeDataString($filter.name)
-    if (-not (Invoke-DataPlanePut -Path "/api/v2/extendedAgent/incidentFilters/$encodedName" -Body $body -Label "response-plan/$($filter.name)" -MaxAttempts 4)) {
-        $filterFailures++
-    }
-}
-if ($filterFailures -gt 0) {
-    throw "$filterFailures incident response plan(s) failed to synchronize."
+foreach ($resource in $configuration.Resources) {
+    if ($resource.Kind -eq 'skills') { $expectedSkillProperties[$resource.Name] = $resource.Body.properties }
+    if ($resource.Kind -eq 'incidentFilters') { $expectedFilterProperties[$resource.Name] = $resource.Body.properties }
 }
 
 # --- Step 4: Sync knowledge files (data-plane only — no ARM equivalent) ----
@@ -350,22 +387,13 @@ try {
 Write-Host ("  Summary: {0} uploaded, {1} replaced, {2} skipped, {3} failed (of {4} local files)" -f $uploaded, $replaced, $skipped, $failed, $kbLocalFiles.Count) -ForegroundColor Yellow
 if ($failed -gt 0) {
     $client.Dispose()
+    $armClient.Dispose()
     throw "$failed knowledge file upload(s) failed. The remote content may be stale."
 }
 
 # --- Step 5: Enable Microsoft Learn MCP tools globally ---------------------
-# MCP connector tools ship `defaultMode: disabled` — they are skill-gated, i.e.
-# only surface when an incident skill that lists them is active. To make the
-# Microsoft Learn docs tools part of the GLOBAL tool roster (available to every
-# agent loop, like the system MCP tools), they must be explicitly enabled.
-# There is no ARM/Bicep property for per-tool enablement (the agent resource's
-# `permissions` stays null); Microsoft added the `srectl tool config set` CLI for
-# exactly this. The underlying call is POST /api/v2/agent/tools/configure with
-# merge semantics: { overrides: [{ name, enabled }] }.
-#
-# The tools only appear in the catalog AFTER the learn-docs connector
-# completes its first tools/list handshake (which needs the GitHub-raw firewall
-# allow in vnet.bicep + a warm connection), so we poll for them before enabling.
+# Connector provisioning does not enable tools globally. Wait for registration,
+# then merge the Learn overrides without changing unrelated tool settings.
 Write-Host "`nStep 5: Enabling Microsoft Learn MCP tools globally..." -ForegroundColor Yellow
 $learnToolSets = @(
     [pscustomobject]@{
@@ -376,8 +404,7 @@ $learnToolSets = @(
             'learn-docs_microsoft_docs_fetch'
         )
     },
-    # Migration compatibility for an azd run that compiled the old template
-    # before this repository was updated to the azd-safe connector name.
+    # Preserve compatibility with the previous connector name.
     [pscustomobject]@{
         Connector = 'microsoft-learn'
         Tools = @(
@@ -443,43 +470,27 @@ if ($present.Count -gt 0) {
 #
 # The global instructions cover correlation and bounded parallel investigation.
 Write-Host "`nStep 6: Syncing custom instructions..." -ForegroundColor Yellow
-$ciPath = Join-Path $PSScriptRoot "..\sre-config\custom-instructions.md"
-$ciText = $null
-$ciCurrent = $null
+$ciText = $configuration.CustomInstructions
 $normalizeInstructions = { param($s) if ($null -eq $s) { '' } else { $s.Replace("`r", '').Trim() } }
-if (-not (Test-Path $ciPath)) {
-    Write-Host "  WARNING: sre-config/custom-instructions.md is missing; global guidance cannot be synced." -ForegroundColor Yellow
-} else {
-    # The file content IS the payload verbatim — there is no metadata wrapper and
-    # no comment syntax to strip, so keep rationale in AGENTS.md, never in here.
-    $ciText = ([System.IO.File]::ReadAllText($ciPath)).Replace('@@RG@@', $ResourceGroup).Trim()
-
-    # Compare against what's live so a re-run is a no-op. The service normalises
-    # line endings to CRLF on write, so strip \r on BOTH sides before comparing —
-    # otherwise a file saved with LF looks "changed" on every single run.
-    try {
-        $getResp = $client.GetAsync("$agentEndpoint/api/v2/agent/customInstructions").Result
-        if ($getResp.IsSuccessStatusCode) {
-            $ciCurrent = ($getResp.Content.ReadAsStringAsync().Result | ConvertFrom-Json).instructions
-        }
-    } catch {}
-
-    if ((& $normalizeInstructions $ciCurrent) -eq (& $normalizeInstructions $ciText)) {
-        Write-Host "  [skip] custom instructions unchanged ($($ciText.Length) chars)" -ForegroundColor DarkGray
-    } else {
-        $ciBody = @{ instructions = $ciText } | ConvertTo-Json -Depth 4 -Compress
-        $ciContent = [System.Net.Http.StringContent]::new($ciBody, [System.Text.Encoding]::UTF8, "application/json")
-        $ciResp = $client.PutAsync("$agentEndpoint/api/v2/agent/customInstructions", $ciContent).Result
-        if ($ciResp.IsSuccessStatusCode) {
-            $verb = if ([string]::IsNullOrWhiteSpace($ciCurrent)) { "set" } else { "replaced" }
-            Write-Host "  [ok] custom instructions $verb ($($ciText.Length) chars, appended to every thread)" -ForegroundColor Green
-        } else {
-            # A 403/timeout from inside the agent sandbox usually means the exact-host
-            # allow-agent-data-plane firewall rule is missing.
-            Write-Host "  WARNING: custom instructions returned $($ciResp.StatusCode): $($ciResp.Content.ReadAsStringAsync().Result)" -ForegroundColor Yellow
-        }
-        $ciContent.Dispose()
+# Do not publish a routing hint until every referenced skill/agent is read back.
+Assert-ZavaResourcesConverged -Resources @($configuration.Resources | Where-Object Kind -in @('skills', 'agents'))
+$latestInstructions = Get-DataPlaneJson '/api/v2/agent/customInstructions'
+if (-not $latestInstructions.PSObject.Properties['instructions'] -or
+    (& $normalizeInstructions $latestInstructions.instructions) -cne (& $normalizeInstructions $syncPlan.PreviousInstructions)) {
+    throw 'Custom instructions changed after preflight. Rerun to review the new drift.'
+}
+if (-not $syncPlan.InstructionsChanged) {
+    Write-Host "  [skip] custom instructions unchanged ($($ciText.Length) chars)" -ForegroundColor DarkGray
+} elseif (-not (Invoke-DataPlaneWrite -Path '/api/v2/agent/customInstructions' -Body @{ instructions = $ciText } -Label 'custom instructions')) {
+    throw 'Failed to synchronize custom instructions.'
+}
+for ($attempt = 1; $attempt -le 6; $attempt++) {
+    $savedInstructions = Get-DataPlaneJson '/api/v2/agent/customInstructions'
+    if ((& $normalizeInstructions $savedInstructions.instructions) -ceq (& $normalizeInstructions $ciText)) { break }
+    if ($attempt -eq 6) {
+        throw 'Custom instructions did not converge after readback.'
     }
+    Start-Sleep -Seconds 5
 }
 
 # --- Step 7: Verify the combined configuration -----------------------------
@@ -525,7 +536,7 @@ else { Write-Host "  [MISSING] Connectors: $($missingConnectors -join ', ') — 
 
 $skills = @(Get-DataPlaneCollection -Path "/api/v2/extendedAgent/skills")
 $skillDifferences = [System.Collections.Generic.List[string]]::new()
-foreach ($skillName in @($agentConfig.skills.name)) {
+foreach ($skillName in @($expectedSkillProperties.Keys)) {
     $deployedSkill = $skills | Where-Object { $_.name -eq $skillName } | Select-Object -First 1
     if (-not $deployedSkill) {
         $skillDifferences.Add("$skillName is missing")
@@ -542,7 +553,7 @@ if ($skillDifferences.Count -eq 0) {
 
 $filters = @(Get-DataPlaneCollection -Path "/api/v2/extendedAgent/incidentFilters")
 $filterDifferences = [System.Collections.Generic.List[string]]::new()
-foreach ($filterName in @($agentConfig.incidentFilters.name)) {
+foreach ($filterName in @($expectedFilterProperties.Keys)) {
     $deployedFilter = $filters | Where-Object { $_.name -eq $filterName } | Select-Object -First 1
     if (-not $deployedFilter) {
         $filterDifferences.Add("$filterName is missing")
@@ -556,6 +567,9 @@ if ($filterDifferences.Count -eq 0) {
     Write-Host "  [MISMATCH] Response plans: $($filterDifferences -join '; ')" -ForegroundColor Red
     $allGood = $false
 }
+
+Assert-ZavaResourcesConverged -Resources @($configuration.Resources | Where-Object Kind -eq 'agents')
+Write-Host "  [OK] Named evidence agents and hooks match source" -ForegroundColor Green
 
 $kbResp = $client.GetAsync("$agentEndpoint/api/v2/extendedAgent/connectors").Result
 $knowledgeFiles = @()
@@ -624,11 +638,13 @@ if ($learnEnabled.Count -eq $learnTools.Count) {
 
 if (-not $allGood) {
     $client.Dispose()
+    $armClient.Dispose()
     throw "Required SRE Agent assets are missing or misconfigured. Review the verification failures above."
 }
 
 Write-Host "  All required Bicep + data-plane assets verified." -ForegroundColor Green
 $client.Dispose()
+$armClient.Dispose()
 
 # --- Summary ---------------------------------------------------------------
 Write-Host "`n========================================" -ForegroundColor Cyan
@@ -638,9 +654,11 @@ Write-Host "========================================`n" -ForegroundColor Cyan
 Write-Host "  DEPLOYED BY BICEP:" -ForegroundColor DarkGray
 Write-Host "  [x] Agent: autonomous mode + High access"
 Write-Host "  [x] Incident platform: Azure Monitor"
-Write-Host "  [x] Connectors: app-insights, log-analytics, azure-monitor, $learnConnectorName"
+Write-Host "  [x] Agent firewall and identity configuration"
 Write-Host "`n  APPLIED BY SETUP SCRIPT:" -ForegroundColor Cyan
-Write-Host "  [x] Custom skills: database-incidents, performance-incidents, application-incidents, general-triage, proactive-health-check, incident-correlation"
+Write-Host "  [x] Staged Bicep connectors: app-insights, log-analytics, azure-monitor, $learnConnectorName"
+Write-Host "  [x] Custom skills: $($expectedSkillProperties.Keys -join ', ')"
+Write-Host "  [x] Named evidence agents: app-investigator, database-investigator (tool mode: $EvidenceToolMode)"
 Write-Host "  [x] Response plans (incident filters): zava-database, zava-performance, zava-application, zava-unknown"
 Write-Host ("  [x] Knowledge files synced: {0} local file(s) ({1} uploaded, {2} replaced, {3} skipped, {4} failed)" -f $kbLocalFiles.Count, $uploaded, $replaced, $skipped, $failed)
 if ($learnEnabled.Count -eq $learnTools.Count) {

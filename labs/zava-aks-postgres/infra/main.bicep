@@ -134,7 +134,6 @@ module sreAgent 'modules/sre-agent.bicep' = {
     appInsightsAppId: monitoring.outputs.appInsightsAppId
     appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
     appInsightsId: monitoring.outputs.appInsightsResourceId
-    logAnalyticsId: monitoring.outputs.logAnalyticsWorkspaceId
     managedResourceGroupId: rg.id
     aksClusterName: aks.outputs.clusterName
     agentSubnetId: vnet.outputs.agentSubnetId

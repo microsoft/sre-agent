@@ -32,7 +32,11 @@ Azure Database for PostgreSQL Flexible Server with private access lives in a *de
 This AKS cluster has `networkPolicy: 'azure'` enabled, so **Kubernetes NetworkPolicy** is also an enforcement layer for pod-to-PG traffic — verify both surfaces (`az network nsg rule list` and `kubectl get networkpolicy -A -o yaml`) before deciding which control is actually carrying the traffic.
 
 ### App Insights workspace is shared with the SRE Agent itself
-The agent's own ARM-poll telemetry lands in the same workspace with empty `cloud_RoleName` and 100–2000ms durations. **Always filter by `AppRoleName == 'zava-api'`** (KQL) or `cloud/roleName == 'zava-api'` (metrics) when investigating Zava — unfiltered queries are dominated by agent self-noise.
+The workspace also contains agent telemetry. Scope application queries to
+`zava-api`: use `AppRoleName` with workspace tables such as `AppRequests`, or
+`cloud_RoleName` with Application Insights tables such as `requests`. For
+application metrics, use the `cloud/roleName` dimension when available.
+Unfiltered results can mix application and agent activity.
 
 ### `/livez` ≠ `/api/health`
 `/livez` is shallow liveness (200, no DB call) and is what the K8s liveness and readiness probes hit — pods stay alive and Ready through DB outages so they can recover without restarting. `/api/health` is an application health endpoint that includes a DB ping; expect it to flip to 503 with `db_connected: false` during a DB outage while pods stay `Running`/`Ready`.

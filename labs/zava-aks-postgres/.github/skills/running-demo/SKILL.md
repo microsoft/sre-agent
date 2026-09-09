@@ -54,7 +54,14 @@ Wait 30 seconds for the app to notice.
    az postgres flexible-server show -g $rg -n $pg --query state -o tsv
    ```
 5. Wait until state = "Ready" (typically 3-5 min)
-6. There's now **one** `postgres-unreachable` alert for both DB scenarios, with the `zava-database` response plan **merge disabled** (the agent won't fold a second incident into the first thread). Both scenarios share that single rule, so Azure Monitor won't emit a fresh alert instance while the previous one is still `Fired`/`Acknowledged`. To keep back-to-back runs clean, the `database-incidents` runbook has the agent **close the `postgres-unreachable` alert as its final step** once recovery is verified — so by the time you start Scenario 2 it should already be resolved and the new break dispatches fresh. (Fallback if the agent didn't close it: `autoMitigate` resolves it ~15-30 min after recovery, or close it yourself in the portal Alerts blade.) The agent diagnoses each from ARM state (`Stopped` → restart; `Ready` but unreachable → NetworkPolicy/NSG).
+6. Both database scenarios share `postgres-unreachable`, with response-plan merge
+   disabled. Wait for Azure Monitor's **monitor condition** to become `Resolved`
+   before Scenario 2. Alert state (`New`, `Acknowledged`, `Closed`) is separate:
+   closing an alert does not reset a still-fired condition. The agent should close
+   only its owned alert after recovery when its tools permit that operation, or
+   report closure blocked and let auto-mitigation clear the condition. Diagnose
+   each fault from ARM state (`Stopped` versus `Ready` but unreachable), not the
+   error text alone.
 
 ### Step 5: Show recovery
 1. Wait 15s after PG is Ready for pods to reconnect
@@ -71,7 +78,10 @@ Do not run `fix-sql.ps1` as part of the demo. It exists for post-demo cleanup or
 
 ### Step 2: Break it
 
-> **Heads-up if you just ran Scenario 1:** both DB scenarios share the one `postgres-unreachable` alert. The `database-incidents` runbook has the agent close that alert as its final remediation step, so it should already be resolved and this break will dispatch a fresh investigation. If the agent didn't close it (still `Fired`), close it in the portal Alerts blade or wait for `autoMitigate` (~15-30 min) — otherwise Azure Monitor dedupes this break into the still-open instance and the agent won't dispatch.
+> **Heads-up if you just ran Scenario 1:** both DB scenarios share
+> `postgres-unreachable`. Wait for `monitorCondition == Resolved` before injecting
+> the network fault. Closing the previous alert alone does not reset its condition,
+> and a still-fired condition can prevent a fresh investigation.
 
 ```powershell
 .\.github\skills\running-demo\scripts\break-network.ps1
@@ -102,20 +112,23 @@ Wait 30 seconds.
 
 ### Step 2: Break it
 ```powershell
-# Drops idx_products_category_name AND idx_products_category (the single-column
-# index alone is enough to keep queries under the 30ms alert threshold via
-# index range scan + sort, so both must go to force seq_scan). Also rolls the
+# Drops idx_products_category_name AND idx_products_category so neither existing
+# category index can mask the missing-index scenario. Also rolls the
 # api deployment to clear PG plan cache + restart the OTel exporter, then
 # verifies AppRequests telemetry is flowing before launching the load Job.
 # Variants are seeded automatically on first deploy (50 originals + 120,000
 # size/color/edition variants from seed.js), so this is a single command.
 .\.github\skills\running-demo\scripts\break-db-perf.ps1
 ```
-If the script aborts with "Telemetry pipeline is dead", the api pods stopped sending AppRequests (we've seen the OTel exporter wedge silently after 4h+ uptime). The script's recommended `kubectl rollout restart deploy/zava-api` will normally fix it; pass `-SkipTelemetryCheck` to bypass on a brand-new deploy where the api hasn't had time to send any telemetry yet.
+If the telemetry query fails, resolve the query or access error before retrying;
+failure is not evidence of zero traffic. If the query succeeds with no recent
+AppRequests, verify application instrumentation and ingestion. Use
+`-SkipTelemetryCheck` only when an empty workspace is intentional.
 
 ### Step 3: Show degraded performance
 1. Navigate to `$storeUrl/api/diagnostics`
-2. Look at `scan_stats` — `products` table should show `index_usage_pct: 0` with high `seq_scan` count
+2. Confirm both category indexes are absent and `seq_scan` increases.
+   `index_usage_pct` is cumulative and need not fall to zero for this run.
 3. Take screenshot
 4. (`break-db-perf.ps1` already launched a 15-min in-cluster Kubernetes Job (`zava-cat-load` in the `zava-demo` namespace) that hammers `/api/products/category/<X>` over the cluster-internal Service DNS. This pushes real traffic past the alert's 30ms threshold — the 1Hz `__probe` is excluded by the alert KQL. The Job auto-cleans 60s after completion via `ttlSecondsAfterFinished`; `fix-db-perf.ps1` also deletes it explicitly. Run with `-NoLoad` to skip.)
 
@@ -133,8 +146,9 @@ If the script aborts with "Telemetry pipeline is dead", the api pods stopped sen
    $diag.indexes | Where-Object { $_.index_name -eq 'idx_products_category_name' }
    ($diag.scan_stats | Where-Object { $_.table_name -eq 'products' }).index_usage_pct
    ```
-   The index row should be present and `index_usage_pct` should climb back to ~95%+
-   (mirrors the direct-state checks used in Scenario 1 (`az postgres flexible-server show --query state`) and Scenario 2 (`kubectl get networkpolicy`)).
+   Confirm the affected category query returns to baseline under comparable load.
+   Recheck its full query plan, including ordering and pagination. A rising index
+   scan count or the load Job ending does not by itself prove performance recovery.
 2. Navigate to `$storeUrl` — fast loading
 
 ## Scenario 4: Bad Deploy / Rollback
@@ -154,7 +168,9 @@ If the script aborts with "Telemetry pipeline is dead", the api pods stopped sen
 # to bypass on a brand-new deploy).
 .\.github\skills\running-demo\scripts\break-bad-deploy.ps1
 ```
-If the script aborts with "Telemetry pipeline is dead", the api pods stopped sending AppRequests; `kubectl rollout restart deploy/zava-api -n zava-demo` normally fixes it, or pass `-SkipTelemetryCheck`.
+A failed telemetry query stops the script before fault injection. Resolve query
+errors separately from a successful query showing no recent requests; do not
+bypass the check merely because a query failed.
 
 ### Step 3: Show the break
 1. Navigate to `$storeUrl/api/products` — returns HTTP 500

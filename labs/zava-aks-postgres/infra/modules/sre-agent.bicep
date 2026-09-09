@@ -17,9 +17,6 @@ param appInsightsConnectionString string
 @description('Application Insights resource ID')
 param appInsightsId string
 
-@description('Log Analytics workspace resource ID')
-param logAnalyticsId string
-
 @description('Resource Group ID to add as managed resource')
 param managedResourceGroupId string
 
@@ -167,80 +164,7 @@ resource contributorSystem 'Microsoft.Authorization/roleAssignments@2022-04-01' 
   }
 }
 
-// Supported connector child resources remain declarative. Skills and response
-// plans are applied by the setup script after provisioning.
-var aiResourceName = last(split(appInsightsId, '/'))
-var lawResourceName = last(split(logAnalyticsId, '/'))
-
-#disable-next-line BCP081
-resource appInsightsConnector 'Microsoft.App/agents/connectors@2025-05-01-preview' = {
-  parent: sreAgent
-  name: 'app-insights'
-  properties: {
-    dataConnectorType: 'AppInsights'
-    dataSource: appInsightsId
-    extendedProperties: {
-      armResourceId: appInsightsId
-      resource: {
-        name: aiResourceName
-      }
-    }
-    identity: 'system'
-  }
-}
-
-#disable-next-line BCP081
-resource logAnalyticsConnector 'Microsoft.App/agents/connectors@2025-05-01-preview' = {
-  parent: sreAgent
-  name: 'log-analytics'
-  properties: {
-    dataConnectorType: 'LogAnalytics'
-    dataSource: logAnalyticsId
-    extendedProperties: {
-      armResourceId: logAnalyticsId
-      resource: {
-        name: lawResourceName
-      }
-    }
-    identity: 'system'
-  }
-}
-
-#disable-next-line BCP081
-resource microsoftLearnConnector 'Microsoft.App/agents/connectors@2025-05-01-preview' = {
-  parent: sreAgent
-  name: 'learn-docs'
-  properties: {
-    dataConnectorType: 'Mcp'
-    dataSource: 'placeholder'
-    extendedProperties: {
-      type: 'http'
-      endpoint: 'https://learn.microsoft.com/api/mcp'
-      selectedTools: [
-        'learn-docs_microsoft_docs_search'
-        'learn-docs_microsoft_code_sample_search'
-        'learn-docs_microsoft_docs_fetch'
-      ]
-      toolsVisibleToMetaAgent: [
-        'learn-docs_microsoft_docs_search'
-        'learn-docs_microsoft_code_sample_search'
-        'learn-docs_microsoft_docs_fetch'
-      ]
-    }
-    identity: ''
-  }
-}
-
-#disable-next-line BCP081
-resource azureMonitorConnector 'Microsoft.App/agents/connectors@2025-05-01-preview' = {
-  parent: sreAgent
-  name: 'azure-monitor'
-  properties: {
-    dataConnectorType: 'MonitorClient'
-    dataSource: 'n/a'
-    identity: 'system'
-  }
-}
+// Connectors are deployed separately after setup verifies backend readiness.
 
 output agentName string = sreAgent.name
 output agentId string = sreAgent.id
