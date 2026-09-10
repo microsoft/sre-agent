@@ -230,7 +230,7 @@ Success requires:
 - The connector reports **Connected**.
 - MCP tools are discovered.
 - A tool invocation returns data from the private Splunk instance.
-- Network audit and Splunk logs show the private hostname and authenticated request.
+- Splunk access logs show authenticated requests from the delegated SRE Agent subnet.
 - Disabling peering or denying TCP 8089 causes the connector invocation to fail.
 
 The validated lab returned:
