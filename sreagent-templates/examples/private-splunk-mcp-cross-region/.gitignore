@@ -1,0 +1,10 @@
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+*.tfplan
+*.tgz
+*.spl
+lab-state.json
+token.txt
