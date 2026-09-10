@@ -150,7 +150,7 @@ For connectors that use MI, no secrets are needed in files — just RBAC grants.
 ```
 
 Checks:
-- Region is supported (eastus2, swedencentral, uksouth, australiaeast)
+- Region is supported (see [Supported regions](#supported-regions))
 - At least 1 connector configured
 - No unfilled `EDIT_ME` placeholders
 - Connector auth requirements flagged (which need tokens, which need portal sign-in)
@@ -218,4 +218,6 @@ cd agents/prod && git add -A && git commit -m "backup $(date +%Y-%m-%d)" && git 
 
 ## Supported regions
 
-`eastus2` · `swedencentral` · `uksouth` · `australiaeast`
+`australiaeast` · `canadacentral` · `centralus` · `eastasia` · `eastus2` · `francecentral` · `italynorth` · `japaneast` · `koreacentral` · `northcentralus` · `southafricanorth` · `southeastasia` · `spaincentral` · `swedencentral` · `uksouth` · `westcentralus` · `westus2` · `westus3`
+
+See the [official supported-regions reference](https://learn.microsoft.com/azure/sre-agent/supported-regions) for the current, canonical list.

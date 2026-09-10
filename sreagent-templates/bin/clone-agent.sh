@@ -202,7 +202,7 @@ else
 fi
 
 # 2b. Region is supported
-ALLOWED_REGIONS=("swedencentral" "uksouth" "eastus2" "australiaeast")
+ALLOWED_REGIONS=("australiaeast" "canadacentral" "centralus" "eastasia" "eastus2" "francecentral" "italynorth" "japaneast" "koreacentral" "northcentralus" "southafricanorth" "southeastasia" "spaincentral" "swedencentral" "uksouth" "westcentralus" "westus2" "westus3")
 if printf '%s\n' "${ALLOWED_REGIONS[@]}" | grep -qx "$NEW_LOC"; then
   _ok "Region '${NEW_LOC}' is supported"
 else
@@ -408,12 +408,12 @@ else
   _err "No connectors configured — agent will have no observability data to work with"
 fi
 
-# 4b. Region — all 4 supported regions are equal
-SUPPORTED_REGIONS=("eastus2" "swedencentral" "uksouth" "australiaeast")
+# 4b. Region — all supported regions are equal
+SUPPORTED_REGIONS=("australiaeast" "canadacentral" "centralus" "eastasia" "eastus2" "francecentral" "italynorth" "japaneast" "koreacentral" "northcentralus" "southafricanorth" "southeastasia" "spaincentral" "swedencentral" "uksouth" "westcentralus" "westus2" "westus3")
 if printf '%s\n' "${SUPPORTED_REGIONS[@]}" | grep -qx "$NEW_LOC"; then
   _ok "Region '${NEW_LOC}' is supported"
 else
-  _err "Region '${NEW_LOC}' not supported. Must be: eastus2, swedencentral, uksouth, or australiaeast"
+  _err "Region '${NEW_LOC}' not supported. Must be one of: ${SUPPORTED_REGIONS[*]}"
 fi
 
 # 4d. Skills — at least one skill recommended
