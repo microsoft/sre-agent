@@ -179,6 +179,13 @@ resource "azurerm_virtual_network_peering" "agent_to_splunk" {
   allow_forwarded_traffic      = false
   allow_gateway_transit        = false
   use_remote_gateways          = false
+
+  # Subnet creation and peering are writes against the same virtual networks.
+  # Serialize them to avoid transient AnotherOperationInProgress failures.
+  depends_on = [
+    azurerm_subnet.agent,
+    azurerm_subnet.splunk,
+  ]
 }
 
 resource "azurerm_virtual_network_peering" "splunk_to_agent" {
@@ -190,6 +197,12 @@ resource "azurerm_virtual_network_peering" "splunk_to_agent" {
   allow_forwarded_traffic      = false
   allow_gateway_transit        = false
   use_remote_gateways          = false
+
+  depends_on = [
+    azurerm_subnet.agent,
+    azurerm_subnet.splunk,
+    azurerm_virtual_network_peering.agent_to_splunk,
+  ]
 }
 
 resource "azurerm_private_dns_zone" "lab" {

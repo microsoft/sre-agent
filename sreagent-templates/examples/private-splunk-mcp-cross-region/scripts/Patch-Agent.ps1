@@ -16,6 +16,21 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Get-OptionalProperty {
+    param($InputObject, [string]$Name)
+
+    if ($null -eq $InputObject) {
+        return $null
+    }
+
+    $property = $InputObject.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    return $property.Value
+}
+
 $agentUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.App/agents/$AgentName`?api-version=2025-05-01-preview"
 $vnetId = $SubnetId -replace '/subnets/[^/]+$', ''
 $vnetUrl = "https://management.azure.com$vnetId`?api-version=2025-03-01"
@@ -34,7 +49,7 @@ if ($agent.location -ne $vnetLocation) {
     throw "Agent region '$($agent.location)' does not match agent VNet region '$vnetLocation'."
 }
 
-$currentSubnet = $agent.properties.vnetConfiguration.subnetResourceId
+$currentSubnet = Get-OptionalProperty (Get-OptionalProperty (Get-OptionalProperty $agent 'properties') 'vnetConfiguration') 'subnetResourceId'
 if ($currentSubnet -and $currentSubnet -ne $SubnetId) {
     throw "The agent is already attached to a different subnet: $currentSubnet. This script will not reassign an existing VNet integration."
 }

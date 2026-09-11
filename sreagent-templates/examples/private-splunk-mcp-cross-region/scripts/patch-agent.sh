@@ -31,12 +31,18 @@ AGENT_LOCATION="$(jq -r '.location' <<<"$AGENT_JSON")"
 CURRENT_SUBNET="$(jq -r '.properties.vnetConfiguration.subnetResourceId // ""' <<<"$AGENT_JSON")"
 VNET_LOCATION="$(az rest --method GET --url "$VNET_URL" --query location --output tsv)"
 
-if [[ "$AGENT_LOCATION" != "$VNET_LOCATION" ]]; then
+NORMALIZED_AGENT_LOCATION="$(printf '%s' "$AGENT_LOCATION" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+NORMALIZED_VNET_LOCATION="$(printf '%s' "$VNET_LOCATION" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+
+if [[ "$NORMALIZED_AGENT_LOCATION" != "$NORMALIZED_VNET_LOCATION" ]]; then
   echo "Agent region '$AGENT_LOCATION' does not match agent VNet region '$VNET_LOCATION'." >&2
   exit 1
 fi
 
-if [[ -n "$CURRENT_SUBNET" && "${CURRENT_SUBNET,,}" != "${SUBNET_ID,,}" ]]; then
+CURRENT_SUBNET_LOWER="$(printf '%s' "$CURRENT_SUBNET" | tr '[:upper:]' '[:lower:]')"
+SUBNET_ID_LOWER="$(printf '%s' "$SUBNET_ID" | tr '[:upper:]' '[:lower:]')"
+
+if [[ -n "$CURRENT_SUBNET" && "$CURRENT_SUBNET_LOWER" != "$SUBNET_ID_LOWER" ]]; then
   echo "The agent is already attached to a different subnet: $CURRENT_SUBNET" >&2
   echo "This script will not reassign an existing VNet integration. Use a new agent or follow product guidance for migration." >&2
   exit 1

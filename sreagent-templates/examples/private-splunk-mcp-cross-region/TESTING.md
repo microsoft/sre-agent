@@ -44,7 +44,7 @@ Each tester needs:
 - `jq` when using Bash.
 - PowerShell 7+ when using the PowerShell scripts.
 - Terraform 1.5+ for the Terraform path.
-- `Storage Blob Data Contributor` for the temporary package-transfer storage account created by the setup script.
+- Contributor or equivalent deployment permissions for the lab resource group, including permission to list keys for the temporary storage account created by the setup script.
 
 Confirm the active Azure subscription:
 
@@ -394,7 +394,7 @@ az group delete --name rg-splunk-mcp-bicep-test --yes
 Destroy the Terraform test:
 
 ```bash
-terraform -chdir=examples/private-splunk-mcp-cross-region/terraform destroy -var-file=examples/private-splunk-mcp-cross-region/terraform/terraform.tfvars
+terraform -chdir=examples/private-splunk-mcp-cross-region/terraform destroy -var-file=terraform.tfvars
 ```
 
 Verify the resource groups are gone:

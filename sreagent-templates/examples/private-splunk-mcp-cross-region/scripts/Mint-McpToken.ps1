@@ -35,13 +35,17 @@ python3 -c 'import json,sys; data=json.load(sys.stdin); token=data.get("token");
 
 try {
     $vmLocation = az vm show --resource-group $ResourceGroup --name $VmName --query location --output tsv
+    if ($LASTEXITCODE -ne 0 -or -not $vmLocation) {
+        throw 'Unable to read the VM location.'
+    }
+
     az vm run-command create --resource-group $ResourceGroup --vm-name $VmName --location $vmLocation --run-command-name $runCommandName --script $script --parameters "scheme=$Scheme" "days=$Days" --protected-parameters "splunkPassword=$password" --timeout-in-seconds 300 --output none
     if ($LASTEXITCODE -ne 0) {
         throw 'MCP token creation failed.'
     }
 
     $token = az vm run-command show --resource-group $ResourceGroup --vm-name $VmName --run-command-name $runCommandName --instance-view --query instanceView.output --output tsv
-    if (-not $token) {
+    if ($LASTEXITCODE -ne 0 -or -not $token) {
         throw 'MCP token creation returned no token.'
     }
 

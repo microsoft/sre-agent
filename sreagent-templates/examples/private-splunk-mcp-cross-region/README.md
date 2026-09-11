@@ -1,6 +1,6 @@
 # Private cross-region Splunk MCP lab
 
-> **Validation status:** The infrastructure, private DNS, Global VNet Peering, Splunk Enterprise container, official MCP app installation, encrypted token creation, SRE Agent connector, tool discovery, and read-only tool invocation were validated end to end on September 10, 2026. The checked-in Bicep and Terraform templates also pass their local compilation and validation checks.
+> **Validation status:** The Bicep deployment path, private DNS, Global VNet Peering, Splunk Enterprise container, official MCP app installation, encrypted token creation, SRE Agent connector, tool discovery, and read-only tool invocation were validated end to end on September 10, 2026. Both infrastructure definitions pass offline compilation and validation; use [TESTING.md](TESTING.md) to validate either deployment path in your subscription.
 
 This example shows how an Azure SRE Agent in one region can reach a private Splunk Enterprise MCP endpoint in another region without exposing Splunk to inbound internet traffic.
 
@@ -58,12 +58,12 @@ The infrastructure templates do **not** contain a Splunk password, MCP token, Sp
 - Review and accept the [Splunk General Terms](https://www.splunk.com/en_us/legal/splunk-general-terms.html) before running the setup script.
 - Production should use a certificate trusted by the SRE Agent runtime.
 - `--enable-lab-http` disables TLS only on the private Splunk management endpoint. It is an explicit, lab-only workaround for testing when the private CA cannot be added to the SRE Agent trust store.
+- The setup scripts pass secrets to Azure CLI as protected VM Run Command parameters. They are not stored in ARM outputs or Terraform state, but can be transiently visible to administrators inspecting processes on the operator workstation while the command starts.
 
 ## Prerequisites
 
 - An existing SRE Agent in a supported Azure region.
-- Owner or equivalent deployment permissions for the lab resource group.
-- `Storage Blob Data Contributor` for the temporary package-transfer scope when running the Splunk setup script with user-delegation SAS.
+- Contributor or equivalent deployment permissions for the lab resource group, including permission to list keys for the temporary storage account created by the setup script.
 - Azure CLI and `jq` for Bash, or Azure CLI and PowerShell 7+ for PowerShell.
 - Terraform 1.5+ when using Terraform.
 - An SSH public key.
@@ -95,6 +95,8 @@ PowerShell:
 ```powershell
 ./scripts/Deploy.ps1 -Backend Bicep -ResourceGroup rg-private-splunk-lab -ParametersFile ./bicep/main.parameters.json
 ```
+
+Both deploy scripts validate the regions and SSH public key before creating resources. This prevents a same-region deployment from silently defeating the cross-region purpose of the lab.
 
 ## Deploy with Terraform
 
@@ -142,7 +144,7 @@ The patch script:
 
 ## Install Splunk and the MCP app
 
-The setup script prompts for the Splunk administrator password and passes secrets using protected Azure VM Run Command parameters. It creates a temporary private blob container with a one-hour user-delegation SAS, installs Docker and Splunk, installs the user-provided MCP package as the `splunk` OS user, and deletes the temporary transfer resource group.
+The setup script prompts for the Splunk administrator password and passes secrets using protected Azure VM Run Command parameters. It creates a temporary storage account in the lab resource group, uploads the package with the account key, issues a one-hour read-only service SAS, installs Docker and Splunk, installs the user-provided MCP package as the `splunk` OS user, and deletes the temporary storage account.
 
 Bash with trusted HTTPS:
 
@@ -210,7 +212,7 @@ For the explicit lab HTTP mode, replace `https` with `http`. The script displays
 
 In the SRE Agent portal:
 
-1. Open **Settings > Connectors**.
+1. Open **Build + setup > Connectors**.
 2. Add the **Splunk** partner MCP connector.
 3. Set the endpoint to `https://splunk-mcp.lab.internal:8089/services/mcp`, or `http://...` only for the explicit isolated-lab mode.
 4. Paste the encrypted MCP token.
@@ -276,7 +278,7 @@ az group delete --name rg-private-splunk-lab --yes
 Terraform:
 
 ```bash
-terraform -chdir=terraform destroy -var-file=terraform/terraform.tfvars
+terraform -chdir=terraform destroy -var-file=terraform.tfvars
 ```
 
 The SRE Agent keeps its subnet reference after the infrastructure is deleted. Before cleanup, either restore the agent’s intended network configuration or delete the disposable lab agent.

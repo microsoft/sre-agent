@@ -3,6 +3,7 @@
 *.tfstate
 *.tfstate.*
 terraform.tfvars
+bicep/main.parameters.json
 *.tfplan
 *.tgz
 *.spl

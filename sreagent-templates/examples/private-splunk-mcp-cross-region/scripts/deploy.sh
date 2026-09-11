@@ -34,7 +34,21 @@ case "$BACKEND" in
     [[ -n "$RESOURCE_GROUP" && -n "$PARAMETERS" ]] || { usage; exit 1; }
     [[ -f "$PARAMETERS" ]] || { echo "Parameters file not found: $PARAMETERS" >&2; exit 1; }
     command -v az >/dev/null || { echo "Azure CLI is required." >&2; exit 1; }
+    command -v jq >/dev/null || { echo "jq is required." >&2; exit 1; }
     LOCATION="$(jq -r '.parameters.agentLocation.value // "eastus2"' "$PARAMETERS")"
+    SPLUNK_LOCATION="$(jq -r '.parameters.splunkLocation.value // "centralus"' "$PARAMETERS")"
+    SSH_KEY="$(jq -r '.parameters.adminSshPublicKey.value // ""' "$PARAMETERS")"
+
+    if [[ "$(printf '%s' "$LOCATION" | tr '[:upper:]' '[:lower:]')" == "$(printf '%s' "$SPLUNK_LOCATION" | tr '[:upper:]' '[:lower:]')" ]]; then
+      echo "agentLocation and splunkLocation must be different to exercise cross-region connectivity (both are '$LOCATION')." >&2
+      exit 1
+    fi
+
+    if ! printf '%s' "$SSH_KEY" | grep -Eq '^(ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/]+={0,3}( .*)?$'; then
+      echo "adminSshPublicKey must be a valid OpenSSH public key. Replace the placeholder in $PARAMETERS." >&2
+      exit 1
+    fi
+
     az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
     az deployment group create \
       --resource-group "$RESOURCE_GROUP" \

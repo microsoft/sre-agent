@@ -194,6 +194,12 @@ resource splunkSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-05-01' = {
 resource agentToSplunk 'Microsoft.Network/virtualNetworks/virtualNetworkPeerings@2024-05-01' = {
   parent: agentVnet
   name: 'agent-to-splunk'
+  // Subnet creation and peering are writes against the same virtual networks.
+  // Serialize them to avoid transient AnotherOperationInProgress failures.
+  dependsOn: [
+    agentSubnet
+    splunkSubnet
+  ]
   properties: {
     remoteVirtualNetwork: {
       id: splunkVnet.id
@@ -208,6 +214,11 @@ resource agentToSplunk 'Microsoft.Network/virtualNetworks/virtualNetworkPeerings
 resource splunkToAgent 'Microsoft.Network/virtualNetworks/virtualNetworkPeerings@2024-05-01' = {
   parent: splunkVnet
   name: 'splunk-to-agent'
+  dependsOn: [
+    agentSubnet
+    splunkSubnet
+    agentToSplunk
+  ]
   properties: {
     remoteVirtualNetwork: {
       id: agentVnet.id

@@ -32,9 +32,12 @@ done
 [[ -f "$PACKAGE_PATH" ]] || { echo "MCP package not found: $PACKAGE_PATH" >&2; exit 1; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TRANSFER_ID="$(printf '%s' "${RESOURCE_GROUP}-${VM_NAME}-$(date +%s)-${RANDOM}" | sha256sum | cut -c1-13)"
+if command -v sha256sum >/dev/null 2>&1; then
+  TRANSFER_ID="$(printf '%s' "${RESOURCE_GROUP}-${VM_NAME}-$(date +%s)-${RANDOM}" | sha256sum | cut -c1-13)"
+else
+  TRANSFER_ID="$(printf '%s' "${RESOURCE_GROUP}-${VM_NAME}-$(date +%s)-${RANDOM}" | shasum -a 256 | cut -c1-13)"
+fi
 STORAGE_ACCOUNT="stsplunk${TRANSFER_ID}"
-TRANSFER_RG="splunk-transfer-${TRANSFER_ID}"
 CONTAINER_NAME="packages"
 BLOB_NAME="$(basename "$PACKAGE_PATH")"
 RUN_COMMAND_NAME="configure-private-splunk-${TRANSFER_ID}"
@@ -44,41 +47,43 @@ echo
 
 cleanup() {
   az vm run-command delete --resource-group "$RESOURCE_GROUP" --vm-name "$VM_NAME" --run-command-name "$RUN_COMMAND_NAME" --yes >/dev/null 2>&1 || true
-  az group delete --name "$TRANSFER_RG" --yes --no-wait >/dev/null 2>&1 || true
+  az storage account delete --resource-group "$RESOURCE_GROUP" --name "$STORAGE_ACCOUNT" --yes >/dev/null 2>&1 || true
   unset SPLUNK_PASSWORD REGISTRY_PASSWORD PACKAGE_URL
 }
 trap cleanup EXIT
 
 VM_LOCATION="$(az vm show --resource-group "$RESOURCE_GROUP" --name "$VM_NAME" --query location --output tsv)"
-az group create --name "$TRANSFER_RG" --location "$VM_LOCATION" --output none
 az storage account create \
-  --resource-group "$TRANSFER_RG" \
+  --resource-group "$RESOURCE_GROUP" \
   --name "$STORAGE_ACCOUNT" \
   --location "$VM_LOCATION" \
   --sku Standard_LRS \
   --kind StorageV2 \
   --allow-blob-public-access false \
   --output none
-az storage container create --account-name "$STORAGE_ACCOUNT" --name "$CONTAINER_NAME" --auth-mode login --output none
-az storage blob upload \
+
+AZURE_STORAGE_KEY="$(az storage account keys list --resource-group "$RESOURCE_GROUP" --account-name "$STORAGE_ACCOUNT" --query '[0].value' --output tsv)"
+[[ -n "$AZURE_STORAGE_KEY" ]] || { echo "Unable to retrieve the temporary storage account key." >&2; exit 1; }
+
+AZURE_STORAGE_KEY="$AZURE_STORAGE_KEY" az storage container create --account-name "$STORAGE_ACCOUNT" --name "$CONTAINER_NAME" --auth-mode key --output none
+AZURE_STORAGE_KEY="$AZURE_STORAGE_KEY" az storage blob upload \
   --account-name "$STORAGE_ACCOUNT" \
   --container-name "$CONTAINER_NAME" \
   --name "$BLOB_NAME" \
   --file "$PACKAGE_PATH" \
-  --auth-mode login \
+  --auth-mode key \
   --overwrite \
   --output none
 
-EXPIRY="$(date -u -d '1 hour' '+%Y-%m-%dT%H:%MZ')"
-PACKAGE_SAS="$(az storage blob generate-sas \
+EXPIRY="$(date -u -d '1 hour' '+%Y-%m-%dT%H:%MZ' 2>/dev/null || date -u -v+1H '+%Y-%m-%dT%H:%MZ')"
+PACKAGE_SAS="$(AZURE_STORAGE_KEY="$AZURE_STORAGE_KEY" az storage blob generate-sas \
   --account-name "$STORAGE_ACCOUNT" \
   --container-name "$CONTAINER_NAME" \
   --name "$BLOB_NAME" \
   --permissions r \
   --expiry "$EXPIRY" \
   --https-only \
-  --auth-mode login \
-  --as-user \
+  --auth-mode key \
   --output tsv)"
 PACKAGE_URL="https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}/${BLOB_NAME}?${PACKAGE_SAS}"
 
