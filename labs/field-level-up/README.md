@@ -1,4 +1,4 @@
-# Field Level Up
+# Azure SRE Agent Onboarding Lab
 
 **Autonomous incident response with Azure SRE Agent**
 
@@ -8,7 +8,6 @@ Deploy a concert ticketing service, introduce a database connectivity failure, a
 
 | Lab profile | Details |
 | --- | --- |
-| **Workshop dates** | September 21–22, 2026 |
 | **Workload** | Node.js ticketing API, Azure Database for PostgreSQL, and private networking |
 | **Incident** | An NSG rule blocks the application's PostgreSQL connection on TCP 5432 |
 | **Agent response** | Read-only investigators correlate application, database, network, and source-code evidence |
