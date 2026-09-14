@@ -131,7 +131,12 @@ else
   echo "Error: python3 or python is required" >&2; exit 1
 fi
 
-API_VERSION="2025-05-01-preview"
+if ! "$PYTHON" -c "import yaml" 2>/dev/null; then
+  echo "Error: PyYAML is required for $PYTHON — install it with: $PYTHON -m pip install pyyaml" >&2
+  exit 1
+fi
+
+API_VERSION="2026-01-01"
 ARM_BASE="https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.App/agents/${AGENT}"
 
 # ─────────────────────────── Helpers ───────────────────────────
@@ -342,25 +347,26 @@ RAW_CONNECTORS=$(arm_list "connectors")
 CONNECTOR_COUNT=$(echo "$RAW_CONNECTORS" | jq 'length')
 _log "  Found ${CONNECTOR_COUNT} connector(s) from ARM"
 
-# Also read connectors from data-plane (has full extendedProperties including secrets)
-DP_CONNECTORS=$(dp_get "/api/v2/extendedAgent/connectors" | jq -c '.value // []' 2>/dev/null || echo '[]')
-DP_COUNT=$(echo "$DP_CONNECTORS" | jq 'length')
-_log "  Found ${DP_COUNT} connector(s) from data-plane"
+# Read unredacted connector properties through the stable, read-only ARM action.
+FULL_CONNECTORS=$(az rest -m POST \
+  --url "${ARM_BASE}/listConnectorsWithSecrets?api-version=${API_VERSION}" \
+  --query 'value' -o json 2>/dev/null || echo '[]')
+FULL_CONNECTOR_COUNT=$(echo "$FULL_CONNECTORS" | jq 'length')
+_log "  Found ${FULL_CONNECTOR_COUNT} connector(s) with details from ARM"
 
-# Normalize connectors — prefer data-plane for ALL connectors (ARM redacts secrets and nulls resource IDs)
-CONNECTORS=$(echo "$RAW_CONNECTORS" | jq -c --argjson dp "$DP_CONNECTORS" '[.[] | 
+# Normalize connectors, preferring the control-plane action results where available.
+CONNECTORS=$(echo "$RAW_CONNECTORS" | jq -c --argjson full "$FULL_CONNECTORS" '[.[] |
   . as $arm |
   ($arm.name | split("/") | last) as $cname |
   ($arm.properties.dataConnectorType) as $ctype |
-  # Try data-plane first (has full properties), fall back to ARM
-  ([$dp[] | select(.name == $cname)] | first) as $dpconn |
-  if $dpconn then {
+  ([$full[] | select((.name | split("/") | last) == $cname)] | first) as $fullconn |
+  if $fullconn then {
     name: $cname,
     properties: {
-      dataConnectorType: ($dpconn.properties.dataConnectorType // $ctype),
-      dataSource: ($dpconn.properties.dataSource // $arm.properties.dataSource // ""),
-      extendedProperties: ($dpconn.properties.extendedProperties // $arm.properties.extendedProperties // {}),
-      identity: ($dpconn.properties.identity // $arm.properties.identity // "system")
+      dataConnectorType: ($fullconn.properties.dataConnectorType // $ctype),
+      dataSource: ($fullconn.properties.dataSource // $arm.properties.dataSource // ""),
+      extendedProperties: ($fullconn.properties.extendedProperties // $arm.properties.extendedProperties // {}),
+      identity: ($fullconn.properties.identity // $arm.properties.identity // "system")
     }
   } else {
     name: $cname,
@@ -803,10 +809,9 @@ fi
 # (not converted to AgentMemory .md uploads) so they appear under Knowledge Sources.
 if [[ "$INCLUDE_KNOWLEDGE_ITEMS" == "true" ]]; then
   _log "Reading knowledge items from connectors API..."
-  RAW_KNOWLEDGE_ITEMS=$(dp_get "/api/v2/extendedAgent/connectors")
-  if [[ "$RAW_KNOWLEDGE_ITEMS" != "null" ]]; then
-    KNOWLEDGE_ITEMS=$(echo "$RAW_KNOWLEDGE_ITEMS" | jq -c '[
-      (.value // . // [])[] |
+  if [[ "$FULL_CONNECTORS" != "null" ]]; then
+    KNOWLEDGE_ITEMS=$(echo "$FULL_CONNECTORS" | jq -c '[
+      .[] |
       select(.properties.dataConnectorType // "" | test("^Knowledge")) |
       {
         name: .name,

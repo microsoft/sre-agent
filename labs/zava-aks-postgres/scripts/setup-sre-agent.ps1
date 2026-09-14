@@ -77,7 +77,7 @@ if (-not $SubscriptionId) {
     $SubscriptionId = az account show --query id -o tsv
 }
 $agentArmId = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.App/agents/$AgentName"
-$apiVersion = "2025-05-01-preview"
+$apiVersion = "2026-01-01"
 
 # --- Step 0: Verify agent exists -------------------------------------------
 Write-Host "Step 0: Verifying agent exists..." -ForegroundColor Yellow

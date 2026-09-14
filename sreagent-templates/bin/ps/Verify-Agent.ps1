@@ -94,7 +94,7 @@ function Get-ExpList {
 
 # ─────────────────────────── ARM + Data-plane setup ───────────────────────────
 
-$API_VERSION = '2025-05-01-preview'
+$API_VERSION = '2026-01-01'
 $ARM_BASE    = "https://management.azure.com/subscriptions/${Subscription}/resourceGroups/${ResourceGroup}/providers/Microsoft.App/agents/${AgentName}"
 
 $AgentJson = (az rest -m GET --url "${ARM_BASE}?api-version=${API_VERSION}" -o json 2>$null) -join "`n"

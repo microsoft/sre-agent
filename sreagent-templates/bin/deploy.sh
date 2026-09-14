@@ -317,7 +317,7 @@ fi
 # ── Connector health check (reused in multiple paths) ──
 check_connector_health() {
   local sub="$1" rg="$2" ag="$3"
-  local api_url="https://management.azure.com/subscriptions/${sub}/resourceGroups/${rg}/providers/Microsoft.App/agents/${ag}/connectors?api-version=2025-05-01-preview"
+  local api_url="https://management.azure.com/subscriptions/${sub}/resourceGroups/${rg}/providers/Microsoft.App/agents/${ag}/connectors?api-version=2026-01-01"
   local conn_json
   conn_json=$(az rest --method GET --url "$api_url" 2>/dev/null || true)
   local count

@@ -43,7 +43,7 @@ function Invoke-AksCommandViaRest {
     if (-not $clusterToken) { throw "Failed to acquire AKS cluster token." }
 
     $body = @{ command = $Command; clusterToken = $clusterToken } | ConvertTo-Json -Compress
-    $uri = "https://management.azure.com/subscriptions/$sub/resourceGroups/$ResourceGroup/providers/Microsoft.ContainerService/managedClusters/$ClusterName/runCommand?api-version=2024-09-01"
+    $uri = "https://management.azure.com/subscriptions/$sub/resourceGroups/$ResourceGroup/providers/Microsoft.ContainerService/managedClusters/$ClusterName/runCommand?api-version=2026-06-01"
     $headers = @{ Authorization = "Bearer $armToken"; 'Content-Type' = 'application/json' }
 
     $resp = Invoke-WebRequest -Method Post -Uri $uri -Headers $headers -Body $body -SkipHttpErrorCheck
@@ -304,7 +304,7 @@ function Reset-DemoAlertRule {
     if (-not $token) { throw "Could not acquire an Azure Resource Manager token. Run 'az login'." }
     $headers = @{ Authorization = "Bearer $token" }
 
-    $url = "https://management.azure.com/subscriptions/$sub/providers/Microsoft.AlertsManagement/alerts?api-version=2019-05-05-preview&timeRange=30d&pageCount=250"
+    $url = "https://management.azure.com/subscriptions/$sub/providers/Microsoft.AlertsManagement/alerts?api-version=2019-03-01&timeRange=30d&pageCount=250"
     $response = Invoke-RestMethod -Method Get -Uri $url -Headers $headers
     $alerts = @($response.value | Where-Object {
         $essentials = $_.properties.essentials
@@ -326,7 +326,7 @@ function Reset-DemoAlertRule {
 
     if ($essentials.alertState -ne 'Closed') {
         $alertId = [string]$latest.id
-        $changeStateUrl = "https://management.azure.com${alertId}/changestate?api-version=2018-05-05&newState=Closed"
+        $changeStateUrl = "https://management.azure.com${alertId}/changestate?api-version=2019-03-01&newState=Closed"
         try {
             Invoke-RestMethod -Method Post -Uri $changeStateUrl -Headers $headers | Out-Null
         } catch {

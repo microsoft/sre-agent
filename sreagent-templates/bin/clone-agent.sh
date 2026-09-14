@@ -217,7 +217,7 @@ else
 fi
 
 # 2d. Check if agent already exists in target
-API_VERSION="2025-05-01-preview"
+API_VERSION="2026-01-01"
 EXISTING=$(az rest -m GET \
   --url "https://management.azure.com/subscriptions/${NEW_SUB}/resourceGroups/${NEW_RG}/providers/Microsoft.App/agents/${NEW_AGENT}?api-version=${API_VERSION}" \
   -o json 2>/dev/null || echo "null")

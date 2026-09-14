@@ -48,7 +48,7 @@ if [ -z "$AGENT_ENDPOINT" ] || [ -z "$AGENT_NAME" ]; then
 fi
 
 AGENT_RESOURCE_ID="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.App/agents/${AGENT_NAME}"
-API_VERSION="2025-05-01-preview"
+API_VERSION="2025-05-01-preview"  # Stable API does not support subagent child resources.
 
 get_token() {
   az account get-access-token --resource https://azuresre.dev --query accessToken -o tsv 2>/dev/null

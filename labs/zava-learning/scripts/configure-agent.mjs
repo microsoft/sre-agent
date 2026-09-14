@@ -227,7 +227,7 @@ function applyToolsSkillsAndAgentsWithSrectl() {
 // configured as ARM child resources / properties. The azmcp `incidents plans_create`
 // targets a data-plane route that is read-only on current agent builds (HTTP 405),
 // so we apply these two pieces declaratively over ARM instead.
-const API_VERSION = "2025-05-01-preview";
+const API_VERSION = "2026-01-01";
 const ARM = "https://management.azure.com";
 const DATAPLANE_AUDIENCE = "https://azuresre.ai";
 const AZ = os.platform() === "win32" ? "az.cmd" : "az";

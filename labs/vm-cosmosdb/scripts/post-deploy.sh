@@ -232,7 +232,7 @@ fi
 
 # ---- Step 4: Configure Azure Monitor as incident platform ----
 echo -e "\n${YELLOW}[4/7] Configuring Azure Monitor as incident platform...${NC}"
-API_VERSION="2025-05-01-preview"
+API_VERSION="2026-01-01"
 AGENT_RESOURCE_ID="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.App/agents/${AGENT_NAME}"
 
 az rest --method patch \
@@ -286,16 +286,17 @@ if [ -z "$GITHUB_USER" ]; then
 else
 GITHUB_REPO="${GITHUB_USER}/sre-agent"
 
-# Create GitHub OAuth connector (dataplane)
-TOKEN=$(get_agent_token)
-curl -s -o /dev/null -w "" \
-  -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
-  -H "Authorization: Bearer ${TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"github","type":"AgentConnector","properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}'
-echo -e "${GREEN}  ✓ GitHub OAuth connector created${NC}"
+# Create the GitHub OAuth connector through the stable ARM child resource.
+if az rest --method PUT \
+  --url "https://management.azure.com${AGENT_RESOURCE_ID}/connectors/github?api-version=${API_VERSION}" \
+  --body '{"properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}' \
+  --output none 2>/dev/null; then
+  echo -e "${GREEN}  ✓ GitHub OAuth connector created through ARM${NC}"
+else
+  echo -e "${YELLOW}  GitHub connector creation failed${NC}"
+fi
 
-# Get OAuth URL — fetch BEFORE ARM connector creation
+# Get the OAuth URL generated for the connector.
 TOKEN=$(get_agent_token)
 GITHUB_CONFIG=$(curl -s "${AGENT_ENDPOINT}/api/v1/github/config" -H "Authorization: Bearer ${TOKEN}" 2>/dev/null)
 OAUTH_URL=$(echo "$GITHUB_CONFIG" | $PYTHON -c "
@@ -305,13 +306,6 @@ try:
     print(d.get('oAuthUrl', '') or d.get('OAuthUrl', '') or '')
 except: print('')
 " 2>/dev/null)
-
-# Create GitHub OAuth connector via ARM
-az rest --method PUT \
-  --url "https://management.azure.com${AGENT_RESOURCE_ID}/DataConnectors/github?api-version=${API_VERSION}" \
-  --body '{"properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}' \
-  --output none 2>/dev/null || true
-echo -e "${GREEN}  ✓ GitHub OAuth connector (ARM)${NC}"
 
 # Show OAuth URL — always show even if parsing failed
 if [ -z "$OAUTH_URL" ]; then

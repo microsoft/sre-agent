@@ -401,7 +401,7 @@ foreach ($d in $configDirs) {
 
 $automationsDir = Join-Path $Output "automations"
 if (Test-Path $automationsDir -PathType Container) {
-    $hasFiles = (Get-ChildItem -Path $automationsDir -Recurse -File -ErrorAction SilentlyContinue).Count -gt 0
+    $hasFiles = @(Get-ChildItem -Path $automationsDir -Recurse -File -ErrorAction SilentlyContinue).Count -gt 0
     if ($hasFiles) {
         Write-Host "    automations/"
         foreach ($d in @("scheduled-tasks", "incident-filters", "http-triggers", "incident-platforms")) {
