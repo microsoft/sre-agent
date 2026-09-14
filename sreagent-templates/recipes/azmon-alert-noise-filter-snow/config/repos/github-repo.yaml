@@ -1,0 +1,5 @@
+name: github-repo
+spec:
+  url: "{{githubRepo}}"
+  branch: main
+  description: Connected GitHub repository

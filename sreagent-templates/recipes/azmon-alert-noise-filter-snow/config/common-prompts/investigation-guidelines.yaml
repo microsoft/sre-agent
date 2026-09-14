@@ -1,0 +1,19 @@
+metadata:
+  name: investigation-guidelines
+spec:
+  prompt: '## Investigation guidelines
+
+
+    - Always check the last 3 deployments for correlation
+
+    - Include timestamp, affected resource, and severity in all summaries
+
+    - Never take destructive actions without explicit approval
+
+    - Prefer read-only investigation before recommending changes
+
+    - Always provide an impact assessment (users affected, blast radius)
+
+    - For transient alerts: wait the full 15-minute timer before concluding
+
+    - Always include alert state transition history in ServiceNow tickets'

@@ -1,0 +1,35 @@
+metadata:
+  name: wait-and-recheck-timer
+spec:
+  type: PythonFunctionTool
+  name: wait-and-recheck-timer
+  description: "Waits the specified number of minutes. Use this to implement a deterministic observation window before re-checking alert state. Returns after the wait completes."
+  parameters:
+    - name: wait_minutes
+      type: integer
+      description: "Number of minutes to wait (default: 15)"
+      required: false
+    - name: reason
+      type: string
+      description: "Why we are waiting (logged for observability)"
+      required: false
+  timeout_seconds: 900
+  dependencies: []
+  function_code: |
+    import time
+
+    def main(wait_minutes: int = 15, reason: str = "Observation window") -> dict:
+        print(f"[TIMER] Starting {wait_minutes}-minute wait. Reason: {reason}")
+
+        for minute in range(wait_minutes):
+            time.sleep(60)
+            remaining = wait_minutes - 1 - minute
+            if remaining > 0:
+                print(f"[TIMER] {remaining} min remaining...")
+
+        print(f"[TIMER] {wait_minutes}-minute wait complete.")
+        return {
+            "status": "complete",
+            "waited_minutes": wait_minutes,
+            "reason": reason
+        }
