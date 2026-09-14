@@ -25,22 +25,26 @@ FORCE=""
 WHAT_IF=""
 INPUT=""
 NAME=""
-for arg in "$@"; do
-  case "$arg" in
-    --dry-run)  DRY_RUN="true" ;;
-    --what-if)  WHAT_IF="true" ;;
-    --force)    FORCE="true" ;;
-    --no-telemetry) _NO_TELEMETRY="true" ;;
+SUBSCRIPTION=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run)  DRY_RUN="true"; shift ;;
+    --what-if)  WHAT_IF="true"; shift ;;
+    --force)    FORCE="true"; shift ;;
+    --no-telemetry) _NO_TELEMETRY="true"; shift ;;
+    --subscription) SUBSCRIPTION="$2"; shift 2 ;;
     *)
-      if [[ -z "$INPUT" ]]; then INPUT="$arg"
-      elif [[ -z "$NAME" ]]; then NAME="$arg"
-      fi ;;
+      if [[ -z "$INPUT" ]]; then INPUT="$1"
+      elif [[ -z "$NAME" ]]; then NAME="$1"
+      fi
+      shift ;;
   esac
 done
-[[ -z "$INPUT" ]] && { echo "Usage: deploy.sh <config-dir|params.json> [deploy-name] [--dry-run] [--force]" >&2; exit 1; }
+[[ -z "$INPUT" ]] && { echo "Usage: deploy.sh <config-dir|params.json> [deploy-name] [--subscription <id>] [--dry-run] [--force]" >&2; exit 1; }
 [[ -z "$NAME" ]] && NAME="sre-agent-$(date +%Y%m%d-%H%M%S)"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE="${SCRIPT_DIR}/../bicep/main.bicep"
+source "${SCRIPT_DIR}/region-utils.sh"
 
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
 
@@ -75,12 +79,21 @@ LOC=$(jq -r '.parameters.location.value // "eastus2"' "$FILE")
 AG=$(jq -r '.parameters.agentName.value' "$FILE")
 RG=$(jq -r '.parameters.agentResourceGroupName.value' "$FILE")
 TGT=$(jq -r '.parameters.targetResourceGroups.value | join(", ")' "$FILE")
-SUB=$(az account show --query id -o tsv)
+SUB=$(resolve_azure_subscription "$SUBSCRIPTION") || exit 1
 
-echo "  Subscription:  $(az account show --query name -o tsv) ($SUB)"
+if [[ -z "$DRY_RUN" ]]; then
+  validate_sre_agent_region "$SUB" "$LOC" || exit 1
+  SUBSCRIPTION_NAME=$(az account show --subscription "$SUB" --query name -o tsv)
+  RG_STATUS=$([[ "$(az group exists --subscription "$SUB" -n "$RG")" == "true" ]] && echo "(exists)" || echo "(will be created)")
+else
+  SUBSCRIPTION_NAME="not queried during dry run"
+  RG_STATUS="(not queried during dry run)"
+fi
+
+echo "  Subscription:  ${SUBSCRIPTION_NAME} ($SUB)"
 echo "  Region:        $LOC"
 echo "  Agent name:    $AG"
-echo "  Agent RG:      $RG  $([[ "$(az group exists -n "$RG")" == "true" ]] && echo "(exists)" || echo "(will be created)")"
+echo "  Agent RG:      $RG  $RG_STATUS"
 echo "  Target RGs:    ${TGT:-<none>}"
 echo "  Access level:  $(jq -r '.parameters.accessLevel.value // "Low"' "$FILE")"
 echo "  Action mode:   $(jq -r '.parameters.actionMode.value // "Review"' "$FILE")"
@@ -190,6 +203,7 @@ if [[ -n "$WHAT_IF" ]]; then
   echo "── What-if validation (ARM preflight) ──"
   echo
   if az deployment sub what-if \
+    --subscription "$SUB" \
     --location "$LOC" \
     --name "$NAME" \
     --template-file "$TEMPLATE" \
@@ -232,10 +246,11 @@ if [[ -f "$AGENT_JSON_FILE" ]]; then
       _subnet_name=$(echo "$NET_SUBNET_ID" | sed 's|.*/subnets/||')
 
       # Check if subnet exists
-      if ! az network vnet subnet show -g "$_vnet_rg" --vnet-name "$_vnet_name" -n "$_subnet_name" &>/dev/null; then
+      if ! az network vnet subnet show --subscription "$SUB" -g "$_vnet_rg" --vnet-name "$_vnet_name" -n "$_subnet_name" &>/dev/null; then
         echo "── Creating VNet subnet with Microsoft.App/environments delegation ──"
         echo "  VNet: $_vnet_name  Subnet: $_subnet_name  Prefix: $NET_SUBNET_PREFIX"
         az network vnet subnet create \
+          --subscription "$SUB" \
           -g "$_vnet_rg" \
           --vnet-name "$_vnet_name" \
           -n "$_subnet_name" \
@@ -245,11 +260,12 @@ if [[ -f "$AGENT_JSON_FILE" ]]; then
         echo "  ✅ Subnet created"
       else
         # Verify delegation exists
-        _delegation=$(az network vnet subnet show -g "$_vnet_rg" --vnet-name "$_vnet_name" -n "$_subnet_name" --query "delegations[0].serviceName" -o tsv 2>/dev/null)
+        _delegation=$(az network vnet subnet show --subscription "$SUB" -g "$_vnet_rg" --vnet-name "$_vnet_name" -n "$_subnet_name" --query "delegations[0].serviceName" -o tsv 2>/dev/null)
         if [[ "$_delegation" != "Microsoft.App/environments" ]]; then
           echo "  ⚠ Subnet $_subnet_name exists but missing Microsoft.App/environments delegation"
           echo "    Adding delegation..."
           az network vnet subnet update \
+            --subscription "$SUB" \
             -g "$_vnet_rg" \
             --vnet-name "$_vnet_name" \
             -n "$_subnet_name" \
@@ -269,12 +285,13 @@ echo
 
 # Auto-detect redeploy: if agent already exists, skip role assignments to avoid RoleAssignmentExists
 SKIP_RBAC=""
-if az resource show -g "$RG" --resource-type "Microsoft.App/agents" -n "$AG" --query "name" -o tsv &>/dev/null; then
+if az resource show --subscription "$SUB" -g "$RG" --resource-type "Microsoft.App/agents" -n "$AG" --query "name" -o tsv &>/dev/null; then
   echo "  Agent '$AG' already exists — skipping role assignments on redeploy."
   SKIP_RBAC="skipRoleAssignments=true"
 fi
 
 az deployment sub create \
+  --subscription "$SUB" \
   --location "$LOC" \
   --name "$NAME" \
   --template-file "$TEMPLATE" \
@@ -287,7 +304,7 @@ cat "$TMP"
 STATE=$(jq -r '.properties.provisioningState // "?"' "$TMP" 2>/dev/null || echo "?")
 # If az exited non-zero but jq can't parse the output, fall back to querying ARM
 if [[ -z "$STATE" || "$STATE" == "?" ]]; then
-  STATE=$(az deployment sub show -n "$NAME" --query 'properties.provisioningState' -o tsv 2>/dev/null || echo "Failed")
+  STATE=$(az deployment sub show --subscription "$SUB" -n "$NAME" --query 'properties.provisioningState' -o tsv 2>/dev/null || echo "Failed")
   [[ -n "$STATE" ]] || STATE="Failed"
 fi
 # ── Colors (if terminal supports it) ──
@@ -334,7 +351,7 @@ check_connector_health() {
 if [[ "$STATE" != "Succeeded" ]]; then
   # Check if this is a non-fatal RoleAssignmentExists error (common on redeploy)
   ROLE_ERR=$(jq -r '.. | .code? // empty' "$TMP" 2>/dev/null | grep -c "RoleAssignmentExists" || true)
-  AGENT_EXISTS=$(az resource list -g "$RG" --resource-type "Microsoft.App/agents" --query "[?name=='$AG'].name" -o tsv 2>/dev/null)
+  AGENT_EXISTS=$(az resource list --subscription "$SUB" -g "$RG" --resource-type "Microsoft.App/agents" --query "[?name=='$AG'].name" -o tsv 2>/dev/null)
 
   if [[ "$ROLE_ERR" -gt 0 && -n "$AGENT_EXISTS" ]]; then
     echo

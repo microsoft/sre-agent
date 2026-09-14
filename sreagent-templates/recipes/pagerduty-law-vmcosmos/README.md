@@ -16,6 +16,7 @@ Monitor PagerDuty P1/P2 incidents with Log Analytics and App Insights, targeting
 **Bash:**
 ```bash
 ./bin/new-agent.sh --recipe pagerduty-law-vmcosmos --non-interactive \
+  --subscription <subscription-id> \
   --set agentName=pd-contoso-prod \
   --set resourceGroup=rg-pd-contoso \
   --set location=swedencentral \
@@ -27,7 +28,7 @@ Monitor PagerDuty P1/P2 incidents with Log Analytics and App Insights, targeting
 
 **PowerShell:**
 ```powershell
-./bin/ps/New-Agent.ps1 -Recipe pagerduty-law-vmcosmos -NonInteractive `
+./bin/ps/New-Agent.ps1 -Recipe pagerduty-law-vmcosmos -NonInteractive -Subscription <subscription-id> `
   -Set @{agentName='pd-contoso-prod'; resourceGroup='rg-pd-contoso'; location='swedencentral';
     lawId='/subscriptions/.../workspaces/contoso-law';
     pagerdutyApiKey='u+abCdEfGhIjKlMnOpQrSt'; targetRGs='rg-contoso-prod,rg-contoso-cosmos'} `
@@ -49,7 +50,8 @@ Monitor PagerDuty P1/P2 incidents with Log Analytics and App Insights, targeting
 |---|---|---|---|
 | agentName | ✅ | `pd-contoso-prod` | You choose (lowercase, hyphens) |
 | resourceGroup | ✅ | `rg-pd-contoso` | You choose or use existing RG |
-| location | ✅ | `swedencentral` | Azure region — see [supported regions](../../README.md) |
+| `--subscription` | | current `az` subscription | Target subscription (top-level flag, not a `--set` value). Also controls which regions the `location` prompt offers. |
+| location | ✅ | `swedencentral` | Azure region available to the target subscription — see [supported regions](../../README.md) |
 | pagerdutyApiKey | ✅ | `u+abCdEfGhIjKlMnOpQrSt` | PagerDuty → Integrations → API Access Keys → Create |
 | targetRGs | ✅ | `rg-contoso-prod,rg-contoso-cosmos` | Comma-separated RG names with your VMs/Cosmos DBs |
 | lawId | | `/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name>` | Portal → LAW → Properties → Resource ID. If blank, the LAW connector is disabled. |

@@ -18,6 +18,7 @@ The agent receives PR events from GitHub via an HTTP trigger (Logic App webhook 
 
 ```bash
 ./bin/new-agent.sh --recipe law-dynatrace-github-httptrigger-prvalidation --non-interactive \
+  --subscription <subscription-id> \
   --set agentName=contoso-sre \
   --set resourceGroup=rg-sre-contoso \
   --set location=eastus2 \
@@ -84,7 +85,8 @@ Open a PR on your app repo — the GitHub workflow sends the PR event to the age
 |---|---|---|---|
 | agentName | ✅ | `contoso-sre` | Agent name (lowercase, hyphens) |
 | resourceGroup | ✅ | `rg-sre-contoso` | Resource group for the agent |
-| location | ✅ | `eastus2` | Azure region |
+| `--subscription` | | current `az` subscription | Target subscription (top-level flag, not a `--set` value). Also controls which regions the `location` prompt offers. |
+| location | ✅ | `eastus2` | Azure region available to the target subscription |
 | targetRGs | ✅ | `rg-contoso-prod,rg-contoso-staging` | Resource groups the agent monitors |
 | lawId | ✅ | `/subscriptions/.../workspaces/...` | Log Analytics workspace resource ID |
 | dtTenant | ✅ | `abc12345` | Dynatrace tenant ID |

@@ -15,7 +15,7 @@ log "── bash new-agent ──"
 rm -rf "$OUT"
 SET_ARGS="--set agentName=dry-${RECIPE} --set resourceGroup=rg-dry --set location=swedencentral --set targetRGs=rg-fake"
 IFS_OLD="$IFS"; IFS=';'; for s in $EXTRA_SETS; do [[ -n "$s" ]] && SET_ARGS="$SET_ARGS --set $s"; done; IFS="$IFS_OLD"
-eval "./bin/new-agent.sh --recipe $RECIPE --non-interactive $SET_ARGS -o $OUT" > /tmp/dryrun-new.log 2>&1
+eval "./bin/new-agent.sh --recipe $RECIPE --subscription ci-subscription --non-interactive $SET_ARGS -o $OUT" > /tmp/dryrun-new.log 2>&1
 if [[ -f "$OUT/agent.json" ]]; then pass "new-agent"; else fail "new-agent"; print_summary "$RECIPE"; exit 1; fi
 
 validate_config_dir "$OUT" $EXP_SKILLS $EXP_SA $EXP_HOOKS $EXP_PROMPTS $EXP_SCHED $EXP_FILTERS $EXP_PLAT $EXP_HT

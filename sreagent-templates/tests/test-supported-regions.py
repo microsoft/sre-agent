@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify every deployment and recipe allowlist matches supported-regions.json."""
+"""Verify region discovery has one checked-in fallback and no deployment allowlists."""
 
 import json
 import re
@@ -11,36 +11,35 @@ EXPECTED = json.loads((ROOT / "supported-regions.json").read_text())
 ERRORS: list[str] = []
 
 
-def check(name: str, actual: list[str]) -> None:
-    if actual != EXPECTED:
-        ERRORS.append(f"{name}: expected {EXPECTED}, found {actual}")
-
-
 if EXPECTED != sorted(set(EXPECTED)) or len(EXPECTED) != 20:
     ERRORS.append("supported-regions.json must contain 20 unique, sorted regions")
 
 bicep = (ROOT / "bicep/main.bicep").read_text()
-bicep_match = re.search(r"@allowed\(\[([^]]+)]\)\s*\nparam location", bicep)
-check("bicep/main.bicep", re.findall(r"'([^']+)'", bicep_match.group(1)) if bicep_match else [])
+if re.search(r"@allowed\(\[[^]]+\]\)\s*\nparam location", bicep):
+    ERRORS.append("bicep/main.bicep: location must not use a static allowlist")
 
 terraform = (ROOT / "terraform/variables.tf").read_text()
-tf_match = re.search(r"contains\(\[([^]]+)], var\.location\)", terraform)
-check("terraform/variables.tf", re.findall(r'"([^"]+)"', tf_match.group(1)) if tf_match else [])
+if re.search(r"contains\(\[[^]]+], var\.location\)", terraform):
+    ERRORS.append("terraform/variables.tf: location must not use a static allowlist")
 
 clone = (ROOT / "bin/clone-agent.sh").read_text()
-for variable in ("ALLOWED_REGIONS", "SUPPORTED_REGIONS"):
-    match = re.search(rf'{variable}=\(([^)]+)\)', clone)
-    check(f"bin/clone-agent.sh:{variable}", re.findall(r'"([^"]+)"', match.group(1)) if match else [])
+if "ALLOWED_REGIONS=" in clone or "SUPPORTED_REGIONS=" in clone:
+    ERRORS.append("bin/clone-agent.sh: region validation must use subscription discovery")
 
 starter_lab = (ROOT.parent / "labs/starter-lab/infra/main.bicep").read_text()
-lab_match = re.search(r"@allowed\(\[([^]]+)]\)\s*\nparam location", starter_lab)
-check("labs/starter-lab/infra/main.bicep", re.findall(r"'([^']+)'", lab_match.group(1)) if lab_match else [])
+if re.search(r"@allowed\(\[[^]]+\]\)\s*\nparam location", starter_lab):
+    ERRORS.append("labs/starter-lab/infra/main.bicep: location must not use a static allowlist")
 
 for recipe in sorted((ROOT / "recipes").glob("*/agent.json")):
     data = json.loads(recipe.read_text())
     location = data.get("_prompts", {}).get("location")
     if location and "options" in location:
-        check(str(recipe.relative_to(ROOT)), location["options"])
+        ERRORS.append(f"{recipe.relative_to(ROOT)}: location options must come from subscription discovery")
+
+for helper in (ROOT / "bin/region-utils.sh", ROOT / "bin/ps/Region-Utils.ps1"):
+    content = helper.read_text()
+    if "Microsoft.App" not in content or "supported-regions.json" not in content:
+        ERRORS.append(f"{helper.relative_to(ROOT)}: missing live discovery or checked-in fallback")
 
 docs = (ROOT / "docs/GETTING-STARTED.md").read_text().split("## Supported regions", 1)
 if len(docs) != 2:
@@ -48,11 +47,12 @@ if len(docs) != 2:
 else:
     region_line = next((line for line in docs[1].splitlines() if line.strip()), "")
     listed = re.findall(r"`([a-z]+[0-9]*)`", region_line)
-    check("docs/GETTING-STARTED.md", listed)
+    if listed != EXPECTED:
+        ERRORS.append(f"docs/GETTING-STARTED.md: expected {EXPECTED}, found {listed}")
 
 if ERRORS:
     for error in ERRORS:
         print(f"FAIL: {error}", file=sys.stderr)
     sys.exit(1)
 
-print(f"PASS: all region allowlists match {len(EXPECTED)} canonical regions")
+print(f"PASS: region discovery uses one {len(EXPECTED)}-region offline fallback")

@@ -60,6 +60,8 @@ cd sre-agent/sreagent-templates
 ./bin/deploy.sh my-agent/
 ```
 
+`new-agent` uses `--subscription` when provided, otherwise it uses the active Azure CLI subscription. Region choices are queried for that subscription. See the [supported-regions reference](https://learn.microsoft.com/azure/sre-agent/supported-regions) when preparing non-interactive input.
+
 > **Cloud Shell**: Core deployment works with Cloud Shell's built-in auth. Some data-plane items (hooks, repos) require `az login --scope "https://azuresre.dev/.default"` first, or can be configured later in the [portal](https://sre.azure.com).
 
 ## Recipes

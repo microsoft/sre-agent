@@ -14,6 +14,7 @@ Minimal SRE Agent — deploys the agent infrastructure and RBAC with no connecto
 **Bash:**
 ```bash
 ./bin/new-agent.sh --recipe minimal --non-interactive \
+  --subscription <subscription-id> \
   --set agentName=my-agent \
   --set resourceGroup=rg-my-agent \
   --set location=swedencentral \
@@ -23,7 +24,7 @@ Minimal SRE Agent — deploys the agent infrastructure and RBAC with no connecto
 
 **PowerShell:**
 ```powershell
-./bin/ps/New-Agent.ps1 -Recipe minimal -NonInteractive `
+./bin/ps/New-Agent.ps1 -Recipe minimal -NonInteractive -Subscription <subscription-id> `
   -Set @{agentName='my-agent'; resourceGroup='rg-my-agent'; location='swedencentral';
     targetRGs='rg-my-workload'} `
   -Output my-agent/
@@ -42,9 +43,10 @@ Minimal SRE Agent — deploys the agent infrastructure and RBAC with no connecto
 
 | Param | Required | Example | How to get it |
 |---|---|---|---|
+| `--subscription` | | current `az` subscription | Target subscription (top-level flag, not a `--set` value). Also controls which regions the `location` prompt offers. |
 | agentName | ✅ | `my-agent` | You choose (lowercase, hyphens) |
 | resourceGroup | ✅ | `rg-my-agent` | You choose or use existing RG |
-| location | ✅ | `swedencentral` | Azure region — see [supported regions](../../README.md) |
+| location | ✅ | `swedencentral` | Azure region available to the target subscription — see [supported regions](../../README.md) |
 | targetRGs | ✅ | `rg-my-workload` | Comma-separated RG names to monitor |
 
 ### Advanced Options

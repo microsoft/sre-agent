@@ -31,6 +31,7 @@ Options:
   --recipe <name>    Recipe template to use (skip interactive picker)
   --list               List available recipes and exit
   -o, --output <dir>   Output directory (default: ./<agentName>)
+  --subscription <id>  Target subscription (default: current az account)
   --set key=value      Pre-set a prompt value (repeatable, skips that prompt)
   --non-interactive    Use defaults for all unset prompts (no interactive input)
   --no-telemetry       Disable anonymous usage tracking
@@ -48,7 +49,7 @@ EOF
   exit "${1:-0}"
 }
 
-RECIPE="" OUTPUT="" NON_INTERACTIVE=false LIST_ONLY=false
+RECIPE="" OUTPUT="" SUBSCRIPTION="" NON_INTERACTIVE=false LIST_ONLY=false
 PRESET_FILE=$(mktemp /tmp/preset.XXXXXX)
 VALUES_FILE=$(mktemp /tmp/values.XXXXXX)
 _set() { local file="$1" key="$2" val="$3"; echo "${key}=${val}" >> "$file"; }
@@ -61,6 +62,7 @@ while [[ $# -gt 0 ]]; do
     --recipe)          RECIPE="$2"; shift 2 ;;
     --list)              LIST_ONLY=true; shift ;;
     -o|--output)         OUTPUT="$2"; shift 2 ;;
+    --subscription)      SUBSCRIPTION="$2"; shift 2 ;;
     --set)
       key="${2%%=*}"; val="${2#*=}"
       _set "$PRESET_FILE" "$key" "$val"
@@ -122,6 +124,10 @@ RECIPE_DIR="${RECIPES_DIR}/${RECIPE}"
 [[ -d "$RECIPE_DIR" ]] || { echo "Recipe not found: ${RECIPE}" >&2; echo "Run $0 --list to see available recipes." >&2; exit 1; }
 [[ -f "${RECIPE_DIR}/agent.json" ]] || { echo "Recipe missing agent.json: ${RECIPE}" >&2; exit 1; }
 
+source "${SCRIPT_DIR}/region-utils.sh"
+SUBSCRIPTION=$(resolve_azure_subscription "$SUBSCRIPTION") || exit 1
+REGION_OPTIONS=$(get_sre_agent_regions_or_fallback "$SUBSCRIPTION") || exit 1
+
 echo
 echo "── Recipe: ${RECIPE} ──"
 jq -r '._description // ""' "${RECIPE_DIR}/agent.json"
@@ -141,11 +147,19 @@ for key in $PROMPT_KEYS; do
   options=$(echo "$PROMPTS" | jq -r --arg k "$key" '.[$k].options // [] | join(", ")')
   required=$(echo "$PROMPTS" | jq -r --arg k "$key" '.[$k].required // false')
   is_secret=$(echo "$PROMPTS" | jq -r --arg k "$key" '.[$k].secret // false')
+  [[ "$key" == "location" ]] && options=$(paste -s -d, - <<<"$REGION_OPTIONS")
 
   # Use preset value if provided
   if _has "$key" "$PRESET_FILE"; then
-    _set "$VALUES_FILE" "$key" "$(_get "$PRESET_FILE" "$key")"
-    echo "  ${ask}: $(_get "$PRESET_FILE" "$key") (preset)"
+    preset_value="$(_get "$PRESET_FILE" "$key")"
+    if [[ "$key" == "location" ]] && ! grep -Fxq "$preset_value" <<<"$REGION_OPTIONS"; then
+      echo "Error: region '$preset_value' is not available for subscription '$SUBSCRIPTION'." >&2
+      echo "Available regions: $(paste -s -d, - <<<"$REGION_OPTIONS")" >&2
+      echo "See $SRE_AGENT_REGIONS_DOC_URL" >&2
+      exit 1
+    fi
+    _set "$VALUES_FILE" "$key" "$preset_value"
+    echo "  ${ask}: ${preset_value} (preset)"
     continue
   fi
 
@@ -156,6 +170,7 @@ for key in $PROMPT_KEYS; do
       echo "  ${ask}: ${default} (default)"
     elif [[ "$required" == "true" ]]; then
       echo "Error: ${key} is required but no default and --non-interactive set" >&2
+      [[ "$key" == "location" ]] && echo "Available regions: $(paste -s -d, - <<<"$REGION_OPTIONS"). See $SRE_AGENT_REGIONS_DOC_URL" >&2
       exit 1
     fi
     continue
@@ -180,6 +195,12 @@ for key in $PROMPT_KEYS; do
   # Validate required
   if [[ -z "$val" && "$required" == "true" ]]; then
     echo "    Error: ${key} is required" >&2
+    exit 1
+  fi
+
+  if [[ "$key" == "location" && -n "$val" ]] && ! grep -Fxq "$val" <<<"$REGION_OPTIONS"; then
+    echo "    Error: region '$val' is not available for subscription '$SUBSCRIPTION'." >&2
+    echo "    See $SRE_AGENT_REGIONS_DOC_URL" >&2
     exit 1
   fi
 
@@ -284,10 +305,9 @@ mkdir -p "${OUTPUT}/data/synthesized-knowledge"
 touch "${OUTPUT}/data/knowledge/.gitkeep"
 touch "${OUTPUT}/data/synthesized-knowledge/.gitkeep"
 
-# Fill subscription from current az context
-CURRENT_SUB=$(az account show --query id -o tsv 2>/dev/null || echo "")
-if [[ -n "$CURRENT_SUB" ]]; then
-  jq --arg s "$CURRENT_SUB" '.identity.subscription = $s' "$OUTPUT/agent.json" > "$OUTPUT/agent.json.tmp"
+# Fill subscription from the selected az context or --subscription.
+if [[ -n "$SUBSCRIPTION" ]]; then
+  jq --arg s "$SUBSCRIPTION" '.identity.subscription = $s' "$OUTPUT/agent.json" > "$OUTPUT/agent.json.tmp"
   mv "$OUTPUT/agent.json.tmp" "$OUTPUT/agent.json"
 fi
 

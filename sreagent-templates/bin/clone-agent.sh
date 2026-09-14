@@ -90,6 +90,7 @@ done
 [[ -n "$NEW_RG" ]]    || { echo "Error: --resource-group is required" >&2; usage 1; }
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${SCRIPT_DIR}/region-utils.sh"
 IS_DIR_SOURCE=false
 
 # ── If --from-agent, export from live agent first ──
@@ -186,7 +187,7 @@ _log "Clone target:    ${NEW_AGENT} (${NEW_RG}, ${NEW_LOC:-$SRC_LOC})"
 [[ -n "$NEW_LOC" ]]    || NEW_LOC="$SRC_LOC"
 [[ -n "$NEW_ACCESS" ]] || NEW_ACCESS="$SRC_ACCESS"
 [[ -n "$NEW_ACTION" ]] || NEW_ACTION="$SRC_ACTION"
-[[ -n "$NEW_SUB" ]]    || NEW_SUB=$(az account show --query id -o tsv 2>/dev/null)
+NEW_SUB=$(resolve_azure_subscription "$NEW_SUB") || exit 1
 
 echo
 
@@ -201,12 +202,11 @@ else
   _err "Agent name '${NEW_AGENT}' invalid — must be lowercase alphanumeric + hyphens, 3-63 chars"
 fi
 
-# 2b. Region is supported
-ALLOWED_REGIONS=("australiaeast" "canadacentral" "centralus" "eastasia" "eastus2" "francecentral" "italynorth" "japaneast" "koreacentral" "northcentralus" "polandcentral" "southafricanorth" "southcentralus" "southeastasia" "spaincentral" "swedencentral" "uksouth" "westcentralus" "westus2" "westus3")
-if printf '%s\n' "${ALLOWED_REGIONS[@]}" | grep -qx "$NEW_LOC"; then
+# 2b. Region is available for the target subscription
+if validate_sre_agent_region "$NEW_SUB" "$NEW_LOC"; then
   _ok "Region '${NEW_LOC}' is supported"
 else
-  _err "Region '${NEW_LOC}' not supported. Allowed: ${ALLOWED_REGIONS[*]}"
+  _err "Region '${NEW_LOC}' is not available for the target subscription"
 fi
 
 # 2c. Subscription is accessible
@@ -406,14 +406,6 @@ elif [[ "$TOTAL_CONNECTORS" -eq 1 ]]; then
   _warn "Only 1 connector configured — consider adding a second (e.g., AppInsights + LogAnalytics) for better investigation quality"
 else
   _err "No connectors configured — agent will have no observability data to work with"
-fi
-
-# 4b. Region — all supported regions are equal
-SUPPORTED_REGIONS=("australiaeast" "canadacentral" "centralus" "eastasia" "eastus2" "francecentral" "italynorth" "japaneast" "koreacentral" "northcentralus" "polandcentral" "southafricanorth" "southcentralus" "southeastasia" "spaincentral" "swedencentral" "uksouth" "westcentralus" "westus2" "westus3")
-if printf '%s\n' "${SUPPORTED_REGIONS[@]}" | grep -qx "$NEW_LOC"; then
-  _ok "Region '${NEW_LOC}' is supported"
-else
-  _err "Region '${NEW_LOC}' not supported. Must be one of: ${SUPPORTED_REGIONS[*]}"
 fi
 
 # 4d. Skills — at least one skill recommended
@@ -680,18 +672,19 @@ if [[ "$BACKEND" == "terraform" ]]; then
     _err "--backend terraform requires a directory source (--from-agent or directory --source)"
   elif [[ -f "${SCRIPT_DIR}/deploy-tf.sh" ]]; then
     _log "Running deploy-tf.sh (terraform)..."
-    bash "${SCRIPT_DIR}/deploy-tf.sh" "$CLONE_SOURCE_DIR"
+    bash "${SCRIPT_DIR}/deploy-tf.sh" "$CLONE_SOURCE_DIR" --subscription "$NEW_SUB"
   else
     _warn "deploy-tf.sh not found at ${SCRIPT_DIR}/deploy-tf.sh"
   fi
 else
   _log "Running deploy.sh (bicep)..."
   if [[ -f "${SCRIPT_DIR}/deploy.sh" ]]; then
-    bash "${SCRIPT_DIR}/deploy.sh" "$CLONE_PARAMS" "${NEW_AGENT}-clone-$(date +%Y%m%d-%H%M%S)"
+    bash "${SCRIPT_DIR}/deploy.sh" "$CLONE_PARAMS" "${NEW_AGENT}-clone-$(date +%Y%m%d-%H%M%S)" --subscription "$NEW_SUB"
   else
     _warn "deploy.sh not found at ${SCRIPT_DIR}/deploy.sh"
     _log "Running az deployment directly..."
     az deployment sub create \
+      --subscription "$NEW_SUB" \
       --location "$NEW_LOC" \
       --name "${NEW_AGENT}-clone-$(date +%Y%m%d-%H%M%S)" \
       --template-file "${SCRIPT_DIR}/../bicep/main.bicep" \

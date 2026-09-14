@@ -22,7 +22,7 @@ for test in tests/test-dry-run-*.sh; do
   echo ""
 done
 
-for test in tests/test-export-prerequisites.sh tests/test-supported-regions.py; do
+for test in tests/test-export-prerequisites.sh tests/test-region-discovery.sh tests/test-supported-regions.py; do
   name=$(basename "$test")
   echo "════════════ $name ════════════"
   if [[ "$test" == *.py ]]; then
@@ -43,6 +43,20 @@ for test in tests/test-export-prerequisites.sh tests/test-supported-regions.py; 
 done
 
 if command -v pwsh >/dev/null 2>&1; then
+  test="tests/Test-RegionDiscovery.ps1"
+  name=$(basename "$test")
+  echo "════════════ $name ════════════"
+  pwsh -NoLogo -NoProfile -File "$test"
+  rc=$?
+  if [[ $rc -eq 0 ]]; then
+    TOTAL_PASS=$((TOTAL_PASS+1))
+    echo "  → $name: ALL PASS"
+  else
+    TOTAL_FAIL=$((TOTAL_FAIL+1))
+    echo "  → $name: HAS FAILURES"
+  fi
+  echo ""
+
   test="tests/Test-ExportPrerequisites.ps1"
   name=$(basename "$test")
   echo "════════════ $name ════════════"

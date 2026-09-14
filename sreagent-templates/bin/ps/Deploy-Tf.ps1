@@ -10,6 +10,9 @@
 .PARAMETER InputPath
     Config directory containing agent.json + connectors.json + config/*.yaml.
 
+.PARAMETER Subscription
+    Target subscription. Defaults to the active Azure CLI subscription.
+
 .PARAMETER DryRun
     Terraform plan only, no apply.
 
@@ -31,6 +34,8 @@
 param(
     [Parameter(Mandatory, Position = 0)]
     [string]$InputPath,
+
+    [string]$Subscription,
 
     [switch]$DryRun,
     [switch]$Force,
@@ -58,6 +63,7 @@ $TfDir     = Join-Path $RepoRoot 'terraform'
 . (Join-Path $ScriptDir 'Check-Prerequisites.ps1')
 if (-not (Test-Prerequisites -IncludePython)) { exit 1 }
 . (Join-Path $ScriptDir 'Invoke-Jq.ps1')
+. (Join-Path $ScriptDir 'Region-Utils.ps1')
 
 foreach ($cmd in @('terraform')) {
     if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
@@ -183,6 +189,11 @@ if ($LASTEXITCODE -ne 0) {
 $AG  = (jq -r '.agent_name' $TfVarsFile).Trim()
 $RG  = (jq -r '.resource_group_name' $TfVarsFile).Trim()
 $LOC = (jq -r '.location' $TfVarsFile).Trim()
+$SubscriptionId = Resolve-AzureSubscription -Subscription $Subscription
+$env:ARM_SUBSCRIPTION_ID = $SubscriptionId
+if (-not $DryRun) {
+    Assert-SreAgentRegion -Subscription $SubscriptionId -Region $LOC
+}
 
 Write-Host "  Agent:       $AG"
 Write-Host "  RG:          $RG"
@@ -244,8 +255,6 @@ try {
         exit 1
     }
     Remove-Item -Path (Join-Path $TfDir 'tf.plan') -Force -ErrorAction SilentlyContinue
-
-    $SubscriptionId = (az account show --query id -o tsv).Trim()
 
     Write-Host ''
     Write-Header '─────────────── Deployment Succeeded ───────────────'
