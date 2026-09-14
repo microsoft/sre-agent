@@ -16,6 +16,9 @@
 .PARAMETER DeploymentName
     Optional ARM deployment name. Defaults to sre-agent-<timestamp>.
 
+.PARAMETER Subscription
+    Target subscription. Defaults to the active Azure CLI subscription.
+
 .PARAMETER DryRun
     Assemble only, no ARM call.
 
@@ -40,6 +43,8 @@ param(
 
     [Parameter(Position = 1)]
     [string]$DeploymentName,
+
+    [string]$Subscription,
 
     [switch]$DryRun,
 
@@ -70,6 +75,7 @@ $ErrorActionPreference = 'Stop'
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 . (Join-Path $ScriptDir 'Check-Prerequisites.ps1')
 if (-not (Test-Prerequisites -IncludePython)) { exit 1 }
+. (Join-Path $ScriptDir 'Region-Utils.ps1')
 
 # ── Resolve paths ──
 $BinDir = Split-Path -Parent $ScriptDir   # bin/ps -> bin
@@ -212,11 +218,16 @@ $UpgradeChannel = Get-Param 'upgradeChannel' 'Preview'
 $ModelProvider  = Get-Param 'defaultModelProvider' 'Anthropic'
 $MonthlyLimit   = Get-Param 'monthlyAgentUnitLimit' 10000
 
-$SubInfo = az account show --output json 2>$null | ConvertFrom-Json
+$Subscription = Resolve-AzureSubscription -Subscription $Subscription
+$SubInfo = az account show --subscription $Subscription --output json 2>$null | ConvertFrom-Json
 $SubscriptionId   = $SubInfo.id
 $SubscriptionName = $SubInfo.name
 
-$RgExists = (az group exists -n $ResourceGroup 2>$null) -eq 'true'
+if (-not $DryRun) {
+    Assert-SreAgentRegion -Subscription $SubscriptionId -Region $Location
+}
+
+$RgExists = (az group exists --subscription $SubscriptionId -n $ResourceGroup 2>$null) -eq 'true'
 $RgStatus = if ($RgExists) { '(exists)' } else { '(will be created)' }
 $TargetRGsStr = if ($TargetRGs -is [array]) { $TargetRGs -join ', ' } else { $TargetRGs }
 if (-not $TargetRGsStr) { $TargetRGsStr = '<none>' }
@@ -373,6 +384,7 @@ if ($WhatIf_) {
     Write-Host ''
 
     $whatIfResult = az deployment sub what-if `
+        --subscription $SubscriptionId `
         --location $Location `
         --name $DeploymentName `
         --template-file $Template `
@@ -451,7 +463,7 @@ if ($IsDirectory) {
 
 # ── Auto-detect redeploy: skip role assignments to avoid RoleAssignmentExists ──
 $SkipRbacParam = ''
-$agentExistsCheck = az resource show -g $ResourceGroup --resource-type 'Microsoft.App/agents' -n $AgentName --query 'name' -o tsv 2>$null
+$agentExistsCheck = az resource show --subscription $SubscriptionId -g $ResourceGroup --resource-type 'Microsoft.App/agents' -n $AgentName --query 'name' -o tsv 2>$null
 if ($agentExistsCheck) {
     Write-Host "  Agent '$AgentName' already exists — skipping role assignments on redeploy."
     $SkipRbacParam = 'skipRoleAssignments=true'
@@ -465,6 +477,7 @@ Write-Host ''
 # Capture stdout (JSON) cleanly; let stderr (warnings/errors) flow to console
 $deployArgs = @(
     'deployment', 'sub', 'create',
+    '--subscription', $SubscriptionId,
     '--location', $Location,
     '--name', $DeploymentName,
     '--template-file', $Template,

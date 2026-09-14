@@ -269,7 +269,7 @@ azd down --purge
 
 ## Regions
 
-SRE Agent is available in: `eastus2`, `swedencentral`, `australiaeast`
+See the [supported regions](../sreagent-templates/docs/GETTING-STARTED.md#supported-regions) for the current SRE Agent deployment locations.
 
 ## Links
 

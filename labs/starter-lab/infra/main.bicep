@@ -4,7 +4,6 @@ targetScope = 'subscription'
 param environmentName string
 
 @description('Primary location for all resources')
-@allowed(['swedencentral', 'eastus2', 'australiaeast'])
 param location string = 'eastus2'
 
 @description('GitHub Personal Access Token (optional - enables GitHub integration)')

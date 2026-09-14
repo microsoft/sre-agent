@@ -60,7 +60,7 @@ validate_config_dir() {
   assert_eq "http-triggers" "$(count_yaml "$OUT/automations/http-triggers")" "$exp_httptrig"
 
   # No unreplaced placeholders (exclude ${{ which is GitHub Actions syntax)
-  local leftover=$(grep -r '{{' "$OUT/" 2>/dev/null | grep -v '\${{' | grep -vc '^$' 2>/dev/null || echo 0)
+  local leftover=$( (grep -r '{{' "$OUT/" 2>/dev/null | grep -v '\${{' || true) | wc -l | tr -d ' ')
   assert_eq "no {{placeholders}}" "$leftover" "0"
 
   # connectors.json exists
@@ -103,7 +103,7 @@ validate_assembled_content() {
 validate_bicep_dryrun() {
   local OUT="$1"
   log "── deploy.sh --dry-run (Bicep) ──"
-  ./bin/deploy.sh "$OUT" --dry-run > /tmp/dryrun-bicep.log 2>&1
+  ./bin/deploy.sh "$OUT" --subscription ci-subscription --dry-run > /tmp/dryrun-bicep.log 2>&1
   if [[ $? -eq 0 ]]; then pass "deploy.sh --dry-run"; else fail "deploy.sh --dry-run (exit $?)"; fi
 
   # Compile Bicep to catch syntax/type errors (BCP*)
@@ -122,18 +122,9 @@ validate_tf_dryrun() {
 
   local TFVARS="terraform/terraform.tfvars.json"
   if [[ -f "$TFVARS" ]]; then
-    assert_eq "tfvars skills" "$(jq '.skills | length' "$TFVARS")" "$exp_skills"
-    assert_eq "tfvars subagents" "$(jq '.subagents | length' "$TFVARS")" "$exp_subagents"
-    assert_eq "tfvars prompts" "$(jq '.common_prompts | length' "$TFVARS")" "$exp_prompts"
-    if [[ "$(jq '.skills | length' "$TFVARS")" -gt 0 ]]; then
-      assert_eq "tfvars skill[0] has name" "$(jq '.skills[0].spec.name | length > 0' "$TFVARS")" "true"
-      assert_eq "tfvars skill[0] has skillContent" "$(jq '.skills[0].spec.skillContent | length > 0' "$TFVARS")" "true"
-      assert_eq "tfvars skill[0] has tools" "$(jq '.skills[0].spec.tools | length > 0' "$TFVARS")" "true"
-    fi
-    if [[ "$(jq '.subagents | length' "$TFVARS")" -gt 0 ]]; then
-      assert_eq "tfvars subagent[0] has instructions" "$(jq '.subagents[0].spec.instructions | length > 0' "$TFVARS")" "true"
-      assert_eq "tfvars subagent[0] has handoffs" "$(jq '.subagents[0].spec | has("handoffs")' "$TFVARS")" "true"
-    fi
+    assert_eq "tfvars skills stay data-plane" "$(jq '.skills | length' "$TFVARS")" "0"
+    assert_eq "tfvars subagents stay data-plane" "$(jq '.subagents | length' "$TFVARS")" "0"
+    assert_eq "tfvars prompts stay data-plane" "$(jq '.common_prompts | length' "$TFVARS")" "0"
   else
     fail "terraform.tfvars.json not found"
   fi
@@ -167,7 +158,7 @@ validate_ps_newagent() {
   IFS="$IFS_OLD"
 
   pwsh -NoProfile -Command "
-    & './bin/ps/New-Agent.ps1' -Recipe '$RECIPE' -NonInteractive -Set ${PS_SET_HASH} -Output '$PS_OUT'
+    & './bin/ps/New-Agent.ps1' -Recipe '$RECIPE' -Subscription 'ci-subscription' -NonInteractive -Set ${PS_SET_HASH} -Output '$PS_OUT'
   " > /tmp/dryrun-ps-new.log 2>&1
   if [[ -f "$PS_OUT/agent.json" ]]; then pass "PS New-Agent.ps1"; else fail "PS New-Agent.ps1 (no agent.json)"; fi
 }

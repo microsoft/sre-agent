@@ -7,6 +7,7 @@
 #
 # Usage:
 #   ./deploy-tf.sh <config-directory>
+#   ./deploy-tf.sh <config-directory> --subscription <id>
 #   ./deploy-tf.sh <config-directory> --dry-run     # terraform plan only
 #   ./deploy-tf.sh <config-directory> --destroy      # tear down
 #
@@ -16,19 +17,22 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TF_DIR="${SCRIPT_DIR}/../terraform"
+source "${SCRIPT_DIR}/region-utils.sh"
 
 # ── Parse args ──
 DRY_RUN=""
 FORCE=""
 DESTROY=""
 INPUT=""
-for arg in "$@"; do
-  case "$arg" in
-    --dry-run)       DRY_RUN="true" ;;
-    --force)         FORCE="true" ;;
-    --destroy)       DESTROY="true" ;;
-    --no-telemetry)  export _NO_TELEMETRY="true" ;;
-    *)               [[ -z "$INPUT" ]] && INPUT="$arg" ;;
+SUBSCRIPTION=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run)       DRY_RUN="true"; shift ;;
+    --force)         FORCE="true"; shift ;;
+    --destroy)       DESTROY="true"; shift ;;
+    --no-telemetry)  export _NO_TELEMETRY="true"; shift ;;
+    --subscription)  SUBSCRIPTION="$2"; shift 2 ;;
+    *)               [[ -z "$INPUT" ]] && INPUT="$1"; shift ;;
   esac
 done
 
@@ -97,6 +101,11 @@ jq '{
 AG=$(jq -r '.agent_name' "$TFVARS_FILE")
 RG=$(jq -r '.resource_group_name' "$TFVARS_FILE")
 LOC=$(jq -r '.location' "$TFVARS_FILE")
+SUB=$(resolve_azure_subscription "$SUBSCRIPTION") || exit 1
+export ARM_SUBSCRIPTION_ID="$SUB"
+if [[ -z "$DRY_RUN" ]]; then
+  validate_sre_agent_region "$SUB" "$LOC" || exit 1
+fi
 echo "  Agent:       $AG"
 echo "  RG:          $RG"
 echo "  Location:    $LOC"
@@ -161,7 +170,6 @@ echo
 if [[ -f "$EXTRAS_FILE" ]]; then
   EXTRAS_SIZE=$(jq 'del(._exported_from) | to_entries | map(select(.value | if type == "array" then length > 0 elif type == "object" then length > 0 else false end)) | length' "$EXTRAS_FILE" 2>/dev/null || echo 0)
   if [[ "$EXTRAS_SIZE" -gt 0 ]]; then
-    SUB=$(az account show --query id -o tsv)
     echo "── Applying data-plane config (extras) ──"
     export INPUT
     bash "${SCRIPT_DIR}/../bicep/apply-extras.sh" "$SUB" "$RG" "$AG" "$EXTRAS_FILE" ${FORCE:+--force}

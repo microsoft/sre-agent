@@ -18,7 +18,7 @@ check_prerequisites() {
   else
     local py=$(command -v python3 || command -v python)
     if ! "$py" -c "import yaml" 2>/dev/null; then
-      echo "  ❌ Missing: PyYAML — install: pip install pyyaml" >&2
+      echo "  ❌ Missing: PyYAML for $py — run: ./bin/install-prerequisites.sh --python-only" >&2
       missing=$((missing + 1))
     fi
   fi

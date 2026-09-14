@@ -16,6 +16,7 @@ Dynatrace MCP connector for investigating application errors with skills and sub
 **Bash:**
 ```bash
 ./bin/new-agent.sh --recipe dynatrace-mcp --non-interactive \
+  --subscription <subscription-id> \
   --set agentName=dt-contoso \
   --set resourceGroup=rg-dt-contoso \
   --set location=swedencentral \
@@ -27,7 +28,7 @@ Dynatrace MCP connector for investigating application errors with skills and sub
 
 **PowerShell:**
 ```powershell
-./bin/ps/New-Agent.ps1 -Recipe dynatrace-mcp -NonInteractive `
+./bin/ps/New-Agent.ps1 -Recipe dynatrace-mcp -NonInteractive -Subscription <subscription-id> `
   -Set @{agentName='dt-contoso'; resourceGroup='rg-dt-contoso'; location='swedencentral';
     dtTenant='abc12345'; dtToken='dt0c01.ABCDEFGH.XXXXXXXX...';
     targetRGs='rg-contoso-prod,rg-contoso-web'} `
@@ -49,7 +50,8 @@ Dynatrace MCP connector for investigating application errors with skills and sub
 |---|---|---|---|
 | agentName | ✅ | `dt-contoso` | You choose (lowercase, hyphens) |
 | resourceGroup | ✅ | `rg-dt-contoso` | You choose or use existing RG |
-| location | ✅ | `swedencentral` | Azure region — see [supported regions](../../README.md) |
+| `--subscription` | | current `az` subscription | Target subscription (top-level flag, not a `--set` value). Also controls which regions the `location` prompt offers. |
+| location | ✅ | `swedencentral` | Azure region available to the target subscription — see [supported regions](../../README.md) |
 | dtTenant | ✅ | `abc12345` | Dynatrace → Settings → Environment ID (the subdomain in `abc12345.apps.dynatrace.com`) |
 | dtToken | ✅ | `dt0c01.ABCDEFGH.XXXX...` | Dynatrace → Access tokens → Create (scopes: `entities.read`, `events.read`, `metrics.read`) |
 | targetRGs | ✅ | `rg-contoso-prod,rg-contoso-web` | Comma-separated RG names to monitor |

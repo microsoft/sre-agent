@@ -20,14 +20,9 @@ variable "resource_group_name" {
 }
 
 variable "location" {
-  description = "Azure region. Only regions supported by the SRE Agent RP."
+  description = "Azure region available to the target subscription for Azure SRE Agent. See https://learn.microsoft.com/azure/sre-agent/supported-regions"
   type        = string
   default     = "eastus2"
-
-  validation {
-    condition     = contains(["swedencentral", "uksouth", "eastus2", "australiaeast"], var.location)
-    error_message = "location must be one of: swedencentral, uksouth, eastus2, australiaeast."
-  }
 }
 
 variable "target_resource_groups" {

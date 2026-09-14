@@ -15,6 +15,7 @@
 #   - az CLI logged in with access to the agent's subscription
 #   - jq installed
 #   - Agent must be provisioned and reachable
+#   - Python 3 with PyYAML (installed automatically when missing)
 #
 # Integrates with future `sre agent export` CLI command — same flags, same output format.
 
@@ -44,6 +45,7 @@ Options:
   --include-memories     Export synthesized knowledge and workspace memories
   --include-all          Enable all --include-* flags
   --download-files       Download actual file content (not just metadata)
+  --no-install-dependencies  Do not automatically install missing Python dependencies
   --dry-run              Show what would be exported, don't write files
   -h, --help             Show this help
 EOF
@@ -54,6 +56,7 @@ SUB="" RG="" AGENT="" OUTPUT="" DRY_RUN=false
 INCLUDE_KNOWLEDGE=true INCLUDE_KNOWLEDGE_ITEMS=true
 INCLUDE_REPO_INSTRUCTIONS=false INCLUDE_MEMORIES=true
 DOWNLOAD_FILES=true
+INSTALL_DEPENDENCIES=true
 declare -a SET_OVERRIDES=()
 
 while [[ $# -gt 0 ]]; do
@@ -73,6 +76,7 @@ while [[ $# -gt 0 ]]; do
     --no-memories)         INCLUDE_MEMORIES=false; shift ;;
     --no-download)         DOWNLOAD_FILES=false; shift ;;
     --download-files)      DOWNLOAD_FILES=true; shift ;;
+    --no-install-dependencies) INSTALL_DEPENDENCIES=false; shift ;;
     --dry-run)             DRY_RUN=true; shift ;;
     -h|--help)             usage 0 ;;
     *)                     echo "Unknown option: $1" >&2; usage 1 ;;
@@ -86,6 +90,37 @@ done
 
 command -v jq >/dev/null || { echo "Error: jq is required" >&2; exit 1; }
 command -v az >/dev/null || { echo "Error: az CLI is required" >&2; exit 1; }
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PYTHON=""
+
+find_python_with_yaml() {
+  local cache_root="${SRE_AGENT_PYTHON_HOME:-${XDG_CACHE_HOME:-${HOME:-$SCRIPT_DIR/.cache}/.cache}/sre-agent/python}"
+  local candidate
+  for candidate in python3 python "$cache_root/bin/python" "$cache_root/Scripts/python.exe"; do
+    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c "import yaml" 2>/dev/null; then
+      PYTHON="$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if ! find_python_with_yaml && [[ "$INSTALL_DEPENDENCIES" == true ]]; then
+  echo "PyYAML is not available; attempting to install it for the exporter..."
+  if [[ -x "$SCRIPT_DIR/install-prerequisites.sh" ]]; then
+    "$SCRIPT_DIR/install-prerequisites.sh" --python-only || true
+  fi
+  find_python_with_yaml || true
+fi
+
+if [[ -z "$PYTHON" ]]; then
+  echo "Error: Python 3 with PyYAML is required to write exported YAML files." >&2
+  echo "Install it with: $SCRIPT_DIR/install-prerequisites.sh --python-only" >&2
+  echo "Or install manually: python3 -m pip install --user pyyaml" >&2
+  echo "Use --no-install-dependencies to disable automatic installation." >&2
+  exit 1
+fi
 
 # Resolve python command — python3 on macOS/Linux, python on Windows/MINGW
 if command -v python3 >/dev/null 2>&1; then

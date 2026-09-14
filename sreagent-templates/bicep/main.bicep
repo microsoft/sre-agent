@@ -30,8 +30,7 @@ param agentName string
 @description('Required. Resource group that holds the agent + its identity + LAW + App Insights. Separate from the RGs the agent monitors.')
 param agentResourceGroupName string
 
-@description('Required. Region. Only the regions in @allowed are currently supported by the SRE Agent RP.')
-@allowed(['swedencentral', 'uksouth', 'eastus2', 'australiaeast'])
+@description('Required. Region available to the target subscription for Azure SRE Agent. See https://learn.microsoft.com/azure/sre-agent/supported-regions')
 param location string = 'eastus2'
 
 @description('Required. Resource groups the agent is granted access to (read or act, depending on accessLevel).')

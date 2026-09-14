@@ -40,6 +40,7 @@ Bash:
 
 ```bash
 ./bin/new-agent.sh --recipe azuretoaws-sre-agent --non-interactive \
+  --subscription <subscription-id> \
   --set agentName=aws-sre-agent \
   --set resourceGroup=rg-aws-sre-agent \
   --set location=eastus2 \
@@ -51,7 +52,7 @@ Bash:
 PowerShell:
 
 ```powershell
-./bin/ps/New-Agent.ps1 -Recipe azuretoaws-sre-agent -NonInteractive `
+./bin/ps/New-Agent.ps1 -Recipe azuretoaws-sre-agent -NonInteractive -Subscription <subscription-id> `
   -Set @{agentName='aws-sre-agent'; resourceGroup='rg-aws-sre-agent'; location='eastus2';
     awsRegion='us-east-1'; githubRepo='https://github.com/dm-chelupati/todo-app-dynatrace-aws.git'} `
   -Output aws-agent/
@@ -83,7 +84,8 @@ EOF
 |-----------|----------|---------|-------|
 | agentName | Yes | `aws-sre-agent` | Lowercase, hyphens ok |
 | resourceGroup | Yes | `rg-aws-sre-agent` | Azure RG for agent infra |
-| location | Yes | | Azure region for the agent (eastus2, swedencentral, etc.) |
+| `--subscription` | | current `az` subscription | Target subscription (top-level flag, not a `--set` value). Also controls which regions the `location` prompt offers. |
+| location | Yes | | Azure region available to the target subscription (eastus2, swedencentral, etc.) |
 | awsRegion | Yes | `us-east-1` | AWS region where your workloads are deployed (determines MCP endpoint + SigV4 signing) |
 | githubRepo | No | `dm-chelupati/todo-app-dynatrace-aws` | GitHub repo for code context |
 | targetRGs | No | | Azure RGs to monitor (comma-separated, leave empty for AWS-only) |

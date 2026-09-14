@@ -14,6 +14,9 @@
     ./New-Agent.ps1 -Recipe generic -Set @{agentName='prod-agent'; location='swedencentral'}
     ./New-Agent.ps1 -Recipe generic -Set agentName=prod-agent,location=swedencentral
 
+.PARAMETER Subscription
+    Target subscription. Defaults to the active Azure CLI subscription.
+
 .NOTES
     After setup:
       ./deploy.sh <output-dir>/ --dry-run
@@ -28,6 +31,8 @@ param(
 
     [Alias("o")]
     [string]$Output,
+
+    [string]$Subscription,
 
     [Parameter()]
     $Set,
@@ -53,6 +58,7 @@ $RecipesDir = Join-Path (Split-Path $BinDir -Parent) "recipes"
 # Dot-source prereq checker + telemetry + safe jq wrapper
 . (Join-Path $ScriptDir "Check-Prerequisites.ps1")
 if (-not (Test-Prerequisites -IncludePython)) { exit 1 }
+. (Join-Path $ScriptDir 'Region-Utils.ps1')
 . (Join-Path $ScriptDir "Telemetry.ps1")
 if ($NoTelemetry) { $script:NoTelemetry = $true }
 . (Join-Path $ScriptDir "Invoke-Jq.ps1")
@@ -167,6 +173,9 @@ if (-not (Test-Path $RecipeAgentJson)) {
     Write-Error "Recipe missing agent.json: $Recipe"
 }
 
+$Subscription = Resolve-AzureSubscription -Subscription $Subscription
+$RegionOptions = @(Get-SreAgentRegionsOrFallback -Subscription $Subscription)
+
 Write-Host ""
 Write-Host "── Recipe: $Recipe ──" -ForegroundColor Cyan
 Invoke-Jq -Raw -Filter '._description // ""' -InputFile $RecipeAgentJson | ForEach-Object { Write-Host $_ }
@@ -187,9 +196,13 @@ foreach ($key in $PromptKeys) {
     $options = if ($promptDef.PSObject.Properties['options'] -and $promptDef.options) { ($promptDef.options -join ", ") } else { "" }
     $required = if ($promptDef.PSObject.Properties['required'] -and $promptDef.required -eq $true) { $true } else { $false }
     $isSecret = if ($promptDef.PSObject.Properties['secret'] -and $promptDef.secret -eq $true) { $true } else { $false }
+    if ($key -eq 'location') { $options = $RegionOptions -join ', ' }
 
     # Use preset value if provided
     if ($Presets.ContainsKey($key)) {
+        if ($key -eq 'location' -and $RegionOptions -notcontains $Presets[$key]) {
+            Write-Error "Region '$($Presets[$key])' is not available for subscription '$Subscription'. Available regions: $($RegionOptions -join ', '). See $script:SreAgentRegionsDocUrl"
+        }
         $Values[$key] = $Presets[$key]
         Write-Host "  ${ask}: $($Presets[$key]) (preset)"
         continue
@@ -202,6 +215,9 @@ foreach ($key in $PromptKeys) {
             Write-Host "  ${ask}: $default (default)"
         }
         elseif ($required) {
+            if ($key -eq 'location') {
+                Write-Host "Available regions: $($RegionOptions -join ', '). See $script:SreAgentRegionsDocUrl" -ForegroundColor Yellow
+            }
             Write-Error "$key is required but no default and -NonInteractive set."
         }
         continue
@@ -230,6 +246,10 @@ foreach ($key in $PromptKeys) {
     # Validate required
     if ([string]::IsNullOrEmpty($val) -and $required) {
         Write-Error "$key is required."
+    }
+
+    if ($key -eq 'location' -and $val -and $RegionOptions -notcontains $val) {
+        Write-Error "Region '$val' is not available for subscription '$Subscription'. See $script:SreAgentRegionsDocUrl"
     }
 
     $Values[$key] = $val
@@ -348,15 +368,9 @@ foreach ($subDir in @("data/knowledge", "data/synthesized-knowledge")) {
     if (-not (Test-Path $gitkeep)) { $null = New-Item -ItemType File -Path $gitkeep -Force }
 }
 
-# Fill subscription from current az context
-try {
-    $currentSub = az account show --query id -o tsv 2>$null
-    if ($currentSub) {
-        $updated = jq --arg s $currentSub '.identity.subscription = $s' $outAgentJson
-        $updated | Set-Content -Path $outAgentJson -Encoding UTF8
-    }
-}
-catch {}
+# Fill subscription from the selected az context or -Subscription.
+$updated = jq --arg s $Subscription '.identity.subscription = $s' $outAgentJson
+$updated | Set-Content -Path $outAgentJson -Encoding UTF8
 
 Write-Host ""
 

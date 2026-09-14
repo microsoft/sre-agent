@@ -150,7 +150,7 @@ For connectors that use MI, no secrets are needed in files — just RBAC grants.
 ```
 
 Checks:
-- Region is supported (eastus2, swedencentral, uksouth, australiaeast)
+- Region is supported (see [Supported regions](#supported-regions))
 - At least 1 connector configured
 - No unfilled `EDIT_ME` placeholders
 - Connector auth requirements flagged (which need tokens, which need portal sign-in)
@@ -218,4 +218,6 @@ cd agents/prod && git add -A && git commit -m "backup $(date +%Y-%m-%d)" && git 
 
 ## Supported regions
 
-`eastus2` · `swedencentral` · `uksouth` · `australiaeast`
+`australiaeast` · `canadacentral` · `centralus` · `eastasia` · `eastus2` · `francecentral` · `italynorth` · `japaneast` · `koreacentral` · `northcentralus` · `polandcentral` · `southafricanorth` · `southcentralus` · `southeastasia` · `spaincentral` · `swedencentral` · `uksouth` · `westcentralus` · `westus2` · `westus3`
+
+The setup and deployment scripts query the regions available to the selected Azure subscription. If `--subscription` or `-Subscription` is omitted, they use the active Azure CLI subscription. The machine-readable list in [supported-regions.json](../supported-regions.json) is used only when configuration is generated without access to subscription discovery. See the [Azure SRE Agent supported-regions reference](https://learn.microsoft.com/azure/sre-agent/supported-regions) for service updates.

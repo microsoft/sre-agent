@@ -15,6 +15,7 @@ Azure Monitor agent with Log Analytics and App Insights for investigating alerts
 **Bash:**
 ```bash
 ./bin/new-agent.sh --recipe azmon-lawappinsights --non-interactive \
+  --subscription <subscription-id> \
   --set agentName=azmon-contoso \
   --set resourceGroup=rg-azmon-contoso \
   --set location=swedencentral \
@@ -27,7 +28,7 @@ Azure Monitor agent with Log Analytics and App Insights for investigating alerts
 
 **PowerShell:**
 ```powershell
-./bin/ps/New-Agent.ps1 -Recipe azmon-lawappinsights -NonInteractive `
+./bin/ps/New-Agent.ps1 -Recipe azmon-lawappinsights -NonInteractive -Subscription <subscription-id> `
   -Set @{agentName='azmon-contoso'; resourceGroup='rg-azmon-contoso'; location='swedencentral';
     lawId='/subscriptions/.../workspaces/contoso-law';
     appInsightsId='/subscriptions/.../components/contoso-ai';
@@ -50,7 +51,8 @@ Azure Monitor agent with Log Analytics and App Insights for investigating alerts
 |---|---|---|---|
 | agentName | ✅ | `azmon-contoso` | You choose (lowercase, hyphens) |
 | resourceGroup | ✅ | `rg-azmon-contoso` | You choose or use existing RG |
-| location | ✅ | `swedencentral` | Azure region — see [supported regions](../../README.md) |
+| `--subscription` | | current `az` subscription | Target subscription (top-level flag, not a `--set` value). Also controls which regions the `location` prompt offers. |
+| location | ✅ | `swedencentral` | Azure region available to the target subscription — see [supported regions](../../README.md) |
 | targetRGs | ✅ | `rg-contoso-prod,rg-contoso-web` | Comma-separated RG names to monitor |
 | lawId | | `/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name>` | Portal → LAW → Properties → Resource ID. If blank, the LAW connector is disabled. |
 | appInsightsId | | `/subscriptions/<sub>/resourceGroups/<rg>/providers/microsoft.insights/components/<name>` | Portal → App Insights → Properties → **Resource ID**. If blank, the App Insights connector is disabled. |

@@ -51,6 +51,9 @@
 .PARAMETER NoDownload
     Skip downloading file content (metadata only).
 
+.PARAMETER NoInstallDependencies
+    Do not automatically install PyYAML when it is missing.
+
 .PARAMETER DryRun
     Show what would be exported, don't write files.
 
@@ -83,6 +86,7 @@ param(
     [switch]$NoMemories,
     [switch]$NoDownload,
     [switch]$DownloadFiles,
+    [switch]$NoInstallDependencies,
     [switch]$DryRun
 )
 
@@ -134,6 +138,70 @@ $API_VERSION = '2025-05-01-preview'
 $ARM_BASE    = "https://management.azure.com/subscriptions/${Subscription}/resourceGroups/${ResourceGroup}/providers/Microsoft.App/agents/${AgentName}"
 
 # ─────────────────────────── Prerequisites ───────────────────────────
+
+function Find-PythonWithYaml {
+    $cacheRoot = if ($env:SRE_AGENT_PYTHON_HOME) {
+        $env:SRE_AGENT_PYTHON_HOME
+    } elseif ($IsWindows -and $env:LOCALAPPDATA) {
+        Join-Path $env:LOCALAPPDATA 'sre-agent\python'
+    } elseif ($env:XDG_CACHE_HOME) {
+        Join-Path $env:XDG_CACHE_HOME 'sre-agent/python'
+    } else {
+        Join-Path $HOME '.cache/sre-agent/python'
+    }
+
+    $candidates = @(
+        (Get-Command python3 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
+        (Get-Command python -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
+        (Join-Path $cacheRoot 'Scripts/python.exe'),
+        (Join-Path $cacheRoot 'bin/python')
+    ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+
+    foreach ($candidate in $candidates) {
+        & $candidate -c 'import yaml' 2>$null
+        if ($LASTEXITCODE -eq 0) { return $candidate }
+    }
+    return $null
+}
+
+$YamlPython = Find-PythonWithYaml
+if (-not $YamlPython -and -not $NoInstallDependencies) {
+    $SystemPython = Get-Command python3 -ErrorAction SilentlyContinue
+    if (-not $SystemPython) { $SystemPython = Get-Command python -ErrorAction SilentlyContinue }
+    if ($SystemPython) {
+        Write-Host 'PyYAML is not available; attempting to install it for the exporter...'
+        & $SystemPython.Source -m pip install --user pyyaml
+        $YamlPython = Find-PythonWithYaml
+
+        if (-not $YamlPython) {
+            $cacheRoot = if ($env:SRE_AGENT_PYTHON_HOME) {
+                $env:SRE_AGENT_PYTHON_HOME
+            } elseif ($IsWindows -and $env:LOCALAPPDATA) {
+                Join-Path $env:LOCALAPPDATA 'sre-agent\python'
+            } elseif ($env:XDG_CACHE_HOME) {
+                Join-Path $env:XDG_CACHE_HOME 'sre-agent/python'
+            } else {
+                Join-Path $HOME '.cache/sre-agent/python'
+            }
+            Write-Host "User installation was unavailable; creating an isolated environment at $cacheRoot"
+            & $SystemPython.Source -m venv $cacheRoot
+            $venvPython = if ($IsWindows) { Join-Path $cacheRoot 'Scripts/python.exe' } else { Join-Path $cacheRoot 'bin/python' }
+            if (Test-Path $venvPython) {
+                & $venvPython -m pip install pyyaml
+            }
+            $YamlPython = Find-PythonWithYaml
+        }
+    }
+}
+
+if (-not $YamlPython) {
+    Write-Host 'Error: Python 3 with PyYAML is required to write exported YAML files.' -ForegroundColor Red
+    Write-Host 'Run .\bin\ps\Install-Prerequisites.ps1, or install manually with: python -m pip install --user pyyaml' -ForegroundColor Yellow
+    Write-Host 'Use -NoInstallDependencies to disable automatic installation.' -ForegroundColor Yellow
+    exit 1
+}
+
+Set-Alias -Name python3 -Value $YamlPython -Scope Script
 
 $PrereqScript = Join-Path $PSScriptRoot 'Check-Prerequisites.ps1'
 if (Test-Path $PrereqScript) {

@@ -20,12 +20,6 @@
     },
     "location": {
       "ask": "Region",
-      "options": [
-        "eastus2",
-        "swedencentral",
-        "uksouth",
-        "australiaeast"
-      ],
       "required": true
     },
     "targetRGs": {

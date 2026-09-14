@@ -78,12 +78,15 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $PSVersionTable.PSVersion.Minor -
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 . (Join-Path $ScriptDir 'Check-Prerequisites.ps1')
+. (Join-Path $ScriptDir 'Region-Utils.ps1')
 if (Test-Path (Join-Path $ScriptDir 'Telemetry.ps1')) { . (Join-Path $ScriptDir 'Telemetry.ps1') }
 
 if (-not $Source -and -not $FromAgent) {
     Write-Error 'Either -Source or -FromAgent is required.'
     exit 1
 }
+
+$Subscription = Resolve-AzureSubscription -Subscription $Subscription
 
 # ── Step 1: Export from live agent (if -FromAgent) ──
 if ($FromAgent) {
@@ -163,6 +166,8 @@ $agentJson.identity.agentName = $AgentName
 $agentJson.identity.resourceGroup = $ResourceGroup
 if ($Location) { $agentJson.identity.location = $Location }
 if ($TargetResourceGroups) { $agentJson.identity.targetResourceGroups = $TargetResourceGroups }
+$agentJson.identity.subscription = $Subscription
+Assert-SreAgentRegion -Subscription $Subscription -Region $agentJson.identity.location
 $agentJson | ConvertTo-Json -Depth 20 | Set-Content $agentFile -Encoding utf8
 Write-Host "  Agent: $AgentName → $ResourceGroup"
 Write-Host
@@ -182,7 +187,7 @@ if ($Backend -eq 'terraform') {
     if (-not (Test-Path $Source -PathType Container)) {
         Write-Error "-Backend terraform requires a directory source (-FromAgent or directory -Source)"
     }
-    $deployParams = @{ InputPath = $Source }
+    $deployParams = @{ InputPath = $Source; Subscription = $Subscription }
     if ($Force) { $deployParams['Force'] = $true }
     & $DeployTfScript @deployParams
 } else {
