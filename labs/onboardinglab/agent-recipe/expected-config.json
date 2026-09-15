@@ -22,6 +22,9 @@
       "type": "KnowledgeSource"
     }
   ],
+  "managedConnectors": [
+    "office365"
+  ],
   "skills": [
     "sre-agent-self-configure"
   ],

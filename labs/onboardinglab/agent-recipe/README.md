@@ -9,7 +9,7 @@ Creates the base Azure SRE Agent used by `labs/onboardinglab`:
 - Azure Monitor incident platform
 - Attendee-owned `ticketingapp-source` GitHub repository containing the complete ticketing app azd project
 - `onboardinglab-architecture.md` and `onboardinglab-incident-runbook.md` knowledge sources
-- Outlook API connection with interactive consent after deployment
+- Office 365 Outlook managed connector with runtime access and interactive OAuth consent
 - `onboardinglab-safety` common prompt
 - `evidence-checklist` Stop hook
 - Global tool policy with agent and notification writes set to ask for approval

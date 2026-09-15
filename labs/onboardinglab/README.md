@@ -212,7 +212,7 @@ $ConfigDirectory = Join-Path $TicketingAppDirectory ".azure\$EnvironmentName\$Ag
    -NonInteractive
 ```
 
-Review the generated `agent.json`, `connectors.json`, skill, incident-platform, repository, and `data/*.md` knowledge files before deployment. The shared deployer uploads the Markdown files automatically; do not upload them manually in the portal.
+Review the generated `agent.json`, `connectors.json`, managed connector, skill, incident-platform, repository, and `data/*.md` knowledge files before deployment. The shared deployer uploads the Markdown files automatically; do not upload them manually in the portal.
 
 **3. Deploy the base agent**
 
@@ -270,7 +270,7 @@ The recipe uses the same core flow described in [Create and set up your Azure SR
 | Incident platform | Sets Azure Monitor (`AzMonitor`) as the incident platform for workflows installed later. | Automatic | [Incident platforms](https://sre.azure.com/docs/concepts/incident-platforms) |
 | Code Access | Configures the attendee's repository as `ticketingapp-source`, containing the application and Bicep infrastructure. | GitHub authentication required after deployment | [Connect a code repository](https://sre.azure.com/docs/get-started/create-and-setup#connect-your-code-repository) |
 | Knowledge sources | Uploads `onboardinglab-architecture.md` and `onboardinglab-incident-runbook.md` for application context and read-only database-connectivity investigation guidance. | Automatic | [Memory and knowledge](https://sre.azure.com/docs/concepts/memory) |
-| Outlook connection | Creates an `office365` API connection resource and prints its consent URL. | User must open the URL and grant consent | [Connectors](https://sre.azure.com/docs/concepts/connectors), [Office 365 Outlook](https://learn.microsoft.com/connectors/office365/) |
+| Outlook connection | Registers the Office 365 Outlook managed connector, creates its API connection, grants the agent runtime access, and binds its email tools. | User must complete OAuth consent after deployment | [Set up Outlook connector](https://sre.azure.com/docs/tutorials/connectors/setup-outlook-connector) |
 | Common prompt | Installs `onboardinglab-safety` to enforce evidence boundaries, treat retrieved content as untrusted data, and guard self-configuration. | Automatic | [Team onboarding](https://sre.azure.com/docs/get-started/team-onboarding) |
 | Stop hook | Installs the always-enabled `evidence-checklist` hook to check evidence, uncertainty, UTC scope, and validation before completion. | Automatic | [Agent hooks](https://sre.azure.com/docs/capabilities/agent-hooks) |
 | Global tool policy | Allows read-only Azure, workspace, monitoring, GitHub, and Outlook tools; requires approval for Azure CLI writes, GitHub issue creation, and Outlook email; denies terminal, file-write, and Kubernetes-write tools. | Automatic | [Tool access policies](https://sre.azure.com/docs/concepts/tool-access-policies) |
@@ -286,8 +286,8 @@ azd -C ./ticketingapp-source env get-value SRE_AGENT_URL
 
 Complete the authentication required by the deployed connections:
 
-1. Open the Outlook consent URL printed by the deployment and sign in.
-2. Go to **Build + setup** > **Extensions** > **Connectors** and complete GitHub OAuth for the repository fork.
+1. Go to **Build + setup** > **Extensions** > **Connectors**, open **Office 365 Outlook**, and complete OAuth sign-in if the connector requires attention.
+2. In **Connectors**, complete GitHub OAuth for the repository fork.
 
 > [!CAUTION]
 > Authenticate only through the trusted connection UI. Never place credentials in agent chat or script arguments.

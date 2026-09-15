@@ -139,6 +139,15 @@ CONN_NAMES=$(echo "$CONNECTORS" | jq -r '.value[].name' 2>/dev/null | sort | tr 
 EXP_CONN_NAMES=$(exp_list '.connectors[].name')
 [[ -n "$EXP_CONN_NAMES" ]] && check "Connector names" "$CONN_NAMES" "$EXP_CONN_NAMES" || RESULTS="${RESULTS}\n  Connector names|${CONN_NAMES}|—|"
 
+# ── Managed connectors (ConnectorV2) ──
+MANAGED_CONNECTORS=$(dp_get "/api/v2/connectorV2/mcpservers")
+MANAGED_CONN_CT=$(echo "$MANAGED_CONNECTORS" | jq '.value // [] | length')
+MANAGED_CONN_NAMES=$(echo "$MANAGED_CONNECTORS" | jq -r '.value[]?.name' 2>/dev/null | sort | tr '\n' ',' | sed 's/,$//')
+EXP_MANAGED_CONN_CT=$(exp '.managedConnectors | length' "-")
+EXP_MANAGED_CONN_NAMES=$(exp_list '.managedConnectors')
+check "Managed connectors" "$MANAGED_CONN_CT" "$EXP_MANAGED_CONN_CT"
+[[ -n "$EXP_MANAGED_CONN_NAMES" ]] && check "Managed connector names" "$MANAGED_CONN_NAMES" "$EXP_MANAGED_CONN_NAMES" || RESULTS="${RESULTS}\n  Managed connector names|${MANAGED_CONN_NAMES}|—|"
+
 # ── Skills ──
 SKILLS=$(dp_get "/api/v1/extendedAgent/skills")
 SKILL_CT=$(echo "$SKILLS" | jq 'if type == "array" then length elif .value then (.value | length) else 0 end' 2>/dev/null || echo 0)

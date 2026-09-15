@@ -3,7 +3,3 @@ roles:
     type: manual
     instructions: |
       Authenticate the attendee-owned ticketing app repository through the SRE Agent connection UI after deployment.
-
-  - name: Outlook API Connection
-    type: api-connection
-    api: office365
