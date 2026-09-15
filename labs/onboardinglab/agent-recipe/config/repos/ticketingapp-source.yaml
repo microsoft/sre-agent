@@ -1,0 +1,5 @@
+name: ticketingapp-source
+spec:
+  url: "{{githubRepo}}"
+  branch: main
+  description: Attendee-owned repository containing the complete ticketing app azd project

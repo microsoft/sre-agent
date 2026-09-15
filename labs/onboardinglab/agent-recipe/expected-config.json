@@ -1,0 +1,40 @@
+{
+  "_description": "Expected base configuration for the Azure SRE Agent onboarding lab.",
+  "_scenario": "onboardinglab-base",
+  "agent": {
+    "accessLevel": "Low",
+    "actionMode": "Review",
+    "upgradeChannel": "Preview",
+    "defaultModelProvider": "{{modelProvider}}",
+    "incidentPlatform": "AzMonitor"
+  },
+  "connectors": [
+    {
+      "name": "app-insights",
+      "type": "AppInsights"
+    },
+    {
+      "name": "onboardinglab-architecture-md",
+      "type": "KnowledgeSource"
+    },
+    {
+      "name": "onboardinglab-incident-runbook-md",
+      "type": "KnowledgeSource"
+    }
+  ],
+  "skills": [
+    "sre-agent-self-configure"
+  ],
+  "subagents": [],
+  "hooks": [
+    "evidence-checklist"
+  ],
+  "commonPrompts": [
+    "onboardinglab-safety"
+  ],
+  "scheduledTasks": [],
+  "responsePlans": [],
+  "repos": [
+    "ticketingapp-source"
+  ]
+}
