@@ -45,7 +45,7 @@ if ($Action -eq 'inject') {
             throw 'A prior checkout alert is still fired. Reset the fault, generate successful traffic, and wait for the alert to resolve before reinjecting.'
         }
         $changeStateUrl = "https://management.azure.com$($alert.id)/changestate?api-version=2019-03-01&newState=Closed"
-        $body = @{ comments = 'Closed by the Field Level Up fault helper before a new rehearsal.' } | ConvertTo-Json -Compress
+        $body = @{ comments = 'Closed by the Azure SRE Agent Onboarding Lab fault helper before a new rehearsal.' } | ConvertTo-Json -Compress
         try {
             $null = Invoke-RestMethod -Uri $changeStateUrl -Method Post -Headers $headers `
                 -ContentType 'application/json' -Body $body

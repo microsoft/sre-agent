@@ -1,4 +1,4 @@
-# Field Level Up: SRE Agent Hands-On Lab
+# Azure SRE Agent Onboarding Lab
 
 ## Scenarios and expected outcomes
 

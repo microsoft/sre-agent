@@ -16,24 +16,19 @@ Deploy a concert ticketing service, introduce a database connectivity failure, a
 > [!IMPORTANT]
 > This lab deploys billable Azure resources. Run the [cleanup](#cleanup) step when you finish.
 
-## Table of contents
+The diagram below shows how requests, telemetry, alerts, investigation, and follow-up actions connect throughout the lab.
 
-| Step | Action | Outcome |
-| ---: | --- | --- |
-| 1 | [Deploy the ticketing workload](#1-deploy-the-ticketing-workload) | A healthy reservation flow with Application Insights telemetry |
-| 2 | [Deploy and connect the agent](#2-deploy-and-connect-the-agent) | An SRE Agent with Azure context, source access, and bounded permissions |
-| 3 | [Install and enable the use cases](#3-install-and-enable-the-use-cases) | Autonomous alert routing, specialist investigators, and follow-ups |
-| 4 | [Review the architecture](#architecture-and-responsibilities) | A clear view of the request, telemetry, and investigation paths |
-| 5 | [Run the incident](#scenario-1-investigate-a-reservation-outage) | A correlated diagnosis, GitHub issue, email summary, and verified recovery |
-| 6 | [Run the health check](#scenario-2-run-a-proactive-health-check) | A proactive, read-only service assessment |
+![Color-coded architecture flowchart showing ticket requests, telemetry, alerting, SRE Agent investigation, and follow-ups](assets/architecture.svg)
 
-**Reference:** [Troubleshooting](#troubleshooting) | [Cleanup](#cleanup)
+[Open the architecture diagram full size](assets/architecture.svg).
 
 ## Before you start
 
 **Required tools and access**
 
-- Git, VS Code, PowerShell 7, Azure CLI, and Azure Developer CLI (`azd`)
+- Git, VS Code, Azure CLI, and Azure Developer CLI (`azd`)
+- macOS: Bash, `curl`, and `jq` (`brew install jq`)
+- Windows: PowerShell 7
 - Node.js 22 or later
 - An Azure subscription where you can create resources and role assignments
 - A GitHub repository for workshop-generated issues
@@ -57,6 +52,15 @@ If deployment reports a quota, SKU, PostgreSQL version, or capacity error, reque
 ## 1. Deploy the ticketing workload
 
 **1. Clone the lab**
+
+macOS:
+
+```bash
+git clone https://github.com/microsoft/sre-agent.git
+cd sre-agent/labs/field-level-up
+```
+
+Windows:
 
 ```powershell
 git clone https://github.com/microsoft/sre-agent.git
@@ -103,11 +107,19 @@ Open the application URL and select **Reserve tickets**.
 
 **Run**
 
+macOS:
+
+```bash
+./scripts/deploy-agent.sh
+```
+
+Windows:
+
 ```powershell
 ./scripts/deploy-agent.ps1
 ```
 
-**What `deploy-agent.ps1` deploys**
+**What the agent deployment script deploys**
 
 | Component | Purpose |
 | --- | --- |
@@ -150,6 +162,16 @@ Confirm that:
 
 **1. Configure the follow-up targets**
 
+macOS:
+
+```bash
+github_repository_url='https://github.com/YOUR-ORG/YOUR-LAB-REPO'
+email_recipient='you@example.com'
+email_connector_name='YOUR-AUTHENTICATED-EMAIL-CONNECTOR'
+```
+
+Windows:
+
 ```powershell
 $GitHubRepositoryUrl = 'https://github.com/YOUR-ORG/YOUR-LAB-REPO'
 $EmailRecipients = @('you@example.com')
@@ -158,11 +180,24 @@ $EmailConnectorName = 'YOUR-AUTHENTICATED-EMAIL-CONNECTOR'
 
 **2. Install without activating incidents**
 
+macOS:
+
+```bash
+./scripts/deploy-use-cases.sh \
+   --github-repository-url "$github_repository_url" \
+   --email-recipient "$email_recipient" \
+   --email-connector-name "$email_connector_name"
+```
+
+Repeat `--email-recipient` for each additional approved recipient.
+
+Windows:
+
 ```powershell
 ./scripts/deploy-use-cases.ps1 -GitHubRepositoryUrl $GitHubRepositoryUrl -EmailRecipients $EmailRecipients -EmailConnectorName $EmailConnectorName
 ```
 
-**What `deploy-use-cases.ps1` deploys**
+**What the use-case deployment script deploys**
 
 | Type | Installed component | Purpose |
 | --- | --- | --- |
@@ -188,6 +223,19 @@ In the SRE Agent UI, confirm that:
 
 **3. Enable autonomous incident handling**
 
+macOS:
+
+```bash
+./scripts/deploy-use-cases.sh \
+   --github-repository-url "$github_repository_url" \
+   --email-recipient "$email_recipient" \
+   --email-connector-name "$email_connector_name" \
+   --enable-incidents \
+   --confirm-connections-ready
+```
+
+Windows:
+
 ```powershell
 ./scripts/deploy-use-cases.ps1 -GitHubRepositoryUrl $GitHubRepositoryUrl -EmailRecipients $EmailRecipients -EmailConnectorName $EmailConnectorName -EnableIncidents -ConfirmConnectionsReady
 ```
@@ -196,10 +244,6 @@ In the SRE Agent UI, confirm that:
 > Run the enabling command only after every checkpoint above passes. It activates both alerting and autonomous response-plan routing.
 
 ## Architecture and responsibilities
-
-![Color-coded architecture flowchart showing ticket requests, telemetry, alerting, SRE Agent investigation, and follow-ups](assets/architecture.svg)
-
-[Open the architecture diagram full size](assets/architecture.svg).
 
 | You operate | SRE Agent operates |
 | --- | --- |
@@ -215,6 +259,14 @@ The action identity uses Azure RBAC for resource and telemetry access. The agent
 **Trigger the incident**
 
 1. Inject the database network fault:
+
+   macOS:
+
+   ```bash
+   ./scripts/fault.sh inject
+   ```
+
+   Windows:
 
    ```powershell
    ./scripts/fault.ps1 inject
@@ -237,6 +289,14 @@ The response plan routes the alert to `database-incident-commander`. The command
 **Recover and verify**
 
 1. Restore connectivity:
+
+   macOS:
+
+   ```bash
+   ./scripts/fault.sh reset
+   ```
+
+   Windows:
 
    ```powershell
    ./scripts/fault.ps1 reset

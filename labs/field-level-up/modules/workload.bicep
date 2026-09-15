@@ -40,7 +40,7 @@ resource applicationNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroup
       {
         name: 'PostgreSqlFaultInjection'
         properties: {
-          description: 'Toggle for the Field Level Up database connectivity incident.'
+          description: 'Toggle for the Azure SRE Agent Onboarding Lab database connectivity incident.'
           protocol: 'Tcp'
           sourcePortRange: '*'
           destinationPortRange: '5432'

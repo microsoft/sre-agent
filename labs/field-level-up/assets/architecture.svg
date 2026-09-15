@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1300" viewBox="0 0 1200 1300" role="img" aria-labelledby="title description">
-  <title id="title">Field Level Up architecture and incident flow</title>
+  <title id="title">Azure SRE Agent Onboarding Lab architecture and incident flow</title>
   <desc id="description">Four-stage flowchart showing ticket requests, telemetry and alerting, autonomous SRE Agent investigation, operator-owned fault control, GitHub and email follow-ups, and proactive health analysis.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
@@ -25,7 +25,7 @@
   </defs>
 
   <rect width="1200" height="1300" fill="#f8fafc"/>
-  <text x="40" y="48" class="title">Field Level Up: from ticket request to incident response</text>
+  <text x="40" y="48" class="title">Azure SRE Agent Onboarding Lab: from ticket request to incident response</text>
   <text x="40" y="72" class="subtitle">Solid arrows are automated. The dashed amber arrow is controlled by the lab participant.</text>
 
   <!-- Stage 1: ticket request -->
