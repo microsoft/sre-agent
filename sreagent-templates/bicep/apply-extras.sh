@@ -552,6 +552,15 @@ if [[ "$count" -gt 0 ]]; then
       http_code=$(echo "$result" | tail -1)
       if [[ "$http_code" =~ ^2 ]]; then
         echo "  ok knowledgeItems/${sanitized}"
+      elif [[ "$http_code" == "400" ]]; then
+        existing_code=$(curl -sS -o /dev/null -w "%{http_code}" "$url" \
+          -H "Authorization: Bearer ${TOKEN}" 2>/dev/null || echo "000")
+        if [[ "$existing_code" =~ ^2 ]]; then
+          echo "  ok knowledgeItems/${sanitized} (already exists)"
+        else
+          echo "  FAILED — PUT knowledgeItems/${sanitized} (HTTP ${http_code})"
+          echo "    $(echo "$result" | sed '$d' | head -2)"
+        fi
       else
         echo "  FAILED — PUT knowledgeItems/${sanitized} (HTTP ${http_code})"
         echo "    $(echo "$result" | sed '$d' | head -2)"

@@ -731,6 +731,15 @@ if ($kiCount -gt 0) {
                 $httpCode = $lines[-1]
                 if ($httpCode -match '^2') {
                     Write-Host "  ok knowledgeItems/$sanitized"
+                } elseif ($httpCode -eq '400') {
+                    $existingCode = curl -sS -o /dev/null -w "%{http_code}" $url `
+                        -H "Authorization: Bearer $token" 2>$null
+                    if ($existingCode -match '^2') {
+                        Write-Host "  ok knowledgeItems/$sanitized (already exists)"
+                    } else {
+                        Write-Host "  FAILED - PUT knowledgeItems/$sanitized (HTTP $httpCode)"
+                        Write-Host "    $(($lines[0..([Math]::Max(0, $lines.Count - 2))] -join ' ') | Select-Object -First 1)"
+                    }
                 } else {
                     Write-Host "  FAILED - PUT knowledgeItems/$sanitized (HTTP $httpCode)"
                     Write-Host "    $(($lines[0..([Math]::Max(0, $lines.Count - 2))] -join ' ') | Select-Object -First 1)"
