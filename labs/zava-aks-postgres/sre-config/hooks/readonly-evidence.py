@@ -19,6 +19,7 @@ allowed_tools = {
     "GrepSearch",
     "system-mcp-monitor_monitor_resource_log_query",
     "system-mcp-monitor_monitor_metrics_query",
+    "QueryZavaPostgres",
 }
 
 try:

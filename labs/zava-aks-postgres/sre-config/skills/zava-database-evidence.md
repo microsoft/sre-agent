@@ -1,19 +1,24 @@
 # Zava database evidence (read-only)
 
 Collect PostgreSQL platform metrics and application database-dependency evidence.
-Do not execute the SQL helper, DDL, `ANALYZE`, restarts, parameter/IAM changes, incident
-closure, or further delegation as part of this procedure. SQL through Kubernetes
-`exec` is outside this evidence profile even when the SQL statement only reads.
+Use the native bounded database tool for direct PostgreSQL evidence. Do not run
+`RepairZavaPostgresIndexes`, DDL, `ANALYZE`, restarts, parameter/IAM changes,
+incident closure, or further delegation. SQL through Kubernetes `exec` is outside
+this evidence profile even when the SQL statement only reads.
 
 ## Scope and tools
 
-Require the PostgreSQL resource ID, application telemetry resource ID and schema,
-question, and absolute UTC start/end. Read supplied reference files with
+Require the question and the resources needed for that question. For Monitor
+queries, require the PostgreSQL resource ID, application telemetry resource ID
+and schema, and absolute UTC start/end. Read supplied reference files with
 `ReadFile`; report missing scope rather than guessing it.
 
-Use `system-mcp-monitor_monitor_metrics_query` for platform metrics and
+Use `QueryZavaPostgres` for fixed direct diagnostics,
+`system-mcp-monitor_monitor_metrics_query` for platform metrics, and
 `system-mcp-monitor_monitor_resource_log_query` for application evidence. Inspect
-the registered tool schemas and supplied resource metadata first.
+the registered tool schemas and supplied resource metadata first. Do not submit
+SQL, identifiers, connection details, or other free-form input to
+`QueryZavaPostgres`.
 Pass the subscription ID explicitly in the Monitor tool's `subscription` argument,
 including when supplying a full resource ID. Derive it from the supplied resource
 ID; do not rely on an operator's default subscription.
@@ -23,6 +28,26 @@ and `AppRoleName`. Classic App Insights uses `requests`, `customMetrics`,
 `dependencies`, `timestamp`, and `cloud_RoleName`. Choose the schema for the query
 target before submitting. Scope every application table to `zava-api` and use
 the same absolute window.
+
+## Collect direct PostgreSQL evidence
+
+Choose only the operation needed for the question:
+
+- `connection_check` confirms the configured private PostgreSQL path and identity.
+- `active_sessions` shows bounded current session and wait evidence.
+- `slow_queries` returns bounded `pg_stat_statements` evidence.
+- `table_statistics` returns table row, dead-tuple, and analyze timestamps.
+- `index_statistics` returns index scan and tuple counters.
+- `category_query_plan` returns `EXPLAIN (FORMAT JSON)` for the exact category
+  endpoint query shape with fixed Scenario 3 inputs (`Accessories`, limit 100,
+  offset 7000). It does not use `ANALYZE`, so PostgreSQL plans but does not
+  execute the workload.
+
+Treat each result as a current or cumulative database observation, not as proof
+that it occurred inside the telemetry window. Correlate it with timestamped
+Monitor evidence before assigning cause. A missing row, low scan count, or slow
+statement does not by itself prove that an index is missing. Treat a plan as
+another bounded observation; do not authorize repair from the plan alone.
 
 ## Corroborate logs, metrics, and dependencies
 
@@ -97,6 +122,9 @@ Do not route around missing access through a terminal, SQL helper, or other agen
 Return **Scope** (IDs/window/question), **Observation**, **Source** (tool/query
 reference, target, schema/window), **Status** (success, empty, failed, blocked, not
 attempted), **Interpretation** with alternatives, **Gaps**, and **Follow-up**.
-Index usage, statistics, query plans, and ARM availability checks belong to the
-authorized parent's follow-up workflow. Do not infer a missing index without
-query-plan evidence.
+ARM availability checks, query-plan evaluation, and all remediation belong to
+the authorized parent's workflow. Return direct index, table, session, or slow
+query evidence from `QueryZavaPostgres` when relevant. Return the fixed
+`category_query_plan` output when the category-query access path is relevant.
+The tool does not expose arbitrary `EXPLAIN`; do not infer a missing index from
+one counter, statement, or plan.

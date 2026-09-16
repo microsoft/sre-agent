@@ -82,6 +82,21 @@ function Read-ZavaConfigText {
     return $text.Replace("`r", '').Trim()
 }
 
+function Read-ZavaToolSource {
+    param(
+        [string]$Root,
+        [string]$RelativePath,
+        [string]$ResourceGroup,
+        [hashtable]$PostgresConfiguration
+    )
+    $text = [IO.File]::ReadAllText((Join-Path $Root $RelativePath)).Replace('@@RG@@', $ResourceGroup)
+    foreach ($name in $PostgresConfiguration.Keys) {
+        $text = $text.Replace("@@$name@@", [string]$PostgresConfiguration[$name])
+    }
+    Assert-ZavaRenderedText $text $RelativePath
+    return $text.Replace("`r", '').Trim()
+}
+
 function Assert-ZavaStringArray {
     param([object]$Value, [string]$Label, [switch]$Nonempty)
     if ($Value -isnot [array] -or ($Nonempty -and $Value.Count -eq 0)) {
@@ -100,22 +115,60 @@ function Get-ZavaConfiguration {
     param(
         [string]$ConfigRoot,
         [string]$ResourceGroup,
-        [ValidateSet('SkillOwned', 'ExplicitAgent')][string]$EvidenceToolMode = 'SkillOwned'
+        [ValidateSet('SkillOwned', 'ExplicitAgent')][string]$EvidenceToolMode = 'SkillOwned',
+        [hashtable]$PostgresConfiguration = @{}
     )
     Assert-ZavaRenderedText $ResourceGroup 'ResourceGroup'
     $config = Get-Content -Raw (Join-Path $ConfigRoot 'agent-config.json') | ConvertFrom-Json -AsHashtable
+    foreach ($key in @('DB_HOST', 'DB_NAME', 'SRE_AGENT_CLIENT_ID', 'SRE_AGENT_PRINCIPAL_NAME')) {
+        if (-not $PostgresConfiguration.ContainsKey($key) -or [string]::IsNullOrWhiteSpace([string]$PostgresConfiguration[$key])) {
+            throw "PostgreSQL configuration is missing $key."
+        }
+        Assert-ZavaRenderedText ([string]$PostgresConfiguration[$key]) $key
+    }
     $shared = Read-ZavaConfigText $ConfigRoot 'skills\shared-context.md' $ResourceGroup
     $skills = @{}
+    $tools = @{}
     $resources = [Collections.Generic.List[object]]::new()
-    foreach ($kind in @('skills', 'agents', 'incidentFilters')) {
+    foreach ($kind in @('tools', 'skills', 'agents', 'incidentFilters')) {
         $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
         if ($config[$kind] -isnot [array]) { throw "Manifest $kind must be an array." }
         foreach ($entry in $config[$kind]) {
-            if ($entry.name -cnotmatch '^[a-z0-9][a-z0-9-]*$' -or -not $names.Add($entry.name)) {
+            $namePattern = if ($kind -eq 'tools') { '^[A-Za-z][A-Za-z0-9_-]*$' } else { '^[a-z0-9][a-z0-9-]*$' }
+            if ($entry.name -cnotmatch $namePattern -or -not $names.Add($entry.name)) {
                 throw "Invalid or duplicate $kind name: $($entry.name)"
             }
-            $type = switch ($kind) { skills { 'Skill' } agents { 'ExtendedAgent' } incidentFilters { 'IncidentFilter' } }
+            $type = switch ($kind) { tools { 'ExtendedAgentTool' } skills { 'Skill' } agents { 'ExtendedAgent' } incidentFilters { 'IncidentFilter' } }
             switch ($kind) {
+                tools {
+                    if ($entry.type -cne 'PythonFunctionTool') { throw "Unsupported tool type: $($entry.type)" }
+                    if ($entry.description -isnot [string]) { throw "$($entry.name).description must be a string." }
+                    Assert-ZavaRenderedText $entry.description "$($entry.name).description"
+                    $source = Read-ZavaToolSource $ConfigRoot $entry.sourceFile $ResourceGroup $PostgresConfiguration
+                    $operationDescription = [string]$entry.properties.parameters[0].description
+                    $properties = [ordered]@{
+                        type = 'PythonFunctionTool'
+                        functionCode = $source
+                        timeoutSeconds = 120
+                        dependencies = @('azure-identity', 'pg8000')
+                        connector = $null
+                        description = $entry.description
+                        parameters = @([ordered]@{
+                            name = 'operation'
+                            type = 'string'
+                            description = $operationDescription
+                            required = $true
+                            mapTo = ''
+                            target = 'direct'
+                            value = $null
+                            validation = $null
+                            isDictionaryTarget = $false
+                        })
+                        attributes = $null
+                        toolMode = 'Auto'
+                    }
+                    $tools[$entry.name] = $properties
+                }
                 skills {
                     if ($entry.description -isnot [string]) { throw "$($entry.name).description must be a string." }
                     Assert-ZavaRenderedText $entry.description "$($entry.name).description"
@@ -172,12 +225,28 @@ function Get-ZavaConfiguration {
                 }
                 incidentFilters { $properties = $entry.properties }
             }
-            $body = @{ name = $entry.name; type = $type; tags = @(); properties = $properties }
+            $body = if ($kind -eq 'tools') {
+                [ordered]@{
+                    name = $entry.name
+                    type = $properties.type
+                    description = $properties.description
+                    functionCode = $properties.functionCode
+                    timeoutSeconds = $properties.timeoutSeconds
+                    dependencies = $properties.dependencies
+                    parameters = $properties.parameters
+                }
+            } else {
+                @{ name = $entry.name; type = $type; tags = @(); properties = $properties }
+            }
             Assert-ZavaRenderedText ($body | ConvertTo-Json -Depth 30) "$kind/$($entry.name)"
             $resources.Add([pscustomobject]@{
                 Kind = $kind
                 Name = $entry.name
-                Path = "/api/v2/extendedAgent/$kind/$([uri]::EscapeDataString($entry.name))"
+                Path = if ($kind -eq 'tools') {
+                    '/api/v1/extendedAgent/apply'
+                } else {
+                    "/api/v2/extendedAgent/$kind/$([uri]::EscapeDataString($entry.name))"
+                }
                 Body = $body
             })
         }
@@ -185,6 +254,7 @@ function Get-ZavaConfiguration {
     return [pscustomobject]@{
         EvidenceToolMode = $EvidenceToolMode
         Resources = $resources.ToArray()
+        Tools = $tools
         CustomInstructions = Read-ZavaConfigText $ConfigRoot 'custom-instructions.md' $ResourceGroup
     }
 }
@@ -235,6 +305,49 @@ function Compare-ExpectedProperties {
     }
 }
 
+function Get-ZavaComparisonValue {
+    param([string]$Kind, [AllowNull()][object]$Body)
+    if ($null -eq $Body) { return $null }
+    if ($Kind -eq 'tools') { return $Body }
+    return $Body.properties
+}
+
+function Get-ZavaCollectionPath {
+    param([string]$Kind)
+    if ($Kind -eq 'tools') { return '/api/v1/extendedAgent/tools?page=1&limit=200' }
+    return "/api/v2/extendedAgent/$Kind"
+}
+
+function Get-ZavaWriteBody {
+    param([string]$Kind, [object]$Body)
+    if ($Kind -eq 'tools') {
+        $parameters = @($Body.parameters | ForEach-Object {
+            [ordered]@{
+                name = $_.name
+                type = $_.type
+                required = $_.required
+                description = $_.description
+                target = 'direct'
+            }
+        })
+        $tool = [ordered]@{
+            name = $Body.name
+            type = $Body.type
+            description = $Body.description
+            function_code = $Body.functionCode
+            timeout_seconds = $Body.timeoutSeconds
+            dependencies = $Body.dependencies
+            parameters = $parameters
+        }
+        return [ordered]@{
+            api_version = 'azuresre.ai/v1'
+            kind = 'ToolList'
+            spec = [ordered]@{ tools = @($tool) }
+        }
+    }
+    return $Body
+}
+
 function New-ZavaSyncPlan {
     param([object]$Configuration, [hashtable]$Collections, [AllowEmptyString()][string]$CurrentInstructions)
     $items = [Collections.Generic.List[object]]::new()
@@ -247,7 +360,7 @@ function New-ZavaSyncPlan {
         }
         $differences = [Collections.Generic.List[string]]::new()
         if ($previous) {
-            Compare-ExpectedProperties $resource.Body.properties $previous.properties "$($resource.Kind)/$($resource.Name)" $differences
+            Compare-ExpectedProperties (Get-ZavaComparisonValue $resource.Kind $resource.Body) (Get-ZavaComparisonValue $resource.Kind $previous) "$($resource.Kind)/$($resource.Name)" $differences
         }
         $items.Add([pscustomobject]@{
             Resource = $resource
@@ -306,11 +419,11 @@ function Assert-ZavaResourcesConverged {
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         $differences = [Collections.Generic.List[string]]::new()
         foreach ($group in ($Resources | Group-Object Kind)) {
-            $remote = @(Get-DataPlaneCollection -Path "/api/v2/extendedAgent/$($group.Name)")
+            $remote = @(Get-DataPlaneCollection -Path (Get-ZavaCollectionPath $group.Name))
             foreach ($resource in $group.Group) {
                 $actual = @($remote | Where-Object { $_.name -ceq $resource.Name })
                 if ($actual.Count -ne 1) { $differences.Add("$($resource.Kind)/$($resource.Name) is missing or duplicated"); continue }
-                Compare-ExpectedProperties $resource.Body.properties $actual[0].properties "$($resource.Kind)/$($resource.Name)" $differences
+                Compare-ExpectedProperties (Get-ZavaComparisonValue $resource.Kind $resource.Body) (Get-ZavaComparisonValue $resource.Kind $actual[0]) "$($resource.Kind)/$($resource.Name)" $differences
             }
         }
         if ($differences.Count -eq 0) { return }
@@ -329,18 +442,21 @@ function Sync-ZavaResources {
             continue
         }
         # Recheck for concurrent edits before changing the resource.
-        $current = @(Get-DataPlaneCollection -Path "/api/v2/extendedAgent/$Kind" | Where-Object { $_.name -eq $resource.Name })
-        $before = ConvertTo-Json -InputObject (ConvertTo-ZavaComparable $item.Previous) -Depth 50 -Compress
-        $now = ConvertTo-Json -InputObject (ConvertTo-ZavaComparable $(if ($current.Count -eq 1) { $current[0] } else { $null })) -Depth 50 -Compress
+        $current = @(Get-DataPlaneCollection -Path (Get-ZavaCollectionPath $Kind) | Where-Object { $_.name -eq $resource.Name })
+        $before = ConvertTo-Json -InputObject (ConvertTo-ZavaComparable (Get-ZavaComparisonValue $Kind $item.Previous)) -Depth 50 -Compress
+        $now = ConvertTo-Json -InputObject (ConvertTo-ZavaComparable (Get-ZavaComparisonValue $Kind $(if ($current.Count -eq 1) { $current[0] } else { $null }))) -Depth 50 -Compress
         if ($current.Count -gt 1 -or $before -cne $now) {
             throw "$Kind/$($resource.Name) changed after preflight. Rerun to review the new drift."
         }
-        $body = $resource.Body.Clone()
+        $body = [ordered]@{}
+        foreach ($key in $resource.Body.Keys) { $body[$key] = $resource.Body[$key] }
         if ($item.Previous -and $null -ne $item.Previous.tags) { $body.tags = $item.Previous.tags }
         $attempts = if ($Kind -eq 'incidentFilters') { 4 } else { 1 }
         # Agent PUT replaces omitted settings; PATCH preserves operator-owned fields.
         $method = if ($Kind -eq 'agents' -and $item.Action -eq 'update') { 'Patch' } else { 'Put' }
-        if (-not (Invoke-DataPlaneWrite -Path $resource.Path -Body $body -Label "$Kind/$($resource.Name)" -MaxAttempts $attempts -Method $method)) {
+        $writeBody = Get-ZavaWriteBody $Kind $body
+        $contentType = if ($Kind -eq 'tools') { 'application/x-yaml' } else { 'application/json' }
+        if (-not (Invoke-DataPlaneWrite -Path $resource.Path -Body $writeBody -Label "$Kind/$($resource.Name)" -MaxAttempts $attempts -Method $method -ContentType $contentType)) {
             throw "Failed to synchronize $Kind/$($resource.Name)."
         }
     }

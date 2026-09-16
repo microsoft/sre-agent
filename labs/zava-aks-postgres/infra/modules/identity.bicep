@@ -95,6 +95,7 @@ resource aksRbacClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01
 output sreAgentIdentityName string = sreAgentIdentity.name
 output sreAgentIdentityPrincipalId string = sreAgentIdentity.properties.principalId
 output sreAgentIdentityId string = sreAgentIdentity.id
+output sreAgentIdentityClientId string = sreAgentIdentity.properties.clientId
 output appIdentityName string = appIdentity.name
 output appIdentityClientId string = appIdentity.properties.clientId
 output appIdentityPrincipalId string = appIdentity.properties.principalId

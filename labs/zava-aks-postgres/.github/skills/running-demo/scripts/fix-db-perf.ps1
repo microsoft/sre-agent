@@ -2,9 +2,8 @@
 # Fix DB Performance: Recreate the critical category lookup index
 # Runs the DDL inside an app pod via `az aks command invoke` (PG is private).
 #
-# Uses the in-image `bin/run-sql.js` helper — same path the SRE Agent runbook
-# (sre-config/skills/performance-incidents.md) tells the agent to use for autonomous
-# remediation of Scenario 3 (missing index).
+# This operator-only cleanup path uses the in-image `bin/run-sql.js` helper.
+# The SRE Agent uses the native bounded PostgreSQL tools instead.
 param(
     [string]$ResourceGroup = "",
     [string]$ClusterName = "",

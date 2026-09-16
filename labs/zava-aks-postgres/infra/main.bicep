@@ -131,6 +131,7 @@ module sreAgent 'modules/sre-agent.bicep' = {
     // get fresh agents. Falls back to 'sre-agent-zava' when env name is empty.
     agentName: 'sre-agent-zava${agentEnvSuffix}'
     identityId: identity.outputs.sreAgentIdentityId
+    sreAgentClientId: identity.outputs.sreAgentIdentityClientId
     appInsightsAppId: monitoring.outputs.appInsightsAppId
     appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
     appInsightsId: monitoring.outputs.appInsightsResourceId
@@ -246,6 +247,8 @@ output APP_IDENTITY_NAME string = identity.outputs.appIdentityName
 output APP_IDENTITY_CLIENT_ID string = identity.outputs.appIdentityClientId
 output APP_IDENTITY_PRINCIPAL_ID string = identity.outputs.appIdentityPrincipalId
 output SRE_AGENT_PRINCIPAL_ID string = identity.outputs.sreAgentIdentityPrincipalId
+output SRE_AGENT_IDENTITY_NAME string = identity.outputs.sreAgentIdentityName
+output SRE_AGENT_CLIENT_ID string = identity.outputs.sreAgentIdentityClientId
 output LOG_ANALYTICS_WORKSPACE_ID string = monitoring.outputs.logAnalyticsWorkspaceId
 // NOTE: do NOT mark this @secure(). `azd env get-value` (used by post-provision.ps1)
 // silently omits secure outputs and returns the literal "ERROR: key not found" text

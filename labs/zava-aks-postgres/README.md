@@ -21,6 +21,10 @@ Deployment requires **Owner**, **User Access Administrator**, or equivalent
 The correlation skill reads subscription-wide alert and Service Health context,
 so the template grants its runtime identity the built-in Reader role there. The
 `predown` hook removes that assignment before deleting the resource group.
+Record a responsible owner and an expiry date using the tag keys required by
+your subscription. If policy does not apply them during deployment, tag the
+resource group immediately after `azd up` and extend the expiry or tear down the
+environment before that date.
 
 ## What You Get
 
@@ -36,7 +40,7 @@ so the template grants its runtime identity the built-in Reader role there. The
 ## Architecture
 
 ```
-Azure Resource Group (single RG — `azd down` cleans everything)
+Azure Resource Group (primary resources; `azd down --force --purge` also cleans subscription-scope resources)
 
 HUB VNet  10.10.0.0/22   (shared edge / security)
   ├─ Azure Firewall — the agent's single egress point AND the "network device"
@@ -49,7 +53,7 @@ HUB VNet  10.10.0.0/22   (shared edge / security)
   PLATFORM spoke  10.20.0.0/16            AGENT spoke  10.30.0.0/24
     ├─ AKS (private API server)             └─ SRE Agent (VNet-injected, /27 subnet)
     │    ├─ zava-storefront                      • built-in Kubernetes tools + ARM
-    │    └─ zava-api  ──►  PostgreSQL 16           (in-pod run-sql.js helper)
+    │    └─ zava-api  ──►  PostgreSQL 16           (native agent tools + app identity)
     └─ db-subnet (delegated)   (Entra auth)      • all egress → hub firewall only
 
 App Insights + Log Analytics   (AppRequests, AppMetrics, AZFW* firewall logs, KubeEvents …)
@@ -182,12 +186,13 @@ agent owns the incident and any authorized remediation.
 | Layer | Responsibility |
 |---|---|
 | `zava-investigation-coordination` | Split independent evidence paths, brief specialists, wait, check sources, and synthesize. No cloud tools of its own; simple checks stay with the parent. |
-| `zava-application-evidence` / `zava-database-evidence` | Reusable read-only procedures and Monitor log/metric dependencies. Existing application/performance runbooks read these, then retain their original authorized remediation. |
+| `zava-application-evidence` / `zava-database-evidence` | Reusable read-only procedures. Both use Monitor evidence; the database skill also uses `QueryZavaPostgres` for fixed direct diagnostics. Parent runbooks retain authorized remediation. |
 | `app-investigator` / `database-investigator` | Discoverable specialist role, selected domain skill, `ReadFile` access for supplied references, and a child-specific guard. |
 
 The manifest's `skills[].tools` supplies **`properties.tools`** in the skill API
-payload. In the default `SkillOwned` mode, the evidence skills declare the Monitor
-dependencies, while each specialist selects `ReadFile` for supplied references.
+payload. In the default `SkillOwned` mode, both evidence skills declare their
+Monitor dependencies, and the database skill also declares
+`QueryZavaPostgres`. Each specialist selects `ReadFile` for supplied references.
 The coordinator invokes specialists only when their independent scopes are useful.
 
 The shared hook permits only its exact read-tool names and hard-denies everything
@@ -230,6 +235,33 @@ on skill-owned tool availability or automatic specialist selection.
 `-EvidenceToolMode ExplicitAgent` is a compatibility option that also selects
 Monitor tools directly on agents; it is never enabled automatically.
 
+### Standalone configuration recovery
+
+When azd outputs are unavailable after partial provisioning, pass the deployment
+scope and PostgreSQL identity values explicitly:
+
+```powershell
+.\scripts\setup-sre-agent.ps1 `
+    -ResourceGroup <resource-group> `
+    -AgentName <sre-agent-name> `
+    -PostgresHost <server>.postgres.database.azure.com `
+    -PostgresDatabase zava_store `
+    -SreAgentClientId <attached-umi-client-id> `
+    -SreAgentPrincipalName <attached-umi-resource-name>
+```
+
+`PostgresHost` is the PostgreSQL Flexible Server FQDN. The principal name must
+be the resource name of the same attached/action UMI selected by
+`SreAgentClientId`, because the native tools acquire a token with that client ID
+and use the principal name as the PostgreSQL user. The SRE Agent resource name
+is a separate identity and must not be used as the database principal.
+
+If PostgreSQL or identity arguments are omitted outside `-RenderOnly`, the
+script uses consistent azd outputs when available. It otherwise discovers one
+PostgreSQL server and one action/attached UMI in the specified agent scope,
+failing on missing, ambiguous, or mismatched resources before configuration
+writes.
+
 Worked prompt (replace scope and times): *"Zava has HTTP 5xx errors and slow category
 queries. Investigate `<telemetry resource ID>` and `<PostgreSQL resource ID>` from
 `<UTC start>` to `<UTC end>` without changing anything. Gather separate evidence
@@ -239,7 +271,9 @@ and explain what supports or rules out a shared cause."*
 
 ### Network posture: VNet-injected, egress locked down behind an Azure Firewall
 
-The agent is **injected into a dedicated `/27` agent spoke subnet** and its sandbox egress is **locked down behind an Azure Firewall** with a tight allow-list. Agent skills operate Kubernetes through the built-in `RunKubectlReadCommand` and `RunKubectlWriteCommand` system tools. PostgreSQL SQL runs through the in-cluster helper invoked by the write tool.
+The agent is **injected into a dedicated `/27` agent spoke subnet** and its sandbox egress is **locked down behind an Azure Firewall** with a tight allow-list. Agent skills operate Kubernetes through the built-in `RunKubectlReadCommand` and `RunKubectlWriteCommand` system tools. Native PostgreSQL tools use the agent identity over the private TCP 5432 path.
+
+The agent enables `pypi` under `sandboxConfiguration.egress.allowedRegistries` so the SRE Agent infrastructure network can install the pinned `pg8000` and `azure-identity` packages. This package-manager access stays enabled because the platform can rebuild the sandbox base image after workspace or package changes. The customer hub firewall does not allow PyPI.
 
 > **Kubernetes tool choice:** incident runbooks use `RunKubectlReadCommand` and
 > `RunKubectlWriteCommand`. Terminal-native kubectl is not required for this sample.
@@ -253,42 +287,50 @@ The agent is **injected into a dedicated `/27` agent spoke subnet** and its sand
 
 > **The agent's own URL is allowed.** `allowAgentSelfManagement=true` (the default) adds an HTTPS rule for the exact platform-assigned agent data-plane FQDN (`<agent>--<hash>.<hash>.<region>.azuresre.ai`). The rule does not allow the broad `*.azuresre.ai` wildcard. This permits custom-instruction, knowledge, and tool-configuration calls to the agent's own API through the hub firewall, including agent-initiated configuration changes. Set the parameter to `false` when configuration must remain operator/CI-owned.
 
-One consequence is worth calling out, because it shapes Scenario 3's remediation: **DDL like `CREATE INDEX` is data-plane only.** No managed PG service (Azure PG Flex, RDS, Cloud SQL) exposes catalog mutation through its cloud control plane. The agent reads `pg_stat_*` to diagnose the missing index and applies the DDL through the in-cluster helper using `RunKubectlWriteCommand`:
+> **Configuration ownership:** ARM/Bicep expresses the agent subnet, `AzureVNet`, private DNS, packages, package-manager access through the SRE Agent infrastructure network, identity, and early-access ADC workspace settings. Network Bicep expresses the PostgreSQL DNS link, routing, and firewall TCP 5432 rule. PostgreSQL expresses the Entra administrator. At runtime, `AzureVNet` selects ADC partial inspection, which permits the explicitly allowed direct L4 path.
 
-```
-kubectl exec deploy/zava-api -n zava-demo -- node bin/run-sql.js '<SQL>'
-```
-
-`bin/run-sql.js` is ~30 lines: a `pg`-client wrapper that reuses the pod's existing workload identity (already a PG Entra admin). No new endpoint, no new identity, no temporary network opening — just reuses an existing trust path.
+One consequence is worth calling out, because it shapes Scenario 3's remediation: **DDL like `CREATE INDEX` is data-plane only.** The agent uses `QueryZavaPostgres` for fixed diagnostics and `RepairZavaPostgresIndexes` for the bounded category-index restore, `ANALYZE`, and concurrent reindex operations. The tools use the SRE Agent UMI over the private VNet path and verify each maintenance operation with a follow-up query. Operator fault-injection scripts remain separate and may use the in-pod helper when they need to inject or clean up a scenario.
 
 | Component | Endpoint | How the agent works on it |
 |---|---|---|
 | Storefront / nginx ingress | Public LoadBalancer IP | HTTP from anywhere |
 | AKS API server | **Private** | Built-in `RunKubectlReadCommand` / `RunKubectlWriteCommand` tools |
 | Pods, services, node IPs | Private (VNet only) | Built-in Kubernetes system tools |
-| PostgreSQL Flex (port 5432) | **Private only** — `publicNetworkAccess: Disabled`, VNet-delegated | State/config: `az postgres flexible-server`. SQL (reads + DDL): `RunKubectlWriteCommand` invokes `kubectl exec deploy/zava-api -- node bin/run-sql.js '<SQL>'` |
+| PostgreSQL Flex (port 5432) | **Private only** — `publicNetworkAccess: Disabled`, VNet-delegated | State/config: `az postgres flexible-server`. Data access: fixed diagnostics through `QueryZavaPostgres`; bounded maintenance through `RepairZavaPostgresIndexes` |
 
 ### What the agent can do (from inside the locked-down VNet)
 
 | Plane | Read | Write / remediate |
 |---|---|---|
 | **AKS control plane** | `az aks show / nodepool list / get-upgrades` | `az aks start / stop / update / nodepool scale / rotate-certs` |
-| **Kubernetes** | `RunKubectlReadCommand` | `RunKubectlWriteCommand` for NetworkPolicy deletion, rollout undo, and in-pod SQL helper execution |
-| **PostgreSQL** | Control: `az postgres flexible-server show / parameter list / backup list / server-logs list / replica list`. Data (reads + DDL): in-cluster helper through `RunKubectlWriteCommand` | `az postgres flexible-server start` (**Scenario 1**), `restart`, `update`, `parameter set`, `replica create`, `restore`, `ad-admin create` |
+| **Kubernetes** | `RunKubectlReadCommand` | `RunKubectlWriteCommand` for NetworkPolicy deletion and rollout undo |
+| **PostgreSQL** | Control: `az postgres flexible-server show / parameter list / backup list / server-logs list / replica list`. Data: `QueryZavaPostgres` fixed diagnostics | `RepairZavaPostgresIndexes` for bounded index/statistics maintenance; `az postgres flexible-server start` (**Scenario 1**), `restart`, `update`, `parameter set`, `replica create`, `restore`, `ad-admin create` |
 | **Networking** | `az network nsg / vnet / private-dns show`, plus the hub firewall as a device: `az network firewall [policy] show` (Reader-covered) and its `AZFW*` logs (KQL) | `az network nsg rule create / delete` (Scenario 2 cleanup) |
 | **Telemetry** | App Insights, Log Analytics, and Azure Monitor connectors (KQL + metrics) — API-based, no network reachability needed | Alert / action group create / update |
 
-### Running PostgreSQL SQL
+### Native PostgreSQL tools
 
-SQL — reads (`pg_stat_*`) and read-mostly DDL like `CREATE INDEX CONCURRENTLY` and `ANALYZE` — runs through the in-cluster `bin/run-sql.js` helper in the application pod, invoked with `RunKubectlWriteCommand`:
+`QueryZavaPostgres` accepts only named diagnostic operations: connection check,
+active sessions, slow queries, table statistics, index statistics, and category
+query plan. It uses a read-only transaction, TLS, bounded timeouts, and a capped
+result set.
 
-```
-kubectl exec deploy/zava-api -n zava-demo -- node bin/run-sql.js '<SQL>'
-```
+`RepairZavaPostgresIndexes` accepts only the fixed category-index restore,
+`ANALYZE`, and concurrent reindex operations. It verifies every operation with a
+follow-up query. Neither tool accepts arbitrary SQL or identifiers.
+
+This self-contained lab registers the SRE Agent UMI as the PostgreSQL Entra
+administrator. The fixed-operation allow-list is the lab trust boundary.
+Production deployments should use a dedicated least-privilege database principal
+instead of copying this administrator grant.
 
 ### Kubernetes system tools
 
-Skills that need Kubernetes list `RunKubectlReadCommand` and, when remediation or `exec` is required, `RunKubectlWriteCommand`. These are the canonical runtime path. Do not add `RunInTerminal`, Python wrappers, kubeconfig setup, `kubelogin`, or proxy certificate manipulation to skill instructions.
+Skills that need Kubernetes list `RunKubectlReadCommand` and, when workload
+remediation requires it, `RunKubectlWriteCommand`. These are the canonical
+runtime path for Kubernetes operations. Do not route PostgreSQL evidence through
+pod `exec`, or add `RunInTerminal`, Python wrappers, kubeconfig setup,
+`kubelogin`, or proxy certificate manipulation to skill instructions.
 
 ## Hub-and-Spoke & Talking to Network Devices
 
@@ -300,7 +342,7 @@ The network is modeled as **hub-and-spoke**, the shape most enterprises actually
 
 > **The agent's VNet is regional — its *reach* is not.** VNet injection is a **regional binding**: the `agent-subnet` you inject the agent into **must be in the same Azure region as the SRE Agent resource** — Microsoft's docs are explicit, *"The subnet must be in the same region as your SRE Agent resource"* ([SRE Agent subnet requirements](https://learn.microsoft.com/azure/sre-agent/network-integration#configure-azure-vnet-mode)). You **cannot** inject an agent that lives in *region A* into a subnet in *region B*. But that co-regional subnet only fixes **where the agent runs** — it does **not** limit **what the agent can reach**. Once injected, the agent reaches whatever its VNet can route to, including resources in **other Azure regions** (over [global VNet peering](https://learn.microsoft.com/azure/virtual-network/virtual-network-peering-overview)) and **on-premises** networks (over ExpressRoute/VPN) — *"as long as your network routes and rules allow it"* ([SRE Agent traffic routing](https://learn.microsoft.com/azure/sre-agent/network-integration#how-azure-vnet-mode-works)). In this lab all three VNets are co-regional, but the cross-region path is the **same mechanism** as the on-prem path — see [Reaching other regions and on-premises](#reaching-other-regions-and-on-premises).
 
-This proves the agent operates identically when isolated in its own management spoke and reaches everything through a *shared* firewall — the real customer pattern. Kubernetes operations use the built-in system tools, and PostgreSQL access stays inside the application pod rather than opening raw DB sockets.
+This proves the agent operates identically when isolated in its own management spoke and reaches everything through a *shared* firewall — the real customer pattern. Kubernetes operations use the built-in system tools, while the native PostgreSQL tools use the explicitly allowed private TCP 5432 path.
 
 ### The hub firewall doubles as a "network device" the agent can interrogate
 
@@ -412,6 +454,8 @@ connector Bicep template.
 
 > **Note:** `kubectl` is **not** required on your local workstation. The AKS cluster is private; operator in-cluster operations use `az aks command invoke` (wrapped by `Invoke-AksCommand`), while the SRE Agent uses its built-in Kubernetes tools.
 
+> **PostgreSQL extension gate:** Bicep allowlists `pg_stat_statements`. After the API rollout, `post-provision.ps1` creates and verifies the extension in `zava_store` through the private API pod before it synchronizes SRE Agent tools.
+
 > **Region default:** `azd up` will prompt for a location. The Bicep default is `swedencentral` (validated end-to-end there). To deploy elsewhere, pick another region at the prompt or run `azd env set AZURE_LOCATION <region>` before `azd up`. Any region with availability for AKS, PostgreSQL Flexible Server, and the SRE Agent resource provider works.
 
 > **Cross-platform note:** All scripts in this repo target PowerShell 7.4+, which runs on Windows, macOS, and Linux. On macOS/Linux, invoke the demo scripts with `pwsh`, e.g. `pwsh ./.github/skills/running-demo/scripts/break-sql.ps1`. The `azd` hooks (`pre-provision`, `post-provision`) auto-select the correct shell per OS via `azure.yaml`.
@@ -419,8 +463,15 @@ connector Bicep template.
 ## Cleanup
 
 ```bash
-azd down --force --purge     # Deletes entire resource group
+azd down --force --purge
 ```
+
+Run teardown from the same `azd` environment. The `predown` hook removes the
+subscription Reader assignment and unlinks Azure Monitor Private Link Scope
+resources before the resource group is deleted. Treat teardown as complete only
+after the resource group is absent and the subscription assignment is gone. If
+teardown fails, inspect those resources before retrying. Use a new environment
+name for the next deployment.
 
 ## Project Structure
 

@@ -58,15 +58,11 @@ param lockAgentToPrivateMonitor bool = true
 // network routes and rules allow it". The cross-region case is the SAME mechanism
 // as the on-prem case; see the optional remote-region example after the peerings.
 //
-// WHY THIS IS SAFE / BEHAVIOR-PRESERVING: the agent never needed raw L3 reach to
-// AKS or PostgreSQL. The AKS API server is PRIVATE and reached through native
-// `kubectl` over the firewall-brokered private API-server path; PostgreSQL SQL
-// runs from an in-cluster pod via `kubectl exec`; everything else (ARM, Entra,
-// Azure Monitor, Microsoft Learn) is
-// allow-listed HTTPS. The agent's sandbox egress is HTTP(S)-proxy-brokered
-// (allow-listed HTTPS only — it cannot open raw TCP to private VNet IPs). So
-// putting the agent in its own spoke changes only WHICH firewall inspects its
-// egress, not how it operates. See sre-config/knowledge-base/zava-architecture.md.
+// The agent can use direct L4 PostgreSQL access from its VNet-injected sandbox.
+// AzureVNet egress uses ADC partial inspection, while the firewall still limits
+// the path to the agent subnet, PostgreSQL delegated subnet, and TCP 5432.
+// Kubernetes investigation continues to use the native Kubernetes tools. See
+// sre-config/knowledge-base/zava-architecture.md.
 //
 // Canonical references this hand-rolled module follows (kept registry-free so the
 // demo is self-contained): Azure CAF hub-spoke
@@ -432,8 +428,8 @@ resource firewallPolicy 'Microsoft.Network/firewallPolicies@2024-05-01' = {
 //
 // To let the agent reach a NETWORK DEVICE or other private service DIRECTLY, its
 // management endpoint must be HTTPS and its FQDN added BOTH here (an application
-// rule) AND to the agent's sandbox egress allow-list — the sandbox proxy only
-// speaks allow-listed HTTPS, never raw TCP. Azure-native "devices" (this Azure
+// rule) AND to the agent's sandbox egress allow-list. Direct L4 paths require an
+// explicit network rule, as the PostgreSQL 5432 rule below demonstrates. Azure-native "devices" (this Azure
 // Firewall, NSGs, Route Server) need no new rule: the agent
 // reads them over ARM, which is already allowed.
 resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionGroups@2024-05-01' = {
@@ -479,6 +475,26 @@ resource ruleCollectionGroup 'Microsoft.Network/firewallPolicies/ruleCollectionG
             sourceAddresses: [agentSubnetPrefix]
             destinationAddresses: ['10.20.0.0/20']
             destinationPorts: ['443']
+          }
+        ]
+      }
+      {
+        // Direct PostgreSQL path for the native Zava diagnostic tools. Keep this
+        // narrower than the platform spoke: only the agent subnet reaches the
+        // delegated PostgreSQL subnet, and only on the PostgreSQL TLS port.
+        ruleCollectionType: 'FirewallPolicyFilterRuleCollection'
+        name: 'allow-agent-to-postgres'
+        priority: 212
+        action: { type: 'Allow' }
+        rules: [
+          {
+            ruleType: 'NetworkRule'
+            name: 'agent-to-postgres-5432'
+            description: 'Agent subnet -> PostgreSQL delegated subnet on TCP 5432'
+            ipProtocols: ['TCP']
+            sourceAddresses: [agentSubnetPrefix]
+            destinationAddresses: ['10.20.16.0/24']
+            destinationPorts: ['5432']
           }
         ]
       }
@@ -626,8 +642,8 @@ resource firewall 'Microsoft.Network/azureFirewalls@2024-05-01' = {
   ]
 }
 
-// PostgreSQL private DNS zone — linked to the PLATFORM spoke, where both the AKS
-// pods and the delegated db-subnet live and resolve the server's private FQDN.
+// PostgreSQL private DNS zone — linked to both the PLATFORM spoke and the AGENT
+// spoke so native tools resolve the private server FQDN from the sandbox.
 resource privateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = {
   name: '${uniqueSuffix}.private.postgres.database.azure.com'
   location: 'global'
@@ -639,6 +655,16 @@ resource privateDnsVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLin
   location: 'global'
   properties: {
     virtualNetwork: { id: platformVnet.id }
+    registrationEnabled: false
+  }
+}
+
+resource privateDnsAgentVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = {
+  parent: privateDnsZone
+  name: 'agent-link'
+  location: 'global'
+  properties: {
+    virtualNetwork: { id: agentVnet.id }
     registrationEnabled: false
   }
 }

@@ -55,11 +55,56 @@
       }
     }
   ],
+  "tools": [
+    {
+      "name": "QueryZavaPostgres",
+      "type": "PythonFunctionTool",
+      "description": "Run one fixed, read-only PostgreSQL diagnostic operation over the private Zava database path.",
+      "sourceFile": "tools/query_zava_postgres.py",
+      "properties": {
+        "timeoutSeconds": 120,
+        "authEnabled": true,
+        "authScopes": ["https://ossrdbms-aad.database.windows.net/.default"],
+        "parameters": [
+          {
+            "name": "operation",
+            "type": "string",
+            "description": "One of: connection_check, active_sessions, slow_queries, table_statistics, index_statistics, category_query_plan.",
+            "required": true,
+            "value": null
+          }
+        ],
+        "toolMode": "Auto"
+      }
+    },
+    {
+      "name": "RepairZavaPostgresIndexes",
+      "type": "PythonFunctionTool",
+      "description": "Run one fixed, bounded PostgreSQL index maintenance operation for the Zava performance demo.",
+      "sourceFile": "tools/repair_zava_postgres_indexes.py",
+      "properties": {
+        "timeoutSeconds": 120,
+        "authEnabled": true,
+        "authScopes": ["https://ossrdbms-aad.database.windows.net/.default"],
+        "parameters": [
+          {
+            "name": "operation",
+            "type": "string",
+            "description": "One of: restore_category_indexes, analyze, reindex_category_indexes.",
+            "required": true,
+            "value": null
+          }
+        ],
+        "toolMode": "Auto"
+      }
+    }
+  ],
   "skills": [
     {
       "name": "database-incidents",
       "description": "Use for Zava PostgreSQL AVAILABILITY incidents — alert `postgres-unreachable` (zava-api cannot reach PostgreSQL; connection refused or, more often, timeout). Diagnose the cause from ARM state — stopped server vs network partition — and remediate: restart the server, or remove the in-cluster Kubernetes NetworkPolicy / matching NSG deny rule that blocks PG egress.",
       "tools": [
+        "QueryZavaPostgres",
         "RunAzCliReadCommands",
         "RunAzCliWriteCommands",
         "RunKubectlReadCommand",
@@ -72,8 +117,10 @@
     },
     {
       "name": "performance-incidents",
-      "description": "Use for Zava query-LATENCY / slow-endpoint incidents — alert `Zava-products-query-slow` (a /api/products/category endpoint breached its latency threshold). Diagnose the PostgreSQL query path, check nearby alerts with `incident-correlation`, and do not treat a co-firing 5xx as the same cause without a direct dependency-failure mechanism. Apply read-mostly DDL (CREATE INDEX) via the in-cluster SQL helper when the query plan proves it is needed.",
+      "description": "Use for Zava query-LATENCY / slow-endpoint incidents — alert `Zava-products-query-slow` (a /api/products/category endpoint breached its latency threshold). Diagnose the PostgreSQL query path, check nearby alerts with `incident-correlation`, and do not treat a co-firing 5xx as the same cause without a direct dependency-failure mechanism. Use QueryZavaPostgres for fixed diagnostics and RepairZavaPostgresIndexes for the bounded index/statistics maintenance when the evidence proves it is needed.",
       "tools": [
+        "QueryZavaPostgres",
+        "RepairZavaPostgresIndexes",
         "RunAzCliReadCommands",
         "RunAzCliWriteCommands",
         "RunKubectlReadCommand",
@@ -150,6 +197,7 @@
       "name": "zava-database-evidence",
       "description": "Collect read-only Zava PostgreSQL platform metrics and application database-dependency evidence for a supplied scope and UTC window. Distinguish slow successful calls, dependency errors, and platform pressure without inferring a missing index.",
       "tools": [
+        "QueryZavaPostgres",
         "system-mcp-monitor_monitor_resource_log_query",
         "system-mcp-monitor_monitor_metrics_query"
       ],

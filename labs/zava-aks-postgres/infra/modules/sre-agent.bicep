@@ -7,6 +7,9 @@ param agentName string
 @description('User-Assigned Managed Identity resource ID')
 param identityId string
 
+@description('User-Assigned Managed Identity client ID used by native PostgreSQL tools')
+param sreAgentClientId string
+
 @description('Application Insights App ID')
 param appInsightsAppId string
 
@@ -51,6 +54,7 @@ resource sreAgent 'Microsoft.App/agents@2025-05-01-preview' = {
   location: location
   tags: {
     'hidden-link: /app-insights-resource-id': appInsightsId
+    'sre-agent-umi-client-id': sreAgentClientId
     sample: 'zava-aks-postgres'
   }
   identity: {
@@ -72,10 +76,23 @@ resource sreAgent 'Microsoft.App/agents@2025-05-01-preview' = {
         // Keep remote MCP traffic inside the customer VNet and hub firewall.
         allowHttpMcpServerNetworkAccess: false
         allowedCodeRepositories: []
-        allowedRegistries: []
+        allowedRegistries: [
+          'pypi'
+        ]
         allowedHosts: []
       }
-      packages: []
+      packages: [
+        {
+          name: 'pg8000'
+          version: '1.30.5'
+          packageManager: 'pip'
+        }
+        {
+          name: 'azure-identity'
+          version: '1.24.0'
+          packageManager: 'pip'
+        }
+      ]
     }
     knowledgeGraphConfiguration: {
       managedResources: [
@@ -95,6 +112,8 @@ resource sreAgent 'Microsoft.App/agents@2025-05-01-preview' = {
     upgradeChannel: upgradeChannel
     experimentalSettings: {
       EnableWorkspaceTools: enableEarlyAccessFeatures
+      EnableAdcSharedWorkspace: enableEarlyAccessFeatures
+      EnableEgressProxy: enableEarlyAccessFeatures
     }
     incidentManagementConfiguration: {
       type: 'AzMonitor'

@@ -55,6 +55,165 @@ function Get-TargetRg {
     return $null
 }
 $script:TargetRg = Get-TargetRg
+$script:DiscoveredPostgresServer = $null
+
+function Get-AzdEnvironmentValue([string]$key) {
+    $val = [Environment]::GetEnvironmentVariable($key)
+    if (-not $val) {
+        $val = azd env get-value $key 2>$null
+        if ($LASTEXITCODE -ne 0) { $val = $null }
+    }
+    if ($val -and "$val".Trim() -and "$val" -notmatch '^ERROR') {
+        return "$val".Trim()
+    }
+    return $null
+}
+
+function Get-DiscoveredPostgresServer {
+    if ($script:DiscoveredPostgresServer) { return $script:DiscoveredPostgresServer }
+    $json = az postgres flexible-server list -g $script:TargetRg -o json 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not list PostgreSQL Flexible Servers in resource group '$($script:TargetRg)'."
+    }
+    $servers = @($json | ConvertFrom-Json)
+    if ($servers.Count -ne 1) {
+        throw "Expected exactly one PostgreSQL Flexible Server in resource group '$($script:TargetRg)'; found $($servers.Count)."
+    }
+    foreach ($server in $servers) { $script:DiscoveredPostgresServer = $server }
+    return $script:DiscoveredPostgresServer
+}
+
+function Get-PostProvisionSreIdentityPair([string]$AgentName) {
+    $agentJson = az resource show -g $script:TargetRg -n $AgentName `
+        --resource-type Microsoft.App/agents --api-version 2025-05-01-preview -o json 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $agentJson) {
+        throw "Could not read SRE Agent '$AgentName' in resource group '$($script:TargetRg)' for identity discovery."
+    }
+    $agent = $agentJson | ConvertFrom-Json
+    $actionConfiguration = $agent.properties.PSObject.Properties['actionConfiguration']
+    $actionIdentityProperty = if ($actionConfiguration -and $actionConfiguration.Value) {
+        $actionConfiguration.Value.PSObject.Properties['identity']
+    } else { $null }
+    $identityId = if ($actionIdentityProperty) {
+        [string]$actionIdentityProperty.Value
+    } else { '' }
+    if (-not $identityId.Trim()) {
+        $agentIdentity = $agent.PSObject.Properties['identity']
+        $identityProperty = if ($agentIdentity -and $agentIdentity.Value) {
+            $agentIdentity.Value.PSObject.Properties['userAssignedIdentities']
+        } else { $null }
+        $identityIds = if ($identityProperty -and $identityProperty.Value) {
+            @($identityProperty.Value.PSObject.Properties.Name | Where-Object { $_ -and "$_".Trim() })
+        } else { @() }
+        if ($identityIds.Count -ne 1) {
+            throw "Expected exactly one attached user-assigned identity on SRE Agent '$AgentName' when no action identity is configured; found $($identityIds.Count)."
+        }
+        $identityId = [string]($identityIds -join '')
+    }
+    if ($identityId -notmatch '/providers/Microsoft\.ManagedIdentity/userAssignedIdentities/[^/]+$') {
+        throw "The selected identity on SRE Agent '$AgentName' is not a user-assigned managed identity resource ID."
+    }
+
+    $identityJson = az identity show --ids $identityId -o json 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $identityJson) {
+        throw "Could not read attached user-assigned identity '$identityId'."
+    }
+    $identity = $identityJson | ConvertFrom-Json
+    $name = [string]$identity.name
+    $clientId = [string]$identity.clientId
+    if (-not $name.Trim() -or -not $clientId.Trim()) {
+        throw "Attached user-assigned identity '$identityId' is missing its name or clientId."
+    }
+
+    $suppliedName = Get-AzdEnvironmentValue 'SRE_AGENT_IDENTITY_NAME'
+    $suppliedClientId = Get-AzdEnvironmentValue 'SRE_AGENT_CLIENT_ID'
+    if ($suppliedName -and $suppliedName -ne $name.Trim()) {
+        throw "SRE_AGENT_IDENTITY_NAME does not match the attached user-assigned identity selected for '$AgentName'."
+    }
+    if ($suppliedClientId -and $suppliedClientId -ne $clientId.Trim()) {
+        throw "SRE_AGENT_CLIENT_ID does not match the attached user-assigned identity selected for '$AgentName'."
+    }
+    return @{
+        Name = $name.Trim()
+        ClientId = $clientId.Trim()
+    }
+}
+
+function Enable-ZavaPgStatStatements {
+    param(
+        [Parameter(Mandatory)] [string]$ResourceGroup,
+        [Parameter(Mandatory)] [string]$ClusterName,
+        [Parameter(Mandatory)]
+        [ValidatePattern('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')]
+        [string]$Namespace
+    )
+
+    $createSql = 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements'
+    $createCommand = "kubectl exec -n $Namespace deploy/zava-api -- node bin/run-sql.js '$createSql'"
+    $result = Invoke-AksCommand -ResourceGroup $ResourceGroup -ClusterName $ClusterName `
+        -Command $createCommand -Quiet
+    Assert-AksCommandSucceeded $result 'pg_stat_statements extension creation'
+
+    $verificationSql = 'SELECT extname FROM pg_extension ORDER BY extname'
+    $verificationCommand = "kubectl exec -n $Namespace deploy/zava-api -- node bin/run-sql.js '$verificationSql'"
+    $result = Invoke-AksCommand -ResourceGroup $ResourceGroup -ClusterName $ClusterName `
+        -Command $verificationCommand -Quiet
+    Assert-AksCommandSucceeded $result 'pg_stat_statements extension verification'
+
+    try {
+        $readback = ([string]$result.logs).Trim() | ConvertFrom-Json -ErrorAction Stop
+        if ($null -eq $readback -or $readback -isnot [pscustomobject]) {
+            throw [FormatException]::new()
+        }
+    } catch {
+        throw 'pg_stat_statements extension verification did not return the expected JSON envelope.'
+    }
+    $commandProperty = $readback.PSObject.Properties['command']
+    $rowCountProperty = $readback.PSObject.Properties['rowCount']
+    $rowsProperty = $readback.PSObject.Properties['rows']
+    if (-not $commandProperty -or -not $rowCountProperty -or -not $rowsProperty) {
+        throw 'pg_stat_statements extension verification must include command, rowCount, and rows properties.'
+    }
+    if ([string]$commandProperty.Value -cne 'SELECT') {
+        throw 'pg_stat_statements extension verification command must be SELECT.'
+    }
+
+    $numericTypes = @(
+        [TypeCode]::Byte,
+        [TypeCode]::SByte,
+        [TypeCode]::Int16,
+        [TypeCode]::UInt16,
+        [TypeCode]::Int32,
+        [TypeCode]::UInt32,
+        [TypeCode]::Int64,
+        [TypeCode]::UInt64,
+        [TypeCode]::Single,
+        [TypeCode]::Double,
+        [TypeCode]::Decimal
+    )
+    $rowCount = $rowCountProperty.Value
+    $rowsValue = $rowsProperty.Value
+    if ($rowsValue -isnot [Collections.IList]) {
+        throw 'pg_stat_statements extension verification must return a numeric rowCount matching rows.'
+    }
+    $rows = @($rowsValue)
+    if (
+        $null -eq $rowCount -or
+        [Type]::GetTypeCode($rowCount.GetType()) -notin $numericTypes -or
+        $rowCount -ne $rows.Count
+    ) {
+        throw 'pg_stat_statements extension verification must return a numeric rowCount matching rows.'
+    }
+
+    $matchingRows = @($rows | Where-Object {
+        $null -ne $_ -and
+        $_.PSObject.Properties['extname'] -and
+        [string]$_.extname -ceq 'pg_stat_statements'
+    })
+    if ($matchingRows.Count -ne 1) {
+        throw 'pg_stat_statements extension verification must return exactly one pg_stat_statements row.'
+    }
+}
 
 # Azure-discovery fallback: derive a value straight from the deployed resources
 # when azd has not captured outputs. azd only persists Bicep outputs on a FULLY
@@ -62,8 +221,8 @@ $script:TargetRg = Get-TargetRg
 # private endpoint's occasional InternalServerError) leaves the outputs unset and
 # strands this hook. Discovering from the resource group makes post-provision
 # RESUMABLE after such a failure AND runnable standalone (e.g. after a raw
-# `az deployment sub create`, outside azd). Names are deterministic per RG, and
-# the lab deploys exactly one of each of these, so `[0]` / name-contains is safe.
+# `az deployment sub create`, outside azd). PostgreSQL and SRE identity recovery
+# enforce exact cardinality because those values form an authentication pair.
 function Get-DiscoveredValue([string]$key) {
     $rg = $script:TargetRg
     if (-not $rg) { return $null }
@@ -74,27 +233,28 @@ function Get-DiscoveredValue([string]$key) {
         'AKS_OIDC_ISSUER'  { $a = az aks list -g $rg --query "[0].name" -o tsv 2>$null; if ($a) { az aks show -g $rg -n $a --query oidcIssuerProfile.issuerUrl -o tsv 2>$null } }
         'ACR_NAME'         { az acr list -g $rg --query "[0].name" -o tsv 2>$null }
         'ACR_LOGIN_SERVER' { az acr list -g $rg --query "[0].loginServer" -o tsv 2>$null }
-        'PG_SERVER_NAME'   { az postgres flexible-server list -g $rg --query "[0].name" -o tsv 2>$null }
-        'DB_HOST'          { az postgres flexible-server list -g $rg --query "[0].fullyQualifiedDomainName" -o tsv 2>$null }
+        'PG_SERVER_NAME'   { (Get-DiscoveredPostgresServer).name }
+        'DB_HOST'          { (Get-DiscoveredPostgresServer).fullyQualifiedDomainName }
+        'DB_NAME'          { 'zava_store' }
         'APPINSIGHTS_CONNECTION_STRING' { $aiId = az resource list -g $rg --resource-type 'microsoft.insights/components' --query "[0].id" -o tsv 2>$null; if ($aiId) { az resource show --ids $aiId --query properties.ConnectionString -o tsv 2>$null } }
         'APP_IDENTITY_NAME'         { az identity list -g $rg --query "[?contains(name,'Zava-app')].name | [0]" -o tsv 2>$null }
         'APP_IDENTITY_CLIENT_ID'    { az identity list -g $rg --query "[?contains(name,'Zava-app')].clientId | [0]" -o tsv 2>$null }
         'APP_IDENTITY_PRINCIPAL_ID' { az identity list -g $rg --query "[?contains(name,'Zava-app')].principalId | [0]" -o tsv 2>$null }
-        'SRE_AGENT_NAME'   { az resource list -g $rg --resource-type 'Microsoft.App/agents' --query "[0].name" -o tsv 2>$null }
-        default            { $null }
+        'SRE_AGENT_NAME'          {
+            $agents = @(az resource list -g $rg --resource-type 'Microsoft.App/agents' -o json 2>$null | ConvertFrom-Json)
+            if ($agents.Count -ne 1) {
+                throw "Expected exactly one SRE Agent in resource group '$rg'; found $($agents.Count)."
+            }
+            [string]$agents.name
+        }
+        default                   { $null }
     }
 }
 
 function Get-AzdValue([string]$key) {
     # 1) azd injects Bicep outputs as env vars in hook subprocesses; 2) fall back
     # to the persisted env; 3) discover from Azure (resumable + standalone).
-    $val = [Environment]::GetEnvironmentVariable($key)
-    if (-not $val) {
-        $val = azd env get-value $key 2>$null
-        # `azd env get-value` for a missing key prints an "ERROR: ..." string to
-        # stdout with a non-zero exit code — don't mistake that for a real value.
-        if ($LASTEXITCODE -ne 0) { $val = $null }
-    }
+    $val = Get-AzdEnvironmentValue $key
     if (-not $val -or -not "$val".Trim() -or "$val" -match '^ERROR') {
         $val = Get-DiscoveredValue $key
         if ($val -and "$val".Trim()) { Write-Host "  (discovered $key from Azure resources)" -ForegroundColor DarkGray }
@@ -110,6 +270,7 @@ $AKS_NAME        = Get-AzdValue "AKS_CLUSTER_NAME"
 $ACR_NAME        = Get-AzdValue "ACR_NAME"
 $ACR_LOGIN       = Get-AzdValue "ACR_LOGIN_SERVER"
 $DB_HOST         = Get-AzdValue "DB_HOST"
+$DB_NAME         = Get-AzdValue "DB_NAME"
 $PG_SERVER       = Get-AzdValue "PG_SERVER_NAME"
 $AI_CONN         = Get-AzdValue "APPINSIGHTS_CONNECTION_STRING"
 $APP_ID_NAME     = Get-AzdValue "APP_IDENTITY_NAME"
@@ -117,6 +278,10 @@ $APP_CLIENT_ID   = Get-AzdValue "APP_IDENTITY_CLIENT_ID"
 $APP_PRINCIPAL_ID = Get-AzdValue "APP_IDENTITY_PRINCIPAL_ID"
 $OIDC_ISSUER     = Get-AzdValue "AKS_OIDC_ISSUER"
 $AZURE_LOCATION  = Get-AzdValue "AZURE_LOCATION"
+$SRE_AGENT_NAME  = Get-AzdValue "SRE_AGENT_NAME"
+$sreIdentity     = Get-PostProvisionSreIdentityPair -AgentName $SRE_AGENT_NAME
+$SRE_AGENT_CLIENT_ID = $sreIdentity.ClientId
+$SRE_AGENT_PRINCIPAL_NAME = $sreIdentity.Name
 
 Write-Host "  Resource Group:  $RG"
 Write-Host "  AKS Cluster:     $AKS_NAME"
@@ -327,6 +492,12 @@ $r = Invoke-AksCommand -ResourceGroup $RG -ClusterName $AKS_NAME `
 Assert-AksCommandSucceeded $r 'Application rollout'
 Write-Host ""
 
+# ── Step 7b: Ensure required PostgreSQL extension ────────────────────────────
+Write-Host "=== Step 7b: Ensuring pg_stat_statements ===" -ForegroundColor Green
+Enable-ZavaPgStatStatements -ResourceGroup $RG -ClusterName $AKS_NAME -Namespace $Namespace
+Write-Host "  pg_stat_statements is installed and verified in $DB_NAME" -ForegroundColor Green
+Write-Host ""
+
 # ── Step 8: Get public endpoint ──────────────────────────────────────────────
 Write-Host "=== Step 8: Getting public endpoint ===" -ForegroundColor Green
 $ingressIP = Wait-AksIngressAddress -ResourceGroup $RG -ClusterName $AKS_NAME -TimeoutSeconds $IngressTimeoutSeconds
@@ -347,17 +518,22 @@ Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "  Configuring + verifying agent" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
-$agentName = try { Get-AzdValue "SRE_AGENT_NAME" } catch { "" }
-if ($agentName) {
+if ($SRE_AGENT_NAME) {
     Write-Host "Running setup-sre-agent.ps1..." -ForegroundColor Yellow
-    & "$PSScriptRoot\setup-sre-agent.ps1" -ResourceGroup $RG -AgentName $agentName
+    & "$PSScriptRoot\setup-sre-agent.ps1" `
+        -ResourceGroup $RG `
+        -AgentName $SRE_AGENT_NAME `
+        -PostgresHost $DB_HOST `
+        -PostgresDatabase $DB_NAME `
+        -SreAgentClientId $SRE_AGENT_CLIENT_ID `
+        -SreAgentPrincipalName $SRE_AGENT_PRINCIPAL_NAME
     if (-not $?) { throw 'SRE Agent configuration failed. Inspect the setup output before retrying post-provision.' }
 } else {
     Write-Host "SRE_AGENT_NAME not set - skipping agent configuration." -ForegroundColor Yellow
     Write-Host "Run scripts\setup-sre-agent.ps1 manually after creating the agent." -ForegroundColor Yellow
 }
 
-if ($agentName) {
+if ($SRE_AGENT_NAME) {
     Write-Host "`nZava Demo Deployed Successfully!" -ForegroundColor Cyan
     Write-Host "Auth: Managed Identity (no passwords)" -ForegroundColor Cyan
 }

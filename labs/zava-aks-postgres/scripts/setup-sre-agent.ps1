@@ -32,41 +32,188 @@ param(
     [ValidateRange(1, 3600)][int]$ReadinessTimeoutSeconds = 900,
     [ValidateRange(1, 3600)][int]$ConnectorTimeoutSeconds = 600,
     [ValidateSet('SkillOwned', 'ExplicitAgent')]
-    [string]$EvidenceToolMode = 'SkillOwned'
+    [string]$EvidenceToolMode = 'SkillOwned',
+    [string]$PostgresHost = '',
+    [string]$PostgresDatabase = '',
+    [string]$SreAgentClientId = '',
+    [string]$SreAgentPrincipalName = ''
 )
 
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot '_sre-config.ps1')
 . (Join-Path $PSScriptRoot '_sre-connectors.ps1')
 $configRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\sre-config'))
+
+function Get-ZavaSinglePostgresHost {
+    param([Parameter(Mandatory)][string]$ResourceGroup)
+
+    $json = az postgres flexible-server list -g $ResourceGroup --query '[].fullyQualifiedDomainName' -o json 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not list PostgreSQL Flexible Servers in resource group '$ResourceGroup'."
+    }
+    $hosts = @($json | ConvertFrom-Json) | Where-Object { $_ -and "$_".Trim() }
+    if ($hosts.Count -ne 1) {
+        throw "Expected exactly one PostgreSQL Flexible Server in resource group '$ResourceGroup' when DB_HOST discovery is required; found $($hosts.Count)."
+    }
+    return [string]($hosts -join '')
+}
+
+function Get-ZavaAgentIdentityResourceId {
+    param(
+        [Parameter(Mandatory)][string]$ResourceGroup,
+        [Parameter(Mandatory)][string]$AgentName
+    )
+
+    $json = az resource show -g $ResourceGroup -n $AgentName `
+        --resource-type Microsoft.App/agents --api-version 2025-05-01-preview -o json 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $json) {
+        throw "Could not read SRE Agent '$AgentName' in resource group '$ResourceGroup' for identity discovery."
+    }
+    $agent = $json | ConvertFrom-Json
+    $actionConfiguration = $agent.properties.PSObject.Properties['actionConfiguration']
+    $actionIdentityProperty = if ($actionConfiguration -and $actionConfiguration.Value) {
+        $actionConfiguration.Value.PSObject.Properties['identity']
+    } else { $null }
+    $actionIdentity = if ($actionIdentityProperty) {
+        [string]$actionIdentityProperty.Value
+    } else { '' }
+    if ($actionIdentity.Trim()) {
+        if ($actionIdentity -notmatch '/providers/Microsoft\.ManagedIdentity/userAssignedIdentities/[^/]+$') {
+            throw "The action identity on SRE Agent '$AgentName' is not a user-assigned managed identity resource ID."
+        }
+        return $actionIdentity.Trim()
+    }
+
+    $agentIdentity = $agent.PSObject.Properties['identity']
+    $identityProperty = if ($agentIdentity -and $agentIdentity.Value) {
+        $agentIdentity.Value.PSObject.Properties['userAssignedIdentities']
+    } else { $null }
+    $identityIds = if ($identityProperty -and $identityProperty.Value) {
+        @($identityProperty.Value.PSObject.Properties.Name | Where-Object { $_ -and "$_".Trim() })
+    } else { @() }
+    if ($identityIds.Count -ne 1) {
+        throw "Expected exactly one attached user-assigned identity on SRE Agent '$AgentName' when no action identity is configured; found $($identityIds.Count)."
+    }
+    return [string]($identityIds -join '')
+}
+
+function Get-ZavaManagedIdentityPair {
+    param([Parameter(Mandatory)][string]$IdentityResourceId)
+
+    $json = az identity show --ids $IdentityResourceId -o json 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $json) {
+        throw "Could not read attached user-assigned identity '$IdentityResourceId'."
+    }
+    $identity = $json | ConvertFrom-Json
+    $name = [string]$identity.name
+    $clientId = [string]$identity.clientId
+    if (-not $name.Trim() -or -not $clientId.Trim()) {
+        throw "Attached user-assigned identity '$IdentityResourceId' is missing its name or clientId."
+    }
+    return @{
+        Name = $name.Trim()
+        ClientId = $clientId.Trim()
+    }
+}
+
+function Resolve-ZavaPostgresConfiguration {
+    param(
+        [Parameter(Mandatory)][string]$ResourceGroup,
+        [Parameter(Mandatory)][string]$AgentName,
+        [string]$PostgresHost = '',
+        [string]$PostgresDatabase = '',
+        [string]$SreAgentClientId = '',
+        [string]$SreAgentPrincipalName = '',
+        [hashtable]$AzdEnvironment = @{}
+    )
+
+    $resolvedHost = if ($PostgresHost.Trim()) {
+        $PostgresHost.Trim()
+    } elseif ($AzdEnvironment['DB_HOST'] -and "$($AzdEnvironment['DB_HOST'])".Trim()) {
+        "$($AzdEnvironment['DB_HOST'])".Trim()
+    } else {
+        Get-ZavaSinglePostgresHost -ResourceGroup $ResourceGroup
+    }
+    $resolvedDatabase = if ($PostgresDatabase.Trim()) {
+        $PostgresDatabase.Trim()
+    } elseif ($AzdEnvironment['DB_NAME'] -and "$($AzdEnvironment['DB_NAME'])".Trim()) {
+        "$($AzdEnvironment['DB_NAME'])".Trim()
+    } else {
+        'zava_store'
+    }
+
+    $suppliedClientId = if ($SreAgentClientId.Trim()) {
+        $SreAgentClientId.Trim()
+    } elseif ($AzdEnvironment['SRE_AGENT_CLIENT_ID'] -and "$($AzdEnvironment['SRE_AGENT_CLIENT_ID'])".Trim()) {
+        "$($AzdEnvironment['SRE_AGENT_CLIENT_ID'])".Trim()
+    } else { '' }
+    $suppliedPrincipalName = if ($SreAgentPrincipalName.Trim()) {
+        $SreAgentPrincipalName.Trim()
+    } elseif ($AzdEnvironment['SRE_AGENT_IDENTITY_NAME'] -and "$($AzdEnvironment['SRE_AGENT_IDENTITY_NAME'])".Trim()) {
+        "$($AzdEnvironment['SRE_AGENT_IDENTITY_NAME'])".Trim()
+    } else { '' }
+
+    $identityResourceId = Get-ZavaAgentIdentityResourceId -ResourceGroup $ResourceGroup -AgentName $AgentName
+    $identity = Get-ZavaManagedIdentityPair -IdentityResourceId $identityResourceId
+    if ($suppliedClientId -and $suppliedClientId -ne $identity.ClientId) {
+        throw "The supplied SRE Agent identity client ID does not match the attached user-assigned identity '$($identity.Name)'."
+    }
+    if ($suppliedPrincipalName -and $suppliedPrincipalName -ne $identity.Name) {
+        throw "The supplied SRE Agent identity principal name does not match the attached user-assigned identity selected by client ID '$($identity.ClientId)'."
+    }
+
+    return @{
+        DB_HOST = $resolvedHost
+        DB_NAME = $resolvedDatabase
+        SRE_AGENT_CLIENT_ID = $identity.ClientId
+        SRE_AGENT_PRINCIPAL_NAME = $identity.Name
+    }
+}
+
 if ($RenderOnly) {
     if (-not $ResourceGroup) { throw '-RenderOnly requires -ResourceGroup for local token substitution.' }
-    Get-ZavaConfiguration $configRoot $ResourceGroup $EvidenceToolMode | ConvertTo-Json -Depth 30
+    if (-not $PostgresHost) { $PostgresHost = 'zava-pg-offline.postgres.database.azure.com' }
+    if (-not $PostgresDatabase) { $PostgresDatabase = 'zava_store' }
+    if (-not $SreAgentClientId) { $SreAgentClientId = 'offline-client-id' }
+    if (-not $SreAgentPrincipalName) { $SreAgentPrincipalName = 'sre-agent-zava' }
+    $offlinePostgres = @{
+        DB_HOST = $PostgresHost
+        DB_NAME = $PostgresDatabase
+        SRE_AGENT_CLIENT_ID = $SreAgentClientId
+        SRE_AGENT_PRINCIPAL_NAME = $SreAgentPrincipalName
+    }
+    Get-ZavaConfiguration $configRoot $ResourceGroup $EvidenceToolMode $offlinePostgres | ConvertTo-Json -Depth 30
     return
 }
 
-# Auto-detect from azd env if not provided
-if (-not $ResourceGroup -or -not $AgentName) {
-    try {
-        $envText = azd env get-values 2>$null
-        if ($envText) {
-            $azdEnv = @{}
-            $envText | ForEach-Object {
-                if ($_ -match '^([^=]+)="?([^"]*)"?$') {
-                    $azdEnv[$Matches[1]] = $Matches[2]
-                }
+# Load azd env once, then use it for values that were not provided explicitly.
+$azdEnv = @{}
+try {
+    $envText = azd env get-values 2>$null
+    if ($envText) {
+        $envText | ForEach-Object {
+            if ($_ -match '^([^=]+)="?([^"]*)"?$') {
+                $azdEnv[$Matches[1]] = $Matches[2]
             }
-            if (-not $ResourceGroup) { $ResourceGroup = $azdEnv['RESOURCE_GROUP'] }
-            if (-not $AgentName) { $AgentName = $azdEnv['SRE_AGENT_NAME'] }
         }
-    } catch {}
-}
+    }
+} catch {}
+if (-not $ResourceGroup) { $ResourceGroup = $azdEnv['RESOURCE_GROUP'] }
+if (-not $AgentName) { $AgentName = $azdEnv['SRE_AGENT_NAME'] }
 if (-not $ResourceGroup -or -not $AgentName) {
     Write-Host "ERROR: Provide -ResourceGroup and -AgentName, or run from an azd environment." -ForegroundColor Red
     exit 1
 }
 
-$configuration = Get-ZavaConfiguration $configRoot $ResourceGroup $EvidenceToolMode
+$postgresConfiguration = Resolve-ZavaPostgresConfiguration `
+    -ResourceGroup $ResourceGroup `
+    -AgentName $AgentName `
+    -PostgresHost $PostgresHost `
+    -PostgresDatabase $PostgresDatabase `
+    -SreAgentClientId $SreAgentClientId `
+    -SreAgentPrincipalName $SreAgentPrincipalName `
+    -AzdEnvironment $azdEnv
+$configuration = Get-ZavaConfiguration $configRoot $ResourceGroup $EvidenceToolMode $postgresConfiguration
 
 Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "  Zava SRE Agent Configuration" -ForegroundColor Cyan
@@ -113,12 +260,15 @@ function Invoke-DataPlaneWrite {
         [string]$Label,
         [int]$MaxAttempts = 1,
         [int]$RetryDelaySeconds = 15,
-        [ValidateSet('Put', 'Patch')][string]$Method = 'Put'
+        [ValidateSet('Put', 'Patch')][string]$Method = 'Put',
+        [ValidateSet('application/json', 'application/x-yaml')][string]$ContentType = 'application/json'
     )
 
     $json = $Body | ConvertTo-Json -Depth 20 -Compress
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-        $content = [System.Net.Http.StringContent]::new($json, [System.Text.Encoding]::UTF8, "application/json")
+        # JSON is valid YAML 1.2, so the portal's YAML apply endpoint can receive
+        # this exact object without adding a YAML serializer dependency.
+        $content = [System.Net.Http.StringContent]::new($json, [System.Text.Encoding]::UTF8, $ContentType)
         $response = $null
         try {
             $response = if ($Method -eq 'Patch') {
@@ -173,6 +323,12 @@ function Get-DataPlaneCollection {
     if ($nextLink -and $nextLink.Value) { throw "GET $Path returned a paginated collection; refusing a partial configuration comparison." }
     if ($parsed -is [array]) { return @($parsed) }
     if ($parsed.PSObject.Properties['value'] -and $parsed.value -is [array]) { return @($parsed.value) }
+    if ($parsed.PSObject.Properties['data'] -and
+        $parsed.data.PSObject.Properties['tools'] -and
+        $parsed.data.tools.PSObject.Properties['data'] -and
+        $parsed.data.tools.data -is [array]) {
+        return @($parsed.data.tools.data)
+    }
     throw "GET $Path did not return a resource collection."
 }
 
@@ -234,8 +390,8 @@ $connectorPlan = Get-ZavaConnectorPlan -ConfigRoot $configRoot `
 # Preflight every managed name before the first write. Do not overwrite manually
 # created specialists (or other managed drift) merely because their names match.
 $collections = @{}
-foreach ($kind in @('skills', 'agents', 'incidentFilters')) {
-    $collections[$kind] = @(Get-DataPlaneCollection "/api/v2/extendedAgent/$kind")
+foreach ($kind in @('tools', 'skills', 'agents', 'incidentFilters')) {
+    $collections[$kind] = @(Get-DataPlaneCollection (Get-ZavaCollectionPath $kind))
 }
 $currentInstructions = Get-DataPlaneJson '/api/v2/agent/customInstructions'
 if (-not $currentInstructions.PSObject.Properties['instructions']) {
@@ -261,7 +417,8 @@ Sync-ZavaConnectors -Plan $connectorPlan -TemplatePath (Join-Path $PSScriptRoot 
 # Check registration, not global enablement: skill-gated tools need not be global.
 $requiredEvidenceTools = @($configuration.Resources |
     Where-Object { $_.Kind -eq 'skills' -and $_.Name -like 'zava-*-evidence' } |
-    ForEach-Object { $_.Body.properties.tools } | Sort-Object -Unique)
+    ForEach-Object { $_.Body.properties.tools } |
+    Where-Object { $_ -like 'system-mcp-*' } | Sort-Object -Unique)
 $deadline = (Get-Date).AddMinutes(3)
 do {
     $toolCatalog = Get-DataPlaneJson '/api/v2/agent/tools'
@@ -272,8 +429,9 @@ do {
     Start-Sleep -Seconds 15
 } while ($true)
 
-# --- Step 2: Sync skills, then agents and their hooks ----------------------
-Write-Host "`nStep 2: Syncing skills and named evidence agents..." -ForegroundColor Yellow
+# --- Step 2: Sync tools, skills, then agents and their hooks ---------------
+Write-Host "`nStep 2: Syncing native tools, skills, and named evidence agents..." -ForegroundColor Yellow
+Sync-ZavaResources $syncPlan 'tools'
 Sync-ZavaResources $syncPlan 'skills'
 Sync-ZavaResources $syncPlan 'agents'
 

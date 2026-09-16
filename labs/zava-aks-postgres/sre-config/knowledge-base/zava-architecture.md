@@ -9,9 +9,9 @@ You operate with your **own managed identity** (no app credentials, no passwords
 
 1. **ARM control plane** via `az` (`RunAzCliReadCommands` / `RunAzCliWriteCommands`) — PG state/start/stop/parameters, NSG rules, role lookups, identity, AKS metadata, Azure Monitor.
 2. **Kubernetes** via the built-in `RunKubectlReadCommand` and `RunKubectlWriteCommand` system tools; they accept the same kubectl commands as a terminal. Incident runbooks use these tools directly rather than setting up terminal-native kubectl.
-3. **PostgreSQL SQL** — use `RunKubectlWriteCommand` to run SQL (reads `pg_stat_*`, and read-mostly DDL like `CREATE INDEX CONCURRENTLY` / `ANALYZE`) through the in-cluster helper from an app pod: `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js '<SQL>'` (reuses the app pod's PG Entra identity).
+3. **PostgreSQL SQL** — use `QueryZavaPostgres` for fixed read-only diagnostics and `RepairZavaPostgresIndexes` for the bounded category-index maintenance operations. Both tools use the SRE Agent UMI, private DNS, TLS, and TCP 5432 from the VNet-injected sandbox. Do not submit arbitrary SQL or identifiers.
 
-Note: do **not** rely on database tools that open their PostgreSQL connection from outside the platform-spoke VNet (where PostgreSQL lives) -- they can't reach this private server, and the resulting timeout can be misread as "stopped/network-blocked". Run SQL through the in-cluster helper instead.
+The native tools are the production-style agent path. Operator fault-injection scripts may still use `az aks command invoke` and the in-pod helper when the scenario requires temporary database changes.
 
 ### Identities and authorization (already granted — do not try to elevate)
 Both SRE Agent identities (system-assigned + UMI `id-sre-agent-*`) hold:
@@ -19,7 +19,11 @@ Both SRE Agent identities (system-assigned + UMI `id-sre-agent-*`) hold:
 - **PostgreSQL Entra admin** (matched by managed-identity *display name*, not client-ID GUID).
 - **Reader + Monitoring Reader + Contributor** on the resource group.
 
-The pod's `id-Zava-app-*` identity (used by `bin/run-sql.js`) is also a PG Entra admin. The agent does NOT have `Microsoft.Authorization/roleAssignments/write` and `az role assignment create` will deny.
+The SRE Agent UMI is registered as a PostgreSQL Entra administrator by the ARM `pg-admin-sre-umi` module. PostgreSQL query permissions are database roles, not Azure RBAC. The agent does NOT have `Microsoft.Authorization/roleAssignments/write` and `az role assignment create` will deny.
+
+This administrator grant is a self-contained lab choice. The native tools'
+fixed-operation allow-list is the lab trust boundary. Production should use a
+dedicated least-privilege database principal instead of copying this grant.
 
 ### App namespace and naming
 Namespace `zava-demo`. Deployments `zava-api`, `zava-storefront`. App Insights `cloud_RoleName` is `zava-api`.
@@ -46,8 +50,10 @@ Both services run an in-process probe loop (`PROBE_INTERVAL_MS=1000`) hitting `/
 
 ### Slow-query alerts: inspect the database query path
 When `Zava-products-query-slow` fires, inspect PostgreSQL indexes, scan activity,
-statements, and query plans before changing AKS capacity. Run diagnostic SQL through
-the in-cluster helper: `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js "<SQL>"`.
+statements, and table statistics through `QueryZavaPostgres` before changing AKS
+capacity. The tool does not accept arbitrary SQL or `EXPLAIN`. Apply only the
+fixed maintenance operations through
+`RepairZavaPostgresIndexes`, then verify the follow-up results.
 
 ### Metrics are a first-class signal — three views of the same incident
 For the slow-query failure mode you have logs, metrics, and traces in the shared workspace, and they corroborate each other: the `AppRequests` log signal (`Zava-products-query-slow`, the one dispatching alert), the app's own custom **metric** `zava.products.category.query.duration_ms` in `AppMetrics`, and the `AppDependencies` PostgreSQL-call latency (the trace signal). You **query** the metric and trace as corroboration — they're paired with the alert, not separate dispatching alerts. Treat the metric as primary evidence, not decoration — agreement across all three is what points at the database query rather than pods/CPU/memory.
@@ -67,6 +73,6 @@ the cause, restore the previous revision with
 
 You run VNet-injected in your **own spoke** (`vnet-Zava-agent-*`, `agent-subnet` 10.30.0.0/27), with all egress forced through a **shared Azure Firewall in the hub** (`vnet-Zava-hub-*`) over VNet peering. The workload — AKS and PostgreSQL — sits in a separate **platform spoke** (`vnet-Zava-platform-*`). Your agent subnet is pinned to **your own region** (VNet injection is regional — the subnet must be in the same region as you), but that only fixes *where you run*, not *what you can reach*: peering lets you operate on resources in **other Azure regions** (global VNet peering) or **on-prem** (ExpressRoute/VPN) too — here everything you act on is co-regional, so no cross-region hop is needed. Use the built-in Kubernetes system tools for cluster operations; use ARM / Entra / Microsoft Learn over allow-listed HTTPS and Azure Monitor over the AMPLS private endpoint by default.
 
-When an incident has a network/egress dimension, the **hub Azure Firewall is itself an inspectable resource**: read its policy and rule collections over ARM (your Reader role covers `az network firewall [policy] show`), and see what it actually allowed or denied in the resource-specific **`AZFW*`** Log Analytics tables (`AZFWNetworkRule`, `AZFWApplicationRule`, `AZFWNatRule`, `AZFWDnsQuery`) — those tables exist because the firewall's diagnostic setting uses the `Dedicated` destination. There is no third-party network device in this environment, and your sandbox egress is allow-listed HTTPS only, so you cannot open a raw TCP/SSH socket to a device IP; a device's own telemetry (if one shipped syslog/CEF to this workspace) would be the path, never a direct connection.
+When an incident has a network/egress dimension, the **hub Azure Firewall is itself an inspectable resource**: read its policy and rule collections over ARM (your Reader role covers `az network firewall [policy] show`), and see what it actually allowed or denied in the resource-specific **`AZFW*`** Log Analytics tables (`AZFWNetworkRule`, `AZFWApplicationRule`, `AZFWNatRule`, `AZFWDnsQuery`) — those tables exist because the firewall's diagnostic setting uses the `Dedicated` destination. There is no third-party network device in this environment. The sandbox can use direct TCP only through explicitly allowed VNet paths; for PostgreSQL that path is the agent subnet to the delegated database subnet on TCP 5432. Other device integrations still require their own supported protocol and firewall rules.
 
 **Scope the firewall correctly when diagnosing.** It gates **your** egress only — it is **NOT** in the app→PostgreSQL path. AKS and PostgreSQL share the platform spoke and talk to each other directly (their subnets are not forced through the firewall), so for the app's DB-connectivity / network-partition incidents the enforcement points are the **platform-spoke NSG** and the **in-cluster Kubernetes NetworkPolicy** — not the hub firewall. Treat the firewall as a diagnostic surface for **your own** reachability (e.g., an ARM / Azure Monitor / Microsoft Learn call that is refused or times out), and don't pin an app DB outage on it.

@@ -14,6 +14,9 @@ Run these and install anything missing:
   `Microsoft.Authorization/roleAssignments/write` at subscription scope. The
   template grants the agent runtime identity subscription Reader for correlation
   context and removes it during `azd down`.
+- The responsible owner and expiry date, using the tag keys required by the
+  target subscription. If deployment policy does not apply them, tag the
+  resource group immediately after `azd up`.
 
 > Note: `kubectl` is **not** required on your local workstation. The cluster is private. Operator
 > scripts in this repo go through `az aks command invoke` (wrapped by `scripts/_aks-helpers.ps1`).
@@ -65,8 +68,21 @@ enables the Microsoft Learn tools, and verifies the result.
 `azd up` runs `setup-sre-agent.ps1` through the post-provision hook. Run it
 manually only to retry or apply later configuration changes:
 
-1. Get azd values: `$env:SRE_AGENT_ENDPOINT = azd env get-value SRE_AGENT_ENDPOINT` (and RESOURCE_GROUP, SRE_AGENT_NAME)
-2. Run: `.\scripts\setup-sre-agent.ps1` (auto-detects ResourceGroup and AgentName from `azd env`)
+1. If azd outputs are complete, run `.\scripts\setup-sre-agent.ps1`.
+2. For standalone recovery after partial provisioning, pass the values
+   explicitly:
+   ```powershell
+   .\scripts\setup-sre-agent.ps1 `
+       -ResourceGroup <resource-group> `
+       -AgentName <sre-agent-name> `
+       -PostgresHost <server>.postgres.database.azure.com `
+       -PostgresDatabase zava_store `
+       -SreAgentClientId <attached-umi-client-id> `
+       -SreAgentPrincipalName <attached-umi-resource-name>
+   ```
+   `PostgresHost` must be the Flexible Server FQDN. The principal name must be
+   the resource name of the same attached/action UMI selected by the client ID.
+   Never substitute the SRE Agent resource name while using the UMI client ID.
 3. For missing connectors, skills, or response plans, inspect the reported
    failure and rerun `setup-sre-agent.ps1`. If core agent infrastructure is
    missing, rerun `azd provision`. Do not add sleeps to hide readiness failures:
@@ -90,3 +106,8 @@ This is the same script the running-demo skill uses to tail the agent live durin
 
 ## Teardown
 `azd down --force --purge`
+
+Run teardown from the same `azd` environment. Confirm that the resource group is
+absent and the runtime identity's subscription Reader assignment was removed.
+If the command fails, inspect the reported AMPLS link or role assignment before
+retrying. Use a new environment name for the next deployment.

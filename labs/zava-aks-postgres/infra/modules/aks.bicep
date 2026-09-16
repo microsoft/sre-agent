@@ -71,6 +71,7 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-09-01' = {
         enabled: true
         config: {
           logAnalyticsWorkspaceResourceID: logAnalyticsWorkspaceId
+          useAADAuth: 'true'
         }
       }
       // Enable Azure Policy add-on inline so the subscription's
