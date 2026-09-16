@@ -92,6 +92,11 @@ function Get-ExpList {
     return ''
 }
 
+$AllowAdditionalResources = $false
+if ($ExpectedConfig) {
+    $AllowAdditionalResources = ($ExpectedConfig | Invoke-Jq -Raw -Filter '.allowAdditionalResources // false') -eq 'true'
+}
+
 # ─────────────────────────── ARM + Data-plane setup ───────────────────────────
 
 $API_VERSION = '2025-05-01-preview'
@@ -139,7 +144,13 @@ $Fail = 0
 $Results = [System.Collections.Generic.List[PSCustomObject]]::new()
 
 function Add-Check {
-    param([string]$Name, [string]$Actual, [string]$ExpectedVal)
+    param(
+        [string]$Name,
+        [string]$Actual,
+        [string]$ExpectedVal,
+        [ValidateSet('Exact', 'Minimum', 'Subset')]
+        [string]$Mode = 'Exact'
+    )
     $script:Results.Add([PSCustomObject]@{
         Name     = $Name
         Actual   = $Actual
@@ -152,6 +163,25 @@ function Add-Check {
         $last.Result   = [char]0x2705   # ✅
         $script:Pass++
     }
+    elseif ($Mode -eq 'Minimum' -and [int]$Actual -ge [int]$ExpectedVal) {
+        $last.Expected = "$([char]0x2265)$ExpectedVal"
+        $last.Result = "$([char]0x2705) PASS"
+        $script:Pass++
+    }
+    elseif ($Mode -eq 'Subset') {
+        $actualItems = @($Actual -split ',' | Where-Object { $_ })
+        $expectedItems = @($ExpectedVal -split ',' | Where-Object { $_ })
+        $missing = @($expectedItems | Where-Object { $_ -notin $actualItems })
+        if ($missing.Count -eq 0) {
+            $last.Expected = "includes $ExpectedVal"
+            $last.Result = "$([char]0x2705) PASS"
+            $script:Pass++
+        } else {
+            $last.Expected = "missing $($missing -join ',')"
+            $last.Result = "$([char]0x274C) FAIL"
+            $script:Fail++
+        }
+    }
     elseif ($Actual -eq $ExpectedVal) {
         $last.Result = "$([char]0x2705) PASS"
         $script:Pass++
@@ -161,6 +191,9 @@ function Add-Check {
         $script:Fail++
     }
 }
+
+$CollectionCountMode = if ($AllowAdditionalResources) { 'Minimum' } else { 'Exact' }
+$CollectionNameMode = if ($AllowAdditionalResources) { 'Subset' } else { 'Exact' }
 
 function Add-InfoRow {
     param([string]$Name, [string]$Actual)
@@ -201,18 +234,30 @@ Add-Check 'Incident platform'  ($Props | Invoke-Jq -Raw -Filter '.incidentPlatfo
 # ─────────────────────────── Connectors (ARM) ───────────────────────────
 
 $Connectors   = Invoke-Arm '/DataConnectors'
-$ConnCt       = $Connectors | Invoke-Jq -Filter '.value | length'
-$ConnHealthy  = $Connectors | Invoke-Jq -Filter '[.value[] | select(.properties.provisioningState == "Succeeded")] | length'
-$ConnNames    = ($Connectors | Invoke-Jq -Raw -Filter '.value[].name' | Sort-Object) -join ','
+$ConnCt       = $Connectors | Invoke-Jq -Filter '[.value[] | select((.properties.dataConnectorType // "") | startswith("Knowledge") | not)] | length'
+$ConnHealthy  = $Connectors | Invoke-Jq -Filter '[.value[] | select(((.properties.dataConnectorType // "") | startswith("Knowledge") | not) and .properties.provisioningState == "Succeeded")] | length'
+$ConnNames    = ($Connectors | Invoke-Jq -Raw -Filter '.value[] | select((.properties.dataConnectorType // "") | startswith("Knowledge") | not) | .name' | Sort-Object) -join ','
 $ExpConnCt    = Get-Exp '.connectors | length'
 $ExpConnNames = Get-ExpList '[.connectors[].name]'
 
-Add-Check 'Connectors (total)'   $ConnCt      $ExpConnCt
+Add-Check 'Connectors (total)'   $ConnCt      $ExpConnCt $CollectionCountMode
 Add-Check 'Connectors (healthy)' $ConnHealthy  $ConnCt
 if ($ExpConnNames) {
-    Add-Check 'Connector names' $ConnNames $ExpConnNames
+    Add-Check 'Connector names' $ConnNames $ExpConnNames $CollectionNameMode
 } else {
     Add-InfoRow 'Connector names' $ConnNames
+}
+
+# ─────────────────────────── Knowledge Sources ───────────────────────────
+
+$AllDpConnectors = Invoke-Dp '/api/v2/extendedAgent/connectors'
+$KnowledgeCt = $AllDpConnectors | Invoke-Jq -Filter '[((.value // .)[]?) | select((.properties.dataConnectorType // "") | startswith("Knowledge"))] | length'
+$KnowledgeNames = ($AllDpConnectors | Invoke-Jq -Raw -Filter '(.value // .)[]? | select((.properties.dataConnectorType // "") | startswith("Knowledge")) | .name' | Sort-Object) -join ','
+$ExpKnowledgeCt = Get-Exp '.knowledgeSources | length'
+$ExpKnowledgeNames = Get-ExpList '.knowledgeSources'
+Add-Check 'Knowledge Sources' $KnowledgeCt $ExpKnowledgeCt $CollectionCountMode
+if ($ExpKnowledgeNames) {
+    Add-Check 'Knowledge Source names' $KnowledgeNames $ExpKnowledgeNames $CollectionNameMode
 }
 
 # ─────────────────────────── Managed connectors (ConnectorV2) ───────────────────────────
@@ -223,9 +268,9 @@ $ManagedConnNames    = ($ManagedConnectors | Invoke-Jq -Raw -Filter '.value[]?.n
 $ExpManagedConnCt    = Get-Exp '.managedConnectors | length'
 $ExpManagedConnNames = Get-ExpList '.managedConnectors'
 
-Add-Check 'Managed connectors' $ManagedConnCt $ExpManagedConnCt
+Add-Check 'Managed connectors' $ManagedConnCt $ExpManagedConnCt $CollectionCountMode
 if ($ExpManagedConnNames) {
-    Add-Check 'Managed connector names' $ManagedConnNames $ExpManagedConnNames
+    Add-Check 'Managed connector names' $ManagedConnNames $ExpManagedConnNames $CollectionNameMode
 } else {
     Add-InfoRow 'Managed connector names' $ManagedConnNames
 }
@@ -239,9 +284,9 @@ $SkillNames   = ($Skills | Invoke-Jq -Raw -Filter '(if type == "array" then . el
 $ExpSkillCt   = Get-Exp '.skills | length'
 $ExpSkillNames = Get-ExpList '.skills'
 
-Add-Check 'Skills' $SkillCt $ExpSkillCt
+Add-Check 'Skills' $SkillCt $ExpSkillCt $CollectionCountMode
 if ($ExpSkillNames) {
-    Add-Check 'Skill names' $SkillNames $ExpSkillNames
+    Add-Check 'Skill names' $SkillNames $ExpSkillNames $CollectionNameMode
 } else {
     Add-InfoRow 'Skill names' $SkillNames
 }
@@ -255,9 +300,9 @@ $SaNames    = ($Subagents | Invoke-Jq -Raw -Filter '.value[].name' | Sort-Object
 $ExpSaCt    = Get-Exp '.subagents | length'
 $ExpSaNames = Get-ExpList '.subagents'
 
-Add-Check 'Subagents' $SaCt $ExpSaCt
+Add-Check 'Subagents' $SaCt $ExpSaCt $CollectionCountMode
 if ($ExpSaNames) {
-    Add-Check 'Subagent names' $SaNames $ExpSaNames
+    Add-Check 'Subagent names' $SaNames $ExpSaNames $CollectionNameMode
 } else {
     Add-InfoRow 'Subagent names' $SaNames
 }
@@ -271,9 +316,9 @@ $HookNames    = ($Hooks | Invoke-Jq -Raw -Filter '(.value // .)[].name' | Sort-O
 $ExpHookCt    = Get-Exp '.hooks | length'
 $ExpHookNames = Get-ExpList '.hooks'
 
-Add-Check 'Hooks' $HookCt $ExpHookCt
+Add-Check 'Hooks' $HookCt $ExpHookCt $CollectionCountMode
 if ($ExpHookNames) {
-    Add-Check 'Hook names' $HookNames $ExpHookNames
+    Add-Check 'Hook names' $HookNames $ExpHookNames $CollectionNameMode
 } else {
     Add-InfoRow 'Hook names' $HookNames
 }
@@ -287,27 +332,27 @@ $PromptNames    = ($Prompts | Invoke-Jq -Raw -Filter '(.value // .)[].name' | So
 $ExpPromptCt    = Get-Exp '.commonPrompts | length'
 $ExpPromptNames = Get-ExpList '.commonPrompts'
 
-Add-Check 'Common Prompts' $PromptCt $ExpPromptCt
+Add-Check 'Common Prompts' $PromptCt $ExpPromptCt $CollectionCountMode
 if ($ExpPromptNames) {
-    Add-Check 'Prompt names' $PromptNames $ExpPromptNames
+    Add-Check 'Prompt names' $PromptNames $ExpPromptNames $CollectionNameMode
 } else {
     Add-InfoRow 'Prompt names' $PromptNames
 }
 
 # ─────────────────────────── Scheduled Tasks ───────────────────────────
 
-$Tasks      = Invoke-Dp '/api/v1/scheduledtasks'
-$TaskCt     = $Tasks | Invoke-Jq -Filter 'if type == "array" then length else 0 end'
+$Tasks      = Invoke-Dp '/api/v2/extendedAgent/scheduledtasks'
+$TaskCt     = $Tasks | Invoke-Jq -Filter '(.value // .) | if type == "array" then length else 0 end'
 if (-not $TaskCt) { $TaskCt = '0' }
-$TaskUnique = $Tasks | Invoke-Jq -Filter '[.[].name] | unique | length'
+$TaskUnique = $Tasks | Invoke-Jq -Filter '[(.value // .)[].name] | unique | length'
 if (-not $TaskUnique) { $TaskUnique = '0' }
-$TaskNames    = $Tasks | Invoke-Jq -Raw -Filter '[.[].name] | unique | sort | join(",")'
+$TaskNames    = $Tasks | Invoke-Jq -Raw -Filter '[(.value // .)[].name] | unique | sort | join(",")'
 $ExpTaskCt    = Get-Exp '.scheduledTasks | length'
 $ExpTaskNames = Get-ExpList '.scheduledTasks'
 
-Add-Check 'Scheduled Tasks (unique)' $TaskUnique $ExpTaskCt
+Add-Check 'Scheduled Tasks (unique)' $TaskUnique $ExpTaskCt $CollectionCountMode
 if ($ExpTaskNames) {
-    Add-Check 'Task names' $TaskNames $ExpTaskNames
+    Add-Check 'Task names' $TaskNames $ExpTaskNames $CollectionNameMode
 }
 if ($TaskCt -ne $TaskUnique) {
     Add-InfoRow "  Warning: Duplicates" "${TaskCt} total, ${TaskUnique} unique"
@@ -315,24 +360,24 @@ if ($TaskCt -ne $TaskUnique) {
 
 # ─────────────────────────── Response Plans (Incident Filters) ───────────────────────────
 
-$Filters   = Invoke-Dp '/api/v1/incidentPlayground/filters'
-$FilterCt  = $Filters | Invoke-Jq -Filter 'if type == "array" then length else 0 end'
+$Filters   = Invoke-Dp '/api/v2/extendedAgent/incidentFilters'
+$FilterCt  = $Filters | Invoke-Jq -Filter '(.value // .) | if type == "array" then length else 0 end'
 if (-not $FilterCt) { $FilterCt = '0' }
-$FilterNames    = ($Filters | Invoke-Jq -Raw -Filter '[.[].id] | sort | join(",")' )
+$FilterNames    = ($Filters | Invoke-Jq -Raw -Filter '[(.value // .)[].name] | sort | join(",")' )
 $ExpFilterCt    = Get-Exp '.responsePlans | length'
 $ExpFilterNames = Get-ExpList '[.responsePlans[].name]'
 
-Add-Check 'Response Plans' $FilterCt $ExpFilterCt
+Add-Check 'Response Plans' $FilterCt $ExpFilterCt $CollectionCountMode
 if ($ExpFilterNames) {
-    Add-Check 'Filter names' $FilterNames $ExpFilterNames
+    Add-Check 'Filter names' $FilterNames $ExpFilterNames $CollectionNameMode
 } else {
     Add-InfoRow 'Filter names' $FilterNames
 }
 
 # ─────────────────────────── GitHub ───────────────────────────
 
-$GhStatus     = Invoke-Dp '/api/v1/Github/auth/status'
-$GhConfigured = $GhStatus | Invoke-Jq -Raw -Filter '.isConfigured // .hosts[0].isConfigured // false'
+$GhStatus     = Invoke-Dp '/api/v2/github/domains'
+$GhConfigured = $GhStatus | Invoke-Jq -Raw -Filter 'if ((.values // []) | length) > 0 then true else false end'
 Add-Check 'GitHub OAuth' $GhConfigured '-'
 
 # ─────────────────────────── Repos ───────────────────────────
@@ -344,9 +389,9 @@ $RepoNames    = ($Repos | Invoke-Jq -Raw -Filter '(.value // .)[].name' | Sort-O
 $ExpRepoCt    = Get-Exp '.repos | length'
 $ExpRepoNames = Get-ExpList '.repos'
 
-Add-Check 'Repos' $RepoCt $ExpRepoCt
+Add-Check 'Repos' $RepoCt $ExpRepoCt $CollectionCountMode
 if ($ExpRepoNames) {
-    Add-Check 'Repo names' $RepoNames $ExpRepoNames
+    Add-Check 'Repo names' $RepoNames $ExpRepoNames $CollectionNameMode
 } else {
     Add-InfoRow 'Repo names' $RepoNames
 }

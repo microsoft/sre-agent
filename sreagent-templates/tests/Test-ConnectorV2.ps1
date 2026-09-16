@@ -19,13 +19,14 @@ try {
         $extras.connectorV2[0].spec.connectionName -ne 'office365') {
         throw 'PowerShell assembly did not emit the expected Outlook ConnectorV2 definition.'
     }
-    @{ connectorV2 = @($extras.connectorV2) } |
+    @{ connectorV2 = @($extras.connectorV2); knowledgeItems = @($extras.knowledgeItems) } |
         ConvertTo-Json -Depth 20 |
         Set-Content (Join-Path $TemporaryDirectory 'connector.extras.json')
     $ConnectorExtrasFile = Join-Path $TemporaryDirectory 'connector.extras.json'
 
     $global:ConnectorV2TestCalls = [System.Collections.Generic.List[string]]::new()
     $global:ConnectorV2TestBodies = @{}
+    $global:KnowledgeTestCalls = [System.Collections.Generic.List[string]]::new()
 
     function global:az {
         if ($args[0] -eq 'rest') {
@@ -59,6 +60,13 @@ try {
     }
     Set-Alias -Name Invoke-RestMethod -Value Mock-InvokeRestMethod -Scope Global
 
+    function global:curl {
+        $url = @($args | Where-Object { "$_" -like 'http*' } | Select-Object -First 1)
+        $global:KnowledgeTestCalls.Add("$url")
+        Write-Output '{}'
+        Write-Output '200'
+    }
+
     & (Join-Path $TemplatesDirectory 'bicep/Apply-Extras.ps1') `
         -Subscription test-subscription `
         -ResourceGroup test-resource-group `
@@ -74,18 +82,28 @@ try {
         throw "Unexpected ConnectorV2 call sequence:`n$($global:ConnectorV2TestCalls -join "`n")"
     }
 
+    $expectedKnowledgeCalls = @(
+        'https://agent.test/api/v2/extendedAgent/connectors/onboardinglab-architecture-md'
+        'https://agent.test/api/v2/extendedAgent/connectors/onboardinglab-incident-r-2bcbfae'
+    )
+    if (($global:KnowledgeTestCalls -join "`n") -ne ($expectedKnowledgeCalls -join "`n")) {
+        throw "Unexpected Knowledge Source calls:`n$($global:KnowledgeTestCalls -join "`n")"
+    }
+
     $mcpBody = $global:ConnectorV2TestBodies[$expectedCalls[2]] | ConvertFrom-Json
     $binding = @($mcpBody.properties.connectors)
     if ($binding.Count -ne 1 -or $binding[0].name -ne 'office365' -or $binding[0].connectionName -ne 'office365') {
         throw 'PowerShell did not bind the Office 365 connection to the MCP server configuration.'
     }
 
-    Write-Host 'PASS: PowerShell deploys the Outlook ConnectorV2 connection, access policy, and MCP binding'
+    Write-Host 'PASS: PowerShell deploys valid Knowledge Sources and the complete Outlook ConnectorV2 binding'
 } finally {
     Remove-Item Function:\global:az -ErrorAction SilentlyContinue
     Remove-Item Alias:\global:Invoke-RestMethod -ErrorAction SilentlyContinue
     Remove-Item Function:\global:Mock-InvokeRestMethod -ErrorAction SilentlyContinue
+    Remove-Item Function:\global:curl -ErrorAction SilentlyContinue
     Remove-Variable ConnectorV2TestCalls -Scope Global -ErrorAction SilentlyContinue
     Remove-Variable ConnectorV2TestBodies -Scope Global -ErrorAction SilentlyContinue
+    Remove-Variable KnowledgeTestCalls -Scope Global -ErrorAction SilentlyContinue
     Remove-Item $TemporaryDirectory -Recurse -Force -ErrorAction SilentlyContinue
 }

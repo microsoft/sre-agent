@@ -1,6 +1,7 @@
 {
   "_description": "Expected base configuration for the Azure SRE Agent onboarding lab.",
   "_scenario": "onboardinglab-base",
+  "allowAdditionalResources": true,
   "agent": {
     "accessLevel": "Low",
     "actionMode": "Review",
@@ -12,15 +13,11 @@
     {
       "name": "app-insights",
       "type": "AppInsights"
-    },
-    {
-      "name": "onboardinglab-architecture-md",
-      "type": "KnowledgeSource"
-    },
-    {
-      "name": "onboardinglab-incident-runbook-md",
-      "type": "KnowledgeSource"
     }
+  ],
+  "knowledgeSources": [
+    "onboardinglab-architecture-md",
+    "onboardinglab-incident-r-2bcbfae"
   ],
   "managedConnectors": [
     "office365"

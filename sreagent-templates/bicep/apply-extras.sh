@@ -506,6 +506,14 @@ if [[ "$count" -gt 0 ]]; then
       fname=$(jq -r --argjson i "$i" '.knowledgeItems[$i].name' "$FILE")
       content=$(jq -r --argjson i "$i" '.knowledgeItems[$i].content' "$FILE")
       sanitized=$(echo "$fname" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
+      if [[ ${#sanitized} -gt 32 ]]; then
+        if command -v sha256sum >/dev/null 2>&1; then
+          name_hash=$(printf '%s' "$sanitized" | sha256sum | cut -c1-7)
+        else
+          name_hash=$(printf '%s' "$sanitized" | shasum -a 256 | cut -c1-7)
+        fi
+        sanitized="${sanitized:0:24}-${name_hash}"
+      fi
       b64=$(echo "$content" | base64)
       case "$fname" in
         *.md)   ctype="text/markdown" ;;
@@ -546,6 +554,7 @@ if [[ "$count" -gt 0 ]]; then
         echo "  ok knowledgeItems/${sanitized}"
       else
         echo "  FAILED — PUT knowledgeItems/${sanitized} (HTTP ${http_code})"
+        echo "    $(echo "$result" | sed '$d' | head -2)"
       fi
       [[ $i -lt $((count - 1)) ]] && sleep 5
     done

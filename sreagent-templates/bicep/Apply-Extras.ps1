@@ -687,6 +687,16 @@ if ($kiCount -gt 0) {
                 continue
             }
             $sanitized = ($fname.ToLower() -replace '[^a-z0-9-]', '-') -replace '-+', '-' -replace '^-|-$', ''
+            if ($sanitized.Length -gt 32) {
+                $sha256 = [System.Security.Cryptography.SHA256]::Create()
+                try {
+                    $hashBytes = $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($sanitized))
+                    $nameHash = (([System.BitConverter]::ToString($hashBytes)) -replace '-', '').ToLowerInvariant().Substring(0, 7)
+                } finally {
+                    $sha256.Dispose()
+                }
+                $sanitized = "$($sanitized.Substring(0, 24))-$nameHash"
+            }
             $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($content))
             $ctype = switch -Regex ($fname) {
                 '\.md$'   { "text/markdown" }
@@ -723,6 +733,7 @@ if ($kiCount -gt 0) {
                     Write-Host "  ok knowledgeItems/$sanitized"
                 } else {
                     Write-Host "  FAILED - PUT knowledgeItems/$sanitized (HTTP $httpCode)"
+                    Write-Host "    $(($lines[0..([Math]::Max(0, $lines.Count - 2))] -join ' ') | Select-Object -First 1)"
                 }
             } catch {
                 Write-Host "  FAILED - PUT knowledgeItems/$sanitized (exception)"

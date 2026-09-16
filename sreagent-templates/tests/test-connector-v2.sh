@@ -14,7 +14,7 @@ jq -e '
   .connectorV2[0].spec.apiName == "office365" and
   .connectorV2[0].spec.connectionName == "office365"
 ' "$TMP_DIR/onboarding.extras.json" >/dev/null
-jq '{connectorV2}' "$TMP_DIR/onboarding.extras.json" > "$TMP_DIR/connector.extras.json"
+jq '{connectorV2, knowledgeItems}' "$TMP_DIR/onboarding.extras.json" > "$TMP_DIR/connector.extras.json"
 
 mkdir -p "$TMP_DIR/bin"
 cat > "$TMP_DIR/bin/az" <<'EOF'
@@ -58,6 +58,8 @@ PATH="$TMP_DIR/bin:$PATH" bash "${TEMPLATES_DIR}/bicep/apply-extras.sh" \
   test-subscription test-resource-group test-agent "$TMP_DIR/connector.extras.json" >/dev/null
 
 cat > "$TMP_DIR/expected-calls.log" <<'EOF'
+https://agent.test/api/v2/extendedAgent/connectors/onboardinglab-architecture-md
+https://agent.test/api/v2/extendedAgent/connectors/onboardinglab-incident-r-2bcbfae
 https://agent.test/api/v2/connectorV2/connections/office365
 https://agent.test/api/v2/connectorV2/connections/office365/accessPolicies/office365-policy
 https://agent.test/api/v2/connectorV2/mcpservers/office365
@@ -69,4 +71,4 @@ jq -e '
   .properties.connectors[0].connectionName == "office365"
 ' "$MCP_BODY" >/dev/null
 
-echo 'PASS: Bash deploys the Outlook ConnectorV2 connection, access policy, and MCP binding'
+echo 'PASS: Bash deploys valid Knowledge Sources and the complete Outlook ConnectorV2 binding'

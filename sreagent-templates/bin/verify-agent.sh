@@ -50,6 +50,7 @@ exp_list() {
     echo "$EXPECTED_CONFIG" | jq -r "$path // [] | sort | join(\",\")" 2>/dev/null
   fi
 }
+ALLOW_ADDITIONAL=$(echo "${EXPECTED_CONFIG:-{}}" | jq -r '.allowAdditionalResources // false' 2>/dev/null)
 
 API_VERSION="2025-05-01-preview"
 ARM_BASE="https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.App/agents/${AGENT}"
@@ -85,10 +86,29 @@ FAIL=0
 RESULTS=""
 
 check() {
-  local name="$1" actual="$2" expected="$3"
+  local name="$1" actual="$2" expected="$3" mode="${4:-exact}"
   if [[ "$expected" == "-" ]]; then
     RESULTS="${RESULTS}\n  ${name}|${actual}|—|${GREEN}✅${NC}"
     PASS=$((PASS + 1))
+  elif [[ "$mode" == "minimum" && "$actual" =~ ^[0-9]+$ && "$expected" =~ ^[0-9]+$ && "$actual" -ge "$expected" ]]; then
+    RESULTS="${RESULTS}\n  ${name}|${actual}|≥${expected}|${GREEN}✅ PASS${NC}"
+    PASS=$((PASS + 1))
+  elif [[ "$mode" == "subset" ]]; then
+    local missing="" item
+    IFS=',' read -ra required_items <<< "$expected"
+    for item in "${required_items[@]}"; do
+      [[ -z "$item" ]] && continue
+      if ! printf ',%s,' "$actual" | grep -Fq ",${item},"; then
+        missing="${missing}${missing:+,}${item}"
+      fi
+    done
+    if [[ -z "$missing" ]]; then
+      RESULTS="${RESULTS}\n  ${name}|${actual}|includes ${expected}|${GREEN}✅ PASS${NC}"
+      PASS=$((PASS + 1))
+    else
+      RESULTS="${RESULTS}\n  ${name}|${actual}|missing ${missing}|${RED}❌ FAIL${NC}"
+      FAIL=$((FAIL + 1))
+    fi
   elif [[ "$actual" == "$expected" ]]; then
     RESULTS="${RESULTS}\n  ${name}|${actual}|${expected}|${GREEN}✅ PASS${NC}"
     PASS=$((PASS + 1))
@@ -97,6 +117,13 @@ check() {
     FAIL=$((FAIL + 1))
   fi
 }
+
+COLLECTION_COUNT_MODE="exact"
+COLLECTION_NAME_MODE="exact"
+if [[ "$ALLOW_ADDITIONAL" == "true" ]]; then
+  COLLECTION_COUNT_MODE="minimum"
+  COLLECTION_NAME_MODE="subset"
+fi
 
 echo ""
 echo -e "${BOLD}═══════════════════════════════════════════════════${NC}"
@@ -123,11 +150,11 @@ check "Incident platform" "$(echo "$PROPS" | jq -r '.incidentPlatform')" "$(exp 
 
 # ── Connectors (ARM) ──
 CONNECTORS=$(arm_get "/DataConnectors")
-CONN_CT=$(echo "$CONNECTORS" | jq '.value | length')
-CONN_HEALTHY=$(echo "$CONNECTORS" | jq '[.value[] | select(.properties.provisioningState == "Succeeded")] | length')
-CONN_ERRORED=$(echo "$CONNECTORS" | jq '[.value[] | select(.properties.provisioningState != "Succeeded" and .properties.provisioningState != "Running")] | length')
+CONN_CT=$(echo "$CONNECTORS" | jq '[.value[] | select((.properties.dataConnectorType // "") | startswith("Knowledge") | not)] | length')
+CONN_HEALTHY=$(echo "$CONNECTORS" | jq '[.value[] | select(((.properties.dataConnectorType // "") | startswith("Knowledge") | not) and .properties.provisioningState == "Succeeded")] | length')
+CONN_ERRORED=$(echo "$CONNECTORS" | jq '[.value[] | select(((.properties.dataConnectorType // "") | startswith("Knowledge") | not) and .properties.provisioningState != "Succeeded" and .properties.provisioningState != "Running")] | length')
 EXP_CONN_CT=$(exp '.connectors | length' "-")
-check "Connectors (total)" "$CONN_CT" "$EXP_CONN_CT"
+check "Connectors (total)" "$CONN_CT" "$EXP_CONN_CT" "$COLLECTION_COUNT_MODE"
 check "Connectors (healthy)" "$CONN_HEALTHY" "$CONN_CT"
 # Show errored connectors explicitly
 if [[ "$CONN_ERRORED" -gt 0 ]]; then
@@ -135,9 +162,18 @@ if [[ "$CONN_ERRORED" -gt 0 ]]; then
   RESULTS="${RESULTS}\n  ⚠ Errored connectors|${ERRORED_LIST}||${RED}❌ FAIL${NC}"
   FAIL=$((FAIL + 1))
 fi
-CONN_NAMES=$(echo "$CONNECTORS" | jq -r '.value[].name' 2>/dev/null | sort | tr '\n' ', ' | sed 's/,$//')
+CONN_NAMES=$(echo "$CONNECTORS" | jq -r '.value[] | select((.properties.dataConnectorType // "") | startswith("Knowledge") | not) | .name' 2>/dev/null | sort | paste -sd, -)
 EXP_CONN_NAMES=$(exp_list '.connectors[].name')
-[[ -n "$EXP_CONN_NAMES" ]] && check "Connector names" "$CONN_NAMES" "$EXP_CONN_NAMES" || RESULTS="${RESULTS}\n  Connector names|${CONN_NAMES}|—|"
+[[ -n "$EXP_CONN_NAMES" ]] && check "Connector names" "$CONN_NAMES" "$EXP_CONN_NAMES" "$COLLECTION_NAME_MODE" || RESULTS="${RESULTS}\n  Connector names|${CONN_NAMES}|—|"
+
+# ── Knowledge Sources ──
+ALL_DP_CONNECTORS=$(dp_get "/api/v2/extendedAgent/connectors")
+KNOWLEDGE_NAMES=$(echo "$ALL_DP_CONNECTORS" | jq -r '(.value // .)[]? | select((.properties.dataConnectorType // "") | startswith("Knowledge")) | .name' 2>/dev/null | sort | paste -sd, -)
+KNOWLEDGE_CT=$(awk -F, 'NF && $1 != "" {print NF; next} {print 0}' <<< "$KNOWLEDGE_NAMES")
+EXP_KNOWLEDGE_CT=$(exp '.knowledgeSources | length' "-")
+EXP_KNOWLEDGE_NAMES=$(exp_list '.knowledgeSources')
+check "Knowledge Sources" "$KNOWLEDGE_CT" "$EXP_KNOWLEDGE_CT" "$COLLECTION_COUNT_MODE"
+[[ -n "$EXP_KNOWLEDGE_NAMES" ]] && check "Knowledge Source names" "$KNOWLEDGE_NAMES" "$EXP_KNOWLEDGE_NAMES" "$COLLECTION_NAME_MODE" || true
 
 # ── Managed connectors (ConnectorV2) ──
 MANAGED_CONNECTORS=$(dp_get "/api/v2/connectorV2/mcpservers")
@@ -145,8 +181,8 @@ MANAGED_CONN_CT=$(echo "$MANAGED_CONNECTORS" | jq '.value // [] | length')
 MANAGED_CONN_NAMES=$(echo "$MANAGED_CONNECTORS" | jq -r '.value[]?.name' 2>/dev/null | sort | tr '\n' ',' | sed 's/,$//')
 EXP_MANAGED_CONN_CT=$(exp '.managedConnectors | length' "-")
 EXP_MANAGED_CONN_NAMES=$(exp_list '.managedConnectors')
-check "Managed connectors" "$MANAGED_CONN_CT" "$EXP_MANAGED_CONN_CT"
-[[ -n "$EXP_MANAGED_CONN_NAMES" ]] && check "Managed connector names" "$MANAGED_CONN_NAMES" "$EXP_MANAGED_CONN_NAMES" || RESULTS="${RESULTS}\n  Managed connector names|${MANAGED_CONN_NAMES}|—|"
+check "Managed connectors" "$MANAGED_CONN_CT" "$EXP_MANAGED_CONN_CT" "$COLLECTION_COUNT_MODE"
+[[ -n "$EXP_MANAGED_CONN_NAMES" ]] && check "Managed connector names" "$MANAGED_CONN_NAMES" "$EXP_MANAGED_CONN_NAMES" "$COLLECTION_NAME_MODE" || RESULTS="${RESULTS}\n  Managed connector names|${MANAGED_CONN_NAMES}|—|"
 
 # ── Skills ──
 SKILLS=$(dp_get "/api/v1/extendedAgent/skills")
@@ -154,8 +190,8 @@ SKILL_CT=$(echo "$SKILLS" | jq 'if type == "array" then length elif .value then 
 SKILL_NAMES=$(echo "$SKILLS" | jq -r '(if type == "array" then . elif .value then .value else [] end)[].name' 2>/dev/null | sort | tr '\n' ', ' | sed 's/,$//')
 EXP_SKILL_CT=$(exp '.skills | length' "-")
 EXP_SKILL_NAMES=$(exp_list '.skills')
-check "Skills" "$SKILL_CT" "$EXP_SKILL_CT"
-[[ -n "$EXP_SKILL_NAMES" ]] && check "Skill names" "$SKILL_NAMES" "$EXP_SKILL_NAMES" || RESULTS="${RESULTS}\n  Skill names|${SKILL_NAMES}|—|"
+check "Skills" "$SKILL_CT" "$EXP_SKILL_CT" "$COLLECTION_COUNT_MODE"
+[[ -n "$EXP_SKILL_NAMES" ]] && check "Skill names" "$SKILL_NAMES" "$EXP_SKILL_NAMES" "$COLLECTION_NAME_MODE" || RESULTS="${RESULTS}\n  Skill names|${SKILL_NAMES}|—|"
 
 # ── Subagents ──
 SUBAGENTS=$(dp_get "/api/v2/extendedAgent/agents")
@@ -163,8 +199,8 @@ SA_CT=$(echo "$SUBAGENTS" | jq '.value | length' 2>/dev/null || echo 0)
 SA_NAMES=$(echo "$SUBAGENTS" | jq -r '.value[].name' 2>/dev/null | sort | tr '\n' ', ' | sed 's/,$//')
 EXP_SA_CT=$(exp '.subagents | length' "-")
 EXP_SA_NAMES=$(exp_list '.subagents')
-check "Subagents" "$SA_CT" "$EXP_SA_CT"
-[[ -n "$EXP_SA_NAMES" ]] && check "Subagent names" "$SA_NAMES" "$EXP_SA_NAMES" || RESULTS="${RESULTS}\n  Subagent names|${SA_NAMES}|—|"
+check "Subagents" "$SA_CT" "$EXP_SA_CT" "$COLLECTION_COUNT_MODE"
+[[ -n "$EXP_SA_NAMES" ]] && check "Subagent names" "$SA_NAMES" "$EXP_SA_NAMES" "$COLLECTION_NAME_MODE" || RESULTS="${RESULTS}\n  Subagent names|${SA_NAMES}|—|"
 
 # ── Hooks ──
 HOOKS=$(dp_get "/api/v2/extendedAgent/hooks")
@@ -172,8 +208,8 @@ HOOK_CT=$(echo "$HOOKS" | jq '.value // . | if type == "array" then length else 
 HOOK_NAMES=$(echo "$HOOKS" | jq -r '(.value // .)[].name' 2>/dev/null | sort | tr '\n' ', ' | sed 's/,$//')
 EXP_HOOK_CT=$(exp '.hooks | length' "-")
 EXP_HOOK_NAMES=$(exp_list '.hooks')
-check "Hooks" "$HOOK_CT" "$EXP_HOOK_CT"
-[[ -n "$EXP_HOOK_NAMES" ]] && check "Hook names" "$HOOK_NAMES" "$EXP_HOOK_NAMES" || RESULTS="${RESULTS}\n  Hook names|${HOOK_NAMES}|—|"
+check "Hooks" "$HOOK_CT" "$EXP_HOOK_CT" "$COLLECTION_COUNT_MODE"
+[[ -n "$EXP_HOOK_NAMES" ]] && check "Hook names" "$HOOK_NAMES" "$EXP_HOOK_NAMES" "$COLLECTION_NAME_MODE" || RESULTS="${RESULTS}\n  Hook names|${HOOK_NAMES}|—|"
 
 # ── Common Prompts ──
 PROMPTS=$(dp_get "/api/v2/extendedAgent/commonprompts")
@@ -181,34 +217,32 @@ PROMPT_CT=$(echo "$PROMPTS" | jq '.value // . | if type == "array" then length e
 PROMPT_NAMES=$(echo "$PROMPTS" | jq -r '(.value // .)[].name' 2>/dev/null | sort | tr '\n' ', ' | sed 's/,$//')
 EXP_PROMPT_CT=$(exp '.commonPrompts | length' "-")
 EXP_PROMPT_NAMES=$(exp_list '.commonPrompts')
-check "Common Prompts" "$PROMPT_CT" "$EXP_PROMPT_CT"
-[[ -n "$EXP_PROMPT_NAMES" ]] && check "Prompt names" "$PROMPT_NAMES" "$EXP_PROMPT_NAMES" || RESULTS="${RESULTS}\n  Prompt names|${PROMPT_NAMES}|—|"
+check "Common Prompts" "$PROMPT_CT" "$EXP_PROMPT_CT" "$COLLECTION_COUNT_MODE"
+[[ -n "$EXP_PROMPT_NAMES" ]] && check "Prompt names" "$PROMPT_NAMES" "$EXP_PROMPT_NAMES" "$COLLECTION_NAME_MODE" || RESULTS="${RESULTS}\n  Prompt names|${PROMPT_NAMES}|—|"
 
 # ── Scheduled Tasks ──
-TASKS=$(dp_get "/api/v1/scheduledtasks")
-TASK_CT=$(echo "$TASKS" | jq 'if type == "array" then length else 0 end' 2>/dev/null || echo 0)
-TASK_UNIQUE=$(echo "$TASKS" | jq '[.[].name] | unique | length' 2>/dev/null || echo 0)
-TASK_NAMES=$(echo "$TASKS" | jq -r '[.[].name] | unique | sort | join(",")' 2>/dev/null)
+TASKS=$(dp_get "/api/v2/extendedAgent/scheduledtasks")
+TASK_CT=$(echo "$TASKS" | jq '(.value // .) | if type == "array" then length else 0 end' 2>/dev/null || echo 0)
+TASK_UNIQUE=$(echo "$TASKS" | jq '[(.value // .)[].name] | unique | length' 2>/dev/null || echo 0)
+TASK_NAMES=$(echo "$TASKS" | jq -r '[(.value // .)[].name] | unique | sort | join(",")' 2>/dev/null)
 EXP_TASK_CT=$(exp '.scheduledTasks | length' "-")
 EXP_TASK_NAMES=$(exp_list '.scheduledTasks')
-check "Scheduled Tasks (unique)" "$TASK_UNIQUE" "$EXP_TASK_CT"
-[[ -n "$EXP_TASK_NAMES" ]] && check "Task names" "$TASK_NAMES" "$EXP_TASK_NAMES" || true
+check "Scheduled Tasks (unique)" "$TASK_UNIQUE" "$EXP_TASK_CT" "$COLLECTION_COUNT_MODE"
+[[ -n "$EXP_TASK_NAMES" ]] && check "Task names" "$TASK_NAMES" "$EXP_TASK_NAMES" "$COLLECTION_NAME_MODE" || true
 [[ "$TASK_CT" != "$TASK_UNIQUE" ]] && RESULTS="${RESULTS}\n  ⚠️  Duplicates|${TASK_CT} total, ${TASK_UNIQUE} unique|—|"
 
 # ── Response Plans (Incident Filters) ──
-FILTERS=$(dp_get "/api/v1/incidentPlayground/filters")
-FILTER_CT=$(echo "$FILTERS" | jq 'if type == "array" then length else 0 end' 2>/dev/null || echo 0)
-FILTER_NAMES=$(echo "$FILTERS" | jq -r '.[].id' 2>/dev/null | sort | tr '\n' ', ' | sed 's/,$//')
+FILTERS=$(dp_get "/api/v2/extendedAgent/incidentFilters")
+FILTER_CT=$(echo "$FILTERS" | jq '(.value // .) | if type == "array" then length else 0 end' 2>/dev/null || echo 0)
+FILTER_NAMES=$(echo "$FILTERS" | jq -r '(.value // .)[].name' 2>/dev/null | sort | paste -sd, -)
 EXP_FILTER_CT=$(exp '.responsePlans | length' "-")
 EXP_FILTER_NAMES=$(exp_list '.responsePlans[].name')
-check "Response Plans" "$FILTER_CT" "$EXP_FILTER_CT"
-[[ -n "$EXP_FILTER_NAMES" ]] && check "Filter names" "$FILTER_NAMES" "$EXP_FILTER_NAMES" || RESULTS="${RESULTS}\n  Filter names|${FILTER_NAMES}|—|"
-  EXP_FILTERS=$(find "$EXPECTED_DIR/automations/incident-filters" -name "*.yaml" 2>/dev/null | wc -l | tr -d ' ')
-[[ -n "$EXP_FILTER_NAMES" ]] && check "Filter names" "$FILTER_NAMES" "$EXP_FILTER_NAMES" || RESULTS="${RESULTS}\n  Filter names|${FILTER_NAMES}|—|"
+check "Response Plans" "$FILTER_CT" "$EXP_FILTER_CT" "$COLLECTION_COUNT_MODE"
+[[ -n "$EXP_FILTER_NAMES" ]] && check "Filter names" "$FILTER_NAMES" "$EXP_FILTER_NAMES" "$COLLECTION_NAME_MODE" || RESULTS="${RESULTS}\n  Filter names|${FILTER_NAMES}|—|"
 
 # ── GitHub ──
-GH_STATUS=$(dp_get "/api/v1/Github/auth/status")
-GH_CONFIGURED=$(echo "$GH_STATUS" | jq -r '.isConfigured // .hosts[0].isConfigured // false' 2>/dev/null)
+GH_STATUS=$(dp_get "/api/v2/github/domains")
+GH_CONFIGURED=$(echo "$GH_STATUS" | jq -r 'if ((.values // []) | length) > 0 then true else false end' 2>/dev/null)
 check "GitHub OAuth" "$GH_CONFIGURED" "-"
 
 # ── Repos ──
@@ -217,8 +251,8 @@ REPO_CT=$(echo "$REPOS" | jq '.value // . | if type == "array" then length else 
 REPO_NAMES=$(echo "$REPOS" | jq -r '(.value // .)[].name' 2>/dev/null | sort | tr '\n' ', ' | sed 's/,$//')
 EXP_REPO_CT=$(exp '.repos | length' "-")
 EXP_REPO_NAMES=$(exp_list '.repos')
-check "Repos" "$REPO_CT" "$EXP_REPO_CT"
-[[ -n "$EXP_REPO_NAMES" ]] && check "Repo names" "$REPO_NAMES" "$EXP_REPO_NAMES" || RESULTS="${RESULTS}\n  Repo names|${REPO_NAMES}|—|"
+check "Repos" "$REPO_CT" "$EXP_REPO_CT" "$COLLECTION_COUNT_MODE"
+[[ -n "$EXP_REPO_NAMES" ]] && check "Repo names" "$REPO_NAMES" "$EXP_REPO_NAMES" "$COLLECTION_NAME_MODE" || RESULTS="${RESULTS}\n  Repo names|${REPO_NAMES}|—|"
 
 # ── Print results ──
 echo ""
