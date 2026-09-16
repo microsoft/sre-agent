@@ -64,7 +64,7 @@ Deploy an Azure SRE Agent, break a sample app, and watch it diagnose and fix the
 
 ### One-Command Setup (Recommended)
 
-The `setup.sh` script handles everything: login, deploy, and configure.
+The `setup.sh` script handles prerequisites, login, and deployment. The `azd` post-provision hook configures the agent and fails the deployment if required agent components are missing.
 
 **macOS / Linux:**
 ```bash
@@ -82,8 +82,8 @@ cd sre-agent\labs\starter-lab
 
 The script will:
 1. Check prerequisites
-2. Sign in to Azure (`--use-device-code`)
-3. Sign in to Azure Developer CLI
+2. Reuse existing Azure CLI and Azure Developer CLI sessions, or open browser sign-in when needed
+3. Select the requested Azure subscription
 4. Register resource providers
 5. Ask for GitHub username (optional)
 6. Deploy infrastructure (~5-8 min)
@@ -94,17 +94,17 @@ The script will:
 If you prefer to run each step yourself:
 
 ```bash
-az login --use-device-code
-azd auth login --use-device-code
+az login
+azd auth login
 az provider register -n Microsoft.App --wait
 
 azd env new sre-lab
 azd env set AZURE_LOCATION eastus2
 # Optional: azd env set GITHUB_USER <your-username>
 azd up
-
-bash scripts/post-provision.sh
 ```
+
+If browser sign-in is unavailable, run `az login --use-device-code` and `azd auth login --use-device-code` manually before `azd up`.
 
 ## Verify Setup
 
@@ -113,6 +113,12 @@ Open [sre.azure.com](https://sre.azure.com) → Full Setup → verify:
 - **Incidents**: Connected to Azure Monitor
 - **Azure resources**: 1 resource group
 - **Knowledge sources**: runbook files indexed
+
+If you skipped GitHub during setup, fork the Grubify repository and add it later:
+
+```bash
+bash scripts/setup-github.sh <your-github-username>
+```
 
 ## Scenario 1: IT Operations (No GitHub)
 
@@ -214,9 +220,10 @@ azd down --purge
 | Issue | Fix |
 |-------|-----|
 | Python not found (Windows) | Disable Store aliases, reopen CMD |
-| 405 on response plan | Wait 30s, run: `bash scripts/post-provision.sh --retry` |
+| Agent configuration fails after infrastructure deployment | Run `bash scripts/post-provision.sh --retry`; the script exits nonzero and identifies any missing component. |
+| GitHub was skipped or is not connected | Fork `dm-chelupati/grubify`, then run `bash scripts/setup-github.sh <your-github-username>`. |
 | GitHub issue creation fails | Nudge: "Use the GitHub API to create the issue" |
-| `az login` uses wrong account | Run `az logout` then `az login --use-device-code` |
+| `az login` uses wrong account | Run `az logout`, sign in again, and rerun setup. Use `az login --use-device-code` only when browser sign-in is unavailable. |
 
 ## Resources
 

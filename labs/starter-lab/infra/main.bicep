@@ -6,10 +6,6 @@ param environmentName string
 @description('Primary location for all resources')
 param location string = 'eastus2'
 
-@description('GitHub Personal Access Token (optional - enables GitHub integration)')
-@secure()
-param githubPat string = ''
-
 // Resource group
 var resourceGroupName = 'rg-${environmentName}'
 
