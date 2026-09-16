@@ -64,6 +64,7 @@ def render(template_path):
         fail("trigger.filters.severities must be a non-empty list")
     if any(value not in {f"Sev{index}" for index in range(5)} for value in severities):
         fail("trigger severities must be Sev0 through Sev4")
+    title_contains = require_string(filters.get("title_contains"), "trigger.filters.title_contains")
     merge_window = require_string(filters.get("merge_window"), "trigger.filters.merge_window")
     merge_match = re.fullmatch(r"PT([1-9][0-9]*)H", merge_window)
     if not merge_match:
@@ -134,6 +135,7 @@ def render(template_path):
                 "incidentPlatform": "AzMonitor",
                 "isEnabled": True,
                 "priorities": severities,
+                "titleContains": title_contains,
                 "handlingAgent": agent_name,
                 "agentMode": action_mode,
                 "maxAutomatedInvestigationAttempts": 3,

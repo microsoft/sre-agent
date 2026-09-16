@@ -143,6 +143,43 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
+resource checkoutFailureAlert 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = {
+  name: '${namePrefix}-checkout-failures'
+  location: location
+  tags: tags
+  properties: {
+    displayName: '${namePrefix}-checkout-failures'
+    description: 'Checkout requests returned HTTP 5xx responses during the onboarding lab.'
+    severity: 2
+    enabled: true
+    evaluationFrequency: 'PT1M'
+    windowSize: 'PT5M'
+    scopes: [logAnalytics.id]
+    criteria: {
+      allOf: [
+        {
+          query: '''
+            AppRequests
+            | where TimeGenerated > ago(5m)
+            | where Name == "POST /checkout"
+            | where Success == false or toint(ResultCode) >= 500
+            | summarize FailureCount = count()
+          '''
+          timeAggregation: 'Total'
+          metricMeasureColumn: 'FailureCount'
+          operator: 'GreaterThan'
+          threshold: 0
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    autoMitigate: true
+  }
+}
+
 resource appServicePlan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: appServicePlanName
   location: location
@@ -230,7 +267,7 @@ resource checkoutApp 'Microsoft.Web/sites@2024-04-01' = {
     virtualNetworkSubnetId: resourceId('Microsoft.Network/virtualNetworks/subnets', virtualNetwork.name, applicationSubnetName)
     siteConfig: {
       linuxFxVersion: 'NODE|22-lts'
-      appCommandLine: 'npm start'
+      appCommandLine: 'cd /home/site/wwwroot && npm start'
       alwaysOn: true
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'

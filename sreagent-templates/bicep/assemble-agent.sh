@@ -297,9 +297,11 @@ SYNTH_KNOWLEDGE_DIR=""
 # Discover synthesized knowledge files on disk
 if [[ -d "${DIR}/data/synthesized-knowledge" ]]; then
   SYNTH_DIR_ABS="$(cd "${DIR}/data/synthesized-knowledge" && pwd)"
-  SYNTH_KNOWLEDGE_DIR="$SYNTH_DIR_ABS"
-  SK_COUNT=$(find "$SYNTH_DIR_ABS" -type f | wc -l | tr -d ' ')
-  _log "Found ${SK_COUNT} synthesized knowledge file(s) in data/synthesized-knowledge/"
+  SK_COUNT=$(find "$SYNTH_DIR_ABS" -type f ! -name '.*' | wc -l | tr -d ' ')
+  if [[ "$SK_COUNT" -gt 0 ]]; then
+    SYNTH_KNOWLEDGE_DIR="$SYNTH_DIR_ABS"
+    _log "Found ${SK_COUNT} synthesized knowledge file(s) in data/synthesized-knowledge/"
+  fi
 fi
 REPO_INSTRUCTIONS="[]"
 [[ -f "${DIR}/data/repo-instructions.json" ]] && REPO_INSTRUCTIONS=$(cat "${DIR}/data/repo-instructions.json")

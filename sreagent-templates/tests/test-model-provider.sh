@@ -31,5 +31,6 @@ jq '.defaultModelProvider = "Azure OpenAI"' "$TMP_DIR/default/agent.json" > "$TM
 mv "$TMP_DIR/default/agent.json.tmp" "$TMP_DIR/default/agent.json"
 bash "$TEMPLATES_DIR/bicep/assemble-agent.sh" "$TMP_DIR/default" --output "$TMP_DIR/assembled" >/dev/null
 jq -e '.parameters.defaultModelProvider.value == "MicrosoftFoundry"' "$TMP_DIR/assembled.parameters.json" >/dev/null
+jq -e '.synthesizedKnowledgeDir == ""' "$TMP_DIR/assembled.extras.json" >/dev/null
 
 echo 'PASS: Bash defaults to Anthropic and normalizes Azure OpenAI to MicrosoftFoundry'

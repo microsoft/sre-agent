@@ -41,6 +41,7 @@ class WorkflowTemplateTests(unittest.TestCase):
         response_plan = extras["incidentFilters"][0]
         self.assertEqual(response_plan["metadata"]["name"], "alert-investigation")
         self.assertEqual(response_plan["spec"]["priorities"], ["Sev1", "Sev2"])
+        self.assertEqual(response_plan["spec"]["titleContains"], "flu")
         self.assertEqual(response_plan["spec"]["handlingAgent"], "alert-investigator")
         self.assertEqual(response_plan["spec"]["agentMode"], "Review")
         self.assertEqual(response_plan["spec"]["mergeWindowHours"], 3)

@@ -27,6 +27,7 @@ try {
     $global:ConnectorV2TestCalls = [System.Collections.Generic.List[string]]::new()
     $global:ConnectorV2TestBodies = @{}
     $global:KnowledgeTestCalls = [System.Collections.Generic.List[string]]::new()
+    $global:KnowledgeTestBodies = @{}
 
     function global:az {
         if ($args[0] -eq 'rest') {
@@ -61,8 +62,21 @@ try {
     Set-Alias -Name Invoke-RestMethod -Value Mock-InvokeRestMethod -Scope Global
 
     function global:curl {
-        $url = @($args | Where-Object { "$_" -like 'http*' } | Select-Object -First 1)
+        $arguments = @($args)
+        $url = @($arguments | Where-Object { "$_" -like 'http*' } | Select-Object -First 1)
         $global:KnowledgeTestCalls.Add("$url")
+        $bodyIndex = [Array]::IndexOf($arguments, '--data-binary')
+        if ($bodyIndex -lt 0 -or $bodyIndex + 1 -ge $arguments.Count) {
+            throw 'Knowledge Source curl must send JSON with --data-binary @file.'
+        }
+        $bodyArgument = "$($arguments[$bodyIndex + 1])"
+        if (-not $bodyArgument.StartsWith('@')) {
+            throw 'Knowledge Source curl body must reference a file.'
+        }
+        $bodyPath = $bodyArgument.Substring(1)
+        $bodyJson = Get-Content -LiteralPath $bodyPath -Raw
+        $null = $bodyJson | ConvertFrom-Json
+        $global:KnowledgeTestBodies["$url"] = $bodyJson
         Write-Output '{}'
         Write-Output '200'
     }
@@ -89,6 +103,15 @@ try {
     if (($global:KnowledgeTestCalls -join "`n") -ne ($expectedKnowledgeCalls -join "`n")) {
         throw "Unexpected Knowledge Source calls:`n$($global:KnowledgeTestCalls -join "`n")"
     }
+    foreach ($knowledgeUrl in $expectedKnowledgeCalls) {
+        $knowledgeBody = $global:KnowledgeTestBodies[$knowledgeUrl] | ConvertFrom-Json
+        if ($knowledgeBody.type -ne 'KnowledgeItem' -or
+            $knowledgeBody.properties.dataConnectorType -ne 'KnowledgeFile' -or
+            -not $knowledgeBody.properties.extendedProperties.displayName -or
+            -not $knowledgeBody.properties.extendedProperties.fileContent) {
+            throw "Invalid Knowledge Source request body for $knowledgeUrl"
+        }
+    }
 
     $mcpBody = $global:ConnectorV2TestBodies[$expectedCalls[2]] | ConvertFrom-Json
     $binding = @($mcpBody.properties.connectors)
@@ -105,5 +128,6 @@ try {
     Remove-Variable ConnectorV2TestCalls -Scope Global -ErrorAction SilentlyContinue
     Remove-Variable ConnectorV2TestBodies -Scope Global -ErrorAction SilentlyContinue
     Remove-Variable KnowledgeTestCalls -Scope Global -ErrorAction SilentlyContinue
+    Remove-Variable KnowledgeTestBodies -Scope Global -ErrorAction SilentlyContinue
     Remove-Item $TemporaryDirectory -Recurse -Force -ErrorAction SilentlyContinue
 }

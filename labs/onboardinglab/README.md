@@ -98,6 +98,7 @@ macOS:
 azd auth login
 az login
 az provider register --namespace Microsoft.DBforPostgreSQL --wait
+az provider register --namespace Microsoft.AlertsManagement --wait
 pushd ./ticketingapp-source
 azd up
 popd
@@ -109,6 +110,7 @@ Windows:
 azd auth login
 az login
 az provider register --namespace Microsoft.DBforPostgreSQL --wait
+az provider register --namespace Microsoft.AlertsManagement --wait
 Push-Location .\ticketingapp-source
 azd up
 Pop-Location
@@ -143,7 +145,7 @@ Open the application URL and select **Reserve tickets**.
 
 **1. Fork the ticketing app repository**
 
-The full lab runs from the `microsoft/sre-agent` clone. For the agent's Code Access connection, open [dm-chelupati/onboardinglab-sep15](https://github.com/dm-chelupati/onboardinglab-sep15/fork), select **Fork**, and create the fork under your GitHub account. This separate repository contains the same self-contained ticketing app azd project.
+The full lab runs from the `microsoft/sre-agent` clone. For the agent's Code Access connection, open [dm-chelupati/onboardinglab-sep15](https://github.com/dm-chelupati/onboardinglab-sep15/fork), select **Fork**, and create the fork under your GitHub account. This separate repository contains the same self-contained ticketing app azd project. In the fork, open **Settings** > **General** > **Features** and enable **Issues** so the workflow can propose incident follow-up issues.
 
 Set your fork URL before continuing.
 
@@ -156,6 +158,8 @@ Windows:
 ```powershell
 $GitHubRepositoryUrl = 'https://github.com/YOUR-USER/onboardinglab-sep15.git'
 ```
+
+Before continuing, open the fork's **Issues** tab and confirm the **New issue** button is available.
 
 **2. Generate the base-agent configuration**
 
@@ -215,6 +219,8 @@ $ConfigDirectory = Join-Path $TicketingAppDirectory ".azure\$EnvironmentName\$Ag
 Review the generated `agent.json`, `connectors.json`, managed connector, skill, incident-platform, repository, and `data/*.md` knowledge files before deployment. The shared deployer uploads the Markdown files automatically; do not upload them manually in the portal.
 
 **3. Deploy the base agent**
+
+Keep the terminal open during deployment. When it prints a GitHub OAuth URL, open the URL and approve the SRE Agent app within four minutes. The deployer then connects `ticketingapp-source` and completes strict verification.
 
 macOS:
 
@@ -278,7 +284,7 @@ The recipe uses the same core flow described in [Create and set up your Azure SR
 | Global tool policy | Allows read-only Azure, workspace, monitoring, GitHub, and Outlook tools; requires approval for Azure CLI writes, GitHub issue creation, and Outlook email; denies terminal, file-write, and Kubernetes-write tools. | Automatic | [Tool access policies](https://sre.azure.com/docs/concepts/tool-access-policies) |
 | Self-configuration skill | Installs `sre-agent-self-configure` with guarded Azure CLI read and write tools. Writes require Review-mode approval and are limited to the current agent. | Automatic | [Skills](https://sre.azure.com/docs/concepts/skills), [Tools](https://sre.azure.com/docs/concepts/tools) |
 
-**Complete connection sign-in**
+**Complete Outlook sign-in**
 
 Retrieve and open the SRE Agent URL:
 
@@ -286,10 +292,7 @@ Retrieve and open the SRE Agent URL:
 azd -C ./ticketingapp-source env get-value SRE_AGENT_URL
 ```
 
-Complete the authentication required by the deployed connections:
-
-1. Go to **Build + setup** > **Extensions** > **Connectors**, open **Office 365 Outlook**, and complete OAuth sign-in if the connector requires attention.
-2. In **Connectors**, complete GitHub OAuth for the repository fork.
+Go to **Build + setup** > **Extensions** > **Connectors**, open **Office 365 Outlook**, and complete OAuth sign-in if the connector requires attention. GitHub OAuth was completed during deployment.
 
 > [!CAUTION]
 > Authenticate only through the trusted connection UI. Never place credentials in agent chat or script arguments.

@@ -459,6 +459,13 @@ Write-Host "  2. Dry run:"
 Write-Host "       ./bin/deploy.sh $Output/ --dry-run"
 Write-Host "  3. Deploy:"
 Write-Host "       ./bin/deploy.sh $Output/"
+
+$generatedAgent = Get-Content $outAgentJson -Raw | ConvertFrom-Json
+if ($generatedAgent.defaultModelProvider -eq 'Anthropic' -and $generatedAgent.identity.location -in @('swedencentral', 'uksouth', 'australiaeast')) {
+    Write-Host ''
+    Write-Warning "Anthropic may be blocked by organizational data residency policy in $($generatedAgent.identity.location)."
+    Write-Host "  To use Azure OpenAI, set defaultModelProvider to MicrosoftFoundry in $outAgentJson."
+}
 Write-Host ""
 
 # ── Telemetry ──

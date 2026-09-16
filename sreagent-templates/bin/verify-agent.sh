@@ -192,6 +192,33 @@ EXP_SKILL_CT=$(exp '.skills | length' "-")
 EXP_SKILL_NAMES=$(exp_list '.skills')
 check "Skills" "$SKILL_CT" "$EXP_SKILL_CT" "$COLLECTION_COUNT_MODE"
 [[ -n "$EXP_SKILL_NAMES" ]] && check "Skill names" "$SKILL_NAMES" "$EXP_SKILL_NAMES" "$COLLECTION_NAME_MODE" || RESULTS="${RESULTS}\n  Skill names|${SKILL_NAMES}|—|"
+if [[ -n "$EXPECTED_CONFIG" ]]; then
+  while IFS= read -r skill_name; do
+    [[ -z "$skill_name" ]] && continue
+    SKILL_DETAIL=$(dp_get "/api/v2/extendedAgent/skills/$(printf %s "$skill_name" | jq -sRr @uri)")
+    ACTUAL_SKILL_TOOLS=$(echo "$SKILL_DETAIL" | jq -r '.properties.tools // [] | sort | join(",")')
+    EXPECTED_SKILL_TOOLS=$(echo "$EXPECTED_CONFIG" | jq -r --arg name "$skill_name" '.skillDetails[] | select(.name == $name) | .tools // [] | sort | join(",")')
+    check "Skill tools (${skill_name})" "$ACTUAL_SKILL_TOOLS" "$EXPECTED_SKILL_TOOLS"
+    if [[ $(echo "$EXPECTED_CONFIG" | jq -r --arg name "$skill_name" '.skillDetails[] | select(.name == $name) | .requireDescription // false') == "true" ]]; then
+      [[ -n $(echo "$SKILL_DETAIL" | jq -r '.properties.description // empty') ]] && actual="present" || actual="missing"
+      check "Skill description (${skill_name})" "$actual" "present"
+    fi
+    if [[ $(echo "$EXPECTED_CONFIG" | jq -r --arg name "$skill_name" '.skillDetails[] | select(.name == $name) | .requireContent // false') == "true" ]]; then
+      [[ -n $(echo "$SKILL_DETAIL" | jq -r '.properties.skillContent // empty') ]] && actual="present" || actual="missing"
+      check "Skill content (${skill_name})" "$actual" "present"
+    fi
+  done < <(echo "$EXPECTED_CONFIG" | jq -r '.skillDetails[]?.name')
+fi
+
+# ── Global tool permissions ──
+if [[ -n "$EXPECTED_CONFIG" && $(echo "$EXPECTED_CONFIG" | jq 'has("toolPermissions")') == "true" ]]; then
+  GLOBAL_SETTINGS=$(dp_get "/api/v2/agent/settings/global")
+  for category in allow ask deny; do
+    ACTUAL_PERMISSIONS=$(echo "$GLOBAL_SETTINGS" | jq -r --arg category "$category" '.permissions[$category] // [] | sort | join(",")')
+    EXPECTED_PERMISSIONS=$(echo "$EXPECTED_CONFIG" | jq -r --arg category "$category" '.toolPermissions[$category] // [] | sort | join(",")')
+    check "Tool policy (${category})" "$ACTUAL_PERMISSIONS" "$EXPECTED_PERMISSIONS"
+  done
+fi
 
 # ── Subagents ──
 SUBAGENTS=$(dp_get "/api/v2/extendedAgent/agents")
@@ -253,6 +280,13 @@ EXP_REPO_CT=$(exp '.repos | length' "-")
 EXP_REPO_NAMES=$(exp_list '.repos')
 check "Repos" "$REPO_CT" "$EXP_REPO_CT" "$COLLECTION_COUNT_MODE"
 [[ -n "$EXP_REPO_NAMES" ]] && check "Repo names" "$REPO_NAMES" "$EXP_REPO_NAMES" "$COLLECTION_NAME_MODE" || RESULTS="${RESULTS}\n  Repo names|${REPO_NAMES}|—|"
+if [[ -n "$EXPECTED_CONFIG" ]]; then
+  while IFS=$'\t' read -r repo_name expected_branch; do
+    [[ -z "$repo_name" ]] && continue
+    actual_branch=$(echo "$REPOS" | jq -r --arg name "$repo_name" '(.value // .)[] | select(.name == $name) | .properties.branch // empty')
+    check "Repo branch (${repo_name})" "$actual_branch" "$expected_branch"
+  done < <(echo "$EXPECTED_CONFIG" | jq -r '.repoBranches // {} | to_entries[] | [.key, .value] | @tsv')
+fi
 
 # ── Print results ──
 echo ""

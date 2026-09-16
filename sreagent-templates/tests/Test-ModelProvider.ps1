@@ -49,6 +49,18 @@ try {
     if ($parameters.parameters.defaultModelProvider.value -ne 'MicrosoftFoundry') {
         throw 'PowerShell assembly must normalize stale Azure OpenAI values to MicrosoftFoundry.'
     }
+    $extras = Get-Content "$assembleOutput.extras.json" -Raw | ConvertFrom-Json
+    if ($extras.synthesizedKnowledgeDir -ne '') {
+        throw 'PowerShell assembly must ignore the synthesized-knowledge .gitkeep placeholder.'
+    }
+    if (-not ($extras.toolPermissions.allow -contains 'GetAzCliHelp')) {
+        throw 'PowerShell assembly must include tool-permissions.json in extras.'
+    }
+
+    $deployScript = Get-Content (Join-Path $TemplatesDirectory 'bin/ps/Deploy-Agent.ps1') -Raw
+    if ($deployScript -notmatch "skills\s*=\s*'Skills'" -or $deployScript -notmatch "connectorV2\s*=\s*'Managed connectors'") {
+        throw 'PowerShell deployment summary must include skills and managed connectors.'
+    }
 
     Write-Host 'PASS: PowerShell defaults to Anthropic and normalizes Azure OpenAI to MicrosoftFoundry'
 } finally {

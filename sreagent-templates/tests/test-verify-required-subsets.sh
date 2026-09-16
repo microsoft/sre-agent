@@ -45,6 +45,10 @@ case "$url" in
     printf '%s\n' '{"value":[{"name":"office365"}]}' ;;
   */api/v1/extendedAgent/skills)
     printf '%s\n' '[{"name":"sre-agent-self-configure"},{"name":"azure-monitor-rca"},{"name":"github-issue-followup"},{"name":"email-incident-followup"}]' ;;
+  */api/v2/extendedAgent/skills/sre-agent-self-configure)
+    printf '%s\n' '{"name":"sre-agent-self-configure","properties":{"description":"Configure this agent.","tools":["GetAzCliHelp","RunAzCliReadCommands","RunAzCliWriteCommands"],"skillContent":"# Configure"}}' ;;
+  */api/v2/agent/settings/global)
+    printf '%s\n' '{"permissions":{"allow":["GetAzCliHelp","RunAzCliReadCommands","ReadFile","ListDir","FileSearch","GrepSearch","read_skill_file","system-mcp-monitor/*","FetchGithubIssue","FetchGithubIssues","ListOutlookEmails"],"ask":["RunAzCliWriteCommands","CreateGithubIssue","SendOutlookEmail"],"deny":["RunKubectlWriteCommand","RunInTerminal","Terminal","CreateFile","CreateDirectory","SaveFileToBlob","ReplaceStringInFile","MultiReplaceStringInFile"]}}' ;;
   */api/v2/extendedAgent/agents)
     printf '%s\n' '{"value":[{"name":"alert-investigator"}]}' ;;
   */api/v2/extendedAgent/hooks)
@@ -58,7 +62,7 @@ case "$url" in
   */api/v2/github/domains)
     printf '%s\n' '{"values":[{"name":"github.com","authType":"OAuth","isHealthy":true}]}' ;;
   */api/v2/repos)
-    printf '%s\n' '{"value":[{"name":"ticketingapp-source"}]}' ;;
+    printf '%s\n' '{"value":[{"name":"ticketingapp-source","properties":{"branch":"main"}}]}' ;;
   *) printf '%s\n' '{}' ;;
 esac
 EOF

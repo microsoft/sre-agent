@@ -309,6 +309,9 @@ if (-not $ExtrasFile -or -not (Test-Path $ExtrasFile -ErrorAction SilentlyContin
 if ($ExtrasFile -and (Test-Path $ExtrasFile -ErrorAction SilentlyContinue)) {
     $ExtrasRaw = Get-Content $ExtrasFile -Raw | ConvertFrom-Json
     $ExtrasKeys = @{
+        skills            = 'Skills'
+        subagents         = 'Subagents'
+        tools             = 'Tools'
         hooks             = 'Hooks'
         commonPrompts     = 'Common prompts'
         incidentPlatforms = 'Incident platforms'
@@ -318,6 +321,7 @@ if ($ExtrasFile -and (Test-Path $ExtrasFile -ErrorAction SilentlyContinue)) {
         repos             = 'Repos'
         knowledgeItems    = 'Knowledge files'
         knowledge         = 'Knowledge docs'
+        pluginConfigs     = 'Plugin configs'
         connectorV2       = 'Managed connectors'
     }
     foreach ($key in $ExtrasKeys.Keys) {

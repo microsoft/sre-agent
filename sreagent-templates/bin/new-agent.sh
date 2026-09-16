@@ -365,7 +365,6 @@ echo "  2. Dry run:"
 echo "       ./bin/deploy.sh ${OUTPUT}/ --dry-run"
 echo "  3. Deploy:"
 echo "       ./bin/deploy.sh ${OUTPUT}/"
-echo "  3. When validation passes, remove --validate-only to deploy."
 
 # ── Data residency warning ──
 _model=$(jq -r '.defaultModelProvider // "Anthropic"' "${OUTPUT}/agent.json" 2>/dev/null)
@@ -379,7 +378,7 @@ if [[ "$_model" == "Anthropic" ]]; then
       echo "     data residency policy. If you see 'Anthropic is not available due to"
       echo "     your organization's data residency policy' in the portal, switch to"
       echo "     Azure OpenAI:"
-      echo "       Edit ${OUTPUT}/agent.json → set \"defaultModelProvider\": \"Azure OpenAI\""
+      echo "       Edit ${OUTPUT}/agent.json → set \"defaultModelProvider\": \"MicrosoftFoundry\""
       echo
       ;;
   esac

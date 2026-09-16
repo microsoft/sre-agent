@@ -5,6 +5,7 @@ trigger:
   platform: azure-monitor
   filters:
     severities: [Sev1, Sev2]
+    title_contains: flu
     merge_window: PT3H
 
 prerequisites:

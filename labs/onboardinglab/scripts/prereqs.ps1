@@ -130,6 +130,60 @@ function Ensure-Node {
     }
 }
 
+function Get-WorkingPython {
+    $candidates = @(
+        @{ Command = 'py'; Arguments = @('-3') },
+        @{ Command = 'python'; Arguments = @() },
+        @{ Command = 'python3'; Arguments = @() }
+    )
+    foreach ($candidate in $candidates) {
+        $resolved = Get-Command $candidate.Command -ErrorAction SilentlyContinue
+        if (-not $resolved) { continue }
+        $version = & $resolved.Source @($candidate.Arguments) -c 'import sys; print(sys.version.split()[0])' 2>$null
+        if ($LASTEXITCODE -eq 0 -and $version) {
+            return [pscustomobject]@{
+                Command = $resolved.Source
+                Arguments = @($candidate.Arguments)
+                Version = ($version -join '').Trim()
+            }
+        }
+    }
+    return $null
+}
+
+function Ensure-Python {
+    $python = Get-WorkingPython
+    if (-not $python) {
+        Write-Host '  [missing] Python 3'
+        if ($Check) {
+            $script:Missing++
+            return
+        }
+        Install-WinGetPackage -Name 'Python 3' -Id 'Python.Python.3.12'
+        $python = Get-WorkingPython
+        if (-not $python) { throw 'Python was installed but is not executable in this terminal.' }
+    }
+
+    Write-Host "  [ok] Python $($python.Version)"
+    & $python.Command @($python.Arguments) -c 'import yaml' 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host '  [ok] PyYAML'
+        $script:Python = $python
+        return
+    }
+
+    Write-Host '  [missing] PyYAML'
+    if ($Check) {
+        $script:Missing++
+        return
+    }
+    & $python.Command @($python.Arguments) -m pip install PyYAML
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to install PyYAML with the selected Python interpreter.' }
+    & $python.Command @($python.Arguments) -c 'import yaml' 2>$null
+    if ($LASTEXITCODE -ne 0) { throw 'PyYAML is still unavailable after installation.' }
+    $script:Python = $python
+}
+
 function Restore-AppDependencies {
     $appPath = Join-Path $PSScriptRoot '..\ticketingapp-source\app'
     if (-not (Test-Path (Join-Path $appPath 'package-lock.json'))) {
@@ -161,6 +215,8 @@ Write-Host ''
 Ensure-Command -Name 'Azure CLI' -Command 'az' -PackageId 'Microsoft.AzureCLI'
 Ensure-Command -Name 'Azure Developer CLI' -Command 'azd' -PackageId 'Microsoft.Azd'
 Ensure-Command -Name 'PowerShell 7' -Command 'pwsh' -PackageId 'Microsoft.PowerShell'
+Ensure-Command -Name 'jq' -Command 'jq' -PackageId 'jqlang.jq'
+Ensure-Python
 Ensure-Node
 
 if (Get-Command npm -ErrorAction SilentlyContinue) {
@@ -181,7 +237,7 @@ if ($Check) {
 }
 else {
     Update-ProcessPath
-    foreach ($command in @('az', 'azd', 'pwsh', 'node')) {
+    foreach ($command in @('az', 'azd', 'pwsh', 'jq', 'node')) {
         if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
             throw "Required command is still unavailable: $command. Open a new terminal and rerun with -Check."
         }
@@ -197,6 +253,7 @@ Restore-AppDependencies
 Write-Host ''
 Write-Host 'All local prerequisites are installed and active in this terminal.'
 Write-Host "  Node.js: $(& node --version) ($((Get-Command node).Source))"
+Write-Host "  Python: $($script:Python.Version) ($($script:Python.Command))"
 Write-Host "  npm registry: $((& npm config get registry).Trim())"
 if (-not $Check) {
     Write-Host '  App dependencies: restored'

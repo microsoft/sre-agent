@@ -722,11 +722,13 @@ if ($kiCount -gt 0) {
             } | ConvertTo-Json -Compress -Depth 10
             $token = Get-DpToken
             $url = "${AgentEndpoint}/api/v2/extendedAgent/connectors/$([Uri]::EscapeDataString($sanitized))"
+            $bodyFile = [System.IO.Path]::GetTempFileName()
             try {
+                Set-Content -Path $bodyFile -Value $body -Encoding utf8NoBOM -NoNewline
                 $result = curl -sS -w "`n%{http_code}" -X PUT $url `
                     -H "Authorization: Bearer $token" `
                     -H "Content-Type: application/json" `
-                    --data $body 2>$null
+                    --data-binary "@$bodyFile" 2>$null
                 $lines = $result -split "`n"
                 $httpCode = $lines[-1]
                 if ($httpCode -match '^2') {
@@ -746,6 +748,8 @@ if ($kiCount -gt 0) {
                 }
             } catch {
                 Write-Host "  FAILED - PUT knowledgeItems/$sanitized (exception)"
+            } finally {
+                Remove-Item $bodyFile -Force -ErrorAction SilentlyContinue
             }
             if ($i -lt ($kiCount - 1)) { Start-Sleep -Seconds 5 }
         }
@@ -760,7 +764,7 @@ if ($kiCount -gt 0) {
 # ═════════════════════════════════════════════════════════════════════════════
 $synthDir = $extras.synthesizedKnowledgeDir
 if ($synthDir -and (Test-Path $synthDir -PathType Container)) {
-    $skFiles = Get-ChildItem -Path $synthDir -File -Recurse
+    $skFiles = @(Get-ChildItem -Path $synthDir -File -Recurse | Where-Object { -not $_.Name.StartsWith('.') })
     $skCount = $skFiles.Count
     if ($skCount -gt 0) {
         if ($DpTokenAvailable) {
@@ -876,6 +880,36 @@ if ($pcCount -gt 0) {
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
+# 4f-2. toolPermissions — data-plane PUT /api/v2/agent/settings/global
+# ═════════════════════════════════════════════════════════════════════════════
+$toolPermissions = if ($extras.PSObject.Properties['toolPermissions']) { $extras.toolPermissions } else { $null }
+if ($toolPermissions) {
+    if ($DpTokenAvailable) {
+        Write-Host "toolPermissions: configuring"
+        $token = Get-DpToken
+        $settingsUrl = "$AgentEndpoint/api/v2/agent/settings/global"
+        $etag = "*"
+        try {
+            $currentSettings = Invoke-WebRequest -TimeoutSec 30 -Uri $settingsUrl `
+                -Headers @{ Authorization = "Bearer $token" } -ErrorAction Stop
+            if ($currentSettings.Headers.ETag) { $etag = $currentSettings.Headers.ETag }
+        } catch { }
+        $body = @{ permissions = $toolPermissions } | ConvertTo-Json -Compress -Depth 10
+        try {
+            $null = Invoke-RestMethod -TimeoutSec 30 -Uri $settingsUrl -Method Put `
+                -Headers @{ Authorization = "Bearer $token"; "If-Match" = $etag } `
+                -Body $body -ContentType "application/json" -ErrorAction Stop
+            Write-Host "  ok toolPermissions"
+        } catch {
+            Write-Host "  FAILED - PUT settings/global"
+        }
+    } else {
+        Write-Host "toolPermissions - WARNING skipped (no data-plane token)"
+        $DpSkippedItems.Add("toolPermissions")
+    }
+}
+
+# ═════════════════════════════════════════════════════════════════════════════
 # 4g-1. skills — data-plane PUT
 # Route: PUT /api/v2/extendedAgent/skills/{name}
 # ═════════════════════════════════════════════════════════════════════════════
@@ -886,13 +920,12 @@ if ($skCount -gt 0) {
         Write-Host "skills: $skCount"
         foreach ($sk in $skillItems) {
             $name = if ($sk.metadata) { $sk.metadata.name } else { $sk.name }
-            $spec = if ($sk.spec) { $sk.spec } else { $sk.properties }
             $props = @{
-                name            = if ($spec.name) { $spec.name } else { $name }
-                description     = if ($spec.description) { $spec.description } else { "" }
-                tools           = if ($spec.tools) { @($spec.tools) } else { @() }
-                skillContent    = if ($spec.skillContent) { $spec.skillContent } else { "" }
-                additionalFiles = if ($spec.additionalFiles) { @($spec.additionalFiles) } else { @() }
+                name            = $name
+                description     = if ($sk.metadata.description) { $sk.metadata.description } else { "" }
+                tools           = if ($sk.metadata.spec.tools) { @($sk.metadata.spec.tools) } else { @() }
+                skillContent    = if ($sk.skillContent) { $sk.skillContent } else { "" }
+                additionalFiles = if ($sk.additionalFiles) { @($sk.additionalFiles) } else { @() }
             }
             DataPlane-PutExtended -Kind "skills" -Name $name -Type "Skill" -Tags @() -Properties $props
         }
@@ -1268,8 +1301,10 @@ if ($DpTokenAvailable) {
                 default { "GitHub" }
             }
             $rdesc = if ($repo.spec.description) { $repo.spec.description } else { "" }
+            $rbranch = if ($repo.spec.branch) { $repo.spec.branch } else { "" }
             $rbody = @{ name = $rname; type = "CodeRepo"; properties = @{ url = $rurl; type = $rtype } }
             if ($rdesc) { $rbody.properties.description = $rdesc }
+            if ($rbranch) { $rbody.properties.branch = $rbranch }
             $rbodyJson = $rbody | ConvertTo-Json -Depth 5 -Compress
             try {
                 $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/repos/$([Uri]::EscapeDataString($rname))" `
@@ -1390,8 +1425,10 @@ if ($DpTokenAvailable) {
                     default { "GitHub" }
                 }
                 $rdesc = if ($repo.spec.description) { $repo.spec.description } else { "" }
+                $rbranch = if ($repo.spec.branch) { $repo.spec.branch } else { "" }
                 $rProps = @{ url = $rurl; type = $rtype }
                 if ($rdesc) { $rProps.description = $rdesc }
+                if ($rbranch) { $rProps.branch = $rbranch }
                 $rbody = @{
                     name       = $rname
                     type       = "CodeRepo"

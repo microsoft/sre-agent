@@ -290,6 +290,33 @@ if ($ExpSkillNames) {
 } else {
     Add-InfoRow 'Skill names' $SkillNames
 }
+if ($ExpectedConfig) {
+    $expectedObject = $ExpectedConfig | ConvertFrom-Json
+    if ($expectedObject.PSObject.Properties['skillDetails']) {
+        foreach ($expectedSkill in $expectedObject.skillDetails) {
+            $skillDetail = Invoke-Dp "/api/v2/extendedAgent/skills/$([uri]::EscapeDataString($expectedSkill.name))"
+            $actualTools = $skillDetail | Invoke-Jq -Raw -Filter '.properties.tools // [] | sort | join(",")'
+            $expectedTools = @($expectedSkill.tools | Sort-Object) -join ','
+            Add-Check "Skill tools ($($expectedSkill.name))" $actualTools $expectedTools
+            if ($expectedSkill.requireDescription) {
+                $description = $skillDetail | Invoke-Jq -Raw -Filter '.properties.description // empty'
+                Add-Check "Skill description ($($expectedSkill.name))" $(if ($description) { 'present' } else { 'missing' }) 'present'
+            }
+            if ($expectedSkill.requireContent) {
+                $content = $skillDetail | Invoke-Jq -Raw -Filter '.properties.skillContent // empty'
+                Add-Check "Skill content ($($expectedSkill.name))" $(if ($content) { 'present' } else { 'missing' }) 'present'
+            }
+        }
+    }
+    if ($expectedObject.PSObject.Properties['toolPermissions']) {
+        $globalSettings = Invoke-Dp '/api/v2/agent/settings/global'
+        foreach ($category in @('allow', 'ask', 'deny')) {
+            $actualPermissions = $globalSettings | Invoke-Jq -Raw -Filter ".permissions.$category // [] | sort | join(`",`")"
+            $expectedPermissions = $ExpectedConfig | Invoke-Jq -Raw -Filter ".toolPermissions.$category // [] | sort | join(`",`")"
+            Add-Check "Tool policy ($category)" $actualPermissions $expectedPermissions
+        }
+    }
+}
 
 # ─────────────────────────── Subagents ───────────────────────────
 
@@ -394,6 +421,14 @@ if ($ExpRepoNames) {
     Add-Check 'Repo names' $RepoNames $ExpRepoNames $CollectionNameMode
 } else {
     Add-InfoRow 'Repo names' $RepoNames
+}
+if ($ExpectedConfig -and $expectedObject.PSObject.Properties['repoBranches']) {
+    foreach ($expectedRepo in $expectedObject.repoBranches.PSObject.Properties) {
+        $repoName = $expectedRepo.Name
+        $repo = @($Repos | ConvertFrom-Json).value | Where-Object name -eq $repoName | Select-Object -First 1
+        $actualBranch = if ($repo) { $repo.properties.branch } else { '' }
+        Add-Check "Repo branch ($repoName)" $actualBranch $expectedRepo.Value
+    }
 }
 
 # ─────────────────────────── Print results table ───────────────────────────

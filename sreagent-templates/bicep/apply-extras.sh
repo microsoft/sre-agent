@@ -576,12 +576,12 @@ fi
 # 4a-3. synthesizedKnowledge — tar.gz upload to WorkspaceMemory (data-plane)
 synth_dir=$(jq -r '.synthesizedKnowledgeDir // empty' "$FILE")
 if [[ -n "$synth_dir" && -d "$synth_dir" ]]; then
-  sk_count=$(find "$synth_dir" -type f | wc -l | tr -d ' ')
+  sk_count=$(find "$synth_dir" -type f ! -name '.*' | wc -l | tr -d ' ')
   if [[ "$sk_count" -gt 0 ]]; then
     if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
       echo "synthesizedKnowledge: ${sk_count} file(s)"
       tarball=$(mktemp -t synth.XXXXXX.tar.gz)
-      tar -czf "$tarball" -C "$synth_dir" .
+      tar -czf "$tarball" -C "$synth_dir" --exclude='.*' .
       token=$(_dp_token) || { echo "    FAILED — token"; rm -f "$tarball"; }
       if [[ -n "$token" ]]; then
         echo "  data-plane POST WorkspaceMemory/synthesized-knowledge (${sk_count} files)"
@@ -769,6 +769,7 @@ if [[ ${#byoapp_repos[@]} -gt 0 && "$DP_TOKEN_AVAILABLE" == "true" ]]; then
   for rname in "${byoapp_repos[@]}"; do
     rurl=$(jq -r --arg n "$rname" '[.repos[] | select(.name == $n)][0].spec.url' "$FILE")
     rdesc=$(jq -r --arg n "$rname" '[.repos[] | select(.name == $n)][0].spec.description // ""' "$FILE")
+    rbranch=$(jq -r --arg n "$rname" '[.repos[] | select(.name == $n)][0].spec.branch // ""' "$FILE")
     rtype_in=$(jq -r --arg n "$rname" '[.repos[] | select(.name == $n)][0].spec.type // "github"' "$FILE")
     case "$(printf %s "$rtype_in" | tr "[:upper:]" "[:lower:]")" in
       ado|azuredevops|azure-devops) rtype="AzureDevOps" ;;
@@ -778,10 +779,12 @@ if [[ ${#byoapp_repos[@]} -gt 0 && "$DP_TOKEN_AVAILABLE" == "true" ]]; then
     if [[ "$rurl" != http* && "$rurl" == */* ]]; then
       rurl="https://github.com/${rurl}"
     fi
-    rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg t "$rtype" --arg d "$rdesc" '{
+    rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg t "$rtype" --arg d "$rdesc" --arg b "$rbranch" '{
       name: $n,
       type: "CodeRepo",
-      properties: ({ url: $u, type: $t } + (if $d == "" then {} else { description: $d } end))
+      properties: ({ url: $u, type: $t }
+        + (if $d == "" then {} else { description: $d } end)
+        + (if $b == "" then {} else { branch: $b } end))
     }')
     if curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/repos/$(printf %s "$rname" | jq -sRr @uri)" \
          -H "Authorization: Bearer ${TOKEN}" \
@@ -1187,10 +1190,13 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
         *)                            rtype="GitHub" ;;
       esac
       rdesc=$(jq -r --argjson i "$i" '.repos[$i].spec.description // ""' "$FILE")
-      rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg t "$rtype" --arg d "$rdesc" '{
+      rbranch=$(jq -r --argjson i "$i" '.repos[$i].spec.branch // ""' "$FILE")
+      rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg t "$rtype" --arg d "$rdesc" --arg b "$rbranch" '{
         name: $n,
         type: "CodeRepo",
-        properties: ({ url: $u, type: $t } + (if $d == "" then {} else { description: $d } end))
+        properties: ({ url: $u, type: $t }
+          + (if $d == "" then {} else { description: $d } end)
+          + (if $b == "" then {} else { branch: $b } end))
       }')
       if curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/repos/$(printf %s "$rname" | jq -sRr @uri)" \
            -H "Authorization: Bearer ${TOKEN}" \
@@ -1251,7 +1257,9 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
           fi
           rtype_in=$(jq -r --argjson i "$i" '.repos[$i].spec.type // "github"' "$FILE")
           case "$(printf %s "$rtype_in" | tr "[:upper:]" "[:lower:]")" in ado*) rtype="AzureDevOps" ;; *) rtype="GitHub" ;; esac
-          rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg t "$rtype" '{name:$n,type:"CodeRepo",properties:{url:$u,type:$t}}')
+          rbranch=$(jq -r --argjson i "$i" '.repos[$i].spec.branch // ""' "$FILE")
+          rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg t "$rtype" --arg b "$rbranch" \
+            '{name:$n,type:"CodeRepo",properties:({url:$u,type:$t} + (if $b == "" then {} else {branch:$b} end))}')
           curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/repos/$(printf %s "$rname" | jq -sRr @uri)" \
             -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" --data "$rbody" >/dev/null && \
             echo "  ok repo/${rname}" || echo "  FAILED repo/${rname}"

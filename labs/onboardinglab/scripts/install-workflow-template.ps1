@@ -16,16 +16,34 @@ $applyExtras = Join-Path $repoRoot 'sreagent-templates/bicep/Apply-Extras.ps1'
 if (-not (Test-Path -LiteralPath $Template -PathType Leaf)) { throw "Template not found: $Template" }
 if (-not (Test-Path -LiteralPath $renderer -PathType Leaf)) { throw "Renderer not found: $renderer" }
 if (-not (Test-Path -LiteralPath $applyExtras -PathType Leaf)) { throw "Shared extras installer not found: $applyExtras" }
-foreach ($command in @('az', 'python3')) {
+foreach ($command in @('az', 'jq')) {
     if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "Required command not found: $command" }
 }
+
+function Get-WorkflowPython {
+    foreach ($candidate in @(
+        @{ Command = 'py'; Arguments = @('-3') },
+        @{ Command = 'python'; Arguments = @() },
+        @{ Command = 'python3'; Arguments = @() }
+    )) {
+        $resolved = Get-Command $candidate.Command -ErrorAction SilentlyContinue
+        if (-not $resolved) { continue }
+        & $resolved.Source @($candidate.Arguments) -c 'import yaml' 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            return [pscustomobject]@{ Command = $resolved.Source; Arguments = @($candidate.Arguments) }
+        }
+    }
+    throw 'A working Python 3 interpreter with PyYAML is required. Run . .\scripts\prereqs.ps1, then retry.'
+}
+
+$python = Get-WorkflowPython
 
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "onboarding-workflow-$([guid]::NewGuid())"
 New-Item -ItemType Directory -Path $tempDir | Out-Null
 try {
     $extrasFile = Join-Path $tempDir 'workflow.extras.json'
     $agentExtrasFile = Join-Path $tempDir 'workflow-agent.extras.json'
-    & python3 $renderer --template $Template --output $extrasFile
+    & $python.Command @($python.Arguments) $renderer --template $Template --output $extrasFile
 
     $agents = @(& az resource list --subscription $Subscription --resource-type Microsoft.App/agents `
         --query "[?name=='$AgentName'].{id:id,resourceGroup:resourceGroup}" --output json | ConvertFrom-Json)

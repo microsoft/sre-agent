@@ -26,6 +26,18 @@
   "skills": [
     "sre-agent-self-configure"
   ],
+  "skillDetails": [
+    {
+      "name": "sre-agent-self-configure",
+      "tools": [
+        "GetAzCliHelp",
+        "RunAzCliReadCommands",
+        "RunAzCliWriteCommands"
+      ],
+      "requireDescription": true,
+      "requireContent": true
+    }
+  ],
   "subagents": [],
   "hooks": [
     "evidence-checklist"
@@ -37,5 +49,38 @@
   "responsePlans": [],
   "repos": [
     "ticketingapp-source"
-  ]
+  ],
+  "repoBranches": {
+    "ticketingapp-source": "main"
+  },
+  "toolPermissions": {
+    "allow": [
+      "GetAzCliHelp",
+      "RunAzCliReadCommands",
+      "ReadFile",
+      "ListDir",
+      "FileSearch",
+      "GrepSearch",
+      "read_skill_file",
+      "system-mcp-monitor/*",
+      "FetchGithubIssue",
+      "FetchGithubIssues",
+      "ListOutlookEmails"
+    ],
+    "ask": [
+      "RunAzCliWriteCommands",
+      "CreateGithubIssue",
+      "SendOutlookEmail"
+    ],
+    "deny": [
+      "RunKubectlWriteCommand",
+      "RunInTerminal",
+      "Terminal",
+      "CreateFile",
+      "CreateDirectory",
+      "SaveFileToBlob",
+      "ReplaceStringInFile",
+      "MultiReplaceStringInFile"
+    ]
+  }
 }
