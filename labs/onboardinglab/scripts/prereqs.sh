@@ -122,6 +122,50 @@ ensure_node() {
   hash -r
 }
 
+ensure_python() {
+  local python_home
+
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "  [missing] Python 3"
+    if [[ "$ONBOARDING_CHECK_ONLY" == true ]]; then
+      ONBOARDING_MISSING=$((ONBOARDING_MISSING + 1))
+      return 0
+    fi
+    ensure_homebrew || return 1
+    echo "  [install] Python 3"
+    brew install python || return 1
+    export PATH="$(brew --prefix python)/bin:$PATH"
+    hash -r
+  fi
+
+  echo "  [ok] $(python3 --version 2>&1)"
+  if python3 -c 'import yaml' >/dev/null 2>&1; then
+    echo "  [ok] PyYAML"
+    return 0
+  fi
+
+  echo "  [missing] PyYAML"
+  if [[ "$ONBOARDING_CHECK_ONLY" == true ]]; then
+    ONBOARDING_MISSING=$((ONBOARDING_MISSING + 1))
+    return 0
+  fi
+
+  echo "  [install] PyYAML"
+  if python3 -m pip install --user pyyaml >/dev/null 2>&1 && python3 -c 'import yaml' >/dev/null 2>&1; then
+    echo "  [ok] PyYAML"
+    return 0
+  fi
+
+  python_home="${XDG_CACHE_HOME:-${HOME:-$PWD/.cache}/.cache}/sre-agent/onboarding-python"
+  echo "  [isolate] Creating Python environment at $python_home"
+  python3 -m venv --clear "$python_home" || return 1
+  "$python_home/bin/python3" -m pip install pyyaml >/dev/null || return 1
+  export PATH="$python_home/bin:$PATH"
+  hash -r
+  python3 -c 'import yaml' >/dev/null 2>&1 || return 1
+  echo "  [active] Python $(python3 --version 2>&1) with PyYAML ($(command -v python3))"
+}
+
 restore_app_dependencies() {
   if [[ ! -f "./ticketingapp-source/app/package-lock.json" ]]; then
     echo "Run this script from the labs/onboardinglab directory." >&2
@@ -173,6 +217,7 @@ onboarding_prereqs_main() {
   ensure_formula "Azure Developer CLI" azd azd || return 1
   ensure_formula "curl" curl curl || return 1
   ensure_formula "jq" jq jq || return 1
+  ensure_python || return 1
   ensure_node || return 1
 
   if [[ "$ONBOARDING_CHECK_ONLY" == true ]]; then
@@ -188,7 +233,7 @@ onboarding_prereqs_main() {
       return 1
     fi
   else
-    for command_name in az azd curl jq node npm; do
+    for command_name in az azd curl jq python3 node npm; do
       if ! command -v "$command_name" >/dev/null 2>&1; then
         echo "Required command is still unavailable: $command_name" >&2
         return 1
@@ -207,6 +252,7 @@ onboarding_prereqs_main() {
 
   echo
   echo "All local prerequisites are installed and active in this terminal."
+  echo "  Python: $(python3 --version 2>&1) with PyYAML ($(command -v python3))"
   echo "  Node.js: $(node --version) ($(command -v node))"
   echo "  npm registry: $(npm config get registry)"
   if [[ "$ONBOARDING_CHECK_ONLY" != true ]]; then

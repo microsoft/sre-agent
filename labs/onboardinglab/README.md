@@ -44,7 +44,7 @@ flowchart LR
 | --- | --- | --- |
 | Local tools | Yes | [Git](https://git-scm.com/downloads) and [VS Code](https://code.visualstudio.com/download) |
 | macOS tools | On macOS | [Bash](https://formulae.brew.sh/formula/bash) and [`curl`](https://formulae.brew.sh/formula/curl) |
-| Windows tools | On Windows | [Windows PowerShell](https://learn.microsoft.com/powershell/scripting/windows-powershell/install/installing-windows-powershell) and [WinGet](https://learn.microsoft.com/windows/package-manager/winget/) |
+| Windows tools | On Windows | [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows) and [WinGet](https://learn.microsoft.com/windows/package-manager/winget/) |
 | Azure subscription | Yes | Must allow resource creation and role assignments |
 | GitHub account | Yes | Fork the [ticketing app source repository](https://github.com/dm-chelupati/onboardinglab-sep15/fork) before deploying the agent |
 | Email account | Optional | Required only to send incident summaries to approved recipients |
@@ -83,6 +83,8 @@ Windows:
 ```powershell
 . .\scripts\prereqs.ps1
 ```
+
+Run the remaining Windows commands in PowerShell 7. If the prerequisite script installs PowerShell 7, open a new `pwsh` terminal, return to `sre-agent\labs\onboardinglab`, and run `. .\scripts\prereqs.ps1 -Check` before continuing.
 
 To verify without installing, run `source ./scripts/prereqs.sh --check` on macOS or `. .\scripts\prereqs.ps1 -Check` on Windows.
 
@@ -125,6 +127,7 @@ Pop-Location
 | Virtual network and NSG | Provides the private database path and controlled fault boundary |
 | Managed identities and RBAC | Authenticate the application and authorize agent reads |
 | Application Insights and Log Analytics | Capture request, dependency, and platform telemetry |
+| Azure Monitor alert rule | Evaluates failed `POST /checkout` requests every minute over a five-minute window |
 
 The sample does not store ticket or payment data. Each reservation opens a PostgreSQL connection, runs `SELECT 1`, and closes the connection.
 
@@ -390,7 +393,7 @@ The diagram shows how the deployed app, Azure Monitor incident, response plan, s
 
 **Observe the incident workflow**
 
-Allow time for telemetry ingestion, the five-minute alert evaluation, and the next agent scan. Then:
+Allow time for telemetry ingestion, the one-minute alert evaluation over its five-minute window, and the next agent scan. Then:
 
 1. Open the incident thread.
 2. Review the application, PostgreSQL, network, and source-code evidence.
