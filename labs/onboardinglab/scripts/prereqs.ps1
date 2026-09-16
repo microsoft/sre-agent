@@ -12,6 +12,7 @@ if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
 }
 
 $script:Missing = 0
+$script:NeedsPowerShellRestart = $false
 
 function Update-ProcessPath {
     $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
@@ -77,6 +78,21 @@ function Ensure-Command {
     }
 
     Install-WinGetPackage -Name $Name -Id $PackageId
+}
+
+function Ensure-PowerShellHost {
+    if ($PSVersionTable.PSVersion.Major -ge 7) {
+        Write-Host "  [ok] PowerShell $($PSVersionTable.PSVersion) host"
+        return
+    }
+
+    Write-Host "  [restart required] Current host is Windows PowerShell $($PSVersionTable.PSVersion)"
+    if ($Check) {
+        $script:Missing++
+    }
+    else {
+        $script:NeedsPowerShellRestart = $true
+    }
 }
 
 function Get-NodeMajorVersion {
@@ -215,6 +231,7 @@ Write-Host ''
 Ensure-Command -Name 'Azure CLI' -Command 'az' -PackageId 'Microsoft.AzureCLI'
 Ensure-Command -Name 'Azure Developer CLI' -Command 'azd' -PackageId 'Microsoft.Azd'
 Ensure-Command -Name 'PowerShell 7' -Command 'pwsh' -PackageId 'Microsoft.PowerShell'
+Ensure-PowerShellHost
 Ensure-Command -Name 'jq' -Command 'jq' -PackageId 'jqlang.jq'
 Ensure-Python
 Ensure-Node
@@ -249,6 +266,10 @@ else {
 }
 
 Restore-AppDependencies
+
+if ($script:NeedsPowerShellRestart) {
+    throw 'PowerShell 7 is installed. Open a PowerShell 7 terminal with pwsh, return to labs\onboardinglab, and run . .\scripts\prereqs.ps1 -Check.'
+}
 
 Write-Host ''
 Write-Host 'All local prerequisites are installed and active in this terminal.'

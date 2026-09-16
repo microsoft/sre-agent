@@ -10,6 +10,7 @@ Install [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli), [A
 azd auth login
 az login
 az provider register --namespace Microsoft.DBforPostgreSQL --wait
+az provider register --namespace Microsoft.AlertsManagement --wait
 azd up
 ```
 
