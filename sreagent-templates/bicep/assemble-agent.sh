@@ -166,6 +166,9 @@ ACTION=$(echo "$AGENT_JSON"      | jq -r '.access.actionMode')
 TOGGLES=$(echo "$AGENT_JSON"     | jq -c '.toggles // {}')
 UPGRADE_CHANNEL=$(echo "$AGENT_JSON" | jq -r '.upgradeChannel // "Preview"')
 MODEL_PROVIDER=$(echo "$AGENT_JSON"  | jq -r '.defaultModelProvider // "Anthropic"')
+case "$MODEL_PROVIDER" in
+  "Azure OpenAI"|"azure openai"|"AzureOpenAI") MODEL_PROVIDER="MicrosoftFoundry" ;;
+esac
 MONTHLY_LIMIT=$(echo "$AGENT_JSON"   | jq -r '.monthlyAgentUnitLimit // 10000')
 TAGS=$(echo "$AGENT_JSON"            | jq -c '.tags // {}')
 EXISTING_UAMI=$(echo "$AGENT_JSON"   | jq -r '.existingUamiId // ""')

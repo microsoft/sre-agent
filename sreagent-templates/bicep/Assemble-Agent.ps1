@@ -245,6 +245,9 @@ $action         = $agentJson | jq -r '.access.actionMode'
 $toggles        = $agentJson | Invoke-Jq -Compact -Filter '.toggles // {}'
 $upgradeChannel = $agentJson | Invoke-Jq -Raw -Filter '.upgradeChannel // "Preview"'
 $modelProvider  = $agentJson | Invoke-Jq -Raw -Filter '.defaultModelProvider // "Anthropic"'
+if ($modelProvider -in @('Azure OpenAI', 'AzureOpenAI')) {
+    $modelProvider = 'MicrosoftFoundry'
+}
 $monthlyLimit   = $agentJson | Invoke-Jq -Raw -Filter '.monthlyAgentUnitLimit // 10000'
 $tags           = $agentJson | Invoke-Jq -Compact -Filter '.tags // {}'
 $existingUami   = $agentJson | Invoke-Jq -Raw -Filter '.existingUamiId // empty'

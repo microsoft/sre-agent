@@ -180,7 +180,7 @@ config_dir="$ticketingapp_dir/.azure/$(azd -C "$ticketingapp_dir" env get-value 
    --set appInsightsId="$(azd -C "$ticketingapp_dir" env get-value APPLICATION_INSIGHTS_ID)" \
    --set appInsightsAppId="$(azd -C "$ticketingapp_dir" env get-value APPLICATION_INSIGHTS_APP_ID)" \
    --set githubRepo="$github_repository_url" \
-   --set modelProvider='Azure OpenAI' \
+   --set modelProvider='Anthropic' \
    --output "$config_dir" \
    --non-interactive
 ```
@@ -206,7 +206,7 @@ $ConfigDirectory = Join-Path $TicketingAppDirectory ".azure\$EnvironmentName\$Ag
       appInsightsId = (azd -C $TicketingAppDirectory env get-value APPLICATION_INSIGHTS_ID)
       appInsightsAppId = (azd -C $TicketingAppDirectory env get-value APPLICATION_INSIGHTS_APP_ID)
       githubRepo = $GitHubRepositoryUrl
-      modelProvider = 'Azure OpenAI'
+      modelProvider = 'Anthropic'
    } `
    -Output $ConfigDirectory `
    -NonInteractive
@@ -262,7 +262,7 @@ The recipe uses the same core flow described in [Create and set up your Azure SR
 
 | Resource or setup | What the deployment configures | Completion | Learn more |
 | --- | --- | --- | --- |
-| Azure SRE Agent | Creates the configured agent with Low access, Review mode, Preview upgrades, Azure OpenAI mapped to the `MicrosoftFoundry` provider, and a 10,000 monthly agent-unit limit. | Automatic | [Create and set up an agent](https://sre.azure.com/docs/get-started/create-and-setup) |
+| Azure SRE Agent | Creates the configured agent with Low access, Review mode, Preview upgrades, Anthropic as the default model provider, and a 10,000 monthly agent-unit limit. If Azure OpenAI is selected, the generated API value is `MicrosoftFoundry`. | Automatic | [Create and set up an agent](https://sre.azure.com/docs/get-started/create-and-setup) |
 | Agent identities | Creates one user-assigned managed identity and enables the agent's system-assigned identity. | Automatic | [Agent identity](https://sre.azure.com/docs/concepts/agent-identity) |
 | Azure RBAC | Grants Reader and Log Analytics Reader on the workload resource group to both agent identities, Monitoring Reader on the deployment resource group to the user-assigned identity, and SRE Agent Administrator on the agent to the deployer and user-assigned identity. Low access does not grant Contributor. | Automatic | [Manage permissions and resources](https://sre.azure.com/docs/tutorials/agent-config/manage-permissions) |
 | Agent monitoring | Creates a dedicated Log Analytics workspace with 30-day retention and a workspace-based Application Insights resource for agent operations. These are separate from workload telemetry. | Automatic | [Log Analytics workspaces](https://learn.microsoft.com/azure/azure-monitor/logs/log-analytics-workspace-overview), [Application Insights](https://learn.microsoft.com/azure/azure-monitor/app/app-insights-overview) |

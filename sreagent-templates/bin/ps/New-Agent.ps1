@@ -300,6 +300,14 @@ if ($LASTEXITCODE -ne 0 -or -not $cleaned) {
 }
 $cleaned | Set-Content -Path $outAgentJson -Encoding UTF8
 
+# Map user-facing model provider names to API values before replacing placeholders.
+if ($Values.ContainsKey('modelProvider')) {
+    $Values['modelProvider'] = switch ($Values['modelProvider']) {
+        { $_ -in @('Azure OpenAI', 'AzureOpenAI') } { 'MicrosoftFoundry'; break }
+        default { $_ }
+    }
+}
+
 # Replace {{placeholders}} with user values in all JSON and YAML files
 $templateFiles = Get-ChildItem -Path $Output -Recurse -Include "*.json", "*.yaml" -File
 foreach ($file in $templateFiles) {

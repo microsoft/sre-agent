@@ -310,6 +310,7 @@ if ($ExtrasFile -and (Test-Path $ExtrasFile -ErrorAction SilentlyContinue)) {
         repos             = 'Repos'
         knowledgeItems    = 'Knowledge files'
         knowledge         = 'Knowledge docs'
+        connectorV2       = 'Managed connectors'
     }
     foreach ($key in $ExtrasKeys.Keys) {
         $items = $ExtrasRaw.$key

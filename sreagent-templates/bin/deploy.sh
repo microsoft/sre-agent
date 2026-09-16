@@ -132,7 +132,7 @@ echo "  Data-plane (apply-extras):"
 EXTRAS_FILE="${FILE%.parameters.json}.extras.json"
 [[ ! -f "$EXTRAS_FILE" ]] && EXTRAS_FILE="$(dirname "$FILE")/assembled.extras.json"
 if [[ -f "$EXTRAS_FILE" ]]; then
-  for key in skills subagents tools hooks commonPrompts incidentPlatforms incidentFilters scheduledTasks httpTriggers repos knowledgeItems knowledge pluginConfigs; do
+  for key in skills subagents tools hooks commonPrompts incidentPlatforms incidentFilters scheduledTasks httpTriggers repos knowledgeItems knowledge pluginConfigs connectorV2; do
     n=$(jq -r ".${key} // [] | length" "$EXTRAS_FILE" 2>/dev/null)
     if [[ "$n" -gt 0 ]]; then
       case "$key" in
@@ -149,6 +149,7 @@ if [[ -f "$EXTRAS_FILE" ]]; then
         knowledgeItems)     echo "    ✓ Knowledge files: ${n}" ;;
         knowledge)          echo "    ✓ Knowledge docs: ${n}" ;;
         pluginConfigs)      echo "    ✓ Plugin configs: ${n}" ;;
+        connectorV2)        echo "    ✓ Managed connectors: ${n}" ;;
       esac
     fi
   done

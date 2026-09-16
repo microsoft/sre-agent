@@ -36,7 +36,7 @@
         "Anthropic",
         "Azure OpenAI"
       ],
-      "default": "Azure OpenAI"
+      "default": "Anthropic"
     }
   },
   "identity": {
