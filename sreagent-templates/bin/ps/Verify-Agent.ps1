@@ -215,6 +215,21 @@ if ($ExpConnNames) {
     Add-InfoRow 'Connector names' $ConnNames
 }
 
+# ─────────────────────────── Managed connectors (ConnectorV2) ───────────────────────────
+
+$ManagedConnectors   = Invoke-Dp '/api/v2/connectorV2/mcpservers'
+$ManagedConnCt       = $ManagedConnectors | Invoke-Jq -Filter '.value // [] | length'
+$ManagedConnNames    = ($ManagedConnectors | Invoke-Jq -Raw -Filter '.value[]?.name' | Sort-Object) -join ','
+$ExpManagedConnCt    = Get-Exp '.managedConnectors | length'
+$ExpManagedConnNames = Get-ExpList '.managedConnectors'
+
+Add-Check 'Managed connectors' $ManagedConnCt $ExpManagedConnCt
+if ($ExpManagedConnNames) {
+    Add-Check 'Managed connector names' $ManagedConnNames $ExpManagedConnNames
+} else {
+    Add-InfoRow 'Managed connector names' $ManagedConnNames
+}
+
 # ─────────────────────────── Skills ───────────────────────────
 
 $Skills   = Invoke-Dp '/api/v1/extendedAgent/skills'

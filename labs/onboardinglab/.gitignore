@@ -1,0 +1,6 @@
+.azure/
+**/node_modules/
+**/__pycache__/
+*.pyc
+main.json
+main.parameters.resolved.json

@@ -364,6 +364,9 @@ Write-Log "incident-platforms: $($incidentPlatforms | jq 'length')"
 $repos = Collect-Config 'repos'
 Write-Log "repos: $($repos | jq 'length')"
 
+$connectorV2 = Collect-Config 'connectorv2'
+Write-Log "connectorv2: $($connectorV2 | jq 'length')"
+
 $marketplaces = '[]'
 if (Test-Path (Join-Path $ConfigDir 'config/plugins/marketplaces') -PathType Container) {
     $marketplaces = Collect-Config 'plugins/marketplaces'
@@ -566,6 +569,7 @@ $knowledgeArr         = @(($knowledge         | ConvertFrom-Json -ErrorAction Si
 $knowledgeItemsArr    = @(($knowledgeItems    | ConvertFrom-Json -ErrorAction SilentlyContinue))
 $synthKnowledgeArr    = @(($synthKnowledge    | ConvertFrom-Json -ErrorAction SilentlyContinue))
 $repoInstructionsArr  = @(($repoInstructions  | ConvertFrom-Json -ErrorAction SilentlyContinue))
+$connectorV2Arr       = @(($connectorV2       | ConvertFrom-Json -ErrorAction SilentlyContinue))
 $marketplacesArr      = @(($marketplaces      | ConvertFrom-Json -ErrorAction SilentlyContinue))
 $installationsArr     = @(($installations     | ConvertFrom-Json -ErrorAction SilentlyContinue))
 
@@ -604,6 +608,7 @@ $extrasObj = [ordered]@{
     synthesizedKnowledge   = $synthKnowledgeArr
     synthesizedKnowledgeDir = $synthKnowledgeDir
     repoInstructions       = $repoInstructionsArr
+    connectorV2            = $connectorV2Arr
     plugins                = [ordered]@{
         marketplaces  = $marketplacesArr
         installations = $installationsArr

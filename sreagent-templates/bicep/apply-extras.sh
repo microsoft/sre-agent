@@ -779,7 +779,7 @@ fi
 # 4f-4. connectorV2 — data-plane multi-step setup via /api/v2/connectorV2
 # Each entry: { metadata: { name }, spec: { apiName, displayName, connectionName?,
 #   parameterValueSet?: { name, values }, requireApprovalTools?: [...] } }
-# Flow: 1) PUT connection  2) list consent links  3) print consent URL  4) PUT mcpserver config
+# Flow: 1) PUT connection  2) grant runtime access  3) PUT mcpserver config  4) report OAuth status
 count=$(jq '.connectorV2 // [] | length' "$FILE")
 if [[ "$count" -gt 0 ]]; then
   if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
@@ -809,10 +809,25 @@ if [[ "$count" -gt 0 ]]; then
       if [[ "$conn_code" =~ ^2 ]]; then
         echo "  ok connectorV2/connection/${cv2_conn}"
       else
-        echo "  WARN — PUT connection/${cv2_conn} (HTTP ${conn_code}) — may need OAuth consent in portal"
+        echo "  FAILED — PUT connection/${cv2_conn} (HTTP ${conn_code})"
+        echo "    $(echo "$conn_result" | sed '$d' | head -2)"
+        continue
       fi
 
-      # Step 2: Create MCP server config (links connection to MCP tools)
+      # Step 2: Grant the runtime identity invoke access to the connection
+      policy_result=$(curl -sS -w "\n%{http_code}" -X PUT \
+        "${AGENT_ENDPOINT}/api/v2/connectorV2/connections/${cv2_conn}/accessPolicies/${cv2_conn}-policy" \
+        -H "Authorization: Bearer ${TOKEN}" 2>&1)
+      policy_code=$(echo "$policy_result" | tail -1)
+      if [[ "$policy_code" =~ ^2 ]]; then
+        echo "  ok connectorV2/accessPolicy/${cv2_conn}-policy"
+      else
+        echo "  FAILED — PUT accessPolicies/${cv2_conn}-policy (HTTP ${policy_code})"
+        echo "    $(echo "$policy_result" | sed '$d' | head -2)"
+        continue
+      fi
+
+      # Step 3: Create MCP server config (links connection to MCP tools)
       mcp_body=$(jq -nc --arg desc "$cv2_display" --arg cn "$cv2_conn" --arg api "$cv2_api" \
         --argjson rat "$cv2_rat" \
         '{properties: {description: $desc, connectors: [{name: $api, connectionName: $cn}]}} + (if $rat != null then {runtimeMcpConfiguration: {requireApprovalTools: $rat}} else {} end)')
@@ -830,7 +845,7 @@ if [[ "$count" -gt 0 ]]; then
         echo "    $(echo "$mcp_result" | sed '$d' | head -2)"
       fi
 
-      # Step 3: Print consent link if connection needs OAuth
+      # Step 4: Report when the connection still needs OAuth consent
       conn_status=$(echo "$conn_result" | sed '$d' | jq -r '.properties.overallStatus // "Unknown"' 2>/dev/null)
       if [[ "$conn_status" == "Error" || "$conn_status" == "Unauthenticated" ]]; then
         echo "  ⚠ Connection ${cv2_conn} needs OAuth consent. Complete in the portal:"

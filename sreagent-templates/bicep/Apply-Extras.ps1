@@ -932,6 +932,92 @@ if ($tlCount -gt 0) {
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
+# 4f-4. ConnectorV2 — managed connection, runtime access, and MCP tool binding
+# ═════════════════════════════════════════════════════════════════════════════
+$connectorV2 = @($extras.connectorV2)
+$cv2Count = ($connectorV2 | Measure-Object).Count
+if ($cv2Count -gt 0) {
+    if ($DpTokenAvailable) {
+        Write-Host "connectorV2: $cv2Count"
+        foreach ($connector in $connectorV2) {
+            $name = if ($connector.metadata.name) { $connector.metadata.name } else { $connector.name }
+            $spec = if ($connector.spec) { $connector.spec } else { $connector }
+            $apiName = $spec.apiName
+            $displayName = if ($spec.displayName) { $spec.displayName } else { $apiName }
+            $connectionName = if ($spec.connectionName) { $spec.connectionName.ToLowerInvariant() } else { $apiName.ToLowerInvariant() }
+            $encodedConnectionName = [uri]::EscapeDataString($connectionName)
+            $token = Get-DpToken
+            $headers = @{ Authorization = "Bearer $token" }
+
+            $connectionBody = [ordered]@{
+                displayName   = $displayName
+                connectorName = $apiName
+            }
+            if ($spec.parameterValueSet) { $connectionBody.parameterValueSet = $spec.parameterValueSet }
+            if ($spec.parameterValues) { $connectionBody.parameterValues = $spec.parameterValues }
+
+            try {
+                $connectionResult = Invoke-RestMethod -TimeoutSec 30 `
+                    -Uri "$AgentEndpoint/api/v2/connectorV2/connections/$encodedConnectionName" `
+                    -Method Put -Headers $headers -Body ($connectionBody | ConvertTo-Json -Compress -Depth 20) `
+                    -ContentType 'application/json'
+                Write-Host "  ok connectorV2/connection/$connectionName"
+            } catch {
+                Write-Host "  FAILED - PUT connection/$connectionName"
+                continue
+            }
+
+            $policyName = "$connectionName-policy"
+            try {
+                $null = Invoke-RestMethod -TimeoutSec 30 `
+                    -Uri "$AgentEndpoint/api/v2/connectorV2/connections/$encodedConnectionName/accessPolicies/$([uri]::EscapeDataString($policyName))" `
+                    -Method Put -Headers $headers
+                Write-Host "  ok connectorV2/accessPolicy/$policyName"
+            } catch {
+                Write-Host "  FAILED - PUT accessPolicies/$policyName"
+                continue
+            }
+
+            $mcpBody = [ordered]@{
+                properties = [ordered]@{
+                    description = $displayName
+                    connectors  = @(@{ name = $apiName; connectionName = $connectionName })
+                }
+            }
+            if ($spec.requireApprovalTools) {
+                $mcpBody.runtimeMcpConfiguration = @{ requireApprovalTools = @($spec.requireApprovalTools) }
+            }
+
+            try {
+                $null = Invoke-RestMethod -TimeoutSec 30 `
+                    -Uri "$AgentEndpoint/api/v2/connectorV2/mcpservers/$encodedConnectionName" `
+                    -Method Put -Headers $headers -Body ($mcpBody | ConvertTo-Json -Compress -Depth 20) `
+                    -ContentType 'application/json'
+                Write-Host "  ok connectorV2/mcpserver/$connectionName"
+            } catch {
+                Write-Host "  FAILED - PUT mcpservers/$connectionName"
+                continue
+            }
+
+            $connectionStatus = $connectionResult.properties.overallStatus
+            if (-not $connectionStatus -and $connectionResult.properties.statuses) {
+                $connectionStatus = $connectionResult.properties.statuses[0].status
+            }
+            if ($connectionStatus -in @('Error', 'Unauthenticated')) {
+                Write-Host "  WARNING - Connection $connectionName needs OAuth consent. Complete it in the portal:"
+                Write-Host "    https://sre.azure.com -> Connectors -> $displayName -> Authorize"
+            }
+        }
+    } else {
+        Write-Host "connectorV2: $cv2Count - WARNING skipped (no data-plane token)"
+        foreach ($connector in $connectorV2) {
+            $name = if ($connector.metadata.name) { $connector.metadata.name } else { $connector.name }
+            $DpSkippedItems.Add("connectorV2/$name")
+        }
+    }
+}
+
+# ═════════════════════════════════════════════════════════════════════════════
 # 4g. httpTriggers — data-plane only
 # ═════════════════════════════════════════════════════════════════════════════
 $httpTriggers = $extras.httpTriggers

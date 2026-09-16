@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lumen Nights | Reserve tickets</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <nav aria-label="Lumen Tickets">
+      <a class="brand" href="#" aria-label="Lumen Tickets home">
+        <span class="brand-mark" aria-hidden="true">L</span>
+        <span>Lumen<small>Live events</small></span>
+      </a>
+      <span class="location">Secure ticketing</span>
+    </nav>
+
+    <section class="booking-shell" aria-labelledby="booking-title">
+      <div class="event-hero">
+        <div class="hero-copy">
+          <span class="eyebrow">ONE NIGHT ONLY</span>
+          <h1 id="booking-title">Nova Vale<br><em>Lumen Nights</em></h1>
+          <p>Experience a live show built around light, sound, and the songs that brought us together.</p>
+        </div>
+        <div class="event-meta" aria-label="Event details">
+          <span><small>Date</small><strong>Saturday, October 24</strong></span>
+          <span><small>Venue</small><strong>Harborline Arena</strong></span>
+          <span><small>Doors</small><strong>7:00 PM</strong></span>
+        </div>
+      </div>
+
+      <div class="booking-panel">
+        <div class="panel-heading">
+          <div>
+            <span class="step">YOUR TICKETS</span>
+            <h2>Reserve your seats</h2>
+          </div>
+          <span class="availability">On sale now</span>
+        </div>
+
+        <div class="ticket-details">
+          <div class="detail">
+            <span class="detail-icon" aria-hidden="true">A</span>
+            <div><small>Section</small><strong>Lower bowl · Section 112</strong></div>
+          </div>
+          <div class="detail">
+            <span class="detail-icon" aria-hidden="true">2</span>
+            <div><small>Quantity</small><strong>2 tickets · Seated together</strong></div>
+          </div>
+          <div class="detail">
+            <span class="detail-icon" aria-hidden="true">$</span>
+            <div><small>Total</small><strong>$168 including fees</strong></div>
+          </div>
+        </div>
+
+        <div class="service-status">
+          <div><small>Ticketing service</small><p id="health" role="status">Checking availability…</p></div>
+          <div><small>Latest reservation</small><p id="result" role="status" aria-live="polite">Ready to reserve</p><span id="timing">Your seats are selected.</span></div>
+        </div>
+
+        <button id="checkout" type="button" class="reserve">Reserve tickets</button>
+
+        <aside class="lab-controls" aria-labelledby="lab-controls-title">
+          <div>
+            <span class="step" id="lab-controls-title">LAB CONTROLS</span>
+            <p id="loop" role="status">On-sale simulation is idle.</p>
+          </div>
+          <div class="simulation-actions">
+            <button id="start" type="button" class="secondary">Launch on-sale simulation</button>
+            <button id="stop" type="button" class="quiet" disabled>Stop simulation</button>
+          </div>
+        </aside>
+
+        <div class="counters" aria-label="Ticket request activity">
+          <span><strong id="attempts">0</strong><small>Requests</small></span>
+          <span><strong id="successes">0</strong><small>Confirmed</small></span>
+          <span><strong id="failures">0</strong><small>Couldn’t reserve</small></span>
+        </div>
+      </div>
+    </section>
+    <footer><span>Lumen Tickets</span><span>Harborline Arena · All ages</span></footer>
+  </main>
+</body>
+</html>

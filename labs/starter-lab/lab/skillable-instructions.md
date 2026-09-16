@@ -44,7 +44,7 @@ Welcome, @lab.User.FirstName! Deploy an **Azure SRE Agent**, break a sample app,
 
     The script will:
     - ✅ Check prerequisites
-    - ✅ Sign in to Azure (use **device code** — open browser inside VM, enter code, sign in with **Username**, **Password**, and **TAP Password** from above)
+    - ✅ Reuse an existing Azure sign-in, or open browser sign-in when needed
     - ✅ Sign in to Azure Developer CLI
     - ✅ Register resource providers
     - ✅ Ask for GitHub username (optional — press Enter to skip)

@@ -1,0 +1,65 @@
+{
+  "_scenario": "onboardinglab-base",
+  "_description": "Base Azure SRE Agent for the onboarding lab. Creates the agent, read-only Azure access, app telemetry, Azure Monitor incident platform, and ticketing app source context. Workflow extensions are installed separately.",
+  "_prerequisites": [
+    "Completed onboarding lab workload deployment",
+    "Application Insights resource and application IDs from the azd environment"
+  ],
+  "_prompts": {
+    "agentName": {
+      "ask": "Agent name (lowercase, hyphens ok)",
+      "default": "onboardinglab-agent"
+    },
+    "resourceGroup": {
+      "ask": "Resource group created by the onboarding workload deployment",
+      "required": true
+    },
+    "location": {
+      "ask": "Region",
+      "required": true
+    },
+    "appInsightsId": {
+      "ask": "Checkout Application Insights resource ID",
+      "required": true
+    },
+    "appInsightsAppId": {
+      "ask": "Checkout Application Insights application ID",
+      "required": true
+    },
+    "githubRepo": {
+      "ask": "Attendee GitHub repository URL for the self-contained ticketing app project",
+      "required": true
+    },
+    "modelProvider": {
+      "ask": "AI model provider",
+      "options": [
+        "Anthropic",
+        "Azure OpenAI"
+      ],
+      "default": "Azure OpenAI"
+    }
+  },
+  "identity": {
+    "agentName": "{{agentName}}",
+    "resourceGroup": "{{resourceGroup}}",
+    "subscription": "",
+    "location": "{{location}}",
+    "targetResourceGroups": "{{resourceGroup}}"
+  },
+  "access": {
+    "accessLevel": "Low",
+    "actionMode": "Review"
+  },
+  "upgradeChannel": "Preview",
+  "defaultModelProvider": "{{modelProvider}}",
+  "monthlyAgentUnitLimit": 10000,
+  "tags": {
+    "workload": "onboardinglab"
+  },
+  "toggles": {
+    "enableWebhookBridge": false,
+    "webhookBridgeTriggerUrl": ""
+  },
+  "existingUamiId": "",
+  "existingAgentAppInsightsId": ""
+}
