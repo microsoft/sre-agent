@@ -45,12 +45,10 @@ flowchart LR
 | Local tools | Yes | [Git](https://git-scm.com/downloads) and [VS Code](https://code.visualstudio.com/download) |
 | macOS tools | On macOS | [Bash](https://formulae.brew.sh/formula/bash) and [`curl`](https://formulae.brew.sh/formula/curl) |
 | Windows tools | On Windows | [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows) and [WinGet](https://learn.microsoft.com/windows/package-manager/winget/) |
-| Azure subscription | Yes | Must be registered for Azure SRE Agent and allow resource creation and role assignments |
+| Azure subscription | Yes | Must allow resource creation and role assignments |
 | GitHub account | Yes | Fork the [ticketing app source repository](https://github.com/dm-chelupati/onboardinglab-sep15/fork) before deploying the agent |
 | Email account | Optional | Required only to send incident summaries to approved recipients |
 | Azure region | Yes | Choose an [SRE Agent supported region](https://learn.microsoft.com/azure/sre-agent/supported-regions). Sweden Central or East US 2 is suggested for this lab. |
-
-Before setup, sign in to [Azure SRE Agent](https://sre.azure.com), select **Create agent**, choose your subscription, and confirm the **Region** list is not empty. If no regions appear, submit the registration request linked from the [supported regions guidance](https://learn.microsoft.com/azure/sre-agent/supported-regions#no-regions-appear) before continuing.
 
 ## 0. Set up the local environment
 
