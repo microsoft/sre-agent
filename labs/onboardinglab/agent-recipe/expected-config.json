@@ -2,6 +2,7 @@
   "_description": "Expected base configuration for the Azure SRE Agent onboarding lab.",
   "_scenario": "onboardinglab-base",
   "allowAdditionalResources": true,
+  "strictVerification": true,
   "agent": {
     "accessLevel": "Low",
     "actionMode": "Review",

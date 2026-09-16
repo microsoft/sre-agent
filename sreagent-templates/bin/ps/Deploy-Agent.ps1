@@ -149,12 +149,20 @@ if (-not (Test-Path $Template)) {
 $CleanupFiles = @()
 $ExtrasFile = ''
 $IsDirectory = Test-Path $InputPath -PathType Container
+$StrictVerification = $false
 
 if ($IsDirectory) {
     $AgentJson = Join-Path $InputPath 'agent.json'
     if (-not (Test-Path $AgentJson)) {
         Write-Fail "Error: $AgentJson not found"
         exit 1
+    }
+    $ExpectedConfigPath = Join-Path $InputPath 'expected-config.json'
+    if (Test-Path $ExpectedConfigPath) {
+        $ExpectedConfig = Get-Content $ExpectedConfigPath -Raw | ConvertFrom-Json
+        if ($ExpectedConfig.PSObject.Properties['strictVerification']) {
+            $StrictVerification = [bool]$ExpectedConfig.strictVerification
+        }
     }
 
     Write-Header "── Assembling from directory: $InputPath/ ──"
@@ -351,9 +359,12 @@ if ($IsDirectory) {
                 $VerifyScript = Join-Path $ScriptDir 'Verify-Agent.ps1'
                 if (Test-Path $VerifyScript) {
                     Write-Header '── Current state verification ──'
-                    try {
-                        & $VerifyScript -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AgentName $AgentName -Expected $InputPath
-                    } catch { }
+                    & $VerifyScript -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AgentName $AgentName -Expected $InputPath
+                    $VerifyExit = $LASTEXITCODE
+                    if ($StrictVerification -and $VerifyExit -ne 0) {
+                        Write-Fail 'Verification failed for required agent configuration.'
+                        exit $VerifyExit
+                    }
                 }
                 exit 0
             } else {
@@ -648,12 +659,10 @@ if ($IsDirectory) {
     Write-Header '── Post-deploy verification ──'
     $VerifyScript = Join-Path $ScriptDir 'Verify-Agent.ps1'
     $VerifyOutput = ''
+    $VerifyExit = 0
     if (Test-Path $VerifyScript) {
-        try {
-            $VerifyOutput = & $VerifyScript -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AgentName $AgentName -Expected $InputPath 2>&1 | Out-String
-        } catch {
-            $VerifyOutput = $_.Exception.Message
-        }
+        $VerifyOutput = & $VerifyScript -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AgentName $AgentName -Expected $InputPath 2>&1 | Out-String
+        $VerifyExit = $LASTEXITCODE
     } else {
         # Fallback to bash
         $verifyBash = Join-Path (Split-Path $ScriptDir) 'verify-agent.sh'
@@ -681,6 +690,10 @@ $VerifyOutput
 
     Write-Host ''
     Write-Host "  Log saved: $DeployLog"
+    if ($StrictVerification -and $VerifyExit -ne 0) {
+        Write-Fail 'Verification failed for required agent configuration.'
+        exit $VerifyExit
+    }
 }
 
 # ── Post-deploy: process roles.yaml if present ──

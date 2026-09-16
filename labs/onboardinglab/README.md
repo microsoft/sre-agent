@@ -234,6 +234,8 @@ Windows:
    -Subscription $Subscription
 ```
 
+The deployment command returns a nonzero exit code if any required base-agent component fails post-deployment verification. Additional workflow components already installed on the agent are preserved and do not cause verification failures.
+
 **4. Save the agent for the workflow step**
 
 macOS:

@@ -80,4 +80,8 @@ if command -v pwsh >/dev/null 2>&1; then
   grep -q 'GitHub OAuth.*true' "$TMP_DIR/powershell-output.txt"
 fi
 
+grep -q '"strictVerification": true' "$REPO_DIR/labs/onboardinglab/agent-recipe/expected-config.json"
+grep -q 'STRICT_VERIFICATION' "$TEMPLATES_DIR/bin/deploy.sh"
+grep -q '\$StrictVerification' "$TEMPLATES_DIR/bin/ps/Deploy-Agent.ps1"
+
 echo 'PASS: Bash and PowerShell verification allow workflow additions and require base resources'
