@@ -1,0 +1,86 @@
+{
+  "_description": "Expected base configuration for the Azure SRE Agent onboarding lab.",
+  "_scenario": "onboardinglab-base",
+  "allowAdditionalResources": true,
+  "strictVerification": true,
+  "agent": {
+    "accessLevel": "Low",
+    "actionMode": "Review",
+    "upgradeChannel": "Preview",
+    "defaultModelProvider": "{{modelProvider}}",
+    "incidentPlatform": "AzMonitor"
+  },
+  "connectors": [
+    {
+      "name": "app-insights",
+      "type": "AppInsights"
+    }
+  ],
+  "knowledgeSources": [
+    "onboardinglab-architecture-md",
+    "onboardinglab-incident-r-2bcbfae"
+  ],
+  "managedConnectors": [
+    "office365"
+  ],
+  "skills": [
+    "sre-agent-self-configure"
+  ],
+  "skillDetails": [
+    {
+      "name": "sre-agent-self-configure",
+      "tools": [
+        "GetAzCliHelp",
+        "RunAzCliReadCommands",
+        "RunAzCliWriteCommands"
+      ],
+      "requireDescription": true,
+      "requireContent": true
+    }
+  ],
+  "subagents": [],
+  "hooks": [
+    "evidence-checklist"
+  ],
+  "commonPrompts": [
+    "onboardinglab-safety"
+  ],
+  "scheduledTasks": [],
+  "responsePlans": [],
+  "repos": [
+    "ticketingapp-source"
+  ],
+  "repoBranches": {
+    "ticketingapp-source": "main"
+  },
+  "toolPermissions": {
+    "allow": [
+      "GetAzCliHelp",
+      "RunAzCliReadCommands",
+      "ReadFile",
+      "ListDir",
+      "FileSearch",
+      "GrepSearch",
+      "read_skill_file",
+      "system-mcp-monitor/*",
+      "FetchGithubIssue",
+      "FetchGithubIssues",
+      "ListOutlookEmails"
+    ],
+    "ask": [
+      "RunAzCliWriteCommands",
+      "CreateGithubIssue",
+      "SendOutlookEmail"
+    ],
+    "deny": [
+      "RunKubectlWriteCommand",
+      "RunInTerminal",
+      "Terminal",
+      "CreateFile",
+      "CreateDirectory",
+      "SaveFileToBlob",
+      "ReplaceStringInFile",
+      "MultiReplaceStringInFile"
+    ]
+  }
+}

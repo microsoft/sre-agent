@@ -506,6 +506,14 @@ if [[ "$count" -gt 0 ]]; then
       fname=$(jq -r --argjson i "$i" '.knowledgeItems[$i].name' "$FILE")
       content=$(jq -r --argjson i "$i" '.knowledgeItems[$i].content' "$FILE")
       sanitized=$(echo "$fname" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
+      if [[ ${#sanitized} -gt 32 ]]; then
+        if command -v sha256sum >/dev/null 2>&1; then
+          name_hash=$(printf '%s' "$sanitized" | sha256sum | cut -c1-7)
+        else
+          name_hash=$(printf '%s' "$sanitized" | shasum -a 256 | cut -c1-7)
+        fi
+        sanitized="${sanitized:0:24}-${name_hash}"
+      fi
       b64=$(echo "$content" | base64)
       case "$fname" in
         *.md)   ctype="text/markdown" ;;
@@ -544,8 +552,18 @@ if [[ "$count" -gt 0 ]]; then
       http_code=$(echo "$result" | tail -1)
       if [[ "$http_code" =~ ^2 ]]; then
         echo "  ok knowledgeItems/${sanitized}"
+      elif [[ "$http_code" == "400" ]]; then
+        existing_code=$(curl -sS -o /dev/null -w "%{http_code}" "$url" \
+          -H "Authorization: Bearer ${TOKEN}" 2>/dev/null || echo "000")
+        if [[ "$existing_code" =~ ^2 ]]; then
+          echo "  ok knowledgeItems/${sanitized} (already exists)"
+        else
+          echo "  FAILED — PUT knowledgeItems/${sanitized} (HTTP ${http_code})"
+          echo "    $(echo "$result" | sed '$d' | head -2)"
+        fi
       else
         echo "  FAILED — PUT knowledgeItems/${sanitized} (HTTP ${http_code})"
+        echo "    $(echo "$result" | sed '$d' | head -2)"
       fi
       [[ $i -lt $((count - 1)) ]] && sleep 5
     done
@@ -558,12 +576,12 @@ fi
 # 4a-3. synthesizedKnowledge — tar.gz upload to WorkspaceMemory (data-plane)
 synth_dir=$(jq -r '.synthesizedKnowledgeDir // empty' "$FILE")
 if [[ -n "$synth_dir" && -d "$synth_dir" ]]; then
-  sk_count=$(find "$synth_dir" -type f | wc -l | tr -d ' ')
+  sk_count=$(find "$synth_dir" -type f ! -name '.*' | wc -l | tr -d ' ')
   if [[ "$sk_count" -gt 0 ]]; then
     if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
       echo "synthesizedKnowledge: ${sk_count} file(s)"
       tarball=$(mktemp -t synth.XXXXXX.tar.gz)
-      tar -czf "$tarball" -C "$synth_dir" .
+      tar -czf "$tarball" -C "$synth_dir" --exclude='.*' .
       token=$(_dp_token) || { echo "    FAILED — token"; rm -f "$tarball"; }
       if [[ -n "$token" ]]; then
         echo "  data-plane POST WorkspaceMemory/synthesized-knowledge (${sk_count} files)"
@@ -751,6 +769,7 @@ if [[ ${#byoapp_repos[@]} -gt 0 && "$DP_TOKEN_AVAILABLE" == "true" ]]; then
   for rname in "${byoapp_repos[@]}"; do
     rurl=$(jq -r --arg n "$rname" '[.repos[] | select(.name == $n)][0].spec.url' "$FILE")
     rdesc=$(jq -r --arg n "$rname" '[.repos[] | select(.name == $n)][0].spec.description // ""' "$FILE")
+    rbranch=$(jq -r --arg n "$rname" '[.repos[] | select(.name == $n)][0].spec.branch // ""' "$FILE")
     rtype_in=$(jq -r --arg n "$rname" '[.repos[] | select(.name == $n)][0].spec.type // "github"' "$FILE")
     case "$(printf %s "$rtype_in" | tr "[:upper:]" "[:lower:]")" in
       ado|azuredevops|azure-devops) rtype="AzureDevOps" ;;
@@ -760,10 +779,12 @@ if [[ ${#byoapp_repos[@]} -gt 0 && "$DP_TOKEN_AVAILABLE" == "true" ]]; then
     if [[ "$rurl" != http* && "$rurl" == */* ]]; then
       rurl="https://github.com/${rurl}"
     fi
-    rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg t "$rtype" --arg d "$rdesc" '{
+    rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg t "$rtype" --arg d "$rdesc" --arg b "$rbranch" '{
       name: $n,
       type: "CodeRepo",
-      properties: ({ url: $u, type: $t } + (if $d == "" then {} else { description: $d } end))
+      properties: ({ url: $u, type: $t }
+        + (if $d == "" then {} else { description: $d } end)
+        + (if $b == "" then {} else { branch: $b } end))
     }')
     if curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/repos/$(printf %s "$rname" | jq -sRr @uri)" \
          -H "Authorization: Bearer ${TOKEN}" \
@@ -779,7 +800,7 @@ fi
 # 4f-4. connectorV2 — data-plane multi-step setup via /api/v2/connectorV2
 # Each entry: { metadata: { name }, spec: { apiName, displayName, connectionName?,
 #   parameterValueSet?: { name, values }, requireApprovalTools?: [...] } }
-# Flow: 1) PUT connection  2) list consent links  3) print consent URL  4) PUT mcpserver config
+# Flow: 1) PUT connection  2) grant runtime access  3) PUT mcpserver config  4) report OAuth status
 count=$(jq '.connectorV2 // [] | length' "$FILE")
 if [[ "$count" -gt 0 ]]; then
   if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
@@ -809,10 +830,25 @@ if [[ "$count" -gt 0 ]]; then
       if [[ "$conn_code" =~ ^2 ]]; then
         echo "  ok connectorV2/connection/${cv2_conn}"
       else
-        echo "  WARN — PUT connection/${cv2_conn} (HTTP ${conn_code}) — may need OAuth consent in portal"
+        echo "  FAILED — PUT connection/${cv2_conn} (HTTP ${conn_code})"
+        echo "    $(echo "$conn_result" | sed '$d' | head -2)"
+        continue
       fi
 
-      # Step 2: Create MCP server config (links connection to MCP tools)
+      # Step 2: Grant the runtime identity invoke access to the connection
+      policy_result=$(curl -sS -w "\n%{http_code}" -X PUT \
+        "${AGENT_ENDPOINT}/api/v2/connectorV2/connections/${cv2_conn}/accessPolicies/${cv2_conn}-policy" \
+        -H "Authorization: Bearer ${TOKEN}" 2>&1)
+      policy_code=$(echo "$policy_result" | tail -1)
+      if [[ "$policy_code" =~ ^2 ]]; then
+        echo "  ok connectorV2/accessPolicy/${cv2_conn}-policy"
+      else
+        echo "  FAILED — PUT accessPolicies/${cv2_conn}-policy (HTTP ${policy_code})"
+        echo "    $(echo "$policy_result" | sed '$d' | head -2)"
+        continue
+      fi
+
+      # Step 3: Create MCP server config (links connection to MCP tools)
       mcp_body=$(jq -nc --arg desc "$cv2_display" --arg cn "$cv2_conn" --arg api "$cv2_api" \
         --argjson rat "$cv2_rat" \
         '{properties: {description: $desc, connectors: [{name: $api, connectionName: $cn}]}} + (if $rat != null then {runtimeMcpConfiguration: {requireApprovalTools: $rat}} else {} end)')
@@ -830,7 +866,7 @@ if [[ "$count" -gt 0 ]]; then
         echo "    $(echo "$mcp_result" | sed '$d' | head -2)"
       fi
 
-      # Step 3: Print consent link if connection needs OAuth
+      # Step 4: Report when the connection still needs OAuth consent
       conn_status=$(echo "$conn_result" | sed '$d' | jq -r '.properties.overallStatus // "Unknown"' 2>/dev/null)
       if [[ "$conn_status" == "Error" || "$conn_status" == "Unauthenticated" ]]; then
         echo "  ⚠ Connection ${cv2_conn} needs OAuth consent. Complete in the portal:"
@@ -1154,10 +1190,13 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
         *)                            rtype="GitHub" ;;
       esac
       rdesc=$(jq -r --argjson i "$i" '.repos[$i].spec.description // ""' "$FILE")
-      rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg t "$rtype" --arg d "$rdesc" '{
+      rbranch=$(jq -r --argjson i "$i" '.repos[$i].spec.branch // ""' "$FILE")
+      rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg t "$rtype" --arg d "$rdesc" --arg b "$rbranch" '{
         name: $n,
         type: "CodeRepo",
-        properties: ({ url: $u, type: $t } + (if $d == "" then {} else { description: $d } end))
+        properties: ({ url: $u, type: $t }
+          + (if $d == "" then {} else { description: $d } end)
+          + (if $b == "" then {} else { branch: $b } end))
       }')
       if curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/repos/$(printf %s "$rname" | jq -sRr @uri)" \
            -H "Authorization: Bearer ${TOKEN}" \
@@ -1218,7 +1257,9 @@ if [[ ${#oauth_repos[@]} -gt 0 ]]; then
           fi
           rtype_in=$(jq -r --argjson i "$i" '.repos[$i].spec.type // "github"' "$FILE")
           case "$(printf %s "$rtype_in" | tr "[:upper:]" "[:lower:]")" in ado*) rtype="AzureDevOps" ;; *) rtype="GitHub" ;; esac
-          rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg t "$rtype" '{name:$n,type:"CodeRepo",properties:{url:$u,type:$t}}')
+          rbranch=$(jq -r --argjson i "$i" '.repos[$i].spec.branch // ""' "$FILE")
+          rbody=$(jq -nc --arg n "$rname" --arg u "$rurl" --arg t "$rtype" --arg b "$rbranch" \
+            '{name:$n,type:"CodeRepo",properties:({url:$u,type:$t} + (if $b == "" then {} else {branch:$b} end))}')
           curl -sS -f -X PUT "${AGENT_ENDPOINT}/api/v2/repos/$(printf %s "$rname" | jq -sRr @uri)" \
             -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" --data "$rbody" >/dev/null && \
             echo "  ok repo/${rname}" || echo "  FAILED repo/${rname}"

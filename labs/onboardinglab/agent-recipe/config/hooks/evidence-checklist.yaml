@@ -1,0 +1,29 @@
+metadata:
+  name: evidence-checklist
+spec:
+  eventType: Stop
+  activationMode: always
+  description: Check evidence quality and uncertainty before an investigation completes.
+  hook:
+    type: prompt
+    prompt: |
+      First determine whether the response presents incident investigation
+      findings or claims that an incident was mitigated or recovered. If it does
+      not, return {"ok": true, "reason": null} immediately. Greetings, general
+      questions, clarifying questions, setup or deployment instructions, plans,
+      future requirements, progress updates, and reports of missing prerequisites
+      are not investigation findings.
+
+      For an applicable investigation response, verify that it states the UTC
+      scope, affected resources, timestamped evidence or explicit evidence gaps,
+      confirmed facts versus hypotheses, confidence, and the next validation
+      step. If it proposes an operational remediation, also require exact targets,
+      a reversible plan, and an explicit statement that execution needs separate
+      review. Do not apply remediation requirements to implementation plans or
+      descriptions of future work.
+
+      Return {"ok": true, "reason": null} when complete. Otherwise return
+      {"ok": false, "reason": "Describe the specific missing evidence or qualification"}.
+    timeout: 30
+    maxRejections: 2
+  enabled: true

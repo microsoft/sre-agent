@@ -1,0 +1,10 @@
+metadata:
+  name: sre-agent-self-configure
+  description: Configure this SRE Agent through its ARM control plane and authenticated data-plane APIs using guarded Azure CLI calls.
+  spec:
+    tools:
+      - GetAzCliHelp
+      - RunAzCliReadCommands
+      - RunAzCliWriteCommands
+skillContent: skills/sre-agent-self-configure.md
+additionalFiles: []

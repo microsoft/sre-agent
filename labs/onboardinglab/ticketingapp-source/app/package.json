@@ -1,0 +1,22 @@
+{
+  "name": "onboardinglab-checkout",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Simulated checkout connectivity lab for Linux Azure App Service",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "check": "node --check server.js && node --check handler.js && node --check telemetry.js && node --check public/app.js && node --check test/handler.test.js && node --check test/server.test.js && node --check test/telemetry.test.js"
+  },
+  "dependencies": {
+    "@azure/identity": "4.13.2",
+    "applicationinsights": "3.16.0",
+    "pg": "8.23.0"
+  },
+  "overrides": {
+    "@types/node": "22.20.1"
+  }
+}

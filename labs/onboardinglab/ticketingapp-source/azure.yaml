@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://aka.ms/azure.yaml.json
+name: onboardinglab
+infra:
+  provider: bicep
+  path: .
+services:
+  checkout:
+    project: ./app
+    language: js
+    host: appservice

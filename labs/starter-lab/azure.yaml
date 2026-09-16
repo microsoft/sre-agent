@@ -11,5 +11,8 @@ infra:
 # No services block — container image is built in the cloud via ACR Tasks
 # in the post-provision hook. No Docker Desktop needed on the lab machine.
 
-# Post-provision: run manually after azd up completes
-# bash scripts/post-provision.sh
+hooks:
+  postprovision:
+    shell: sh
+    run: bash scripts/post-provision.sh
+    interactive: true

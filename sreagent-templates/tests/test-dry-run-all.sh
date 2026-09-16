@@ -22,7 +22,7 @@ for test in tests/test-dry-run-*.sh; do
   echo ""
 done
 
-for test in tests/test-export-prerequisites.sh tests/test-region-discovery.sh tests/test-supported-regions.py; do
+for test in tests/test-connector-v2.sh tests/test-model-provider.sh tests/test-verify-required-subsets.sh tests/test-export-prerequisites.sh tests/test-region-discovery.sh tests/test-supported-regions.py; do
   name=$(basename "$test")
   echo "════════════ $name ════════════"
   if [[ "$test" == *.py ]]; then
@@ -58,6 +58,34 @@ if command -v pwsh >/dev/null 2>&1; then
   echo ""
 
   test="tests/Test-ExportPrerequisites.ps1"
+  name=$(basename "$test")
+  echo "════════════ $name ════════════"
+  pwsh -NoLogo -NoProfile -File "$test"
+  rc=$?
+  if [[ $rc -eq 0 ]]; then
+    TOTAL_PASS=$((TOTAL_PASS+1))
+    echo "  → $name: ALL PASS"
+  else
+    TOTAL_FAIL=$((TOTAL_FAIL+1))
+    echo "  → $name: HAS FAILURES"
+  fi
+  echo ""
+
+  test="tests/Test-ConnectorV2.ps1"
+  name=$(basename "$test")
+  echo "════════════ $name ════════════"
+  pwsh -NoLogo -NoProfile -File "$test"
+  rc=$?
+  if [[ $rc -eq 0 ]]; then
+    TOTAL_PASS=$((TOTAL_PASS+1))
+    echo "  → $name: ALL PASS"
+  else
+    TOTAL_FAIL=$((TOTAL_FAIL+1))
+    echo "  → $name: HAS FAILURES"
+  fi
+  echo ""
+
+  test="tests/Test-ModelProvider.ps1"
   name=$(basename "$test")
   echo "════════════ $name ════════════"
   pwsh -NoLogo -NoProfile -File "$test"

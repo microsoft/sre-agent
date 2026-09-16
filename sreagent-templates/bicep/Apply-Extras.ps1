@@ -687,6 +687,16 @@ if ($kiCount -gt 0) {
                 continue
             }
             $sanitized = ($fname.ToLower() -replace '[^a-z0-9-]', '-') -replace '-+', '-' -replace '^-|-$', ''
+            if ($sanitized.Length -gt 32) {
+                $sha256 = [System.Security.Cryptography.SHA256]::Create()
+                try {
+                    $hashBytes = $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($sanitized))
+                    $nameHash = (([System.BitConverter]::ToString($hashBytes)) -replace '-', '').ToLowerInvariant().Substring(0, 7)
+                } finally {
+                    $sha256.Dispose()
+                }
+                $sanitized = "$($sanitized.Substring(0, 24))-$nameHash"
+            }
             $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($content))
             $ctype = switch -Regex ($fname) {
                 '\.md$'   { "text/markdown" }
@@ -712,20 +722,34 @@ if ($kiCount -gt 0) {
             } | ConvertTo-Json -Compress -Depth 10
             $token = Get-DpToken
             $url = "${AgentEndpoint}/api/v2/extendedAgent/connectors/$([Uri]::EscapeDataString($sanitized))"
+            $bodyFile = [System.IO.Path]::GetTempFileName()
             try {
+                Set-Content -Path $bodyFile -Value $body -Encoding utf8NoBOM -NoNewline
                 $result = curl -sS -w "`n%{http_code}" -X PUT $url `
                     -H "Authorization: Bearer $token" `
                     -H "Content-Type: application/json" `
-                    --data $body 2>$null
+                    --data-binary "@$bodyFile" 2>$null
                 $lines = $result -split "`n"
                 $httpCode = $lines[-1]
                 if ($httpCode -match '^2') {
                     Write-Host "  ok knowledgeItems/$sanitized"
+                } elseif ($httpCode -eq '400') {
+                    $existingCode = curl -sS -o /dev/null -w "%{http_code}" $url `
+                        -H "Authorization: Bearer $token" 2>$null
+                    if ($existingCode -match '^2') {
+                        Write-Host "  ok knowledgeItems/$sanitized (already exists)"
+                    } else {
+                        Write-Host "  FAILED - PUT knowledgeItems/$sanitized (HTTP $httpCode)"
+                        Write-Host "    $(($lines[0..([Math]::Max(0, $lines.Count - 2))] -join ' ') | Select-Object -First 1)"
+                    }
                 } else {
                     Write-Host "  FAILED - PUT knowledgeItems/$sanitized (HTTP $httpCode)"
+                    Write-Host "    $(($lines[0..([Math]::Max(0, $lines.Count - 2))] -join ' ') | Select-Object -First 1)"
                 }
             } catch {
                 Write-Host "  FAILED - PUT knowledgeItems/$sanitized (exception)"
+            } finally {
+                Remove-Item $bodyFile -Force -ErrorAction SilentlyContinue
             }
             if ($i -lt ($kiCount - 1)) { Start-Sleep -Seconds 5 }
         }
@@ -740,7 +764,7 @@ if ($kiCount -gt 0) {
 # ═════════════════════════════════════════════════════════════════════════════
 $synthDir = $extras.synthesizedKnowledgeDir
 if ($synthDir -and (Test-Path $synthDir -PathType Container)) {
-    $skFiles = Get-ChildItem -Path $synthDir -File -Recurse
+    $skFiles = @(Get-ChildItem -Path $synthDir -File -Recurse | Where-Object { -not $_.Name.StartsWith('.') })
     $skCount = $skFiles.Count
     if ($skCount -gt 0) {
         if ($DpTokenAvailable) {
@@ -856,6 +880,36 @@ if ($pcCount -gt 0) {
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
+# 4f-2. toolPermissions — data-plane PUT /api/v2/agent/settings/global
+# ═════════════════════════════════════════════════════════════════════════════
+$toolPermissions = if ($extras.PSObject.Properties['toolPermissions']) { $extras.toolPermissions } else { $null }
+if ($toolPermissions) {
+    if ($DpTokenAvailable) {
+        Write-Host "toolPermissions: configuring"
+        $token = Get-DpToken
+        $settingsUrl = "$AgentEndpoint/api/v2/agent/settings/global"
+        $etag = "*"
+        try {
+            $currentSettings = Invoke-WebRequest -TimeoutSec 30 -Uri $settingsUrl `
+                -Headers @{ Authorization = "Bearer $token" } -ErrorAction Stop
+            if ($currentSettings.Headers.ETag) { $etag = $currentSettings.Headers.ETag }
+        } catch { }
+        $body = @{ permissions = $toolPermissions } | ConvertTo-Json -Compress -Depth 10
+        try {
+            $null = Invoke-RestMethod -TimeoutSec 30 -Uri $settingsUrl -Method Put `
+                -Headers @{ Authorization = "Bearer $token"; "If-Match" = $etag } `
+                -Body $body -ContentType "application/json" -ErrorAction Stop
+            Write-Host "  ok toolPermissions"
+        } catch {
+            Write-Host "  FAILED - PUT settings/global"
+        }
+    } else {
+        Write-Host "toolPermissions - WARNING skipped (no data-plane token)"
+        $DpSkippedItems.Add("toolPermissions")
+    }
+}
+
+# ═════════════════════════════════════════════════════════════════════════════
 # 4g-1. skills — data-plane PUT
 # Route: PUT /api/v2/extendedAgent/skills/{name}
 # ═════════════════════════════════════════════════════════════════════════════
@@ -866,13 +920,12 @@ if ($skCount -gt 0) {
         Write-Host "skills: $skCount"
         foreach ($sk in $skillItems) {
             $name = if ($sk.metadata) { $sk.metadata.name } else { $sk.name }
-            $spec = if ($sk.spec) { $sk.spec } else { $sk.properties }
             $props = @{
-                name            = if ($spec.name) { $spec.name } else { $name }
-                description     = if ($spec.description) { $spec.description } else { "" }
-                tools           = if ($spec.tools) { @($spec.tools) } else { @() }
-                skillContent    = if ($spec.skillContent) { $spec.skillContent } else { "" }
-                additionalFiles = if ($spec.additionalFiles) { @($spec.additionalFiles) } else { @() }
+                name            = $name
+                description     = if ($sk.metadata.description) { $sk.metadata.description } else { "" }
+                tools           = if ($sk.metadata.spec.tools) { @($sk.metadata.spec.tools) } else { @() }
+                skillContent    = if ($sk.skillContent) { $sk.skillContent } else { "" }
+                additionalFiles = if ($sk.additionalFiles) { @($sk.additionalFiles) } else { @() }
             }
             DataPlane-PutExtended -Kind "skills" -Name $name -Type "Skill" -Tags @() -Properties $props
         }
@@ -927,6 +980,92 @@ if ($tlCount -gt 0) {
         foreach ($tl in $toolItems) {
             $tlName = if ($tl.metadata) { $tl.metadata.name } else { $tl.name }
             $DpSkippedItems.Add("tool/$tlName")
+        }
+    }
+}
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 4f-4. ConnectorV2 — managed connection, runtime access, and MCP tool binding
+# ═════════════════════════════════════════════════════════════════════════════
+$connectorV2 = @($extras.connectorV2)
+$cv2Count = ($connectorV2 | Measure-Object).Count
+if ($cv2Count -gt 0) {
+    if ($DpTokenAvailable) {
+        Write-Host "connectorV2: $cv2Count"
+        foreach ($connector in $connectorV2) {
+            $name = if ($connector.metadata.name) { $connector.metadata.name } else { $connector.name }
+            $spec = if ($connector.spec) { $connector.spec } else { $connector }
+            $apiName = $spec.apiName
+            $displayName = if ($spec.displayName) { $spec.displayName } else { $apiName }
+            $connectionName = if ($spec.connectionName) { $spec.connectionName.ToLowerInvariant() } else { $apiName.ToLowerInvariant() }
+            $encodedConnectionName = [uri]::EscapeDataString($connectionName)
+            $token = Get-DpToken
+            $headers = @{ Authorization = "Bearer $token" }
+
+            $connectionBody = [ordered]@{
+                displayName   = $displayName
+                connectorName = $apiName
+            }
+            if ($spec.parameterValueSet) { $connectionBody.parameterValueSet = $spec.parameterValueSet }
+            if ($spec.parameterValues) { $connectionBody.parameterValues = $spec.parameterValues }
+
+            try {
+                $connectionResult = Invoke-RestMethod -TimeoutSec 30 `
+                    -Uri "$AgentEndpoint/api/v2/connectorV2/connections/$encodedConnectionName" `
+                    -Method Put -Headers $headers -Body ($connectionBody | ConvertTo-Json -Compress -Depth 20) `
+                    -ContentType 'application/json'
+                Write-Host "  ok connectorV2/connection/$connectionName"
+            } catch {
+                Write-Host "  FAILED - PUT connection/$connectionName"
+                continue
+            }
+
+            $policyName = "$connectionName-policy"
+            try {
+                $null = Invoke-RestMethod -TimeoutSec 30 `
+                    -Uri "$AgentEndpoint/api/v2/connectorV2/connections/$encodedConnectionName/accessPolicies/$([uri]::EscapeDataString($policyName))" `
+                    -Method Put -Headers $headers
+                Write-Host "  ok connectorV2/accessPolicy/$policyName"
+            } catch {
+                Write-Host "  FAILED - PUT accessPolicies/$policyName"
+                continue
+            }
+
+            $mcpBody = [ordered]@{
+                properties = [ordered]@{
+                    description = $displayName
+                    connectors  = @(@{ name = $apiName; connectionName = $connectionName })
+                }
+            }
+            if ($spec.requireApprovalTools) {
+                $mcpBody.runtimeMcpConfiguration = @{ requireApprovalTools = @($spec.requireApprovalTools) }
+            }
+
+            try {
+                $null = Invoke-RestMethod -TimeoutSec 30 `
+                    -Uri "$AgentEndpoint/api/v2/connectorV2/mcpservers/$encodedConnectionName" `
+                    -Method Put -Headers $headers -Body ($mcpBody | ConvertTo-Json -Compress -Depth 20) `
+                    -ContentType 'application/json'
+                Write-Host "  ok connectorV2/mcpserver/$connectionName"
+            } catch {
+                Write-Host "  FAILED - PUT mcpservers/$connectionName"
+                continue
+            }
+
+            $connectionStatus = $connectionResult.properties.overallStatus
+            if (-not $connectionStatus -and $connectionResult.properties.statuses) {
+                $connectionStatus = $connectionResult.properties.statuses[0].status
+            }
+            if ($connectionStatus -in @('Error', 'Unauthenticated')) {
+                Write-Host "  WARNING - Connection $connectionName needs OAuth consent. Complete it in the portal:"
+                Write-Host "    https://sre.azure.com -> Connectors -> $displayName -> Authorize"
+            }
+        }
+    } else {
+        Write-Host "connectorV2: $cv2Count - WARNING skipped (no data-plane token)"
+        foreach ($connector in $connectorV2) {
+            $name = if ($connector.metadata.name) { $connector.metadata.name } else { $connector.name }
+            $DpSkippedItems.Add("connectorV2/$name")
         }
     }
 }
@@ -1162,8 +1301,10 @@ if ($DpTokenAvailable) {
                 default { "GitHub" }
             }
             $rdesc = if ($repo.spec.description) { $repo.spec.description } else { "" }
+            $rbranch = if ($repo.spec.branch) { $repo.spec.branch } else { "" }
             $rbody = @{ name = $rname; type = "CodeRepo"; properties = @{ url = $rurl; type = $rtype } }
             if ($rdesc) { $rbody.properties.description = $rdesc }
+            if ($rbranch) { $rbody.properties.branch = $rbranch }
             $rbodyJson = $rbody | ConvertTo-Json -Depth 5 -Compress
             try {
                 $null = Invoke-RestMethod -Uri "$AgentEndpoint/api/v2/repos/$([Uri]::EscapeDataString($rname))" `
@@ -1284,8 +1425,10 @@ if ($DpTokenAvailable) {
                     default { "GitHub" }
                 }
                 $rdesc = if ($repo.spec.description) { $repo.spec.description } else { "" }
+                $rbranch = if ($repo.spec.branch) { $repo.spec.branch } else { "" }
                 $rProps = @{ url = $rurl; type = $rtype }
                 if ($rdesc) { $rProps.description = $rdesc }
+                if ($rbranch) { $rProps.branch = $rbranch }
                 $rbody = @{
                     name       = $rname
                     type       = "CodeRepo"

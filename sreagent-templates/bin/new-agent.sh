@@ -8,6 +8,7 @@
 # Usage:
 #   ./new-agent.sh                              # Interactive — lists recipes
 #   ./new-agent.sh --recipe generic           # Skip recipe picker
+#   ./new-agent.sh --recipe-path ../labs/onboardinglab/agent-recipe
 #   ./new-agent.sh --recipe dynatrace -o my-dt-agent  # Non-interactive with defaults
 #   ./new-agent.sh --recipe generic --set agentName=prod-agent --set location=swedencentral
 #
@@ -28,7 +29,8 @@ usage() {
 Usage: $0 [options]
 
 Options:
-  --recipe <name>    Recipe template to use (skip interactive picker)
+  --recipe <name>      Bundled recipe template to use (skip interactive picker)
+  --recipe-path <dir>  Recipe directory to use (skip interactive picker)
   --list               List available recipes and exit
   -o, --output <dir>   Output directory (default: ./<agentName>)
   --subscription <id>  Target subscription (default: current az account)
@@ -49,7 +51,7 @@ EOF
   exit "${1:-0}"
 }
 
-RECIPE="" OUTPUT="" SUBSCRIPTION="" NON_INTERACTIVE=false LIST_ONLY=false
+RECIPE="" RECIPE_PATH="" OUTPUT="" SUBSCRIPTION="" NON_INTERACTIVE=false LIST_ONLY=false
 PRESET_FILE=$(mktemp /tmp/preset.XXXXXX)
 VALUES_FILE=$(mktemp /tmp/values.XXXXXX)
 _set() { local file="$1" key="$2" val="$3"; echo "${key}=${val}" >> "$file"; }
@@ -60,6 +62,7 @@ trap 'rm -f "$PRESET_FILE" "$VALUES_FILE" 2>/dev/null' EXIT
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --recipe)          RECIPE="$2"; shift 2 ;;
+    --recipe-path)     RECIPE_PATH="$2"; shift 2 ;;
     --list)              LIST_ONLY=true; shift ;;
     -o|--output)         OUTPUT="$2"; shift 2 ;;
     --subscription)      SUBSCRIPTION="$2"; shift 2 ;;
@@ -73,6 +76,8 @@ while [[ $# -gt 0 ]]; do
     *)                   echo "Unknown option: $1" >&2; usage 1 ;;
   esac
 done
+
+[[ -z "$RECIPE" || -z "$RECIPE_PATH" ]] || { echo 'Use either --recipe or --recipe-path, not both.' >&2; exit 1; }
 
 # ─────────────────────────── List recipes ───────────────────────────
 
@@ -94,7 +99,7 @@ fi
 
 # ─────────────────────────── Pick recipe ───────────────────────────
 
-if [[ -z "$RECIPE" ]]; then
+if [[ -z "$RECIPE" && -z "$RECIPE_PATH" ]]; then
   echo "┌──────────────────────────────────────────────┐"
   echo "│       SRE Agent — New Agent Setup             │"
   echo "└──────────────────────────────────────────────┘"
@@ -120,8 +125,14 @@ if [[ -z "$RECIPE" ]]; then
   fi
 fi
 
-RECIPE_DIR="${RECIPES_DIR}/${RECIPE}"
-[[ -d "$RECIPE_DIR" ]] || { echo "Recipe not found: ${RECIPE}" >&2; echo "Run $0 --list to see available recipes." >&2; exit 1; }
+if [[ -n "$RECIPE_PATH" ]]; then
+  [[ -d "$RECIPE_PATH" ]] || { echo "Recipe path not found: ${RECIPE_PATH}" >&2; exit 1; }
+  RECIPE_DIR="$(cd "$RECIPE_PATH" && pwd)"
+  RECIPE="$(basename "$RECIPE_DIR")"
+else
+  RECIPE_DIR="${RECIPES_DIR}/${RECIPE}"
+  [[ -d "$RECIPE_DIR" ]] || { echo "Recipe not found: ${RECIPE}" >&2; echo "Run $0 --list to see available recipes." >&2; exit 1; }
+fi
 [[ -f "${RECIPE_DIR}/agent.json" ]] || { echo "Recipe missing agent.json: ${RECIPE}" >&2; exit 1; }
 
 source "${SCRIPT_DIR}/region-utils.sh"
@@ -354,7 +365,6 @@ echo "  2. Dry run:"
 echo "       ./bin/deploy.sh ${OUTPUT}/ --dry-run"
 echo "  3. Deploy:"
 echo "       ./bin/deploy.sh ${OUTPUT}/"
-echo "  3. When validation passes, remove --validate-only to deploy."
 
 # ── Data residency warning ──
 _model=$(jq -r '.defaultModelProvider // "Anthropic"' "${OUTPUT}/agent.json" 2>/dev/null)
@@ -368,7 +378,7 @@ if [[ "$_model" == "Anthropic" ]]; then
       echo "     data residency policy. If you see 'Anthropic is not available due to"
       echo "     your organization's data residency policy' in the portal, switch to"
       echo "     Azure OpenAI:"
-      echo "       Edit ${OUTPUT}/agent.json → set \"defaultModelProvider\": \"Azure OpenAI\""
+      echo "       Edit ${OUTPUT}/agent.json → set \"defaultModelProvider\": \"MicrosoftFoundry\""
       echo
       ;;
   esac

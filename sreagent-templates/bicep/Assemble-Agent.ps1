@@ -245,6 +245,9 @@ $action         = $agentJson | jq -r '.access.actionMode'
 $toggles        = $agentJson | Invoke-Jq -Compact -Filter '.toggles // {}'
 $upgradeChannel = $agentJson | Invoke-Jq -Raw -Filter '.upgradeChannel // "Preview"'
 $modelProvider  = $agentJson | Invoke-Jq -Raw -Filter '.defaultModelProvider // "Anthropic"'
+if ($modelProvider -in @('Azure OpenAI', 'AzureOpenAI')) {
+    $modelProvider = 'MicrosoftFoundry'
+}
 $monthlyLimit   = $agentJson | Invoke-Jq -Raw -Filter '.monthlyAgentUnitLimit // 10000'
 $tags           = $agentJson | Invoke-Jq -Compact -Filter '.tags // {}'
 $existingUami   = $agentJson | Invoke-Jq -Raw -Filter '.existingUamiId // empty'
@@ -364,6 +367,16 @@ Write-Log "incident-platforms: $($incidentPlatforms | jq 'length')"
 $repos = Collect-Config 'repos'
 Write-Log "repos: $($repos | jq 'length')"
 
+$toolPermissions = '{}'
+$toolPermissionsFile = Join-Path $ConfigDir 'tool-permissions.json'
+if (Test-Path $toolPermissionsFile -PathType Leaf) {
+    $toolPermissions = Get-Content $toolPermissionsFile -Raw
+    Write-Log 'tool-permissions: loaded'
+}
+
+$connectorV2 = Collect-Config 'connectorv2'
+Write-Log "connectorv2: $($connectorV2 | jq 'length')"
+
 $marketplaces = '[]'
 if (Test-Path (Join-Path $ConfigDir 'config/plugins/marketplaces') -PathType Container) {
     $marketplaces = Collect-Config 'plugins/marketplaces'
@@ -396,9 +409,11 @@ if (Test-Path (Join-Path $dataDir 'synthesized-knowledge.json') -PathType Leaf) 
 }
 $synthDir = Join-Path $dataDir 'synthesized-knowledge'
 if (Test-Path $synthDir -PathType Container) {
-    $synthKnowledgeDir = (Resolve-Path $synthDir).Path
-    $skCount = (Get-ChildItem $synthDir -File -Recurse | Measure-Object).Count
-    Write-Log "Found $skCount synthesized knowledge file(s) in data/synthesized-knowledge/"
+    $skFiles = @(Get-ChildItem $synthDir -File -Recurse | Where-Object { -not $_.Name.StartsWith('.') })
+    if ($skFiles.Count -gt 0) {
+        $synthKnowledgeDir = (Resolve-Path $synthDir).Path
+        Write-Log "Found $($skFiles.Count) synthesized knowledge file(s) in data/synthesized-knowledge/"
+    }
 }
 if (Test-Path (Join-Path $dataDir 'repo-instructions.json') -PathType Leaf) {
     $repoInstructions = Get-Content (Join-Path $dataDir 'repo-instructions.json') -Raw
@@ -566,6 +581,8 @@ $knowledgeArr         = @(($knowledge         | ConvertFrom-Json -ErrorAction Si
 $knowledgeItemsArr    = @(($knowledgeItems    | ConvertFrom-Json -ErrorAction SilentlyContinue))
 $synthKnowledgeArr    = @(($synthKnowledge    | ConvertFrom-Json -ErrorAction SilentlyContinue))
 $repoInstructionsArr  = @(($repoInstructions  | ConvertFrom-Json -ErrorAction SilentlyContinue))
+$toolPermissionsObj   = ($toolPermissions     | ConvertFrom-Json -ErrorAction SilentlyContinue)
+$connectorV2Arr       = @(($connectorV2       | ConvertFrom-Json -ErrorAction SilentlyContinue))
 $marketplacesArr      = @(($marketplaces      | ConvertFrom-Json -ErrorAction SilentlyContinue))
 $installationsArr     = @(($installations     | ConvertFrom-Json -ErrorAction SilentlyContinue))
 
@@ -604,6 +621,8 @@ $extrasObj = [ordered]@{
     synthesizedKnowledge   = $synthKnowledgeArr
     synthesizedKnowledgeDir = $synthKnowledgeDir
     repoInstructions       = $repoInstructionsArr
+    toolPermissions        = (Ensure-Obj $toolPermissionsObj)
+    connectorV2            = $connectorV2Arr
     plugins                = [ordered]@{
         marketplaces  = $marketplacesArr
         installations = $installationsArr

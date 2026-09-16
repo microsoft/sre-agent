@@ -1,0 +1,30 @@
+{
+  "allow": [
+    "GetAzCliHelp",
+    "RunAzCliReadCommands",
+    "ReadFile",
+    "ListDir",
+    "FileSearch",
+    "GrepSearch",
+    "read_skill_file",
+    "system-mcp-monitor/*",
+    "FetchGithubIssue",
+    "FetchGithubIssues",
+    "ListOutlookEmails"
+  ],
+  "ask": [
+    "RunAzCliWriteCommands",
+    "CreateGithubIssue",
+    "SendOutlookEmail"
+  ],
+  "deny": [
+    "RunKubectlWriteCommand",
+    "RunInTerminal",
+    "Terminal",
+    "CreateFile",
+    "CreateDirectory",
+    "SaveFileToBlob",
+    "ReplaceStringInFile",
+    "MultiReplaceStringInFile"
+  ]
+}

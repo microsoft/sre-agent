@@ -68,6 +68,11 @@ else
   exit 1
 fi
 
+STRICT_VERIFICATION=false
+if [[ -d "$INPUT" && -f "${INPUT}/expected-config.json" ]]; then
+  STRICT_VERIFICATION=$(jq -r '.strictVerification // false' "${INPUT}/expected-config.json" 2>/dev/null || echo false)
+fi
+
 cleanup() { for f in ${CLEANUP_FILES[@]+"${CLEANUP_FILES[@]}"}; do rm -rf "$f" 2>/dev/null; done; }
 trap cleanup EXIT
 
@@ -132,7 +137,7 @@ echo "  Data-plane (apply-extras):"
 EXTRAS_FILE="${FILE%.parameters.json}.extras.json"
 [[ ! -f "$EXTRAS_FILE" ]] && EXTRAS_FILE="$(dirname "$FILE")/assembled.extras.json"
 if [[ -f "$EXTRAS_FILE" ]]; then
-  for key in skills subagents tools hooks commonPrompts incidentPlatforms incidentFilters scheduledTasks httpTriggers repos knowledgeItems knowledge pluginConfigs; do
+  for key in skills subagents tools hooks commonPrompts incidentPlatforms incidentFilters scheduledTasks httpTriggers repos knowledgeItems knowledge pluginConfigs connectorV2; do
     n=$(jq -r ".${key} // [] | length" "$EXTRAS_FILE" 2>/dev/null)
     if [[ "$n" -gt 0 ]]; then
       case "$key" in
@@ -149,6 +154,7 @@ if [[ -f "$EXTRAS_FILE" ]]; then
         knowledgeItems)     echo "    ✓ Knowledge files: ${n}" ;;
         knowledge)          echo "    ✓ Knowledge docs: ${n}" ;;
         pluginConfigs)      echo "    ✓ Plugin configs: ${n}" ;;
+        connectorV2)        echo "    ✓ Managed connectors: ${n}" ;;
       esac
     fi
   done
@@ -176,7 +182,12 @@ if [[ -d "$INPUT" ]]; then
       check_connector_health "$SUB" "$RG" "$AG"
       # Still run verify to confirm current state
       echo "── Current state verification ──"
-      "${SCRIPT_DIR}/verify-agent.sh" "$SUB" "$RG" "$AG" --expected "$INPUT" 2>&1 || true
+      VERIFY_EXIT=0
+      "${SCRIPT_DIR}/verify-agent.sh" "$SUB" "$RG" "$AG" --expected "$INPUT" 2>&1 || VERIFY_EXIT=$?
+      if [[ "$STRICT_VERIFICATION" == "true" && "$VERIFY_EXIT" -ne 0 ]]; then
+        echo "Verification failed for required agent configuration." >&2
+        exit "$VERIFY_EXIT"
+      fi
       exit 0
     else
       echo "  --force: redeploying anyway."
@@ -430,7 +441,8 @@ DEPLOY_LOG="${LOG_DIR}/deploy-$(date +%Y%m%d-%H%M%S).log"
 if [[ -d "$INPUT" ]]; then
   echo
   echo "── Post-deploy verification ──"
-  VERIFY_OUTPUT=$("${SCRIPT_DIR}/verify-agent.sh" "$SUB" "$RG" "$AG" --expected "$INPUT" 2>&1) || true
+  VERIFY_EXIT=0
+  VERIFY_OUTPUT=$("${SCRIPT_DIR}/verify-agent.sh" "$SUB" "$RG" "$AG" --expected "$INPUT" 2>&1) || VERIFY_EXIT=$?
   echo "$VERIFY_OUTPUT"
   # Append verify results to log
   {
@@ -440,6 +452,10 @@ if [[ -d "$INPUT" ]]; then
   } >> "$DEPLOY_LOG" 2>/dev/null || true
   echo
   echo "  Log saved: ${DEPLOY_LOG}"
+  if [[ "$STRICT_VERIFICATION" == "true" && "$VERIFY_EXIT" -ne 0 ]]; then
+    echo "Verification failed for required agent configuration." >&2
+    exit "$VERIFY_EXIT"
+  fi
 fi
 
 # ── Post-deploy: process roles.yaml if present ──

@@ -73,21 +73,24 @@ echo ""
 # ── Step 2: Azure Login ──────────────────────────────────────────────────────
 echo -e "${YELLOW}[2/6] Signing in to Azure...${NC}"
 
-# Always force fresh login to avoid stale/wrong sessions
-echo -e "  Running ${YELLOW}az login --use-device-code${NC}"
-echo -e "  Open a browser inside the VM, go to ${YELLOW}https://microsoft.com/devicelogin${NC}"
-echo -e "  Enter the code shown below, then sign in with your lab credentials."
-echo ""
-az login --use-device-code
-if [ $? -ne 0 ]; then
-  echo -e "${RED}  Azure login failed. Try again.${NC}"
-  exit 1
+if az account show &>/dev/null; then
+  echo -e "  ${GREEN}✓${NC} Azure CLI is already signed in"
+else
+  echo -e "  Opening Azure CLI browser sign-in..."
+  if ! az login; then
+    echo -e "${RED}  Azure login failed.${NC}"
+    echo -e "  If browser sign-in is unavailable, run ${YELLOW}az login --use-device-code${NC} manually and rerun setup."
+    exit 1
+  fi
 fi
 
 # Set subscription if provided
 SUB_ID="${1:-}"
 if [ -n "$SUB_ID" ]; then
-  az account set --subscription "$SUB_ID" 2>/dev/null
+  if ! az account set --subscription "$SUB_ID"; then
+    echo -e "${RED}  Could not select subscription: $SUB_ID${NC}"
+    exit 1
+  fi
   echo -e "  ${GREEN}✓${NC} Subscription set: $SUB_ID"
 fi
 echo ""
@@ -103,7 +106,11 @@ echo -e "  Signing in to Azure Developer CLI..."
 if azd auth login --check-status &>/dev/null 2>&1; then
   echo -e "  ${GREEN}✓${NC} Already signed in to azd"
 else
-  azd auth login --use-device-code
+  if ! azd auth login; then
+    echo -e "${RED}  Azure Developer CLI login failed.${NC}"
+    echo -e "  If browser sign-in is unavailable, run ${YELLOW}azd auth login --use-device-code${NC} manually and rerun setup."
+    exit 1
+  fi
 fi
 echo ""
 
@@ -134,10 +141,6 @@ echo -e "${YELLOW}[4/6] Deploying infrastructure (~5-8 min)...${NC}"
 echo -e "  This creates: SRE Agent, Grubify app, monitoring, alerts"
 echo ""
 
-# Refresh azd auth right before deploy (TAP tokens expire quickly)
-echo -e "  Refreshing Azure Developer CLI auth..."
-azd auth login --use-device-code
-
 azd up
 if [ $? -ne 0 ]; then
   echo -e "${RED}  Deployment failed. Check errors above and re-run: azd up${NC}"
@@ -145,9 +148,8 @@ if [ $? -ne 0 ]; then
 fi
 echo ""
 
-# ── Step 5: Configure Agent ──────────────────────────────────────────────────
-echo -e "${YELLOW}[5/6] Configuring SRE Agent...${NC}"
-bash "$SCRIPT_DIR/post-provision.sh"
+# ── Step 5: Confirm post-provision hook ─────────────────────────────────────
+echo -e "${YELLOW}[5/6] SRE Agent configuration completed by the azd post-provision hook.${NC}"
 echo ""
 
 # ── Step 6: Summary ──────────────────────────────────────────────────────────

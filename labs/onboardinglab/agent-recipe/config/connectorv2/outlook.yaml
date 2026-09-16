@@ -1,0 +1,6 @@
+metadata:
+  name: outlook
+spec:
+  apiName: office365
+  displayName: Office 365 Outlook
+  connectionName: office365

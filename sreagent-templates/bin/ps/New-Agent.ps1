@@ -10,6 +10,7 @@
 .EXAMPLE
     ./New-Agent.ps1                                           # Interactive — lists recipes
     ./New-Agent.ps1 -Recipe generic                           # Skip recipe picker
+    ./New-Agent.ps1 -RecipePath ..\labs\onboardinglab\agent-recipe
     ./New-Agent.ps1 -Recipe dynatrace -Output my-dt-agent     # With output dir
     ./New-Agent.ps1 -Recipe generic -Set @{agentName='prod-agent'; location='swedencentral'}
     ./New-Agent.ps1 -Recipe generic -Set agentName=prod-agent,location=swedencentral
@@ -26,6 +27,8 @@
 param(
     [Alias("r")]
     [string]$Recipe,
+
+    [string]$RecipePath,
 
     [switch]$List,
 
@@ -50,6 +53,10 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $PSVersionTable.PSVersion.Minor -
     $PSNativeCommandArgumentPassing = 'Legacy'
 }
 $ErrorActionPreference = "Stop"
+
+if ($Recipe -and $RecipePath) {
+    Write-Error 'Use either -Recipe or -RecipePath, not both.'
+}
 
 $ScriptDir = $PSScriptRoot
 $BinDir = Split-Path $ScriptDir -Parent
@@ -136,7 +143,7 @@ if ($List) {
 
 # ─────────────────────────── Pick recipe ───────────────────────────
 
-if (-not $Recipe) {
+if (-not $Recipe -and -not $RecipePath) {
     Write-Host ""
     Write-Host ([char]0x250C + ([string][char]0x2500) * 46 + [char]0x2510) -ForegroundColor Cyan
     Write-Host "$([char]0x2502)       SRE Agent " -NoNewline -ForegroundColor Cyan
@@ -164,9 +171,18 @@ if (-not $Recipe) {
     }
 }
 
-$RecipeDir = Join-Path $RecipesDir $Recipe
-if (-not (Test-Path $RecipeDir -PathType Container)) {
-    Write-Error "Recipe not found: $Recipe`nRun with -List to see available recipes."
+if ($RecipePath) {
+    if (-not (Test-Path -LiteralPath $RecipePath -PathType Container)) {
+        Write-Error "Recipe path not found: $RecipePath"
+    }
+    $RecipeDir = (Resolve-Path -LiteralPath $RecipePath).Path
+    $Recipe = Split-Path $RecipeDir -Leaf
+}
+else {
+    $RecipeDir = Join-Path $RecipesDir $Recipe
+    if (-not (Test-Path $RecipeDir -PathType Container)) {
+        Write-Error "Recipe not found: $Recipe`nRun with -List to see available recipes."
+    }
 }
 $RecipeAgentJson = Join-Path $RecipeDir "agent.json"
 if (-not (Test-Path $RecipeAgentJson)) {
@@ -283,6 +299,14 @@ if ($LASTEXITCODE -ne 0 -or -not $cleaned) {
     Write-Error "jq failed processing agent.json"; exit 1
 }
 $cleaned | Set-Content -Path $outAgentJson -Encoding UTF8
+
+# Map user-facing model provider names to API values before replacing placeholders.
+if ($Values.ContainsKey('modelProvider')) {
+    $Values['modelProvider'] = switch ($Values['modelProvider']) {
+        { $_ -in @('Azure OpenAI', 'AzureOpenAI') } { 'MicrosoftFoundry'; break }
+        default { $_ }
+    }
+}
 
 # Replace {{placeholders}} with user values in all JSON and YAML files
 $templateFiles = Get-ChildItem -Path $Output -Recurse -Include "*.json", "*.yaml" -File
@@ -401,7 +425,7 @@ foreach ($d in $configDirs) {
 
 $automationsDir = Join-Path $Output "automations"
 if (Test-Path $automationsDir -PathType Container) {
-    $hasFiles = (Get-ChildItem -Path $automationsDir -Recurse -File -ErrorAction SilentlyContinue).Count -gt 0
+    $hasFiles = @(Get-ChildItem -Path $automationsDir -Recurse -File -ErrorAction SilentlyContinue).Count -gt 0
     if ($hasFiles) {
         Write-Host "    automations/"
         foreach ($d in @("scheduled-tasks", "incident-filters", "http-triggers", "incident-platforms")) {
@@ -435,6 +459,13 @@ Write-Host "  2. Dry run:"
 Write-Host "       ./bin/deploy.sh $Output/ --dry-run"
 Write-Host "  3. Deploy:"
 Write-Host "       ./bin/deploy.sh $Output/"
+
+$generatedAgent = Get-Content $outAgentJson -Raw | ConvertFrom-Json
+if ($generatedAgent.defaultModelProvider -eq 'Anthropic' -and $generatedAgent.identity.location -in @('swedencentral', 'uksouth', 'australiaeast')) {
+    Write-Host ''
+    Write-Warning "Anthropic may be blocked by organizational data residency policy in $($generatedAgent.identity.location)."
+    Write-Host "  To use Azure OpenAI, set defaultModelProvider to MicrosoftFoundry in $outAgentJson."
+}
 Write-Host ""
 
 # ── Telemetry ──

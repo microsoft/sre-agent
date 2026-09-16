@@ -3,10 +3,10 @@
 # post-provision.sh — Runs automatically after azd provision
 #
 # Configures the SRE Agent using dataplane REST APIs (no srectl dependency):
-#   - Uploads knowledge base files
+#   - Uploads knowledge sources
 #   - Creates subagents via dataplane v2 API
 #   - Creates incident response plan
-#   - GitHub OAuth connector + subagents
+#   - Configures GitHub OAuth, code access, and optional subagents
 # =============================================================================
 set -uo pipefail
 
@@ -256,15 +256,19 @@ create_subagent() {
   local agent_name="$2"
   local token
   token=$(get_token)
+  if [ -z "$token" ]; then
+    echo "   ❌ ${agent_name}: could not acquire an SRE Agent data-plane token"
+    return 1
+  fi
 
   # Convert YAML spec to API JSON using helper script, pipe directly to curl
   local json_body
   json_body=$($PYTHON "$SCRIPT_DIR/yaml-to-api-json.py" "$yaml_file" "-" 2>&1)
 
   if [ -z "$json_body" ] || echo "$json_body" | grep -q "^Traceback\|ModuleNotFoundError\|ImportError\|SyntaxError"; then
-    echo "   ⚠️  ${agent_name}: Python conversion failed"
+    echo "   ❌ ${agent_name}: Python conversion failed"
     echo "   $json_body" | head -3
-    return
+    return 1
   fi
 
   local http_code
@@ -277,63 +281,74 @@ create_subagent() {
   if [ "$http_code" = "200" ] || [ "$http_code" = "201" ] || [ "$http_code" = "202" ] || [ "$http_code" = "204" ]; then
     echo "   ✅ Created: ${agent_name}"
   else
-    echo "   ⚠️  ${agent_name} returned HTTP ${http_code}"
+    echo "   ❌ ${agent_name} returned HTTP ${http_code}"
+    return 1
   fi
 }
 
-# ── Helper: Check if something exists (for --retry mode) ─────────────────────
-check_kb_files() {
-  local token=$(get_token)
-  local count=$(curl -s "${AGENT_ENDPOINT}/api/v1/AgentMemory/files" -H "Authorization: Bearer ${token}" 2>/dev/null | $PYTHON -c "import sys,json; print(len(json.load(sys.stdin).get('files',[])))" 2>/dev/null || echo "0")
-  [ "$count" -ge 2 ]
-}
-
-check_subagent_exists() {
-  local name="$1"
-  local token=$(get_token)
-  local code=$(curl -s -o /dev/null -w "%{http_code}" "${AGENT_ENDPOINT}/api/v2/extendedAgent/agents/${name}" -H "Authorization: Bearer ${token}" 2>/dev/null)
-  [ "$code" = "200" ]
-}
-
-check_response_plan_exists() {
-  local token=$(get_token)
-  local count=$(curl -s "${AGENT_ENDPOINT}/api/v1/incidentPlayground/filters" -H "Authorization: Bearer ${token}" 2>/dev/null | $PYTHON -c "import sys,json; d=json.load(sys.stdin); print(len([f for f in d if f.get('handlingAgent')]))" 2>/dev/null || echo "0")
-  [ "$count" -ge 1 ]
-}
-
-check_connector_exists() {
-  local count=$(az rest --method GET --url "https://management.azure.com${AGENT_RESOURCE_ID}/DataConnectors?api-version=${API_VERSION}" --query "length(value)" -o tsv 2>/dev/null || echo "0")
-  [ "$count" -ge 1 ]
-}
-
-# ── Step 1: Upload knowledge base files ──────────────────────────────────────
-echo "📚 Step 1/5: Uploading knowledge base..."
+# ── Step 1: Upload knowledge sources ─────────────────────────────────────────
+echo "📚 Step 1/5: Uploading knowledge sources..."
 TOKEN=$(get_token)
+if [ -z "$TOKEN" ]; then
+  echo "   ❌ Could not acquire an SRE Agent data-plane token"
+  exit 1
+fi
 
-# Build curl args array dynamically from knowledge-base/ directory
-CURL_ARGS=(-s -o /dev/null -w "%{http_code}" \
-  -X POST "${AGENT_ENDPOINT}/api/v1/AgentMemory/upload" \
-  -H "Authorization: Bearer ${TOKEN}" \
-  -F "triggerIndexing=true")
-KB_NAMES=""
+KNOWLEDGE_FAILED=0
 for f in ./knowledge-base/*.md; do
-  CURL_ARGS+=(-F "files=@${f};type=text/plain")
-  KB_NAMES="${KB_NAMES} $(basename "$f")"
+  file_name=$(basename "$f")
+  connector_name=$(printf '%s' "$file_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g;s/--*/-/g;s/^-//;s/-$//')
+  body=$($PYTHON - "$f" "$connector_name" <<'PY'
+import base64
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+name = sys.argv[2]
+print(json.dumps({
+    "name": name,
+    "type": "KnowledgeItem",
+    "tags": [],
+    "properties": {
+        "dataConnectorType": "KnowledgeFile",
+        "dataSource": name,
+        "extendedProperties": {
+            "displayName": path.name,
+            "fileName": path.name,
+            "fileContent": base64.b64encode(path.read_bytes()).decode("ascii"),
+            "contentType": "text/markdown",
+        },
+    },
+}))
+PY
+)
+  HTTP_CODE=$(printf '%s' "$body" | curl -sS -o "${TEMP_DIR}/knowledge-response.txt" -w "%{http_code}" \
+    -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/${connector_name}" \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -H "Content-Type: application/json" \
+    --data-binary @-)
+  if [[ "$HTTP_CODE" =~ ^2 ]]; then
+    echo "   ✅ ${file_name}"
+  else
+    echo "   ❌ ${file_name} returned HTTP ${HTTP_CODE}"
+    KNOWLEDGE_FAILED=1
+  fi
 done
-
-HTTP_CODE=$(curl "${CURL_ARGS[@]}")
-
-if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
-  echo "   ✅ Uploaded:${KB_NAMES}"
-else
-  echo "   ⚠️  Upload returned HTTP ${HTTP_CODE}"
+if [ "$KNOWLEDGE_FAILED" -ne 0 ]; then
+  exit 1
 fi
 echo ""
 
 # ── Step 2: Create incident-handler subagent ─────────────────────────────────
 echo "🤖 Step 2/5: Creating/updating incident-handler subagent..."
-echo "   Using full config with GitHub tools"
-create_subagent "sre-config/agents/incident-handler-full.yaml" "incident-handler"
+if [ -n "$GITHUB_REPO" ]; then
+  echo "   Using full config with GitHub tools"
+  create_subagent "sre-config/agents/incident-handler-full.yaml" "incident-handler" || exit 1
+else
+  echo "   Using core config without GitHub tools"
+  create_subagent "sre-config/agents/incident-handler-core.yaml" "incident-handler" || exit 1
+fi
 echo ""
 
 # ── Step 3: Enable Azure Monitor + create response plan ──────────────────────
@@ -352,26 +367,21 @@ API_VERSION="2025-05-01-preview"
     echo "   ⚠️  Could not enable Azure Monitor"
   fi
 
-  # Wait for Azure Monitor platform to initialize before creating filters
+  # Wait for Azure Monitor platform to initialize before creating the response plan
   echo "   Waiting for Azure Monitor to initialize..."
   sleep 30
-
-  # Delete any existing filters (previous runs)
-  TOKEN=$(get_token)
-  curl -s -o /dev/null -X DELETE "${AGENT_ENDPOINT}/api/v1/incidentPlayground/filters/grubify-http-errors" \
-    -H "Authorization: Bearer ${TOKEN}" 2>/dev/null || true
 
 # Create response plan with retry (Azure Monitor needs time to be ready)
 FILTER_CREATED=false
 for attempt in 1 2 3 4 5; do
   TOKEN=$(get_token)
-  HTTP_CODE=$(curl -s -o "${TEMP_DIR}/response-plan-resp.txt" -w "%{http_code}" \
-    -X PUT "${AGENT_ENDPOINT}/api/v1/incidentPlayground/filters/grubify-http-errors" \
+  HTTP_CODE=$(curl -sS -o "${TEMP_DIR}/response-plan-resp.txt" -w "%{http_code}" \
+    -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/incidentFilters/grubify-http-errors" \
     -H "Authorization: Bearer ${TOKEN}" \
     -H "Content-Type: application/json" \
-    --data-binary '{"id":"grubify-http-errors","name":"Grubify HTTP Errors","priorities":["Sev0","Sev1","Sev2","Sev3","Sev4"],"titleContains":"alert-http-5xx-sre-lab","titleContainsAll":[],"titleContainsAny":[],"titleNotContains":[],"handlingAgent":"incident-handler","agentMode":"autonomous","maxAutomatedInvestigationAttempts":3,"mergeEnabled":true,"mergeWindowHours":3,"isEnabled":true}')
+    --data-binary '{"name":"grubify-http-errors","type":"IncidentFilter","tags":[],"properties":{"incidentPlatform":"AzMonitor","priorities":["Sev0","Sev1","Sev2","Sev3","Sev4"],"titleContains":"alert-http-5xx-sre-lab","titleContainsAll":[],"titleContainsAny":[],"titleNotContains":[],"handlingAgent":"incident-handler","agentMode":"Autonomous","maxAutomatedInvestigationAttempts":3,"mergeEnabled":true,"mergeWindowHours":3,"isEnabled":true}}')
 
-  if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "202" ] || [ "$HTTP_CODE" = "409" ]; then
+  if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "202" ] || [ "$HTTP_CODE" = "204" ]; then
     echo "   ✅ Response plan → incident-handler"
     FILTER_CREATED=true
     break
@@ -382,15 +392,11 @@ for attempt in 1 2 3 4 5; do
 done
 
   if [ "$FILTER_CREATED" = "false" ]; then
-    echo "   ⚠️  Response plan failed after 5 attempts (set up in portal or run: ./scripts/post-provision.sh --retry)"
+    echo "   ❌ Response plan failed after 5 attempts"
     echo "   API response: $(cat "${TEMP_DIR}/response-plan-resp.txt")"
+    exit 1
   fi
   rm -f ${TEMP_DIR}/response-plan-resp.txt
-
-# Always delete the default quickstart handler (auto-created by Azure Monitor platform)
-TOKEN=$(get_token)
-curl -s -o /dev/null -X DELETE "${AGENT_ENDPOINT}/api/v1/incidentPlayground/filters/quickstart_response_plan" \
-  -H "Authorization: Bearer ${TOKEN}" 2>/dev/null || true
 
 echo ""
 
@@ -398,24 +404,20 @@ echo ""
 if [ -n "$GITHUB_REPO" ]; then
 echo "🔗 Step 4/5: GitHub integration..."
 
-# Create GitHub OAuth connector via data plane API (no PAT needed)
-echo "   Creating GitHub OAuth connector..."
+# Check current GitHub OAuth domain state
 TOKEN=$(get_token)
-RESULT=$(curl -s -o /dev/null -w "%{http_code}" \
-  -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/github" \
-  -H "Authorization: Bearer ${TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"github","type":"AgentConnector","properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}')
-if [ "$RESULT" = "200" ] || [ "$RESULT" = "201" ]; then
-  echo "   ✅ GitHub OAuth connector created"
-else
-  echo "   ⚠️  GitHub connector returned HTTP ${RESULT}"
-fi
-
-# Get OAuth login URL for user to authorize
-TOKEN=$(get_token)
-OAUTH_URL=$(curl -s "${AGENT_ENDPOINT}/api/v1/github/config" \
+GITHUB_CONFIGURED=$(curl -sS "${AGENT_ENDPOINT}/api/v2/github/domains" \
   -H "Authorization: Bearer ${TOKEN}" 2>/dev/null | $PYTHON -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    print('true' if len(d.get('values', [])) > 0 else 'false')
+except: print('false')
+" 2>/dev/null)
+
+if [ "$GITHUB_CONFIGURED" != "true" ]; then
+  OAUTH_URL=$(curl -sS "${AGENT_ENDPOINT}/api/v2/github/oauth/config" \
+    -H "Authorization: Bearer ${TOKEN}" 2>/dev/null | $PYTHON -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -423,97 +425,91 @@ try:
 except: print('')
 " 2>/dev/null)
 
-# Create GitHub OAuth connector via ARM (needed for OAuth flow to fully work)
-echo "   Creating GitHub OAuth connector via ARM..."
-TOKEN=$(get_token)
-ARM_RESULT=$(az rest --method PUT \
-  --url "https://management.azure.com${AGENT_RESOURCE_ID}/DataConnectors/github?api-version=${API_VERSION}" \
-  --body '{"properties":{"dataConnectorType":"GitHubOAuth","dataSource":"github-oauth"}}' \
-  -o none 2>&1 || true)
-echo "   ✅ GitHub OAuth connector (ARM)"
+  if [ -z "$OAUTH_URL" ]; then
+    echo "   ❌ Could not retrieve the GitHub OAuth URL"
+    exit 1
+  fi
 
-# Upload triage runbook
+  echo ""
+  echo "   Open this URL and authorize GitHub access:"
+  echo "   ${OAUTH_URL}"
+  echo ""
+  read -p "   Press Enter after authorization is complete..." _unused
+
+  TOKEN=$(get_token)
+  GITHUB_CONFIGURED=$(curl -sS "${AGENT_ENDPOINT}/api/v2/github/domains" \
+    -H "Authorization: Bearer ${TOKEN}" 2>/dev/null | $PYTHON -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    print('true' if len(d.get('values', [])) > 0 else 'false')
+except: print('false')
+" 2>/dev/null)
+  if [ "$GITHUB_CONFIGURED" != "true" ]; then
+    echo "   ❌ GitHub authorization was not detected"
+    exit 1
+  fi
+fi
+echo "   ✅ GitHub OAuth authorized"
+
+# Add the repository after OAuth so the platform can validate access
+echo "   Adding ${GITHUB_REPO} code repository..."
 TOKEN=$(get_token)
-curl -s -o /dev/null \
-  -X POST "${AGENT_ENDPOINT}/api/v1/AgentMemory/upload" \
+REPO_NAME=$(echo "$GITHUB_REPO" | cut -d'/' -f2)
+REPO_BODY=$($PYTHON -c "
+import json
+print(json.dumps({
+    'name': '${REPO_NAME}',
+    'type': 'CodeRepo',
+    'properties': {
+        'url': 'https://github.com/${GITHUB_REPO}',
+        'type': 'GitHub',
+        'description': 'Grubify application source for the starter lab',
+    },
+}))
+")
+REPO_CODE=$(printf '%s' "$REPO_BODY" | curl -sS -o "${TEMP_DIR}/repo-response.txt" -w "%{http_code}" \
+  -X PUT "${AGENT_ENDPOINT}/api/v2/repos/${REPO_NAME}" \
   -H "Authorization: Bearer ${TOKEN}" \
-  -F "triggerIndexing=true" \
-  -F "files=@./knowledge-base/github-issue-triage.md;type=text/plain"
-echo "   ✅ Uploaded: github-issue-triage.md"
+  -H "Content-Type: application/json" \
+  --data-binary @-)
+if [[ "$REPO_CODE" =~ ^2 ]]; then
+  echo "   ✅ Code repo: ${GITHUB_REPO}"
+else
+  echo "   ❌ Code repo returned HTTP ${REPO_CODE}"
+  cat "${TEMP_DIR}/repo-response.txt"
+  exit 1
+fi
 
 # Create additional subagents
-create_subagent "sre-config/agents/code-analyzer.yaml" "code-analyzer"
-create_subagent "sre-config/agents/issue-triager.yaml" "issue-triager"
+create_subagent "sre-config/agents/code-analyzer.yaml" "code-analyzer" || exit 1
+create_subagent "sre-config/agents/issue-triager.yaml" "issue-triager" || exit 1
 
 # Create scheduled task to triage issues every 12 hours
 echo "   Creating scheduled task for issue triage..."
 TOKEN=$(get_token)
 
-EXISTING_TASKS=$(curl -s "${AGENT_ENDPOINT}/api/v1/scheduledtasks" -H "Authorization: Bearer ${TOKEN}" 2>/dev/null || echo "[]")
-echo "$EXISTING_TASKS" | $PYTHON -c "
-import sys,json
-try:
-    tasks=json.load(sys.stdin)
-    for t in tasks:
-        if t.get('name')=='triage-grubify-issues':
-            print(t.get('id',''))
-except: pass
-" 2>/dev/null | while read -r task_id; do
-    if [ -n "$task_id" ]; then
-      curl -s -o /dev/null -X DELETE "${AGENT_ENDPOINT}/api/v1/scheduledtasks/${task_id}" -H "Authorization: Bearer ${TOKEN}" 2>/dev/null
-    fi
-  done
-
 TASK_BODY=$($PYTHON -c "
 import json, os
 repo = os.environ.get('GITHUB_REPO', 'dm-chelupati/grubify')
-body = {'name':'triage-grubify-issues','description':'Triage customer issues in '+repo+' every 12 hours','cronExpression':'0 */12 * * *','agentPrompt':'Use the issue-triager subagent to list all open issues in '+repo+' that have [Customer Issue] in the title and have not been triaged yet. For each untriaged customer issue, classify it, add labels, and post a triage comment following the triage runbook in the knowledge base.','agent':'issue-triager'}
+body = {'name':'triage-grubify-issues','type':'ScheduledTask','tags':[],'properties':{'name':'triage-grubify-issues','description':'Triage customer issues in '+repo+' every 12 hours','cronExpression':'0 */12 * * *','agentPrompt':'Use the issue-triager subagent to list all open issues in '+repo+' that have [Customer Issue] in the title and have not been triaged yet. For each untriaged customer issue, classify it, add labels, and post a triage comment following the triage runbook in the knowledge base.','agent':'issue-triager','agentMode':'Autonomous','isEnabled':True}}
 print(json.dumps(body))
 ")
-HTTP_CODE=$(echo "$TASK_BODY" | curl -s -o /dev/null -w "%{http_code}" \
-  -X POST "${AGENT_ENDPOINT}/api/v1/scheduledtasks" \
+HTTP_CODE=$(echo "$TASK_BODY" | curl -sS -o "${TEMP_DIR}/scheduled-task-response.txt" -w "%{http_code}" \
+  -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/scheduledtasks/triage-grubify-issues" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
   -d @-)
 if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "202" ]; then
   echo "   ✅ Scheduled task: triage-grubify-issues (every 12h → issue-triager)"
 else
-  echo "   ⚠️  Scheduled task returned HTTP ${HTTP_CODE}"
+  echo "   ❌ Scheduled task returned HTTP ${HTTP_CODE}"
+  cat "${TEMP_DIR}/scheduled-task-response.txt"
+  exit 1
 fi
 
 echo ""
 echo "   GitHub integration: ✅ Configured"
-
-if [ -n "$OAUTH_URL" ]; then
-  echo ""
-  echo "   ┌──────────────────────────────────────────────────────────┐"
-  echo "   │  Sign in to GitHub to authorize the SRE Agent:          │"
-  echo "   │  ${OAUTH_URL}"
-  echo "   │  Open this URL in your browser and click 'Authorize'    │"
-  echo "   └──────────────────────────────────────────────────────────┘"
-  echo ""
-  echo "   ⚠️  Security note: The OAuth flow requests broad repo access."
-  echo "   For least-privilege, you can use a fine-grained PAT instead:"
-  echo "     1. Go to: github.com/settings/personal-access-tokens/new"
-  echo "     2. Scope to your grubify fork only (${GITHUB_REPO})"
-  echo "     3. Set: Contents:Read, Issues:Read+Write, Metadata:Read"
-  echo "     4. Run: ./scripts/setup-github.sh  (with GITHUB_PAT set)"
-  echo "   See: https://github.com/microsoft/sre-agent/issues/113"
-  echo ""
-  read -p "   Press Enter after you have authorized in the browser..." _unused
-fi
-
-# Add code repo AFTER OAuth so the token is active
-echo "   Adding ${GITHUB_REPO} code repository..."
-TOKEN=$(get_token)
-REPO_NAME=$(echo "$GITHUB_REPO" | cut -d'/' -f2)
-curl -s -o /dev/null -w "" \
-  -X PUT "${AGENT_ENDPOINT}/api/v2/repos/${REPO_NAME}" \
-  -H "Authorization: Bearer ${TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d "{\"name\":\"${REPO_NAME}\",\"type\":\"CodeRepo\",\"properties\":{\"url\":\"https://github.com/${GITHUB_REPO}\",\"authConnectorName\":\"github\"}}"
-echo "   ✅ Code repo: ${GITHUB_REPO}"
-echo ""
 
 # Create sample customer issues on the user's fork
 echo "   Creating sample customer issues..."
@@ -541,17 +537,17 @@ echo "============================================="
 echo ""
 TOKEN=$(get_token)
 
-# KB files
-echo "  📚 Knowledge Base:"
-KB_FILES=$(curl -s "${AGENT_ENDPOINT}/api/v1/AgentMemory/files" -H "Authorization: Bearer ${TOKEN}" 2>/dev/null)
-echo "$KB_FILES" | $PYTHON -c "
+# Knowledge sources
+echo "  📚 Knowledge Sources:"
+KNOWLEDGE_SOURCES=$(curl -sS "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors" -H "Authorization: Bearer ${TOKEN}" 2>/dev/null)
+echo "$KNOWLEDGE_SOURCES" | $PYTHON -c "
 import sys,json
 try:
     d=json.load(sys.stdin)
-    for f in d.get('files',[]):
-        status='✅' if f.get('isIndexed') else '⏳'
-        print(f'     {status} {f[\"name\"]}')
-    if not d.get('files'): print('     (none)')
+  items=d.get('value', d if isinstance(d, list) else [])
+  knowledge=[item for item in items if item.get('properties',{}).get('dataConnectorType','').startswith('Knowledge')]
+  for item in knowledge: print(f'     ✅ {item.get("name", "?")}')
+  if not knowledge: print('     (none)')
 except: print('     (could not retrieve)')
 " 2>/dev/null
 echo ""
@@ -573,70 +569,100 @@ except: print('     (could not retrieve)')
 " 2>/dev/null
 echo ""
 
-# Connectors
-echo "  🔗 Connectors:"
-CONNECTORS=$(az rest --method GET --url "https://management.azure.com${AGENT_RESOURCE_ID}/DataConnectors?api-version=${API_VERSION}" --query "value[].{name:name,state:properties.provisioningState}" -o json 2>/dev/null || echo "[]")
-echo "$CONNECTORS" | $PYTHON -c "
+# GitHub and code repositories
+echo "  🔗 GitHub and Code Repositories:"
+GITHUB_DOMAINS=$(curl -sS "${AGENT_ENDPOINT}/api/v2/github/domains" -H "Authorization: Bearer ${TOKEN}" 2>/dev/null || echo '{}')
+REPOSITORIES=$(curl -sS "${AGENT_ENDPOINT}/api/v2/repos" -H "Authorization: Bearer ${TOKEN}" 2>/dev/null || echo '{}')
+echo "$GITHUB_DOMAINS" | $PYTHON -c "
 import sys,json
 try:
     d=json.load(sys.stdin)
-    for c in d:
-        state='✅' if c.get('state')=='Succeeded' else '⏳ '+str(c.get('state',''))
-        print(f'     {state} {c[\"name\"]}')
-    if not d: print('     (none — connector pending)')
+  domains=d.get('values', [])
+  print('     ✅ GitHub OAuth' if domains else '     (GitHub OAuth not configured)')
+except: print('     (could not retrieve)')
+" 2>/dev/null
+echo "$REPOSITORIES" | $PYTHON -c "
+import sys,json
+try:
+    d=json.load(sys.stdin)
+    repos=d.get('value', d if isinstance(d, list) else [])
+    for repo in repos: print(f'     ✅ {repo.get("name", "?")}')
+    if not repos: print('     (no code repositories)')
 except: print('     (could not retrieve)')
 " 2>/dev/null
 echo ""
 
 # Response plans
 echo "  🚨 Response Plans:"
-FILTERS=$(curl -s "${AGENT_ENDPOINT}/api/v1/incidentPlayground/filters" -H "Authorization: Bearer ${TOKEN}" 2>/dev/null)
+FILTERS=$(curl -sS "${AGENT_ENDPOINT}/api/v2/extendedAgent/incidentFilters" -H "Authorization: Bearer ${TOKEN}" 2>/dev/null)
 echo "$FILTERS" | $PYTHON -c "
 import sys,json
 try:
     d=json.load(sys.stdin)
-    for f in d:
-        agent=f.get('handlingAgent','(none)')
-        name=f.get('id','?')
+  filters=d.get('value', d if isinstance(d, list) else [])
+  for f in filters:
+    agent=f.get('properties',{}).get('handlingAgent','(none)')
+    name=f.get('name','?')
         print(f'     ✅ {name} → subagent: {agent}')
-    if not d: print('     (none)')
+  if not filters: print('     (none)')
 except: print('     (could not retrieve)')
 " 2>/dev/null
 echo ""
 
 # Incident platform
 echo "  📡 Incident Platform:"
-PLATFORM_RAW=$(curl -s "${AGENT_ENDPOINT}/api/v1/incidentPlayground/incidentPlatformType" -H "Authorization: Bearer ${TOKEN}" 2>/dev/null || echo "{}")
-echo "$PLATFORM_RAW" | $PYTHON -c "
-import sys,json
-try:
-    d=json.load(sys.stdin)
-    ptype = d.get('incidentPlatformType', 'Unknown') if isinstance(d, dict) else str(d)
-    icon = '✅' if ptype == 'AzMonitor' else '⚠️'
-    display = {'AzMonitor': 'Azure Monitor', 'None': 'Not configured'}.get(ptype, ptype)
-    print(f'     {icon} {display}')
-except: print('     ⚠️  Could not determine')
-" 2>/dev/null
+PLATFORM_TYPE=$(az rest --method GET --url "https://management.azure.com${AGENT_RESOURCE_ID}?api-version=${API_VERSION}" --query 'properties.incidentManagementConfiguration.type' -o tsv 2>/dev/null || echo "")
+if [ "$PLATFORM_TYPE" = "AzMonitor" ]; then
+  echo "     ✅ Azure Monitor"
+else
+  echo "     ❌ ${PLATFORM_TYPE:-Not configured}"
+fi
 echo ""
 
 # Scheduled tasks
 echo "  ⏰ Scheduled Tasks:"
-TASKS=$(curl -s "${AGENT_ENDPOINT}/api/v1/scheduledtasks" -H "Authorization: Bearer ${TOKEN}" 2>/dev/null || echo "[]")
+TASKS=$(curl -sS "${AGENT_ENDPOINT}/api/v2/extendedAgent/scheduledtasks" -H "Authorization: Bearer ${TOKEN}" 2>/dev/null || echo "{}")
 echo "$TASKS" | $PYTHON -c "
 import sys,json
 try:
     d=json.load(sys.stdin)
-    for t in d:
-        name=t.get('name','?')
-        cron=t.get('cronExpression','?')
-        agent=t.get('agent','(none)')
-        status=t.get('status','?')
-        icon='✅' if status=='Active' else '⏸️'
-        print(f'     {icon} {name} ({cron}) → {agent}')
-    if not d: print('     (none)')
+    tasks=d.get('value', d if isinstance(d, list) else [])
+    for task in tasks:
+        props=task.get('properties',{})
+        print(f'     ✅ {task.get("name", "?")} ({props.get("cronExpression", "?")})')
+    if not tasks: print('     (none)')
 except: print('     (could not retrieve)')
 " 2>/dev/null
 echo ""
+
+# Required-state gate: setup must not report success with missing components.
+VERIFY_FAILURES=0
+KNOWLEDGE_COUNT=$(echo "$KNOWLEDGE_SOURCES" | $PYTHON -c "import sys,json; d=json.load(sys.stdin); items=d.get('value', d if isinstance(d,list) else []); print(len([x for x in items if x.get('properties',{}).get('dataConnectorType','').startswith('Knowledge')]))" 2>/dev/null || echo 0)
+INCIDENT_HANDLER_COUNT=$(echo "$AGENTS" | $PYTHON -c "import sys,json; d=json.load(sys.stdin); print(len([x for x in d.get('value',[]) if x.get('name')=='incident-handler']))" 2>/dev/null || echo 0)
+RESPONSE_PLAN_COUNT=$(echo "$FILTERS" | $PYTHON -c "import sys,json; d=json.load(sys.stdin); items=d.get('value', d if isinstance(d,list) else []); print(len([x for x in items if x.get('name')=='grubify-http-errors']))" 2>/dev/null || echo 0)
+
+[ "$KNOWLEDGE_COUNT" -ge 4 ] || { echo "   ❌ Expected 4 knowledge sources, found $KNOWLEDGE_COUNT"; VERIFY_FAILURES=$((VERIFY_FAILURES + 1)); }
+[ "$INCIDENT_HANDLER_COUNT" -eq 1 ] || { echo "   ❌ incident-handler is missing"; VERIFY_FAILURES=$((VERIFY_FAILURES + 1)); }
+[ "$RESPONSE_PLAN_COUNT" -eq 1 ] || { echo "   ❌ grubify-http-errors response plan is missing"; VERIFY_FAILURES=$((VERIFY_FAILURES + 1)); }
+[ "$PLATFORM_TYPE" = "AzMonitor" ] || { echo "   ❌ Azure Monitor incident platform is not connected"; VERIFY_FAILURES=$((VERIFY_FAILURES + 1)); }
+
+if [ -n "$GITHUB_REPO" ]; then
+  REPO_NAME=$(echo "$GITHUB_REPO" | cut -d'/' -f2)
+  REPO_COUNT=$(echo "$REPOSITORIES" | $PYTHON -c "import sys,json; d=json.load(sys.stdin); items=d.get('value', d if isinstance(d,list) else []); print(len([x for x in items if x.get('name')=='${REPO_NAME}']))" 2>/dev/null || echo 0)
+  GITHUB_AGENT_COUNT=$(echo "$AGENTS" | $PYTHON -c "import sys,json; d=json.load(sys.stdin); names={x.get('name') for x in d.get('value',[])}; print(1 if {'code-analyzer','issue-triager'} <= names else 0)" 2>/dev/null || echo 0)
+  TASK_COUNT=$(echo "$TASKS" | $PYTHON -c "import sys,json; d=json.load(sys.stdin); items=d.get('value', d if isinstance(d,list) else []); print(len([x for x in items if x.get('name')=='triage-grubify-issues']))" 2>/dev/null || echo 0)
+  [ "$GITHUB_CONFIGURED" = "true" ] || { echo "   ❌ GitHub OAuth is not configured"; VERIFY_FAILURES=$((VERIFY_FAILURES + 1)); }
+  [ "$REPO_COUNT" -eq 1 ] || { echo "   ❌ ${REPO_NAME} code repository is missing"; VERIFY_FAILURES=$((VERIFY_FAILURES + 1)); }
+  [ "$GITHUB_AGENT_COUNT" -eq 1 ] || { echo "   ❌ GitHub subagents are missing"; VERIFY_FAILURES=$((VERIFY_FAILURES + 1)); }
+  [ "$TASK_COUNT" -eq 1 ] || { echo "   ❌ triage-grubify-issues scheduled task is missing"; VERIFY_FAILURES=$((VERIFY_FAILURES + 1)); }
+fi
+
+if [ "$VERIFY_FAILURES" -gt 0 ]; then
+  echo ""
+  echo "❌ Agent configuration verification failed with ${VERIFY_FAILURES} missing component(s)."
+  rm -rf "$TEMP_DIR"
+  exit 1
+fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 # Always refresh URLs from Azure
