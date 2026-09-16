@@ -4,9 +4,8 @@
 # private DNS + workload identity to PG; PG is on a private VNet-delegated
 # subnet so direct workstation access is impossible).
 #
-# Uses the in-image `bin/run-sql.js` helper — same path the SRE Agent runbook
-# (sre-config/skills/performance-incidents.md) tells the agent to use, so this script
-# exercises the exact remediation surface the agent has.
+# This operator-only fault-injection path uses the in-image `bin/run-sql.js`
+# helper. The SRE Agent uses the native bounded PostgreSQL tools instead.
 param(
     [string]$ResourceGroup = "",
     [string]$ClusterName = "",

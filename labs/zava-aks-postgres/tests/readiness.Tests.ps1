@@ -77,6 +77,52 @@ Assert ($response.StatusCode -eq 200 -and $response.Body.value -is [array]) 'ARM
 $script:armDelay = $true
 Assert-Throws { Invoke-ZavaArmRequest '/subscriptions/test/resources?api-version=test' -TimeoutSeconds 0.05 } 'canceled'
 
+$watchAst = [Management.Automation.Language.Parser]::ParseFile(
+    (Join-Path $lab 'scripts\watch-agent.ps1'), [ref]$null, [ref]$null)
+$watchFunctions = $watchAst.FindAll({
+    param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -in @('ConvertTo-AgentCollection', 'Get-Threads', 'Get-ThreadMessages')
+}, $false)
+# Load only the collection readers, not the watch script's authentication or entry point.
+$watchFunctions | ForEach-Object { Invoke-Expression $_.Extent.Text }
+$script:agentResponses = [Collections.Generic.Queue[object]]::new()
+function Get-AgentEndpoint { return 'https://agent.example' }
+function Get-AgentHeaders { return @{} }
+function Invoke-RestMethod {
+    param($Uri, $Headers, $MaximumRedirection, [switch]$AllowInsecureRedirect)
+    Assert ($Uri -match '^https://agent\.example/api/v1/threads') 'Watch requests retain the agent endpoint'
+    $response = $script:agentResponses.Dequeue()
+    if ($response -is [array]) { Write-Output -NoEnumerate $response }
+    else { return $response }
+}
+
+$script:agentResponses.Enqueue([pscustomobject]@{value=@()})
+Assert (@(Get-Threads).Count -eq 0) 'An empty wrapped thread collection returns no threads'
+$script:agentResponses.Enqueue([pscustomobject]@{value=@()})
+Assert (@(Get-ThreadMessages -ThreadId 'thread-1').Count -eq 0) 'An empty wrapped message collection returns no messages'
+$script:agentResponses.Enqueue([object[]]@())
+Assert (@(Get-Threads).Count -eq 0) 'A bare empty thread collection returns no threads'
+$script:agentResponses.Enqueue([object[]]@())
+Assert (@(Get-ThreadMessages -ThreadId 'thread-1').Count -eq 0) 'A bare empty message collection returns no messages'
+
+$script:agentResponses.Enqueue([pscustomobject]@{value=@(
+    [pscustomobject]@{id='thread-2'; createdTimestamp='2026-01-02T00:00:00Z'}
+    [pscustomobject]@{id='thread-1'; createdTimestamp='2026-01-01T00:00:00Z'}
+)})
+Assert (((Get-Threads).id -join ',') -eq 'thread-1,thread-2') 'Threads remain sorted by createdTimestamp'
+$script:agentResponses.Enqueue([pscustomobject]@{value=@(
+    [pscustomobject]@{id='message-2'; timeStamp='2026-01-02T00:00:00Z'}
+    [pscustomobject]@{id='message-1'; timeStamp='2026-01-01T00:00:00Z'}
+)})
+Assert (((Get-ThreadMessages -ThreadId 'thread-1').id -join ',') -eq 'message-1,message-2') 'Messages remain sorted by timeStamp'
+
+$script:agentResponses.Enqueue([pscustomobject]@{items=@()})
+Assert-Throws { Get-Threads } 'Agent API did not return a collection\.'
+$script:agentResponses.Enqueue('not-a-collection')
+Assert-Throws { Get-ThreadMessages -ThreadId 'thread-1' } 'Agent API did not return a collection\.'
+Assert-Throws { ConvertTo-AgentCollection -Response $null } 'Agent API did not return a collection\.'
+
 . (Join-Path $lab 'scripts\_sre-connectors.ps1')
 Assert (-not (Test-ZavaTransientArmError ([pscustomobject]@{code='AuthorizationFailed'; details=$null}))) 'Null details do not turn terminal errors into retries'
 Assert (-not (Test-ZavaTransientArmError ([pscustomobject]@{code='DeploymentFailed'; details=@(
@@ -254,16 +300,182 @@ Add-ArmResponse 200 ([pscustomobject]@{value=@($unmanaged)})
 Assert-Throws { Sync-ZavaConnectors $plan 'connectors.bicep' $agentId "$agentId/ai" "$agentId/law" } 'Connector readback failed'
 
 . (Join-Path $lab 'scripts\_aks-helpers.ps1')
+$postProvisionPath = Join-Path $lab 'scripts\post-provision.ps1'
+$postProvisionAst = [Management.Automation.Language.Parser]::ParseFile(
+    $postProvisionPath, [ref]$null, [ref]$null)
+$pgExtensionFunction = $postProvisionAst.Find({
+    param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -eq 'Enable-ZavaPgStatStatements'
+}, $false)
+Assert ($null -ne $pgExtensionFunction) 'Post-provision defines the fixed pg_stat_statements gate'
+Invoke-Expression $pgExtensionFunction.Extent.Text
+
+$script:pgExtensionResponses = [Collections.Generic.Queue[object]]::new()
+$script:pgExtensionCommands = [Collections.Generic.List[string]]::new()
+function Invoke-AksCommand {
+    param($ResourceGroup, $ClusterName, $Command, [switch]$Quiet)
+    Assert ($ResourceGroup -eq 'rg-test' -and $ClusterName -eq 'aks-test') 'PostgreSQL extension gate retains the AKS scope'
+    $script:pgExtensionCommands.Add($Command)
+    return $script:pgExtensionResponses.Dequeue()
+}
+function Add-PgExtensionResponse([int]$ExitCode, [string]$Logs) {
+    $script:pgExtensionResponses.Enqueue(
+        [pscustomobject]@{exitCode=$ExitCode; logs=$Logs}
+    )
+}
+$createExtensionCommand = "kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements'"
+$verifyExtensionCommand = "kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js 'SELECT extname FROM pg_extension ORDER BY extname'"
+$validExtensionReadback = '{"command":"SELECT","rowCount":2,"rows":[{"extname":"pg_stat_statements"},{"extname":"plpgsql"}]}'
+
+Add-PgExtensionResponse 0 '{"command":"CREATE","rowCount":null,"rows":[]}'
+Add-PgExtensionResponse 0 $validExtensionReadback
+Enable-ZavaPgStatStatements -ResourceGroup 'rg-test' -ClusterName 'aks-test' -Namespace 'zava-demo'
+Assert (($script:pgExtensionCommands -join "`n") -eq "$createExtensionCommand`n$verifyExtensionCommand") 'Extension creation and exact verification use only fixed in-image SQL commands'
+Assert ($verifyExtensionCommand -notmatch '\$') 'Extension verification avoids dollar-quoted SQL literals'
+
+if ($IsWindows) {
+    $azShimFixture = Join-Path ([IO.Path]::GetTempPath()) ("zava-az-cmd-" + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $azShimFixture | Out-Null
+    try {
+        $argvPath = Join-Path $azShimFixture 'argv.jsonl'
+        @'
+import json
+import os
+import sys
+
+with open(os.environ["ZAVA_AZ_ARGV_PATH"], "a", encoding="utf-8") as stream:
+    stream.write(json.dumps(sys.argv[1:]) + "\n")
+print('{"exitCode":0,"logs":""}')
+'@ | Set-Content -Encoding utf8 (Join-Path $azShimFixture 'capture_az_argv.py')
+        @'
+@echo off
+python "%~dp0capture_az_argv.py" %*
+'@ | Set-Content -Encoding ascii (Join-Path $azShimFixture 'az.cmd')
+        $childScript = @'
+. $env:ZAVA_AKS_HELPERS
+Invoke-AksCommand -ResourceGroup 'rg-test' -ClusterName 'aks-test' -Command $env:ZAVA_AKS_COMMAND -Quiet | Out-Null
+'@
+        foreach ($expectedCommand in @($createExtensionCommand, $verifyExtensionCommand)) {
+            $env:ZAVA_AZ_ARGV_PATH = $argvPath
+            $env:ZAVA_AKS_HELPERS = Join-Path $lab 'scripts\_aks-helpers.ps1'
+            $env:ZAVA_AKS_COMMAND = $expectedCommand
+            $originalPath = $env:PATH
+            $env:PATH = "$azShimFixture;$originalPath"
+            try {
+                & pwsh -NoProfile -Command $childScript
+                Assert ($LASTEXITCODE -eq 0) 'Windows az.cmd shim child process succeeds without contacting Azure'
+            } finally {
+                $env:PATH = $originalPath
+                Remove-Item Env:ZAVA_AZ_ARGV_PATH, Env:ZAVA_AKS_HELPERS, Env:ZAVA_AKS_COMMAND -ErrorAction SilentlyContinue
+            }
+        }
+        $capturedLines = @(Get-Content $argvPath)
+        Assert ($capturedLines.Count -eq 2) 'Windows az.cmd shim captures both fixed SQL invocations'
+        for ($i = 0; $i -lt $capturedLines.Count; $i++) {
+            $argv = @($capturedLines[$i] | ConvertFrom-Json)
+            $commandPosition = [Array]::IndexOf($argv, '--command')
+            Assert ($commandPosition -ge 0) 'Windows az.cmd invocation includes --command'
+            Assert (@($argv | Where-Object { $_ -ceq '--command' }).Count -eq 1) 'Windows az.cmd invocation includes exactly one --command option'
+            Assert ($argv[$commandPosition + 1] -ceq @($createExtensionCommand, $verifyExtensionCommand)[$i]) 'Windows az.cmd preserves one complete SQL command value after --command'
+            Assert ($argv[$commandPosition + 2] -ceq '-o') 'Windows az.cmd does not split SQL into extra CLI arguments'
+        }
+        $verificationArgv = @($capturedLines[1] | ConvertFrom-Json)
+        Assert (($verificationArgv -join "`n") -notmatch '\$') 'Windows az.cmd verification argv contains no dollar-quoted SQL literal'
+    } finally {
+        Remove-Item -Recurse -Force $azShimFixture
+    }
+}
+
+foreach ($case in @(
+    @{name='create failure'; responses=@(@{exitCode=1; logs='create denied'}); pattern='pg_stat_statements extension creation failed'},
+    @{name='verification command failure'; responses=@(
+        @{exitCode=0; logs='{"command":"CREATE","rowCount":null,"rows":[]}'},
+        @{exitCode=1; logs='verification denied'}
+    ); pattern='pg_stat_statements extension verification failed'},
+    @{name='absent verification'; responses=@(
+        @{exitCode=0; logs='{"command":"CREATE","rowCount":null,"rows":[]}'},
+        @{exitCode=0; logs='{"command":"SELECT","rowCount":1,"rows":[{"extname":"plpgsql"}]}'}
+    ); pattern='exactly one pg_stat_statements row'},
+    @{name='duplicate verification'; responses=@(
+        @{exitCode=0; logs='{"command":"CREATE","rowCount":null,"rows":[]}'},
+        @{exitCode=0; logs='{"command":"SELECT","rowCount":3,"rows":[{"extname":"pg_stat_statements"},{"extname":"pg_stat_statements"},{"extname":"plpgsql"}]}'}
+    ); pattern='exactly one pg_stat_statements row'},
+    @{name='malformed JSON'; responses=@(
+        @{exitCode=0; logs='{"command":"CREATE","rowCount":null,"rows":[]}'},
+        @{exitCode=0; logs='{not-json'}
+    ); pattern='expected JSON envelope'},
+    @{name='malformed envelope'; responses=@(
+        @{exitCode=0; logs='{"command":"CREATE","rowCount":null,"rows":[]}'},
+        @{exitCode=0; logs='[]'}
+    ); pattern='expected JSON envelope'},
+    @{name='missing command'; responses=@(
+        @{exitCode=0; logs='{"command":"CREATE","rowCount":null,"rows":[]}'},
+        @{exitCode=0; logs='{"rowCount":2,"rows":[{"extname":"pg_stat_statements"},{"extname":"plpgsql"}]}'}
+    ); pattern='command, rowCount, and rows properties'},
+    @{name='wrong command case'; responses=@(
+        @{exitCode=0; logs='{"command":"CREATE","rowCount":null,"rows":[]}'},
+        @{exitCode=0; logs='{"command":"select","rowCount":2,"rows":[{"extname":"pg_stat_statements"},{"extname":"plpgsql"}]}'}
+    ); pattern='command must be SELECT'},
+    @{name='missing rowCount'; responses=@(
+        @{exitCode=0; logs='{"command":"CREATE","rowCount":null,"rows":[]}'},
+        @{exitCode=0; logs='{"command":"SELECT","rows":[{"extname":"pg_stat_statements"},{"extname":"plpgsql"}]}'}
+    ); pattern='command, rowCount, and rows properties'},
+    @{name='missing rows'; responses=@(
+        @{exitCode=0; logs='{"command":"CREATE","rowCount":null,"rows":[]}'},
+        @{exitCode=0; logs='{"command":"SELECT","rowCount":2}'}
+    ); pattern='command, rowCount, and rows properties'},
+    @{name='non-array rows'; responses=@(
+        @{exitCode=0; logs='{"command":"CREATE","rowCount":null,"rows":[]}'},
+        @{exitCode=0; logs='{"command":"SELECT","rowCount":1,"rows":{"extname":"pg_stat_statements"}}'}
+    ); pattern='numeric rowCount matching rows'},
+    @{name='non-numeric rowCount'; responses=@(
+        @{exitCode=0; logs='{"command":"CREATE","rowCount":null,"rows":[]}'},
+        @{exitCode=0; logs='{"command":"SELECT","rowCount":"2","rows":[{"extname":"pg_stat_statements"},{"extname":"plpgsql"}]}'}
+    ); pattern='numeric rowCount matching rows'},
+    @{name='row-count mismatch'; responses=@(
+        @{exitCode=0; logs='{"command":"CREATE","rowCount":null,"rows":[]}'},
+        @{exitCode=0; logs='{"command":"SELECT","rowCount":1,"rows":[{"extname":"pg_stat_statements"},{"extname":"plpgsql"}]}'}
+    ); pattern='numeric rowCount matching rows'}
+)) {
+    $script:pgExtensionCommands.Clear()
+    foreach ($response in $case.responses) {
+        Add-PgExtensionResponse $response.exitCode $response.logs
+    }
+    Assert-Throws {
+        Enable-ZavaPgStatStatements -ResourceGroup 'rg-test' -ClusterName 'aks-test' -Namespace 'zava-demo'
+    } $case.pattern
+    Assert ($script:pgExtensionCommands.Count -eq $case.responses.Count) "$($case.name) stops at the failing extension gate"
+}
+
 $postProvision = Get-Content -Raw (Join-Path $lab 'scripts\post-provision.ps1')
-$endpointStart = $postProvision.IndexOf('Write-Host "=== Step 8: Getting public endpoint')
-Assert ($endpointStart -ge 0) 'Post-provision endpoint stage is present'
+$rolloutComplete = $postProvision.IndexOf("Assert-AksCommandSucceeded `$r 'Application rollout'")
+$extensionStart = $postProvision.IndexOf('Write-Host "=== Step 7b: Ensuring pg_stat_statements')
+$extensionCall = $postProvision.IndexOf('Enable-ZavaPgStatStatements -ResourceGroup')
+$setupCall = $postProvision.IndexOf('& "$PSScriptRoot\setup-sre-agent.ps1"')
+Assert ($rolloutComplete -ge 0 -and $extensionStart -gt $rolloutComplete) 'Extension provisioning starts only after API rollout succeeds'
+Assert ($extensionCall -ge $extensionStart -and $setupCall -gt $extensionCall) 'Extension verification completes before SRE Agent setup'
 # Run the production tail; only the cloud transport and setup entry point are stubbed.
 $fixture = Join-Path ([IO.Path]::GetTempPath()) ("zava-endpoint-tests-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $fixture | Out-Null
-$postProvision.Substring($endpointStart) | Set-Content (Join-Path $fixture 'endpoint-stage.ps1')
+$postProvision.Substring($extensionStart) | Set-Content (Join-Path $fixture 'endpoint-stage.ps1')
 @'
-param($ResourceGroup, $AgentName)
-$SetupCalls.Add(@{ResourceGroup=$ResourceGroup; AgentName=$AgentName})
+param(
+    $ResourceGroup,
+    $AgentName,
+    $PostgresHost,
+    $PostgresDatabase,
+    $SreAgentClientId,
+    $SreAgentPrincipalName
+)
+$SetupCalls.Add(@{
+    ResourceGroup=$ResourceGroup
+    AgentName=$AgentName
+    PostgresHost=$PostgresHost
+    PostgresDatabase=$PostgresDatabase
+    SreAgentClientId=$SreAgentClientId
+    SreAgentPrincipalName=$SreAgentPrincipalName
+})
 if ($FailAgentSetup) { throw 'Agent setup failed' }
 if ($AgentExitCode) { exit $AgentExitCode }
 '@ | Set-Content (Join-Path $fixture 'setup-sre-agent.ps1')
@@ -273,6 +485,16 @@ $ingressState = @{
     Output = [Collections.Generic.List[string]]::new()
 }
 $SetupCalls = [Collections.Generic.List[object]]::new()
+$PgGateCalls = [Collections.Generic.List[object]]::new()
+function Enable-ZavaPgStatStatements {
+    param($ResourceGroup, $ClusterName, $Namespace)
+    $PgGateCalls.Add(@{
+        ResourceGroup=$ResourceGroup
+        ClusterName=$ClusterName
+        Namespace=$Namespace
+    })
+    if ($FailPgGate) { throw 'PostgreSQL extension gate failed' }
+}
 function Invoke-AksCommand {
     param($ResourceGroup, $ClusterName, $Command, [switch]$Quiet)
     Assert ($ResourceGroup -eq 'rg-test' -and $ClusterName -eq 'aks-test') 'Ingress lookup retains the intended AKS scope'
@@ -281,10 +503,21 @@ function Invoke-AksCommand {
     if ($ingressState.Responses.Count) { return $ingressState.Responses.Dequeue() }
     return [pscustomobject]@{exitCode=0; logs=''}
 }
-function Invoke-EndpointStage([bool]$FailAgentSetup = $false, [string]$AgentName = 'agent-test', [int]$AgentExitCode = 0) {
+function Invoke-EndpointStage(
+    [bool]$FailAgentSetup = $false,
+    [string]$AgentName = 'agent-test',
+    [int]$AgentExitCode = 0,
+    [bool]$FailPgGate = $false
+) {
     Set-StrictMode -Version Latest
     $RG = 'rg-test'
     $AKS_NAME = 'aks-test'
+    $DB_HOST = 'zava-pg-test.postgres.database.azure.com'
+    $DB_NAME = 'zava_store_test'
+    $SRE_AGENT_CLIENT_ID = 'client-test'
+    $SRE_AGENT_PRINCIPAL_NAME = 'id-sre-test'
+    $SRE_AGENT_NAME = $AgentName
+    $Namespace = 'zava-demo'
     $IngressTimeoutSeconds = 1
     function Get-AzdValue { param($Key); return $AgentName }
     function Start-Sleep { param($Seconds, $Milliseconds) }
@@ -295,10 +528,22 @@ try {
         $ingressState.Responses.Enqueue([pscustomobject]@{exitCode=0; logs=$logs})
     }
     Invoke-EndpointStage
-    Assert ($ingressState.Calls -eq 3 -and $SetupCalls.Count -eq 1) 'Pending ingress eventually reaches agent setup'
+    Assert ($PgGateCalls.Count -eq 1 -and $ingressState.Calls -eq 3 -and $SetupCalls.Count -eq 1) 'Verified extension gate precedes endpoint and agent setup'
     Assert ($SetupCalls[0].ResourceGroup -eq 'rg-test' -and $SetupCalls[0].AgentName -eq 'agent-test') 'Agent setup receives the intended target'
+    Assert ($SetupCalls[0].PostgresHost -eq 'zava-pg-test.postgres.database.azure.com') 'Agent setup receives the resolved PostgreSQL host'
+    Assert ($SetupCalls[0].PostgresDatabase -eq 'zava_store_test') 'Agent setup receives the resolved PostgreSQL database'
+    Assert ($SetupCalls[0].SreAgentClientId -eq 'client-test') 'Agent setup receives the resolved UMI client ID'
+    Assert ($SetupCalls[0].SreAgentPrincipalName -eq 'id-sre-test') 'Agent setup receives the matching UMI principal name'
     Assert (($ingressState.Output -join "`n") -match 'http://192\.0\.2\.10/') 'Endpoint output uses the assigned IP'
     Assert ($ingressState.Output[-2] -match 'Deployed Successfully') 'Success is reported only after the final setup stage'
+
+    $SetupCalls.Clear()
+    $PgGateCalls.Clear()
+    $ingressState.Output.Clear()
+    $ingressState.Calls = 0
+    Assert-Throws { Invoke-EndpointStage -FailPgGate $true } 'PostgreSQL extension gate failed'
+    Assert ($PgGateCalls.Count -eq 1 -and $ingressState.Calls -eq 0 -and $SetupCalls.Count -eq 0) 'Extension gate failure prevents endpoint and SRE setup'
+    Assert (($ingressState.Output -join "`n") -notmatch 'Deployed Successfully') 'Extension gate failure cannot announce deployment success'
 
     $SetupCalls.Clear()
     $ingressState.Output.Clear()

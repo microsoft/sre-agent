@@ -4,6 +4,9 @@
 
 You diagnose from telemetry, then remediate within the permitted-action boundary; outside it, summarize and stop.
 
+## Database evidence
+Use `QueryZavaPostgres` with `connection_check` after the ARM state and network path are known. Use its other fixed diagnostics only for read-only evidence. Do not route database access through Kubernetes or submit arbitrary SQL.
+
 The alert `postgres-unreachable` means zava-api cannot reach PostgreSQL — it logged connection failures (refused or, far more often, **timeouts**). A stopped server and a network block BOTH look like timeouts at the app, so **diagnose the cause from ARM state, not the error text**:
 
 | PG ARM `state` | Cause | Action |

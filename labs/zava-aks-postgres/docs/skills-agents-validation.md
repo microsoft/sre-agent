@@ -15,8 +15,9 @@ python -B -m unittest discover -s .\tests -p 'test_*.py' -v
 
 The preview does not authenticate or contact Azure. It renders nine skills, two
 custom agents, and four response plans. Each evidence skill declares its Monitor
-dependencies in `properties.tools`. Each specialist selects its domain skill,
-`ReadFile`, and the shared PreToolUse guard.
+dependencies in `properties.tools`; `zava-database-evidence` also declares
+`QueryZavaPostgres`. Each specialist selects its domain skill, `ReadFile`, and
+the shared PreToolUse guard.
 
 ## Apply and read back
 
@@ -57,8 +58,8 @@ Check the resulting configuration:
 | Item | Expected result |
 |---|---|
 | Connectors | ARM deployment succeeded; exposed type/identity/state and required tool registration match. Redacted source/settings are not fully verifiable by readback. |
-| Evidence skills | Nonempty descriptions, complete procedures, and the two Monitor tool dependencies |
-| Specialists | Correct name, delegation description, selected evidence skill, and explicit `ReadFile` capability |
+| Evidence skills | Nonempty descriptions, complete procedures, Monitor dependencies, and `QueryZavaPostgres` on the database evidence skill |
+| Specialists | Correct name, delegation description, selected evidence skill, explicit `ReadFile`, and the database specialist's bounded query tool |
 | Hooks | One child-specific PreToolUse command hook, matcher `(?s:.*)`, timeout 30, fail mode `block`, and the shared script |
 | Response plans | Filters, modes, and retry settings match the manifest; handler is `meta_agent`. |
 | Existing settings | Operator-selected model and other unrelated agent settings retained |
@@ -76,6 +77,9 @@ path. Review the resulting queries for the correct resource, window, schema, and
 `zava-api` role filter. Application Insights `duration` and Log Analytics
 `DurationMs` are both numeric milliseconds. Empty data, failed calls, and missing
 intervals must remain visible in the result; timing alone does not establish cause.
+For database evidence, confirm the specialist uses only named
+`QueryZavaPostgres` operations and does not submit SQL, invoke
+`RepairZavaPostgresIndexes`, or route through Kubernetes.
 
 **Tool availability must be confirmed on the target deployment.** Readback and
 local tests verify configuration, not runtime skill loading. Do not remove every

@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.42.1.51946",
-      "templateHash": "13463374783617981532"
+      "version": "0.46.1.21595",
+      "templateHash": "12656937228066702803"
     }
   },
   "parameters": {
@@ -89,8 +89,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "1522027209987142253"
+              "version": "0.46.1.21595",
+              "templateHash": "5707990304550205643"
             }
           },
           "parameters": {
@@ -449,6 +449,33 @@
                   },
                   {
                     "ruleCollectionType": "FirewallPolicyFilterRuleCollection",
+                    "name": "allow-agent-to-postgres",
+                    "priority": 212,
+                    "action": {
+                      "type": "Allow"
+                    },
+                    "rules": [
+                      {
+                        "ruleType": "NetworkRule",
+                        "name": "agent-to-postgres-5432",
+                        "description": "Agent subnet -> PostgreSQL delegated subnet on TCP 5432",
+                        "ipProtocols": [
+                          "TCP"
+                        ],
+                        "sourceAddresses": [
+                          "[variables('agentSubnetPrefix')]"
+                        ],
+                        "destinationAddresses": [
+                          "10.20.16.0/24"
+                        ],
+                        "destinationPorts": [
+                          "5432"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "ruleCollectionType": "FirewallPolicyFilterRuleCollection",
                     "name": "allow-agent-to-ampls",
                     "priority": 215,
                     "action": {
@@ -634,6 +661,22 @@
                 "[resourceId('Microsoft.Network/virtualNetworks', variables('platformVnetName'))]",
                 "[resourceId('Microsoft.Network/privateDnsZones', format('{0}.private.postgres.database.azure.com', parameters('uniqueSuffix')))]"
               ]
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', format('{0}.private.postgres.database.azure.com', parameters('uniqueSuffix')), 'agent-link')]",
+              "location": "global",
+              "properties": {
+                "virtualNetwork": {
+                  "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('agentVnetName'))]"
+                },
+                "registrationEnabled": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('agentVnetName'))]",
+                "[resourceId('Microsoft.Network/privateDnsZones', format('{0}.private.postgres.database.azure.com', parameters('uniqueSuffix')))]"
+              ]
             }
           ],
           "outputs": {
@@ -732,8 +775,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "17480536039515911558"
+              "version": "0.46.1.21595",
+              "templateHash": "10767509125508658252"
             }
           },
           "parameters": {
@@ -817,8 +860,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "2780827486819952173"
+              "version": "0.46.1.21595",
+              "templateHash": "17040189143100669098"
             }
           },
           "parameters": {
@@ -1215,8 +1258,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "16600624925514353524"
+              "version": "0.46.1.21595",
+              "templateHash": "356859294750391917"
             }
           },
           "parameters": {
@@ -1295,12 +1338,25 @@
             {
               "type": "Microsoft.DBforPostgreSQL/flexibleServers/configurations",
               "apiVersion": "2024-08-01",
+              "name": "[format('{0}/{1}', variables('serverName'), 'azure.extensions')]",
+              "properties": {
+                "value": "pg_stat_statements",
+                "source": "user-override"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('serverName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/configurations",
+              "apiVersion": "2024-08-01",
               "name": "[format('{0}/{1}', variables('serverName'), 'pg_stat_statements.track')]",
               "properties": {
                 "value": "all",
                 "source": "user-override"
               },
               "dependsOn": [
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers/configurations', variables('serverName'), 'azure.extensions')]",
                 "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('serverName'))]"
               ]
             },
@@ -1424,8 +1480,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "1641231188956360063"
+              "version": "0.46.1.21595",
+              "templateHash": "11593740163282148645"
             }
           },
           "parameters": {
@@ -1512,7 +1568,8 @@
                   "omsagent": {
                     "enabled": true,
                     "config": {
-                      "logAnalyticsWorkspaceResourceID": "[parameters('logAnalyticsWorkspaceId')]"
+                      "logAnalyticsWorkspaceResourceID": "[parameters('logAnalyticsWorkspaceId')]",
+                      "useAADAuth": "true"
                     }
                   },
                   "azurepolicy": {
@@ -1597,8 +1654,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "14290555692999582225"
+              "version": "0.46.1.21595",
+              "templateHash": "6288019541416206354"
             }
           },
           "parameters": {
@@ -1725,6 +1782,10 @@
               "type": "string",
               "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('sreIdentityName'))]"
             },
+            "sreAgentIdentityClientId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('sreIdentityName')), '2023-01-31').clientId]"
+            },
             "appIdentityName": {
               "type": "string",
               "value": "[variables('appIdentityName')]"
@@ -1767,8 +1828,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "1534538610064046419"
+              "version": "0.46.1.21595",
+              "templateHash": "8599675467029169051"
             }
           },
           "parameters": {
@@ -1820,6 +1881,9 @@
           "identityId": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity'), '2025-04-01').outputs.sreAgentIdentityId.value]"
           },
+          "sreAgentClientId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity'), '2025-04-01').outputs.sreAgentIdentityClientId.value]"
+          },
           "appInsightsAppId": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'monitoring'), '2025-04-01').outputs.appInsightsAppId.value]"
           },
@@ -1845,8 +1909,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "12122559219255243442"
+              "version": "0.46.1.21595",
+              "templateHash": "17112238550609685982"
             }
           },
           "parameters": {
@@ -1866,6 +1930,12 @@
               "type": "string",
               "metadata": {
                 "description": "User-Assigned Managed Identity resource ID"
+              }
+            },
+            "sreAgentClientId": {
+              "type": "string",
+              "metadata": {
+                "description": "User-Assigned Managed Identity client ID used by native PostgreSQL tools"
               }
             },
             "appInsightsAppId": {
@@ -1945,6 +2015,7 @@
               "location": "[parameters('location')]",
               "tags": {
                 "hidden-link: /app-insights-resource-id": "[parameters('appInsightsId')]",
+                "sre-agent-umi-client-id": "[parameters('sreAgentClientId')]",
                 "sample": "zava-aks-postgres"
               },
               "identity": {
@@ -1965,10 +2036,23 @@
                     },
                     "allowHttpMcpServerNetworkAccess": false,
                     "allowedCodeRepositories": [],
-                    "allowedRegistries": [],
+                    "allowedRegistries": [
+                      "pypi"
+                    ],
                     "allowedHosts": []
                   },
-                  "packages": []
+                  "packages": [
+                    {
+                      "name": "pg8000",
+                      "version": "1.30.5",
+                      "packageManager": "pip"
+                    },
+                    {
+                      "name": "azure-identity",
+                      "version": "1.24.0",
+                      "packageManager": "pip"
+                    }
+                  ]
                 },
                 "knowledgeGraphConfiguration": {
                   "managedResources": [
@@ -1987,7 +2071,9 @@
                 },
                 "upgradeChannel": "[parameters('upgradeChannel')]",
                 "experimentalSettings": {
-                  "EnableWorkspaceTools": "[parameters('enableEarlyAccessFeatures')]"
+                  "EnableWorkspaceTools": "[parameters('enableEarlyAccessFeatures')]",
+                  "EnableAdcSharedWorkspace": "[parameters('enableEarlyAccessFeatures')]",
+                  "EnableEgressProxy": "[parameters('enableEarlyAccessFeatures')]"
                 },
                 "incidentManagementConfiguration": {
                   "type": "AzMonitor",
@@ -2132,8 +2218,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "10588782725774421165"
+              "version": "0.46.1.21595",
+              "templateHash": "16388085622553756897"
             }
           },
           "parameters": {
@@ -2237,8 +2323,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "17682626619172123953"
+              "version": "0.46.1.21595",
+              "templateHash": "18024135756634250635"
             }
           },
           "parameters": {
@@ -2540,8 +2626,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "16198709998746038686"
+              "version": "0.46.1.21595",
+              "templateHash": "7364371582948711019"
             }
           },
           "parameters": {
@@ -2617,8 +2703,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "14756717451055550202"
+              "version": "0.46.1.21595",
+              "templateHash": "2636686641641561681"
             }
           },
           "parameters": {
@@ -2700,8 +2786,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "14756717451055550202"
+              "version": "0.46.1.21595",
+              "templateHash": "2636686641641561681"
             }
           },
           "parameters": {
@@ -2784,8 +2870,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "14756717451055550202"
+              "version": "0.46.1.21595",
+              "templateHash": "2636686641641561681"
             }
           },
           "parameters": {
@@ -2890,6 +2976,14 @@
     "SRE_AGENT_PRINCIPAL_ID": {
       "type": "string",
       "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity'), '2025-04-01').outputs.sreAgentIdentityPrincipalId.value]"
+    },
+    "SRE_AGENT_IDENTITY_NAME": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity'), '2025-04-01').outputs.sreAgentIdentityName.value]"
+    },
+    "SRE_AGENT_CLIENT_ID": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity'), '2025-04-01').outputs.sreAgentIdentityClientId.value]"
     },
     "LOG_ANALYTICS_WORKSPACE_ID": {
       "type": "string",

@@ -133,7 +133,7 @@ AppRequests, verify application instrumentation and ingestion. Use
 4. (`break-db-perf.ps1` already launched a 15-min in-cluster Kubernetes Job (`zava-cat-load` in the `zava-demo` namespace) that hammers `/api/products/category/<X>` over the cluster-internal Service DNS. This pushes real traffic past the alert's 30ms threshold — the 1Hz `__probe` is excluded by the alert KQL. The Job auto-cleans 60s after completion via `ttlSecondsAfterFinished`; `fix-db-perf.ps1` also deletes it explicitly. Run with `-NoLoad` to skip.)
 
 ### Step 4: Watch agent
-1. Monitor SRE Agent portal - it should detect slow response times via App Insights, identify the missing index, and run `CREATE INDEX CONCURRENTLY` in-cluster via `bin/run-sql.js` (`RunKubectlWriteCommand` executes `kubectl exec -n zava-demo deploy/zava-api -- node bin/run-sql.js "<SQL>"`; the helper reuses the pod's workload identity)
+1. Monitor SRE Agent portal - it should detect slow response times via App Insights, inspect the query with `QueryZavaPostgres`, and run the bounded category-index repair through `RepairZavaPostgresIndexes`.
 2. Do not run `fix-db-perf.ps1` as part of the demo — same rule as the other scenarios: the script is post-demo cleanup, not an agent-failure fallback.
 
 ### Step 5: Show recovery
@@ -147,7 +147,7 @@ AppRequests, verify application instrumentation and ingestion. Use
    ($diag.scan_stats | Where-Object { $_.table_name -eq 'products' }).index_usage_pct
    ```
    Confirm the affected category query returns to baseline under comparable load.
-   Recheck its full query plan, including ordering and pagination. A rising index
+   Recheck its full query shape, including ordering and pagination. A rising index
    scan count or the load Job ending does not by itself prove performance recovery.
 2. Navigate to `$storeUrl` — fast loading
 

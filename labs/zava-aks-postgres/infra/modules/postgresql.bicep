@@ -60,10 +60,9 @@ resource database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-0
 // ---------------------------------------------------------------------------
 // First-class telemetry: enable Query Store + wait sampling.
 //
-// Why this matters for the demo: the goal is for the SRE Agent to *diagnose*
-// from Log Analytics (KQL) BEFORE falling back to in-cluster execution
-// (native `kubectl exec deploy/zava-api -- node bin/run-sql.js`, run in the
-// agent's sandbox terminal).
+// Why this matters for the demo: the goal is for the SRE Agent to diagnose
+// from Log Analytics and the bounded native PostgreSQL tools before using any
+// operator-only fault-injection path.
 // Azure PG Flex pre-loads pg_qs and
 // pgms_wait_sampling in shared_preload_libraries, but they're idle by default —
 // flipping query_capture_mode to ALL turns them on. Once on, the per-query
@@ -79,6 +78,15 @@ resource database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-0
 // AzureDiagnostics without that risk.
 // ---------------------------------------------------------------------------
 
+resource pgExtensions 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2024-08-01' = {
+  parent: pgServer
+  name: 'azure.extensions'
+  properties: {
+    value: 'pg_stat_statements'
+    source: 'user-override'
+  }
+}
+
 resource pgStatStatements 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2024-08-01' = {
   parent: pgServer
   name: 'pg_stat_statements.track'
@@ -86,6 +94,7 @@ resource pgStatStatements 'Microsoft.DBforPostgreSQL/flexibleServers/configurati
     value: 'all'
     source: 'user-override'
   }
+  dependsOn: [pgExtensions]
 }
 
 // NOTE: PG Flex rejects parallel parameter writes with "ServerIsBusy". Chain

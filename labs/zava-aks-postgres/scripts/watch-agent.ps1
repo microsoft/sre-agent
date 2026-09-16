@@ -71,11 +71,20 @@ function Get-AgentHeaders {
     return @{ Authorization = "Bearer $token"; Accept = "application/json" }
 }
 
+function ConvertTo-AgentCollection {
+    param($Response)
+    if ($null -eq $Response) { throw "Agent API did not return a collection." }
+    if ($Response -is [array]) { return @($Response) }
+    $valueProperty = $Response.PSObject.Properties['value']
+    if ($valueProperty -and $valueProperty.Value -is [array]) { return @($valueProperty.Value) }
+    throw "Agent API did not return a collection."
+}
+
 function Get-Threads {
     $ep = Get-AgentEndpoint
     $headers = Get-AgentHeaders
     $r = Invoke-RestMethod -Uri "$ep/api/v1/threads" -Headers $headers -MaximumRedirection 5 -AllowInsecureRedirect
-    $arr = if ($r.value) { $r.value } else { $r }
+    $arr = ConvertTo-AgentCollection -Response $r
     return $arr | Sort-Object { [DateTime]$_.createdTimestamp }
 }
 
@@ -84,7 +93,7 @@ function Get-ThreadMessages {
     $ep = Get-AgentEndpoint
     $headers = Get-AgentHeaders
     $r = Invoke-RestMethod -Uri "$ep/api/v1/threads/$ThreadId/messages" -Headers $headers -MaximumRedirection 5 -AllowInsecureRedirect
-    $arr = if ($r.value) { $r.value } else { $r }
+    $arr = ConvertTo-AgentCollection -Response $r
     return $arr | Sort-Object { [DateTime]$_.timeStamp }
 }
 
