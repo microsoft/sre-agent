@@ -2,7 +2,7 @@
   "name": "onboardinglab-checkout",
   "version": "1.0.0",
   "private": true,
-  "description": "Simulated checkout connectivity lab for Linux Azure App Service",
+  "description": "Simulated ticket reservation connectivity lab for Linux Azure App Service",
   "engines": {
     "node": ">=22"
   },

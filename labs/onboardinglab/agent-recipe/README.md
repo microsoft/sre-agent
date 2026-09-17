@@ -5,7 +5,7 @@ Creates the base Azure SRE Agent used by `labs/onboardinglab`:
 - Review mode with Low access
 - Agent deployment into the resource group created by the onboarding workload
 - Read-only managed-resource access to that same resource group
-- Checkout Application Insights connector
+- Ticket reservation Application Insights connector
 - Azure Monitor incident platform
 - Attendee-owned `ticketingapp-source` GitHub repository containing the complete ticketing app azd project
 - `onboardinglab-architecture.md` and `onboardinglab-incident-runbook.md` knowledge sources

@@ -54,7 +54,7 @@ function createHandler({ createClient, getAccessToken, telemetry, env = process.
     try {
       telemetry?.[method](data);
     } catch {
-      // Telemetry availability must never affect checkout or reveal SDK errors.
+      // Telemetry availability must never affect reservations or reveal SDK errors.
     }
   }
 
@@ -153,13 +153,13 @@ function createHandler({ createClient, getAccessToken, telemetry, env = process.
     if (success) {
       return json(response, status, {
         success: true, simulated: true,
-        message: 'Simulated checkout succeeded. Database connectivity verified; no purchase was made.',
+        message: 'Simulated reservation succeeded. Database connectivity verified; no purchase was made.',
       });
     }
     response.setHeader('Retry-After', '3');
     return json(response, status, {
       success: false, simulated: true,
-      message: 'Simulated checkout unavailable. Please try again shortly.',
+      message: 'Simulated reservation unavailable. Please try again shortly.',
     });
   };
 }

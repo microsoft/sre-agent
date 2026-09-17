@@ -26,5 +26,5 @@ server.requestTimeout = 10000;
 server.headersTimeout = 10000;
 server.keepAliveTimeout = 5000;
 server.listen(Number(process.env.PORT || 8080), '0.0.0.0', () => {
-  console.info('Simulated checkout lab listening. No database connection is required for startup.');
+  console.info('Simulated ticket reservation lab listening. No database connection is required for startup.');
 });

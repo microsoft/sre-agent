@@ -6,7 +6,7 @@ param location string
 @maxLength(20)
 param namePrefix string
 
-@description('When true, deny checkout traffic to PostgreSQL on TCP 5432.')
+@description('When true, deny ticket reservation traffic to PostgreSQL on TCP 5432.')
 param injectDatabaseFault bool = false
 
 @description('Resource tags applied to the lab resources.')
@@ -149,7 +149,7 @@ resource checkoutFailureAlert 'Microsoft.Insights/scheduledQueryRules@2023-03-15
   tags: tags
   properties: {
     displayName: '${namePrefix}-checkout-failures'
-    description: 'Checkout requests returned HTTP 5xx responses during the onboarding lab.'
+    description: 'Ticket reservation requests returned HTTP 5xx responses during the onboarding lab.'
     severity: 2
     enabled: true
     evaluationFrequency: 'PT1M'

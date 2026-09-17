@@ -34,7 +34,7 @@ if [[ "$action" == 'inject' ]]; then
     --data-urlencode 'api-version=2019-03-01' \
     --data-urlencode "customTimeRange=$start_time/$end_time" \
     "https://management.azure.com/subscriptions/$subscription/providers/Microsoft.AlertsManagement/alerts")" ||
-    fail 'Unable to inspect prior checkout alerts before injecting the fault.'
+    fail 'Unable to inspect prior reservation alerts before injecting the fault.'
 
   while IFS= read -r alert; do
     [[ -n "$alert" ]] || continue
@@ -42,14 +42,14 @@ if [[ "$action" == 'inject' ]]; then
     monitor_condition="$(jq -r '.properties.essentials.monitorCondition' <<<"$alert")"
     [[ "$(printf '%s' "$alert_state" | tr '[:upper:]' '[:lower:]')" != 'closed' ]] || continue
     [[ "$(printf '%s' "$monitor_condition" | tr '[:upper:]' '[:lower:]')" == 'resolved' ]] ||
-      fail 'A prior checkout alert is still fired. Reset the fault, generate successful traffic, and wait for the alert to resolve before reinjecting.'
+      fail 'A prior reservation alert is still fired. Reset the fault, generate successful traffic, and wait for the alert to resolve before reinjecting.'
     alert_id="$(jq -er '.id | select(type == "string" and startswith("/subscriptions/"))' <<<"$alert")" ||
-      fail 'A prior checkout alert returned an invalid resource ID.'
+      fail 'A prior reservation alert returned an invalid resource ID.'
     authenticated_curl --silent --show-error --fail --max-redirs 0 --request POST \
       --header 'Content-Type: application/json' \
       --data '{"comments":"Closed by the Azure SRE Agent Onboarding Lab fault helper before a new rehearsal."}' \
       "https://management.azure.com${alert_id}/changestate?api-version=2019-03-01&newState=Closed" >/dev/null ||
-      fail 'Unable to close the prior checkout alert before injecting the fault.'
+      fail 'Unable to close the prior reservation alert before injecting the fault.'
   done < <(jq -c --arg rule "$alert_rule_id" '.value[]? | select((.properties.essentials.alertRule | ascii_downcase) == ($rule | ascii_downcase))' <<<"$alerts")
   arm_token=''
 fi
@@ -61,4 +61,4 @@ az deployment group create \
   --template-file "$LAB_ROOT/fault.bicep" \
   --parameters "networkSecurityGroupName=$nsg" "injectDatabaseFault=$inject_fault" \
   --output none || fail 'Fault rule deployment failed.'
-printf 'Fault %s completed. Generate new checkout traffic to verify the result.\n' "$action"
+printf 'Fault %s completed. Generate new reservation traffic to verify the result.\n' "$action"
