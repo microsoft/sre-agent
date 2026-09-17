@@ -50,7 +50,7 @@ class WorkflowTemplateTests(unittest.TestCase):
 
         self.assertEqual(len(extras["scheduledTasks"]), 1)
         scheduled_task = extras["scheduledTasks"][0]
-        self.assertEqual(scheduled_task["metadata"]["name"], "checkout-daily-health-report")
+        self.assertEqual(scheduled_task["metadata"]["name"], "reservation-daily-health-report")
         self.assertEqual(scheduled_task["spec"]["schedule"], "0 9 * * 1-5")
         self.assertEqual(scheduled_task["spec"]["mode"], "Review")
         self.assertFalse(scheduled_task["spec"]["enabled"])

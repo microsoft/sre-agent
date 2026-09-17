@@ -100,8 +100,8 @@ custom_agent:
     reset.
 
 scheduled_task:
-  name: checkout-daily-health-report
-  description: Analyze checkout health and return read-only findings in the task thread.
+  name: reservation-daily-health-report
+  description: Analyze ticket reservation health and return read-only findings in the task thread.
   schedule: 0 9 * * 1-5
   enabled: false
   action_mode: Review
@@ -111,7 +111,7 @@ scheduled_task:
     source: ./plugin/skills/proactive-health-check/SKILL.md
 
   prompt: |
-    Use the proactive-health-check skill to assess checkout availability,
+    Use the proactive-health-check skill to assess ticket reservation availability,
     failure rate, latency, dependency health, and resource health over the last
     24 hours. Compare with the prior seven-day baseline only when sufficient
     history exists. Return timestamped findings, evidence, missing data, risks,
