@@ -314,7 +314,7 @@ Use these read-only UI checks. Do not create a GitHub issue or send a test email
 
 ## 3. Install the workflow template
 
-The installer accepts the existing agent name, subscription, and workflow template. It discovers the agent resource group, validates Azure Monitor and app telemetry, installs the skills and `alert-investigator` subagent, then creates the `alert-investigation` response plan connected to that subagent. It installs only SRE Agent configuration and does not deploy Azure resources or alert rules.
+The installer accepts the existing agent name, subscription, and workflow template. It discovers the agent resource group, validates Azure Monitor and app telemetry, installs the skills and `alert-investigator` subagent, creates the `alert-investigation` response plan connected to that subagent, and installs the paused `checkout-daily-health-report` scheduled task. It installs only SRE Agent configuration and does not deploy Azure resources or alert rules.
 
 macOS:
 
@@ -341,14 +341,17 @@ Windows:
 | Skill | `azure-monitor-rca` | Guides evidence-based Azure Monitor investigation. | [Skills](https://sre.azure.com/docs/concepts/skills) |
 | Skill | `github-issue-followup` | Prepares a deduplicated GitHub incident follow-up when that optional capability is available and approved. | [Connectors](https://sre.azure.com/docs/concepts/connectors) |
 | Skill | `email-incident-followup` | Prepares an Outlook incident summary when that optional capability is available and approved. | [Send notifications](https://sre.azure.com/docs/capabilities/send-notifications) |
+| Skill | `proactive-health-check` | Assesses checkout availability, failures, latency, dependencies, and Azure resource health using read-only evidence. | [Skills](https://sre.azure.com/docs/concepts/skills) |
 | Subagent | `alert-investigator` | Correlates telemetry, Azure state, and source evidence without Azure write tools. | [Custom agents](https://sre.azure.com/docs/concepts/subagents) |
 | Response plan | `alert-investigation` | Routes Azure Monitor Sev1 and Sev2 incidents to the `alert-investigator` subagent in Review mode and merges related incidents for three hours. | [Incident response plans](https://sre.azure.com/docs/capabilities/incident-response-plans) |
+| Scheduled task | `checkout-daily-health-report` | Runs a read-only weekday health analysis. The recurring schedule is installed paused. | [Scheduled tasks](https://sre.azure.com/docs/capabilities/scheduled-tasks) |
 
 **Checkpoint: verify the workflow**
 
-1. Go to **Build + setup** > **Extensions** > **Skill Builder** and confirm all three skills are present.
+1. Go to **Build + setup** > **Extensions** > **Skill Builder** and confirm all four skills are present.
 2. Go to **Build + setup** > **Workflows** and confirm the `alert-investigator` subagent is present.
 3. In **Workflows**, confirm the `alert-investigation` response plan routes Azure Monitor Sev1 and Sev2 incidents to the `alert-investigator` subagent in Review mode.
+4. Go to **Build + setup** > **Scheduled tasks** and confirm `checkout-daily-health-report` is present and paused.
 
 ## Architecture and responsibilities
 
@@ -423,6 +426,45 @@ The `alert-investigation` response plan routes the alert to the `alert-investiga
 - The thread contains timestamped app telemetry, Azure state, and source evidence
 - Optional GitHub and Outlook writes remain subject to approval
 - After your reset, ticket reservations succeed again
+
+## Scenario 2: Scheduled health check and Live Report
+
+This optional scenario assesses the same service without introducing a fault, then turns the reviewed findings into a reusable operational view.
+
+**Run the scheduled task**
+
+1. Go to **Build + setup** > **Scheduled tasks**.
+2. Open `checkout-daily-health-report`.
+3. Select **Run task now**. Leave the recurring schedule paused.
+4. Review the result in the task thread.
+
+The task uses `proactive-health-check` to review checkout availability, failures, latency, dependency health, and Azure resource health over the last 24 hours. It compares with prior data only when enough history exists and reports missing history explicitly.
+
+**Create the Live Report**
+
+1. Select **Live Reports** in the navigation.
+2. Select **+ New report**.
+3. Enter this request:
+
+   ```text
+   Build a Live Report called "Checkout Service Health" from the connected
+   Application Insights data. Cover the last 24 hours and show checkout request
+   volume, availability, failure rate, latency, and PostgreSQL dependency health.
+   Include clear status indicators, trend charts, and a summary of missing data.
+   Keep the report read-only.
+   ```
+
+4. Review the tools the report will use and approve only the read-only behavior you expect.
+5. Wait for the report to save, then open it from **Live Reports**.
+
+The scheduled task and Live Report are separate operations. The task records evidence in its own thread; creating the report does not automatically copy task output or enable the recurring schedule.
+
+**Expected result**
+
+- The task thread contains timestamped findings, evidence, risks, and recommended follow-up
+- The recurring task remains paused until an operator deliberately enables it
+- `Checkout Service Health` appears in **Live Reports** with refreshable read-only charts and status indicators
+- Neither operation modifies Azure resources, creates issues, or sends email
 
 ## Troubleshooting
 

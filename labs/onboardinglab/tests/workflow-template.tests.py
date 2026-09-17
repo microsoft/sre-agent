@@ -25,6 +25,7 @@ class WorkflowTemplateTests(unittest.TestCase):
             "azure-monitor-rca",
             "github-issue-followup",
             "email-incident-followup",
+            "proactive-health-check",
         ])
         self.assertEqual(len(extras["subagents"]), 1)
         custom_agent = extras["subagents"][0]
@@ -47,6 +48,14 @@ class WorkflowTemplateTests(unittest.TestCase):
         self.assertEqual(response_plan["spec"]["mergeWindowHours"], 3)
         self.assertNotIn("deepInvestigationEnabled", response_plan["spec"])
 
+        self.assertEqual(len(extras["scheduledTasks"]), 1)
+        scheduled_task = extras["scheduledTasks"][0]
+        self.assertEqual(scheduled_task["metadata"]["name"], "checkout-daily-health-report")
+        self.assertEqual(scheduled_task["spec"]["schedule"], "0 9 * * 1-5")
+        self.assertEqual(scheduled_task["spec"]["mode"], "Review")
+        self.assertFalse(scheduled_task["spec"]["enabled"])
+        self.assertIn("proactive-health-check skill", scheduled_task["spec"]["prompt"])
+
     def test_rejects_unsupported_incident_platform(self):
         document = yaml.safe_load(TEMPLATE.read_text())
         document["trigger"]["platform"] = "pagerduty"
@@ -63,6 +72,12 @@ class WorkflowTemplateTests(unittest.TestCase):
         document = yaml.safe_load(TEMPLATE.read_text())
         document["custom_agent"]["skills"][0]["source"] = "../../README.md"
         with self.assertRaisesRegex(SystemExit, "skill source must be a file under"):
+            self._render_document(document)
+
+    def test_rejects_enabled_scheduled_task(self):
+        document = yaml.safe_load(TEMPLATE.read_text())
+        document["scheduled_task"]["enabled"] = True
+        with self.assertRaisesRegex(SystemExit, "must be false"):
             self._render_document(document)
 
     def _render_document(self, document):

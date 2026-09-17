@@ -71,9 +71,9 @@ jq --argjson telemetryTools "$telemetry_tools" \
   "$extras_file" >"$extras_file.tmp"
 mv "$extras_file.tmp" "$extras_file"
 
-jq '{skills, subagents}' "$extras_file" >"$agent_extras_file"
+jq '{skills, subagents, scheduledTasks}' "$extras_file" >"$agent_extras_file"
 
-echo 'Installing workflow skills and subagent...'
+echo 'Installing workflow skills, subagent, and scheduled task...'
 bash "$apply_extras" "$subscription" "$resource_group" "$agent_name" "$agent_extras_file"
 echo 'Creating response plan and connecting it to the subagent...'
 token="$(az account get-access-token --resource https://azuresre.dev --query accessToken --output tsv)"
@@ -102,5 +102,10 @@ while IFS= read -r skill; do
 done < <(jq -r '.installerRequirements.skillNames[]' "$extras_file")
 curl -fsS "$endpoint/api/v2/extendedAgent/incidentFilters/$workflow_name" -H "$auth_header" |
   jq -e --arg agent "$custom_agent" '.properties.handlingAgent == $agent and .properties.agentMode == "Review" and .properties.priorities == ["Sev1", "Sev2"]' >/dev/null
+scheduled_task="$(jq -r '.installerRequirements.scheduledTaskName' "$extras_file")"
+scheduled_task_schedule="$(jq -r '.installerRequirements.scheduledTaskSchedule' "$extras_file")"
+curl -fsS "$endpoint/api/v2/extendedAgent/scheduledtasks" -H "$auth_header" |
+  jq -e --arg name "$scheduled_task" --arg schedule "$scheduled_task_schedule" \
+    '(.value // .) | any(.[]; .name == $name and .properties.cronExpression == $schedule and .properties.agentMode == "Review" and .properties.isEnabled == false)' >/dev/null
 
-echo "Workflow $workflow_name installed with response plan $workflow_name connected to subagent $custom_agent."
+echo "Workflow $workflow_name installed with response plan $workflow_name connected to subagent $custom_agent and scheduled task $scheduled_task paused."

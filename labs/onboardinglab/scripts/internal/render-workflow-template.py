@@ -113,6 +113,32 @@ def render(template_path):
         skill_names.append(name)
         skills.append(read_skill(source_path, name))
 
+    scheduled_task = require_mapping(document.get("scheduled_task"), "scheduled_task")
+    scheduled_task_name = require_name(scheduled_task.get("name"), "scheduled_task.name")
+    scheduled_task_description = require_string(
+        scheduled_task.get("description"), "scheduled_task.description"
+    )
+    scheduled_task_schedule = require_string(scheduled_task.get("schedule"), "scheduled_task.schedule")
+    if len(scheduled_task_schedule.split()) != 5:
+        fail("scheduled_task.schedule must be a five-field cron expression")
+    if scheduled_task.get("enabled") is not False:
+        fail("scheduled_task.enabled must be false for the onboarding lab")
+    scheduled_task_mode = require_string(scheduled_task.get("action_mode"), "scheduled_task.action_mode")
+    if scheduled_task_mode != "Review":
+        fail("scheduled_task.action_mode must be Review")
+    scheduled_task_prompt = require_string(scheduled_task.get("prompt"), "scheduled_task.prompt")
+    scheduled_task_skill = require_mapping(scheduled_task.get("skill"), "scheduled_task.skill")
+    scheduled_task_skill_name = require_name(scheduled_task_skill.get("name"), "scheduled_task.skill.name")
+    scheduled_task_skill_source = require_string(
+        scheduled_task_skill.get("source"), f"source for {scheduled_task_skill_name}"
+    )
+    scheduled_task_skill_path = (template_path.parent / scheduled_task_skill_source).resolve()
+    if not scheduled_task_skill_path.is_file() or template_path.parent.resolve() not in scheduled_task_skill_path.parents:
+        fail(f"skill source must be a file under the workflow directory: {scheduled_task_skill_source}")
+    if scheduled_task_skill_name in skill_names:
+        fail(f"duplicate skill name: {scheduled_task_skill_name}")
+    skills.append(read_skill(scheduled_task_skill_path, scheduled_task_skill_name))
+
     instructions = require_string(custom_agent.get("instructions"), "custom_agent.instructions")
     extras = {
         "skills": skills,
@@ -143,14 +169,26 @@ def render(template_path):
                 "mergeWindowHours": int(merge_match.group(1)),
             },
         }],
+        "scheduledTasks": [{
+            "metadata": {"name": scheduled_task_name},
+            "spec": {
+                "description": scheduled_task_description,
+                "schedule": scheduled_task_schedule,
+                "prompt": scheduled_task_prompt,
+                "enabled": False,
+                "mode": scheduled_task_mode,
+            },
+        }],
         "installerRequirements": {
             "incidentPlatform": "AzMonitor",
             "minimumTelemetryConnectors": telemetry_minimum,
             "workflowName": workflow_name,
             "customAgentName": agent_name,
-            "skillNames": skill_names,
+            "skillNames": skill_names + [scheduled_task_skill_name],
             "deniedTools": denied_tools,
             "askApprovalTools": ask_tools,
+            "scheduledTaskName": scheduled_task_name,
+            "scheduledTaskSchedule": scheduled_task_schedule,
         },
     }
     return extras

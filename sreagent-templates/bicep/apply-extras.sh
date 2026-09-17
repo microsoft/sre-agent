@@ -399,7 +399,7 @@ if [[ "$count" -gt 0 ]]; then
         cronExpression: (.schedule // .cronExpression // ""),
         agentPrompt: (.prompt // .agentPrompt // ""),
         agentMode: (.mode // .agentMode // "Review"),
-        isEnabled: (.enabled // true)
+        isEnabled: (if has("enabled") then .enabled else true end)
       }' <<< "$spec")
       dataplane_put_extended "scheduledtasks" "$name" "ScheduledTask" "[]" "$props"
     done

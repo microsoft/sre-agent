@@ -82,9 +82,9 @@ try {
     Write-Host 'Workflow prerequisites validated.'
     $extras.subagents[0].spec.tools = @($extras.subagents[0].spec.tools + $telemetryTools | Sort-Object -Unique)
 
-    @{ skills = $extras.skills; subagents = $extras.subagents } |
+    @{ skills = $extras.skills; subagents = $extras.subagents; scheduledTasks = $extras.scheduledTasks } |
         ConvertTo-Json -Depth 50 | Set-Content -LiteralPath $agentExtrasFile -Encoding utf8
-    Write-Host 'Installing workflow skills and subagent...'
+    Write-Host 'Installing workflow skills, subagent, and scheduled task...'
     & $applyExtras -Subscription $Subscription -ResourceGroup $resourceGroup -AgentName $AgentName -ExtrasFile $agentExtrasFile
 
     $token = (& az account get-access-token --resource https://azuresre.dev --query accessToken --output tsv).Trim()
@@ -126,7 +126,16 @@ try {
         (Compare-Object @($filter.properties.priorities) @('Sev1', 'Sev2'))) {
         throw "Response plan verification failed: $filterName"
     }
-    Write-Host "Workflow $filterName installed with response plan $filterName connected to subagent $customAgentName."
+    $scheduledTaskName = $extras.installerRequirements.scheduledTaskName
+    $scheduledTaskSchedule = $extras.installerRequirements.scheduledTaskSchedule
+    $scheduledTaskResponse = Invoke-RestMethod -Method Get -Uri "$endpoint/api/v2/extendedAgent/scheduledtasks" -Headers $headers
+    $scheduledTasks = if ($scheduledTaskResponse.value) { @($scheduledTaskResponse.value) } else { @($scheduledTaskResponse) }
+    $scheduledTask = @($scheduledTasks | Where-Object { $_.name -eq $scheduledTaskName })
+    if ($scheduledTask.Count -ne 1 -or $scheduledTask[0].properties.cronExpression -ne $scheduledTaskSchedule -or
+        $scheduledTask[0].properties.agentMode -ne 'Review' -or $scheduledTask[0].properties.isEnabled -ne $false) {
+        throw "Scheduled task verification failed: $scheduledTaskName"
+    }
+    Write-Host "Workflow $filterName installed with response plan $filterName connected to subagent $customAgentName and scheduled task $scheduledTaskName paused."
 }
 finally {
     Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue

@@ -98,3 +98,24 @@ custom_agent:
 
     Do not modify Azure resources. The operator performs the documented NSG
     reset.
+
+scheduled_task:
+  name: checkout-daily-health-report
+  description: Analyze checkout health and return read-only findings in the task thread.
+  schedule: 0 9 * * 1-5
+  enabled: false
+  action_mode: Review
+
+  skill:
+    name: proactive-health-check
+    source: ./plugin/skills/proactive-health-check/SKILL.md
+
+  prompt: |
+    Use the proactive-health-check skill to assess checkout availability,
+    failure rate, latency, dependency health, and resource health over the last
+    24 hours. Compare with the prior seven-day baseline only when sufficient
+    history exists. Return timestamped findings, evidence, missing data, risks,
+    and recommended follow-up in the task thread. Do not modify resources,
+    create issues, send email, update memory, or create or update a Live Report.
+    If severe customer impact is active, return an escalation draft for human
+    review only.
