@@ -6,6 +6,12 @@ This folder is the complete Azure Developer CLI project for the onboarding lab t
 
 Install [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli), [Azure Developer CLI](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd), and [Node.js 22 or later](https://nodejs.org/en/download). Then run these commands from this directory:
 
+On Windows, PowerShell 7 runs the post-deploy hook. In the full lab checkout,
+that hook can opt into agent setup through `ONBOARDING_CONFIGURE_AGENT=true`.
+A standalone copy deploys only the workload by default; it does not require
+the sibling agent setup files. See the full lab's setup guide before selecting
+agent configuration.
+
 ```bash
 azd auth login
 az login

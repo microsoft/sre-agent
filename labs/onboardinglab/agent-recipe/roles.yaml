@@ -1,5 +1,1 @@
-roles:
-  - name: GitHub OAuth
-    type: manual
-    instructions: |
-      Authenticate the attendee-owned ticketing app repository through the SRE Agent connection UI after deployment.
+roles: []

@@ -9,8 +9,13 @@ $ExtrasFile = "$OutputPrefix.extras.json"
 
 New-Item -ItemType Directory -Path $TemporaryDirectory | Out-Null
 try {
+    $SelectedRecipe = Join-Path $TemporaryDirectory 'selected-recipe'
+    Copy-Item -LiteralPath $RecipeDirectory -Destination $SelectedRecipe -Recurse
+    $ConnectorDirectory = Join-Path $SelectedRecipe 'config\connectorv2'
+    New-Item -ItemType Directory -Path $ConnectorDirectory -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $SelectedRecipe 'optional\connectorv2\outlook.yaml') -Destination $ConnectorDirectory
     & (Join-Path $TemplatesDirectory 'bicep/Assemble-Agent.ps1') `
-        -ConfigDir $RecipeDirectory -Output $OutputPrefix | Out-Null
+        -ConfigDir $SelectedRecipe -Output $OutputPrefix | Out-Null
 
     $extras = Get-Content $ExtrasFile -Raw | ConvertFrom-Json
     if (@($extras.connectorV2).Count -ne 1 -or

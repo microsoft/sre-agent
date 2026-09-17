@@ -1,458 +1,299 @@
-# Azure SRE Agent Onboarding Lab
+# Azure SRE Agent onboarding lab
 
-Learn how Azure SRE Agent brings application telemetry, Azure resource state, source code, and operational knowledge into one investigation workflow so teams can diagnose incidents faster and respond consistently.
+Investigate a failure in a ticketing application, teach the agent an operational
+rule, and reuse that rule in a new conversation. Finish by observing a read-only
+scheduled health check.
 
-In this hands-on lab, you configure least-privilege access and safeguards, install a read-only incident response workflow, and learn how the same pattern supports proactive health checks and other scheduled operations. A sample ticketing app gives you a monitored environment in which to practice the complete setup.
+The application runs on App Service with PostgreSQL and Application Insights.
+Reservations are simulated: each checkout connects to PostgreSQL, runs `SELECT 1`
+and closes the connection. No tickets, payments or customer data are stored.
 
-## What you will learn
+## Choose your starting point
 
-- Create an SRE Agent with scoped Azure RBAC, Review mode, tool policies, safety guidance, and evidence checks.
-- Connect the agent to application telemetry, Azure Monitor incidents, source code, and operational knowledge.
-- Build reusable workflows from triggers, skills, subagents, tools, and response plans.
-- Run a read-only incident investigation while the operator controls mitigation and recovery.
-- Apply the same workflow pattern to proactive operations such as scheduled health checks.
-
-## Setup at a glance
-
-Complete these three steps to prepare the agent for incident and proactive workflows.
-
-```mermaid
-flowchart LR
-   app["1. Deploy sample app<br/>App Service, PostgreSQL, telemetry"]
-   agent["2. Create SRE Agent<br/>Connect environment and apply safeguards"]
-   workflow["3. Install workflow templates<br/>Read-only analysis and automation"]
-   app --> agent --> workflow
-```
-
-## What is in this lab
-
-| Path | Purpose |
+| Your situation | Start here |
 | --- | --- |
-| [`ticketingapp-source/`](ticketingapp-source/) | Self-contained azd project with the Node.js app and Bicep workload infrastructure. |
-| [`agent-recipe/`](agent-recipe/) | Base-agent recipe with access, telemetry, Azure Monitor, source context, knowledge, hooks, prompts, policies, and the self-configuration skill. |
-| [`workflow-templates/`](workflow-templates/) | Agent-only workflow templates and their referenced skill content. |
-| [`scripts/`](scripts/) | Prerequisite setup, workflow installation, and controlled fault helpers for macOS and Windows. |
-| [`fault.bicep`](fault.bicep) | Narrow NSG rule update used only to inject or reset the lab incident. |
-| [`tests/`](tests/) | Offline workflow-template validation. The app unit tests are under `ticketingapp-source/app/test/`. |
+| The facilitator gave you an agent and application link | Open both links and [start the guided lesson](#start-the-guided-lesson). Do not deploy or reset shared resources. |
+| You have a checkout and a local coding assistant | Open `labs/onboardinglab` as the working directory. Ask: **Help me set up or resume this lab. Check my environment and explain any approvals before changing anything.** |
+| You want to run the commands yourself | Follow [Setup](#setup), then begin the same exercises. |
+| You lack a subscription, permissions or required tools | Ask the facilitator for an assigned environment. A local assistant can explain the blocker but cannot grant access. |
+
+The local assistant reads [AGENTS.md](AGENTS.md) and the
+[onboarding-lab skill](.github/skills/onboarding-lab/SKILL.md). It uses the same
+scripts as the manual setup. The deployed SRE Agent has a separate
+`onboarding-lab-guide` skill for the exercises.
 
 > [!IMPORTANT]
-> This lab deploys billable Azure resources. Run the [cleanup](#cleanup) step when you finish.
+> This lab creates billable Azure resources. Confirm the subscription, resource
+> owner and cleanup plan before deploying. An agent-unit limit is not a total
+> Azure spending cap.
 
-## Before you start
+## What you should leave with
 
-| Requirement | Required? | Details |
-| --- | --- | --- |
-| Local tools | Yes | [Git](https://git-scm.com/downloads) and [VS Code](https://code.visualstudio.com/download) |
-| macOS tools | On macOS | [Bash](https://formulae.brew.sh/formula/bash) and [`curl`](https://formulae.brew.sh/formula/curl) |
-| Windows tools | On Windows | [Windows PowerShell](https://learn.microsoft.com/powershell/scripting/windows-powershell/install/installing-windows-powershell) and [WinGet](https://learn.microsoft.com/windows/package-manager/winget/) |
-| Azure subscription | Yes | Must allow resource creation and role assignments |
-| GitHub account | Yes | Fork the [ticketing app source repository](https://github.com/dm-chelupati/onboardinglab-sep15/fork) before deploying the agent |
-| Email account | Optional | Required only to send incident summaries to approved recipients |
-| Azure region | Yes | Choose an [SRE Agent supported region](https://learn.microsoft.com/azure/sre-agent/supported-regions). Sweden Central or East US 2 is suggested for this lab. |
+- An investigation supported by telemetry and resource evidence.
+- A skill you created, saved and used in a fresh conversation.
+- The result of a read-only scheduled check, with the task disabled afterward.
+- An explanation of what you would change for a customer's workload.
 
-## 0. Set up the local environment
+GitHub code access, issue creation and Outlook email are optional extensions.
+They are not prerequisites for the core exercises.
 
-**1. Clone the repository and go to the lab directory**
+## 1. Discover the environment
 
-macOS:
+### Start the guided lesson
+
+Open the assigned **Azure SRE Agent**, choose **New chat**, and use the default
+agent. Enter this in the chat box, not in a local terminal:
+
+> Use onboarding-lab-guide to start the onboarding lab. Check my starting point
+> and guide me through one step at a time. Keep investigation read-only and ask
+> before any configuration change.
+
+No slash command is required. [Skills load when relevant to the question](https://sre.azure.com/docs/concepts/skills);
+naming `onboarding-lab-guide` makes the intended lesson explicit. This lab does
+not register a custom slash command. Start in a normal chat rather than the
+incident-specific `alert-investigator`, which has a different selected skill set.
+
+The guide should identify the starting point, ask about missing setup information,
+then give one next action and its completion checkpoint. It should not launch a
+deployment, inject a fault, or save configuration just because you started the lesson.
+
+The guide knows this is a training exercise. Keep that coaching conversation
+separate from the incident thread. The `alert-investigator` workflow selects
+its investigation skill without the lab-guide skill. Do not paste lesson or
+fault-injection instructions into the investigator's prompt.
+
+This is an evidence-based exercise, not a blind benchmark. Resource names and
+tags can still reveal that the environment is a lab. Judge the diagnosis by its
+telemetry and configuration evidence rather than apparent surprise at the fault.
+
+If the guide is unavailable, ask the facilitator to verify that
+`onboarding-lab-guide` is installed on this agent. Use Skill Builder to inspect
+it. Do not try invented slash commands or treat a generic answer as proof that
+the lab guide loaded.
+
+To resume later, use the same startup prompt and describe your last completed
+checkpoint. The guide should check saved artifacts before assuming earlier steps
+succeeded.
+
+### Map the workload
+
+Continue in that chat:
+
+> Map the ticketing request path, identify the evidence sources you can access,
+> and explain what you cannot verify yet. Keep this read-only.
+
+Compare its answer with the application's behavior. Select **Reserve tickets**
+and confirm that the **Confirmed** count increases.
+
+Ask the agent to locate that successful operation in workload telemetry.
+Distinguish the app's telemetry from the agent's own operational telemetry.
+
+**Checkpoint:** explain the app-to-database path, identify a business-operation
+signal, and name one limitation in the available evidence.
+
+## 2. Investigate an incident
+
+The facilitator injects the controlled fault and identifies the incident for
+the group. On a shared workload, participants must not inject or reset faults.
+Operator commands are in the [facilitator guide](docs/facilitator.md).
+
+Select **Reserve tickets** again. Observe whether checkout fails while the
+service-health indicator stays available. The optional on-sale simulation
+generates repeated requests and stops automatically; the facilitator controls
+its use and stops it when enough evidence is available.
+
+Open **Incidents** and select the lab's checkout-failure alert. The response plan
+is `alert-investigation`. Allow for telemetry ingestion, alert evaluation and
+the agent's next scan. The alert evaluates every minute over a five-minute window.
+
+Ask:
+
+> What evidence supports the cause, and what would contradict it? Separate
+> observed facts from assumptions. Show the affected UTC interval and recommend
+> a recovery action for the facilitator without changing resources.
+
+Check the request failures, PostgreSQL dependency results and Azure configuration.
+Do not accept a known runbook explanation as proof of the current fault.
+
+The facilitator runs the reset helper. Confirm that new reservations succeed
+and ask for fresh successful requests and dependencies after the reset.
+
+**Checkpoint:** a diagnosis with cited evidence, explicit uncertainty and verified
+recovery. The agent remains read-only; the operator performs the reset.
+
+## 3. Teach the agent a useful rule
+
+Choose a requirement you would expect in a customer investigation. You do not
+need to wait for the agent to make a mistake.
+
+For example:
+
+> Draft a short skill named onboarding-learned-MYNAME. Require fresh successful
+> checkout requests and successful PostgreSQL dependencies after the reset
+> before declaring recovery. Include the UTC evidence interval and any gaps.
+> A healthy health endpoint alone is insufficient. Attach no tools, show me
+> the content and exact target, and wait for approval before saving anything.
+
+Replace `MYNAME` with an assigned lowercase learner identifier. Review the result and
+change a detail so you understand the behavior you are saving.
+
+Ask the agent to use `sre-agent-self-configure` to save the approved skill only
+if that capability is available. It must show the change, use normal approval
+and read the saved content back.
+
+If the configured identity cannot save it, stop that path. Use the lab's
+documented local learning helper or open **Build + setup > Extensions >
+Skill Builder** and create the reviewed skill there. The local assistant or
+authorized learner performs that write; do not claim the remote agent saved it.
+Do not broaden permissions to get through the exercise.
+
+**Checkpoint:** the new named skill exists and its saved content matches your
+approved rule. Agreement in chat or a local Markdown file is not enough.
+
+## 4. Prove reuse in a new conversation
+
+Start a new agent conversation and ask:
+
+> Use onboarding-learned-MYNAME. The health endpoint is healthy. Can we declare
+> that ticket reservations have recovered?
+
+Do not paste the skill text again. The agent should use the saved rule to
+request or inspect fresh checkout and dependency evidence. If it lacks that
+evidence, it should say so.
+
+Ask it to identify the skill it used, then inspect the tool trace or loaded
+skill content where available.
+
+**Checkpoint:** the saved rule changes the answer in a fresh context. This proves
+explicit skill reuse, not an automatic change to every future investigation.
+
+## 5. Run a read-only scheduled check
+
+Ask the agent to explain the installed `onboarding-health-check` skill. Review
+which workload and UTC interval it will inspect, what a healthy result requires,
+and how it reports missing telemetry.
+
+Use the [learning helper instructions](docs/learning.md) to prepare a named
+scheduled check. Inspect the schedule, timezone, read-only handler and approval
+behavior before enabling it. Do not attach notification or remediation tools.
+
+Open **Automation**, inspect an actual scheduled execution and review its
+evidence summary. A manually submitted chat prompt is not a scheduled run.
+If it is waiting for approval or blocked, report that state instead of calling
+the exercise complete.
+
+Disable the exercise task and verify that it is disabled.
+
+**Checkpoint:** a real scheduled result and confirmed disablement. Even a
+healthy run should give a visible summary.
+
+## 6. Take the skill with you
+
+Export your skill and explain:
+
+- Which environment facts and evidence sources would change for a customer.
+- Which identity performs configuration writes and who approves them.
+- How you would test the skill against a new incident and missing evidence.
+
+Real customer investigations should use maintained operational knowledge and
+relevant connected application source. This lab keeps operator fault instructions
+separate from the incident agent's evidence so the exercise requires investigation.
+
+## Setup
+
+### Prerequisites
+
+Use Git, Azure CLI, Azure Developer CLI, PowerShell 7, Node.js 22 or later,
+Python 3 with PyYAML, and jq. The scripts check the dependencies they use.
+Windows and macOS prerequisite installers are provided; the shared setup and
+learning helpers run in PowerShell 7 on either platform.
+
+The Azure subscription must permit resource creation and role assignments.
+Confirm a region that supports both SRE Agent and this subscription's PostgreSQL
+16 / B1ms offering. Region availability does not guarantee quota or capacity.
+
+From the repository root:
+
+```powershell
+Set-Location .\labs\onboardinglab
+. .\scripts\prereqs.ps1 -Check
+```
+
+On macOS, from the lab directory:
 
 ```bash
-git clone https://github.com/microsoft/sre-agent.git
-cd sre-agent/labs/onboardinglab
+source ./scripts/prereqs.sh --check
 ```
 
-Windows:
+Remove the check-only option to install missing prerequisites after reviewing
+the required changes. Complete Azure CLI and azd sign-in through their trusted UI.
+
+### Prepare the approved environment
+
+Choose a unique environment name and approved subscription:
 
 ```powershell
-git clone https://github.com/microsoft/sre-agent.git
-Set-Location .\sre-agent\labs\onboardinglab
+azd env new YOUR-ENVIRONMENT --subscription YOUR-SUBSCRIPTION --location swedencentral -C .\ticketingapp-source
+pwsh -NoProfile -File .\scripts\preflight.ps1 -Subscription YOUR-SUBSCRIPTION -Location swedencentral
 ```
 
-**2. Install the remaining prerequisites**
+The preflight makes no changes. Fix any missing provider registration or regional
+capability before proceeding; do not interpret an empty version list as a naming
+collision.
 
-Run the command for your operating system. The script installs only missing tools, activates Node.js 22 or later in the current terminal, and restores the locked application dependencies through your configured npm registry.
+Follow [setup and recovery](docs/setup.md) to enable the agent setup stage,
+preview the changes and run `azd up`. Existing environments use the same stage
+helpers. Review unexpected configuration drift instead of overwriting it.
 
-macOS:
+### Verify before the exercises
 
-```bash
-source ./scripts/prereqs.sh
-```
+Confirm all of the following:
 
-Windows:
+- The application accepts a reservation and emits workload telemetry.
+- The agent manages the correct resource group in Low access and Review mode.
+- The lab-guide, self-configuration and health-check skills are installed.
+- The incident workflow has the expected read-only tools and response plan.
+- Optional connections are either healthy or explicitly omitted.
+- The chosen learner skill-save path works with the available permissions.
 
-```powershell
-. .\scripts\prereqs.ps1
-```
-
-To verify without installing, run `source ./scripts/prereqs.sh --check` on macOS or `. .\scripts\prereqs.ps1 -Check` on Windows.
-
-## 1. Deploy the ticketing workload
-
-**Run the deployment**
-
-The command prompts for an environment name, your subscription, and a region. Choose **Sweden Central** or **East US 2**, or another [SRE Agent supported region](https://learn.microsoft.com/azure/sre-agent/supported-regions) that supports all resources in the template.
-
-macOS:
-
-```bash
-azd auth login
-az login
-az provider register --namespace Microsoft.DBforPostgreSQL --wait
-az provider register --namespace Microsoft.AlertsManagement --wait
-pushd ./ticketingapp-source
-azd up
-popd
-```
-
-Windows:
-
-```powershell
-azd auth login
-az login
-az provider register --namespace Microsoft.DBforPostgreSQL --wait
-az provider register --namespace Microsoft.AlertsManagement --wait
-Push-Location .\ticketingapp-source
-azd up
-Pop-Location
-```
-
-**What `azd up` deploys**
-
-| Resource | Role in the lab |
-| --- | --- |
-| Azure App Service | Hosts the Node.js ticket reservation experience and `POST /checkout` API |
-| Azure Database for PostgreSQL | Accepts the application's fixed, read-only connectivity query |
-| Virtual network and NSG | Provides the private database path and controlled fault boundary |
-| Managed identities and RBAC | Authenticate the application and authorize agent reads |
-| Application Insights and Log Analytics | Capture request, dependency, and platform telemetry |
-
-The sample does not store ticket or payment data. Each reservation opens a PostgreSQL connection, runs `SELECT 1`, and closes the connection.
-
-**Checkpoint: confirm a healthy baseline**
-
-Retrieve the application URL:
-
-```powershell
-azd -C ./ticketingapp-source env get-value SERVICE_CHECKOUT_ENDPOINT_URL
-```
-
-Open the application URL and select **Reserve tickets**.
-
-> [!TIP]
-> Continue only when the reservation succeeds and the **Confirmed** count increases. A failed baseline request is a deployment problem, not the lab incident.
-
-## 2. Deploy and connect the agent
-
-**1. Fork the ticketing app repository**
-
-The full lab runs from the `microsoft/sre-agent` clone. For the agent's Code Access connection, open [dm-chelupati/onboardinglab-sep15](https://github.com/dm-chelupati/onboardinglab-sep15/fork), select **Fork**, and create the fork under your GitHub account. This separate repository contains the same self-contained ticketing app azd project. In the fork, open **Settings** > **General** > **Features** and enable **Issues** so the workflow can propose incident follow-up issues.
-
-Set your fork URL before continuing.
-
-```bash
-github_repository_url='https://github.com/YOUR-USER/onboardinglab-sep15.git'
-```
-
-Windows:
-
-```powershell
-$GitHubRepositoryUrl = 'https://github.com/YOUR-USER/onboardinglab-sep15.git'
-```
-
-Before continuing, open the fork's **Issues** tab and confirm the **New issue** button is available.
-
-**2. Generate the base-agent configuration**
-
-The commands use the workload resource group and telemetry created in step 1. Change `onboardinglab-agent-sep15` if you need another unique agent name.
-
-macOS:
-
-```bash
-ticketingapp_dir="$PWD/ticketingapp-source"
-agent_name='onboardinglab-agent-sep15'
-subscription="$(azd -C "$ticketingapp_dir" env get-value AZURE_SUBSCRIPTION_ID)"
-resource_group="$(azd -C "$ticketingapp_dir" env get-value AZURE_RESOURCE_GROUP)"
-location="$(azd -C "$ticketingapp_dir" env get-value AZURE_LOCATION)"
-config_dir="$ticketingapp_dir/.azure/$(azd -C "$ticketingapp_dir" env get-value AZURE_ENV_NAME)/$agent_name"
-
-../../sreagent-templates/bin/new-agent.sh \
-   --recipe-path ./agent-recipe \
-   --subscription "$subscription" \
-   --set agentName="$agent_name" \
-   --set resourceGroup="$resource_group" \
-   --set location="$location" \
-   --set appInsightsId="$(azd -C "$ticketingapp_dir" env get-value APPLICATION_INSIGHTS_ID)" \
-   --set appInsightsAppId="$(azd -C "$ticketingapp_dir" env get-value APPLICATION_INSIGHTS_APP_ID)" \
-   --set githubRepo="$github_repository_url" \
-   --set modelProvider='Anthropic' \
-   --output "$config_dir" \
-   --non-interactive
-```
-
-Windows:
-
-```powershell
-$TicketingAppDirectory = Join-Path $PWD 'ticketingapp-source'
-$AgentName = 'onboardinglab-agent-sep15'
-$Subscription = azd -C $TicketingAppDirectory env get-value AZURE_SUBSCRIPTION_ID
-$ResourceGroup = azd -C $TicketingAppDirectory env get-value AZURE_RESOURCE_GROUP
-$Location = azd -C $TicketingAppDirectory env get-value AZURE_LOCATION
-$EnvironmentName = azd -C $TicketingAppDirectory env get-value AZURE_ENV_NAME
-$ConfigDirectory = Join-Path $TicketingAppDirectory ".azure\$EnvironmentName\$AgentName"
-
-& ..\..\sreagent-templates\bin\ps\New-Agent.ps1 `
-   -RecipePath .\agent-recipe `
-   -Subscription $Subscription `
-   -Set @{
-      agentName = $AgentName
-      resourceGroup = $ResourceGroup
-      location = $Location
-      appInsightsId = (azd -C $TicketingAppDirectory env get-value APPLICATION_INSIGHTS_ID)
-      appInsightsAppId = (azd -C $TicketingAppDirectory env get-value APPLICATION_INSIGHTS_APP_ID)
-      githubRepo = $GitHubRepositoryUrl
-      modelProvider = 'Anthropic'
-   } `
-   -Output $ConfigDirectory `
-   -NonInteractive
-```
-
-Review the generated `agent.json`, `connectors.json`, managed connector, skill, incident-platform, repository, and `data/*.md` knowledge files before deployment. The shared deployer uploads the Markdown files automatically; do not upload them manually in the portal.
-
-**3. Deploy the base agent**
-
-Keep the terminal open during deployment. When it prints a GitHub OAuth URL, open the URL and approve the SRE Agent app within four minutes. The deployer then connects `ticketingapp-source` and completes strict verification.
-
-macOS:
-
-```bash
-../../sreagent-templates/bin/deploy.sh \
-   "$config_dir" \
-   "${agent_name}-deployment" \
-   --subscription "$subscription"
-```
-
-Windows:
-
-```powershell
-& ..\..\sreagent-templates\bin\ps\Deploy-Agent.ps1 `
-   -InputPath $ConfigDirectory `
-   -DeploymentName "$AgentName-deployment" `
-   -Subscription $Subscription
-```
-
-The deployment command returns a nonzero exit code if any required base-agent component fails post-deployment verification. Additional workflow components already installed on the agent are preserved and do not cause verification failures.
-
-**4. Save the agent for the workflow step**
-
-macOS:
-
-```bash
-agent_id="/subscriptions/$subscription/resourceGroups/$resource_group/providers/Microsoft.App/agents/$agent_name"
-agent_url="https://sre.azure.com/#/agent/$subscription/$resource_group/$agent_name"
-azd -C "$ticketingapp_dir" env set SRE_AGENT_NAME "$agent_name"
-azd -C "$ticketingapp_dir" env set SRE_AGENT_RESOURCE_ID "$agent_id"
-azd -C "$ticketingapp_dir" env set SRE_AGENT_URL "$agent_url"
-```
-
-Windows:
-
-```powershell
-$AgentId = "/subscriptions/$Subscription/resourceGroups/$ResourceGroup/providers/Microsoft.App/agents/$AgentName"
-$AgentUrl = "https://sre.azure.com/#/agent/$Subscription/$ResourceGroup/$AgentName"
-azd -C $TicketingAppDirectory env set SRE_AGENT_NAME $AgentName
-azd -C $TicketingAppDirectory env set SRE_AGENT_RESOURCE_ID $AgentId
-azd -C $TicketingAppDirectory env set SRE_AGENT_URL $AgentUrl
-```
-
-**What the agent deployment sets up**
-
-The recipe uses the same core flow described in [Create and set up your Azure SRE Agent](https://sre.azure.com/docs/get-started/create-and-setup). Investigation workflow configuration is installed separately in step 3.
-
-| Resource or setup | What the deployment configures | Completion | Learn more |
-| --- | --- | --- | --- |
-| Azure SRE Agent | Creates the configured agent with Low access, Review mode, Preview upgrades, Anthropic as the default model provider, and a 10,000 monthly agent-unit limit. If Azure OpenAI is selected, the generated API value is `MicrosoftFoundry`. | Automatic | [Create and set up an agent](https://sre.azure.com/docs/get-started/create-and-setup) |
-| Agent identities | Creates one user-assigned managed identity and enables the agent's system-assigned identity. | Automatic | [Agent identity](https://sre.azure.com/docs/concepts/agent-identity) |
-| Azure RBAC | Grants Reader and Log Analytics Reader on the workload resource group to both agent identities, Monitoring Reader on the deployment resource group to the user-assigned identity, and SRE Agent Administrator on the agent to the deployer and user-assigned identity. Low access does not grant Contributor. | Automatic | [Manage permissions and resources](https://sre.azure.com/docs/tutorials/agent-config/manage-permissions) |
-| Agent monitoring | Creates a dedicated Log Analytics workspace with 30-day retention and a workspace-based Application Insights resource for agent operations. These are separate from workload telemetry. | Automatic | [Log Analytics workspaces](https://learn.microsoft.com/azure/azure-monitor/logs/log-analytics-workspace-overview), [Application Insights](https://learn.microsoft.com/azure/azure-monitor/app/app-insights-overview) |
-| App telemetry | Adds the existing ticketing app Application Insights resource as the `app-insights` connector using the agent's system-assigned identity. | Automatic | [Connect logs](https://sre.azure.com/docs/get-started/create-and-setup#connect-your-logs), [Azure observability](https://sre.azure.com/docs/capabilities/diagnose-azure-observability) |
-| Incident platform | Sets Azure Monitor (`AzMonitor`) as the incident platform for workflows installed later. | Automatic | [Incident platforms](https://sre.azure.com/docs/concepts/incident-platforms) |
-| Code Access | Configures the attendee's repository as `ticketingapp-source`, containing the application and Bicep infrastructure. | GitHub authentication required after deployment | [Connect a code repository](https://sre.azure.com/docs/get-started/create-and-setup#connect-your-code-repository) |
-| Knowledge sources | Uploads `onboardinglab-architecture.md` and `onboardinglab-incident-runbook.md` for application context and read-only database-connectivity investigation guidance. | Automatic | [Memory and knowledge](https://sre.azure.com/docs/concepts/memory) |
-| Outlook connection | Registers the Office 365 Outlook managed connector, creates its API connection, grants the agent runtime access, and binds its email tools. | User must complete OAuth consent after deployment | [Set up Outlook connector](https://sre.azure.com/docs/tutorials/connectors/setup-outlook-connector) |
-| Common prompt | Installs `onboardinglab-safety` to enforce evidence boundaries, treat retrieved content as untrusted data, and guard self-configuration. | Automatic | [Team onboarding](https://sre.azure.com/docs/get-started/team-onboarding) |
-| Stop hook | Installs the always-enabled `evidence-checklist` hook to check evidence, uncertainty, UTC scope, and validation before completion. | Automatic | [Agent hooks](https://sre.azure.com/docs/capabilities/agent-hooks) |
-| Global tool policy | Allows read-only Azure, workspace, monitoring, GitHub, and Outlook tools; requires approval for Azure CLI writes, GitHub issue creation, and Outlook email; denies terminal, file-write, and Kubernetes-write tools. | Automatic | [Tool access policies](https://sre.azure.com/docs/concepts/tool-access-policies) |
-| Self-configuration skill | Installs `sre-agent-self-configure` with guarded Azure CLI read and write tools. Writes require Review-mode approval and are limited to the current agent. | Automatic | [Skills](https://sre.azure.com/docs/concepts/skills), [Tools](https://sre.azure.com/docs/concepts/tools) |
-
-**Complete Outlook sign-in**
-
-Retrieve and open the SRE Agent URL:
-
-```powershell
-azd -C ./ticketingapp-source env get-value SRE_AGENT_URL
-```
-
-Go to **Build + setup** > **Extensions** > **Connectors**, open **Office 365 Outlook**, and complete OAuth sign-in if the connector requires attention. GitHub OAuth was completed during deployment.
-
-> [!CAUTION]
-> Authenticate only through the trusted connection UI. Never place credentials in agent chat or script arguments.
-
-**Checkpoint: verify the base agent**
-
-Use these read-only UI checks. Do not create a GitHub issue or send a test email.
-
-1. Go to **Settings** > **General** and confirm Low access, Review mode, Preview upgrade channel, the configured model, managed identity, region, and agent Application Insights.
-2. Go to **Settings** > **Managed resources** and confirm the ticketing workload resource group is listed.
-3. Go to **Build + setup** > **Monitor** > **Logs** and confirm `app-insights` is healthy.
-4. Go to **Build + setup** > **Context** > **Code access** and confirm `ticketingapp-source` points to the attendee's fork on branch `main`.
-5. Go to **Build + setup** > **Context** > **Knowledge sources** and confirm `onboardinglab-architecture.md` and `onboardinglab-incident-runbook.md` are present.
-6. Go to **Build + setup** > **Extensions** > **Connectors** and confirm the Outlook and GitHub connections show a healthy state.
-7. Go to **Build + setup** > **Extensions** > **Global Hooks** and confirm `evidence-checklist` is enabled for the Stop event.
-8. Go to **Build + setup** > **Extensions** > **Tools** > **Advanced Permissions** and confirm the configured allow, ask, and deny patterns.
-9. Go to **Build + setup** > **Extensions** > **Skill Builder** and confirm `sre-agent-self-configure` is present with its three Azure CLI tools.
-10. Go to **Incidents** and confirm Azure Monitor is connected. Common prompts do not have a current portal page; the post-deployment verifier checks `onboardinglab-safety` through the agent API.
-
-## 3. Install the workflow template
-
-The installer accepts the existing agent name, subscription, and workflow template. It discovers the agent resource group, validates Azure Monitor and app telemetry, installs the skills and `alert-investigator` subagent, then creates the `alert-investigation` response plan connected to that subagent. It installs only SRE Agent configuration and does not deploy Azure resources or alert rules.
-
-macOS:
-
-```bash
-./scripts/install-workflow-template.sh \
-   --subscription "$subscription" \
-   --agent-name "$agent_name" \
-   --template ./workflow-templates/incidentinvestigation-workflowtemplate.yaml
-```
-
-Windows:
-
-```powershell
-./scripts/install-workflow-template.ps1 `
-   -Subscription $Subscription `
-   -AgentName $AgentName `
-   -Template .\workflow-templates\incidentinvestigation-workflowtemplate.yaml
-```
-
-**What the workflow template installs**
-
-| Type | Installed component | Purpose | Learn more |
-| --- | --- | --- | --- |
-| Skill | `azure-monitor-rca` | Guides evidence-based Azure Monitor investigation. | [Skills](https://sre.azure.com/docs/concepts/skills) |
-| Skill | `github-issue-followup` | Prepares a deduplicated GitHub incident follow-up when that optional capability is available and approved. | [Connectors](https://sre.azure.com/docs/concepts/connectors) |
-| Skill | `email-incident-followup` | Prepares an Outlook incident summary when that optional capability is available and approved. | [Send notifications](https://sre.azure.com/docs/capabilities/send-notifications) |
-| Subagent | `alert-investigator` | Correlates telemetry, Azure state, and source evidence without Azure write tools. | [Custom agents](https://sre.azure.com/docs/concepts/subagents) |
-| Response plan | `alert-investigation` | Routes Azure Monitor Sev1 and Sev2 incidents to the `alert-investigator` subagent in Review mode and merges related incidents for three hours. | [Incident response plans](https://sre.azure.com/docs/capabilities/incident-response-plans) |
-
-**Checkpoint: verify the workflow**
-
-1. Go to **Build + setup** > **Extensions** > **Skill Builder** and confirm all three skills are present.
-2. Go to **Build + setup** > **Workflows** and confirm the `alert-investigator` subagent is present.
-3. In **Workflows**, confirm the `alert-investigation` response plan routes Azure Monitor Sev1 and Sev2 incidents to the `alert-investigator` subagent in Review mode.
-
-## Architecture and responsibilities
-
-| You operate | SRE Agent operates |
-| --- | --- |
-| Generate reservation demand | Detect and investigate the incident |
-| Inject and reset the controlled NSG fault | Run application, PostgreSQL, network, and source-code checks |
-| Decide and execute recovery | Correlate evidence and recommend the reset |
-| Verify service recovery | Propose optional GitHub and Outlook follow-ups for review |
-
-The agent identities use Azure RBAC for resource and telemetry access. The agent permission policy separately prevents Azure writes, shell execution, and workspace mutation.
-
-## Scenario 1: Incident workflow
-
-The diagram shows how the deployed app, Azure Monitor incident, response plan, subagent, and optional follow-ups connect during this scenario.
-
-![Color-coded architecture flowchart showing ticket requests, telemetry, alerting, SRE Agent investigation, and follow-ups](assets/architecture.svg)
-
-[Open the architecture diagram full size](assets/architecture.svg).
-
-**Trigger the incident**
-
-1. Inject the database network fault:
-
-   macOS:
-
-   ```bash
-   ./scripts/fault.sh inject
-   ```
-
-   Windows:
-
-   ```powershell
-   ./scripts/fault.ps1 inject
-   ```
-
-2. In the ticketing application, select **Launch on-sale simulation**.
-3. Confirm that reservations fail while the service health check remains available.
-
-**Observe the incident workflow**
-
-Allow time for telemetry ingestion, the five-minute alert evaluation, and the next agent scan. Then:
-
-1. Open the incident thread.
-2. Review the application, PostgreSQL, network, and source-code evidence.
-3. Confirm that the diagnosis identifies the TCP 5432 NSG deny rule.
-4. Review any optional GitHub issue or Outlook email proposal before approving it.
-
-The `alert-investigation` response plan routes the alert to the `alert-investigator` subagent in Review mode. The subagent correlates app telemetry, Azure configuration, Activity Log, and available source evidence, then recommends the operator-owned reset.
-
-**Recover and verify**
-
-1. Restore connectivity:
-
-   macOS:
-
-   ```bash
-   ./scripts/fault.sh reset
-   ```
-
-   Windows:
-
-   ```powershell
-   ./scripts/fault.ps1 reset
-   ```
-
-2. Return to the application and confirm that new reservations succeed.
-
-**Expected result**
-
-- The incident thread identifies the blocked app-to-database path
-- The thread contains timestamped app telemetry, Azure state, and source evidence
-- Optional GitHub and Outlook writes remain subject to approval
-- After your reset, ticket reservations succeed again
+Do not continue to fault injection when the baseline is broken.
 
 ## Troubleshooting
 
-| Problem | What to do |
+| Symptom | Action |
 | --- | --- |
-| `azd` login has expired | Run `azd auth logout`, then `azd auth login` and retry. |
-| Deployment reports unavailable quota, capacity, SKU, or PostgreSQL version | Review the deployment error and subscription quota. Request quota or choose another [SRE Agent supported region](https://learn.microsoft.com/azure/sre-agent/supported-regions) that supports all resources in the template, then remove the partial resource group before retrying. |
-| App reservation fails before fault injection | Stop and fix the baseline deployment first. |
-| Fault injection says an alert is still firing | Reset the fault, generate successful reservations, and wait for the alert to resolve. |
-| Alert fires but no incident appears | Check that its state is **New** and condition is **Fired**, then allow for the next agent scan. |
-| GitHub issue or email is missing | Verify the connection supports the required write and inspect the incident thread for its receipt or error. Do not blindly retry an unknown write outcome. |
+| Setup fails after creating some resources | Inspect the named deployment and failed stage. Resume through the setup helper after reconciling the existing state. |
+| Python is installed but a prerequisite fails | Use the reported executable and error. A Windows Store alias is not proof of an installed interpreter. |
+| Reservation fails before fault injection | Fix the baseline; this is not the intended incident. |
+| Alert fires but no agent incident appears | Check Azure Monitor is connected, the alert is New/Fired and the lab response plan matches it. |
+| Agent cannot save a skill | Keep permissions unchanged. Use the authorized local helper or Skill Builder and verify read-back. |
+| No telemetry | Check the workload source and UTC interval. Missing data does not prove health or recovery. |
+| Scheduled task has no completed run | Inspect its enabled state, trigger and approval status. Do not substitute a manual chat as proof. |
+| Optional GitHub or Outlook output is unavailable | Complete the selected extension's consent separately. Continue the core read-only lesson without sending anything. |
 
 ## Cleanup
 
-Stop the on-sale simulation, then delete the lab resources:
+Export learner skills first. Stop the simulation, reset any fault and disable
+exercise schedules. Verify the exact selected subscription and resource group.
 
-macOS:
-
-```bash
-pushd ./ticketingapp-source
-azd down
-popd
-```
-
-Windows:
+After the resource owner approves deletion:
 
 ```powershell
-Push-Location .\ticketingapp-source
-azd down
-Pop-Location
+azd down -C .\ticketingapp-source
 ```
 
-Confirm deletion of the lab resource group. GitHub issues and sent email are external artifacts and are not removed by `azd down`.
+Confirm that the intended resource group was removed. GitHub issues and sent
+email are external artifacts and are not removed by azd. If the lab stays
+deployed, keep a responsible owner and expiry; it remains billable.
+
+## For facilitators and contributors
+
+- [Facilitator guide](docs/facilitator.md)
+- [Local-agent instructions](AGENTS.md)
+- [Application and telemetry](ticketingapp-source/app/README.md)
+- [Base-agent recipe](agent-recipe/README.md)
+
+Run the app, workflow, setup and learning contracts before changing the exercise.
+Offline tests validate configuration and error handling. Release readiness also
+requires a live rehearsal of setup, investigation, learner-skill persistence,
+fresh-thread reuse, a scheduled run and disablement on each supported host.

@@ -3,7 +3,12 @@
 param(
     [Parameter(Mandatory)][ValidatePattern('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')][string] $Subscription,
     [Parameter(Mandatory)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9-]*$')][string] $AgentName,
-    [Parameter(Mandatory)][string] $Template
+    [Parameter(Mandatory)][string] $Template,
+    [switch] $EnableSourceCode,
+    [switch] $EnableGitHubIssues,
+    [switch] $EnableEmail,
+    [string] $GitHubRepository,
+    [string] $EmailRecipients
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,6 +26,7 @@ foreach ($command in @('az', 'jq')) {
 }
 
 function Get-WorkflowPython {
+    $PSNativeCommandUseErrorActionPreference = $false
     foreach ($candidate in @(
         @{ Command = 'py'; Arguments = @('-3') },
         @{ Command = 'python'; Arguments = @() },
@@ -43,7 +49,13 @@ New-Item -ItemType Directory -Path $tempDir | Out-Null
 try {
     $extrasFile = Join-Path $tempDir 'workflow.extras.json'
     $agentExtrasFile = Join-Path $tempDir 'workflow-agent.extras.json'
-    & $python.Command @($python.Arguments) $renderer --template $Template --output $extrasFile
+    $rendererArgs = @('--template', $Template, '--output', $extrasFile)
+    if ($EnableSourceCode) { $rendererArgs += '--enable-source-code' }
+    if ($EnableGitHubIssues) { $rendererArgs += '--enable-github-issues' }
+    if ($EnableEmail) { $rendererArgs += '--enable-email' }
+    if ($GitHubRepository) { $rendererArgs += @('--github-repository', $GitHubRepository) }
+    if ($EmailRecipients) { $rendererArgs += @('--email-recipients', $EmailRecipients) }
+    & $python.Command @($python.Arguments) $renderer @rendererArgs
 
     $agents = @(& az resource list --subscription $Subscription --resource-type Microsoft.App/agents `
         --query "[?name=='$AgentName'].{id:id,resourceGroup:resourceGroup}" --output json | ConvertFrom-Json)
@@ -53,34 +65,28 @@ try {
     Write-Host "  ok existing agent: $AgentName ($resourceGroup)"
     $agent = (& az rest --method GET --url "https://management.azure.com$agentId`?api-version=2025-05-01-preview" --output json) | ConvertFrom-Json
     $extras = Get-Content -LiteralPath $extrasFile -Raw | ConvertFrom-Json
-    if ($agent.properties.incidentManagementConfiguration.type -ne $extras.installerRequirements.incidentPlatform) {
-        throw "Agent incident platform is $($agent.properties.incidentManagementConfiguration.type); expected $($extras.installerRequirements.incidentPlatform)"
-    }
-    if (-not $agent.properties.agentEndpoint.StartsWith('https://', [StringComparison]::OrdinalIgnoreCase)) {
+    if (-not $agent.properties.agentEndpoint -or -not $agent.properties.agentEndpoint.StartsWith('https://', [StringComparison]::OrdinalIgnoreCase)) {
         throw 'Agent endpoint is unavailable'
     }
-    Write-Host "  ok incident platform: $($agent.properties.incidentManagementConfiguration.type)"
-
     $connectors = (& az rest --method GET --url "https://management.azure.com$agentId/DataConnectors?api-version=2025-05-01-preview" --output json) | ConvertFrom-Json
-    $healthy = @($connectors.value | Where-Object {
-        $_.properties.dataConnectorType -in @('AppInsights', 'LogAnalytics') -and
-        $_.properties.provisioningState -in @('Succeeded', 'Running')
-    }).Count
-    if ($healthy -lt $extras.installerRequirements.minimumTelemetryConnectors) {
-        throw "Found $healthy healthy telemetry connectors; expected at least $($extras.installerRequirements.minimumTelemetryConnectors)"
+    $token = (& az account get-access-token --resource https://azuresre.dev --query accessToken --output tsv).Trim()
+    if (-not $token) { throw 'SRE Agent data-plane token is unavailable' }
+    $headers = @{ Authorization = "Bearer $token" }
+    $endpoint = $agent.properties.agentEndpoint.TrimEnd('/')
+    $state = @{ agent = $agent; connectors = $connectors }
+    if ($EnableSourceCode -or $EnableGitHubIssues) {
+        $state.repos = Invoke-RestMethod -Method Get -Uri "$endpoint/api/v2/repos" -Headers $headers -TimeoutSec 30
+        $state.githubDomains = Invoke-RestMethod -Method Get -Uri "$endpoint/api/v2/github/domains" -Headers $headers -TimeoutSec 30
     }
-    $telemetryTools = @($connectors.value | Where-Object {
-        $_.properties.provisioningState -in @('Succeeded', 'Running')
-    } | ForEach-Object {
-        switch ($_.properties.dataConnectorType) {
-            'AppInsights' { 'QueryAppInsightsUsingAppId' }
-            'LogAnalytics' { 'QueryLogAnalyticsByWorkspaceId' }
-        }
-    } | Sort-Object -Unique)
-    Write-Host "  ok healthy telemetry connectors: $healthy"
-    Write-Host "  ok telemetry query tools: $($telemetryTools -join ', ')"
+    if ($EnableEmail) {
+        $state.managedConnectors = Invoke-RestMethod -Method Get -Uri "$endpoint/api/v2/connectorV2/mcpservers" -Headers $headers -TimeoutSec 30
+        $state.emailConnection = Invoke-RestMethod -Method Get -Uri "$endpoint/api/v2/connectorV2/connections/office365" -Headers $headers -TimeoutSec 30
+    }
+    $stateFile = Join-Path $tempDir 'prerequisites.json'
+    $state | ConvertTo-Json -Depth 50 | Set-Content -LiteralPath $stateFile -Encoding utf8
+    & $python.Command @($python.Arguments) $renderer @rendererArgs --prerequisite-state $stateFile
+    $extras = Get-Content -LiteralPath $extrasFile -Raw | ConvertFrom-Json
     Write-Host 'Workflow prerequisites validated.'
-    $extras.subagents[0].spec.tools = @($extras.subagents[0].spec.tools + $telemetryTools | Sort-Object -Unique)
 
     @{ skills = $extras.skills; subagents = $extras.subagents } |
         ConvertTo-Json -Depth 50 | Set-Content -LiteralPath $agentExtrasFile -Encoding utf8
@@ -111,8 +117,8 @@ try {
 
     $installedAgent = Invoke-RestMethod -Method Get -Uri "$endpoint/api/v2/extendedAgent/agents/$customAgentName" -Headers $headers
     if ($installedAgent.name -ne $customAgentName) { throw "Custom agent verification failed: $customAgentName" }
-    foreach ($toolName in $telemetryTools) {
-        if ($toolName -notin $installedAgent.properties.tools) { throw "Custom agent is missing telemetry tool: $toolName" }
+    if (Compare-Object @($extras.subagents[0].spec.tools) @($installedAgent.properties.tools)) {
+        throw "Custom agent tool set differs from selected capabilities: $customAgentName"
     }
     foreach ($toolName in $extras.installerRequirements.deniedTools) {
         if ($toolName -in $installedAgent.properties.tools) { throw "Custom agent contains denied tool: $toolName" }
@@ -121,9 +127,16 @@ try {
         $installedSkill = Invoke-RestMethod -Method Get -Uri "$endpoint/api/v2/extendedAgent/skills/$skillName" -Headers $headers
         if ($installedSkill.name -ne $skillName) { throw "Skill verification failed: $skillName" }
     }
+    if (Compare-Object @($extras.installerRequirements.skillNames) @($installedAgent.properties.allowedSkills)) {
+        throw "Custom agent skill set differs from selected capabilities: $customAgentName"
+    }
     $filter = Invoke-RestMethod -Method Get -Uri "$endpoint/api/v2/extendedAgent/incidentFilters/$filterName" -Headers $headers
-    if ($filter.properties.handlingAgent -ne $customAgentName -or $filter.properties.agentMode -ne 'Review' -or
-        (Compare-Object @($filter.properties.priorities) @('Sev1', 'Sev2'))) {
+    if ($filter.properties.handlingAgent -ne $customAgentName -or $filter.properties.agentMode -ne $responsePlan.spec.agentMode -or
+        (Compare-Object @($filter.properties.priorities) @($responsePlan.spec.priorities)) -or
+        $filter.properties.titleContains -ne $responsePlan.spec.titleContains -or
+        $filter.properties.isEnabled -ne $responsePlan.spec.isEnabled -or
+        $filter.properties.mergeEnabled -ne $responsePlan.spec.mergeEnabled -or
+        $filter.properties.mergeWindowHours -ne $responsePlan.spec.mergeWindowHours) {
         throw "Response plan verification failed: $filterName"
     }
     Write-Host "Workflow $filterName installed with response plan $filterName connected to subagent $customAgentName."

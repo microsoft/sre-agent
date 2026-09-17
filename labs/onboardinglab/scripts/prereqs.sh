@@ -62,6 +62,20 @@ node_is_supported() {
   [[ "$node_major" -ge 22 ]]
 }
 
+ensure_powershell() {
+  if command -v pwsh >/dev/null 2>&1; then
+    echo "  [ok] PowerShell $(pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()')"
+    return 0
+  fi
+  echo "  [missing] PowerShell 7 (used by the shared lab setup and learning helpers)"
+  if [[ "$ONBOARDING_CHECK_ONLY" == true ]]; then
+    ONBOARDING_MISSING=$((ONBOARDING_MISSING + 1))
+    return 0
+  fi
+  ensure_homebrew || return 1
+  brew install --cask powershell
+}
+
 load_nvm() {
   if command -v nvm >/dev/null 2>&1; then
     return 0
@@ -173,6 +187,7 @@ onboarding_prereqs_main() {
   ensure_formula "Azure Developer CLI" azd azd || return 1
   ensure_formula "curl" curl curl || return 1
   ensure_formula "jq" jq jq || return 1
+  ensure_powershell || return 1
   ensure_node || return 1
 
   if [[ "$ONBOARDING_CHECK_ONLY" == true ]]; then
@@ -188,7 +203,7 @@ onboarding_prereqs_main() {
       return 1
     fi
   else
-    for command_name in az azd curl jq node npm; do
+    for command_name in az azd curl jq pwsh node npm; do
       if ! command -v "$command_name" >/dev/null 2>&1; then
         echo "Required command is still unavailable: $command_name" >&2
         return 1

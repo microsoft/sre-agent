@@ -130,6 +130,7 @@ if ($AgentUami) {
 # ── Probe data-plane token availability ─────────────────────────────────────
 $DpTokenAvailable = $false
 $DpSkippedItems = [System.Collections.Generic.List[string]]::new()
+$ExtendedItemFailures = [System.Collections.Generic.List[string]]::new()
 
 try {
     $null = az account get-access-token --resource https://azuresre.dev --query accessToken -o tsv 2>$null
@@ -305,7 +306,6 @@ function DataPlane-PostJson {
 # ── Helper: PUT to v2 extendedAgent data-plane (hooks/commonprompts/plugins) ─
 function DataPlane-PutExtended {
     param([string]$Kind, [string]$Name, [string]$Type, [array]$Tags, [object]$Properties)
-    $token = Get-DpToken
     $body = @{
         name       = $Name
         type       = $Type
@@ -315,6 +315,7 @@ function DataPlane-PutExtended {
     $encodedName = [uri]::EscapeDataString($Name)
     $url = "$AgentEndpoint/api/v2/extendedAgent/$Kind/$encodedName"
     try {
+        $token = Get-DpToken
         $headers = @{
             Authorization  = "Bearer $token"
             "Content-Type" = "application/json"
@@ -322,7 +323,9 @@ function DataPlane-PutExtended {
         $null = Invoke-RestMethod -TimeoutSec 30 -Uri $url -Method Put -Headers $headers -Body $body -ContentType "application/json"
         Write-Host "  ok $Kind/$Name"
     } catch {
-        Write-Host "  FAILED - PUT $Kind/$Name"
+        $failure = "PUT $Kind/$Name - $($_.Exception.Message)"
+        $script:ExtendedItemFailures.Add($failure)
+        Write-Host "  FAILED - $failure" -ForegroundColor Red
     }
 }
 
@@ -739,14 +742,17 @@ if ($kiCount -gt 0) {
                     if ($existingCode -match '^2') {
                         Write-Host "  ok knowledgeItems/$sanitized (already exists)"
                     } else {
+                        $script:ExtendedItemFailures.Add("knowledgeItems/$sanitized (HTTP $httpCode)")
                         Write-Host "  FAILED - PUT knowledgeItems/$sanitized (HTTP $httpCode)"
                         Write-Host "    $(($lines[0..([Math]::Max(0, $lines.Count - 2))] -join ' ') | Select-Object -First 1)"
                     }
                 } else {
+                    $script:ExtendedItemFailures.Add("knowledgeItems/$sanitized (HTTP $httpCode)")
                     Write-Host "  FAILED - PUT knowledgeItems/$sanitized (HTTP $httpCode)"
                     Write-Host "    $(($lines[0..([Math]::Max(0, $lines.Count - 2))] -join ' ') | Select-Object -First 1)"
                 }
             } catch {
+                $script:ExtendedItemFailures.Add("knowledgeItems/$sanitized (transport or serialization failure)")
                 Write-Host "  FAILED - PUT knowledgeItems/$sanitized (exception)"
             } finally {
                 Remove-Item $bodyFile -Force -ErrorAction SilentlyContinue
@@ -888,20 +894,26 @@ if ($toolPermissions) {
         Write-Host "toolPermissions: configuring"
         $token = Get-DpToken
         $settingsUrl = "$AgentEndpoint/api/v2/agent/settings/global"
-        $etag = "*"
         try {
             $currentSettings = Invoke-WebRequest -TimeoutSec 30 -Uri $settingsUrl `
                 -Headers @{ Authorization = "Bearer $token" } -ErrorAction Stop
-            if ($currentSettings.Headers.ETag) { $etag = $currentSettings.Headers.ETag }
-        } catch { }
-        $body = @{ permissions = $toolPermissions } | ConvertTo-Json -Compress -Depth 10
-        try {
+            $etags = @($currentSettings.Headers.ETag)
+            if ($etags.Count -ne 1 -or [string]$etags[0] -cnotmatch '^"[^"\r\n]+"$') {
+                throw 'A single strong ETag is required for the settings update.'
+            }
+            $etag = [string]$etags[0]
+            $settings = $currentSettings.Content | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+            if ($settings -isnot [System.Collections.IDictionary]) { throw 'Expected a settings object.' }
+            $settings['permissions'] = $toolPermissions
+            $body = $settings | ConvertTo-Json -Compress -Depth 40
             $null = Invoke-RestMethod -TimeoutSec 30 -Uri $settingsUrl -Method Put `
                 -Headers @{ Authorization = "Bearer $token"; "If-Match" = $etag } `
                 -Body $body -ContentType "application/json" -ErrorAction Stop
             Write-Host "  ok toolPermissions"
         } catch {
-            Write-Host "  FAILED - PUT settings/global"
+            $failure = "settings/global: $($_.Exception.Message)"
+            $script:ExtendedItemFailures.Add($failure)
+            Write-Host "  FAILED - $failure"
         }
     } else {
         Write-Host "toolPermissions - WARNING skipped (no data-plane token)"
@@ -923,9 +935,9 @@ if ($skCount -gt 0) {
             $props = @{
                 name            = $name
                 description     = if ($sk.metadata.description) { $sk.metadata.description } else { "" }
-                tools           = if ($sk.metadata.spec.tools) { @($sk.metadata.spec.tools) } else { @() }
+                tools           = @(if ($sk.metadata.spec.tools) { $sk.metadata.spec.tools })
                 skillContent    = if ($sk.skillContent) { $sk.skillContent } else { "" }
-                additionalFiles = if ($sk.additionalFiles) { @($sk.additionalFiles) } else { @() }
+                additionalFiles = @(if ($sk.additionalFiles) { $sk.additionalFiles })
             }
             DataPlane-PutExtended -Kind "skills" -Name $name -Type "Skill" -Tags @() -Properties $props
         }
@@ -1479,8 +1491,12 @@ if ($DpSkippedItems.Count -gt 0) {
 
 Write-Host ""
 Write-Host "-- Your agent --"
-Write-Host "  Open agent:     https://sre.azure.com/#/agent/$Subscription/$ResourceGroup/$AgentName"
+Write-Host "  Open agent:     https://sre.azure.com/agents/subscriptions/$Subscription/resourceGroups/$ResourceGroup/providers/Microsoft.App/agents/$AgentName"
 Write-Host "  Resource group: https://portal.azure.com/#@/resource/subscriptions/$Subscription/resourceGroups/$ResourceGroup/overview"
 Write-Host "  Data plane:     $AgentEndpoint"
 Write-Host ""
+if ($ExtendedItemFailures.Count -gt 0) {
+    Write-Host "FAILED: $($ExtendedItemFailures.Count) extended configuration item(s) could not be applied. Rerun after resolving the errors above." -ForegroundColor Red
+    exit 1
+}
 Write-Host "Done."

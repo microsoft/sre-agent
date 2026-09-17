@@ -4,12 +4,14 @@ set -euo pipefail
 TEMPLATES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_DIR="$(cd "${TEMPLATES_DIR}/.." && pwd)"
 TMP_DIR="$(mktemp -d)"
+if command -v cygpath >/dev/null 2>&1; then TMP_DIR="$(cygpath -m "$TMP_DIR")"; fi
 trap 'rm -rf "$TMP_DIR"' EXIT
 mkdir -p "$TMP_DIR/bin" "$TMP_DIR/expected"
 
 jq '.agent.defaultModelProvider = "Anthropic"' \
   "$REPO_DIR/labs/onboardinglab/agent-recipe/expected-config.json" \
   > "$TMP_DIR/expected/expected-config.json"
+export POLICY_FIXTURE="$TMP_DIR/expected/expected-config.json"
 
 cat > "$TMP_DIR/bin/az" <<'EOF'
 #!/usr/bin/env bash
@@ -44,11 +46,15 @@ case "$url" in
   */api/v2/connectorV2/mcpservers)
     printf '%s\n' '{"value":[{"name":"office365"}]}' ;;
   */api/v1/extendedAgent/skills)
-    printf '%s\n' '[{"name":"sre-agent-self-configure"},{"name":"azure-monitor-rca"},{"name":"github-issue-followup"},{"name":"email-incident-followup"}]' ;;
+    printf '%s\n' '[{"name":"sre-agent-self-configure"},{"name":"onboarding-lab-guide"},{"name":"onboarding-health-check"},{"name":"azure-monitor-rca"},{"name":"github-issue-followup"},{"name":"email-incident-followup"}]' ;;
   */api/v2/extendedAgent/skills/sre-agent-self-configure)
     printf '%s\n' '{"name":"sre-agent-self-configure","properties":{"description":"Configure this agent.","tools":["GetAzCliHelp","RunAzCliReadCommands","RunAzCliWriteCommands"],"skillContent":"# Configure"}}' ;;
+  */api/v2/extendedAgent/skills/onboarding-lab-guide)
+    printf '%s\n' '{"name":"onboarding-lab-guide","properties":{"description":"Guide the lab.","tools":[],"skillContent":"# Guide"}}' ;;
+  */api/v2/extendedAgent/skills/onboarding-health-check)
+    printf '%s\n' '{"name":"onboarding-health-check","properties":{"description":"Read-only health check.","tools":["QueryAppInsightsUsingAppId"],"skillContent":"# Health"}}' ;;
   */api/v2/agent/settings/global)
-    printf '%s\n' '{"permissions":{"allow":["GetAzCliHelp","RunAzCliReadCommands","ReadFile","ListDir","FileSearch","GrepSearch","read_skill_file","system-mcp-monitor/*","FetchGithubIssue","FetchGithubIssues","ListOutlookEmails"],"ask":["RunAzCliWriteCommands","CreateGithubIssue","SendOutlookEmail"],"deny":["RunKubectlWriteCommand","RunInTerminal","Terminal","CreateFile","CreateDirectory","SaveFileToBlob","ReplaceStringInFile","MultiReplaceStringInFile"]}}' ;;
+    jq '{permissions:.toolPermissions}' "$POLICY_FIXTURE" ;;
   */api/v2/extendedAgent/agents)
     printf '%s\n' '{"value":[{"name":"alert-investigator"}]}' ;;
   */api/v2/extendedAgent/hooks)
@@ -67,17 +73,35 @@ case "$url" in
 esac
 EOF
 chmod +x "$TMP_DIR/bin/az" "$TMP_DIR/bin/curl"
+MOCK_BIN="$TMP_DIR/bin"
+if command -v cygpath >/dev/null 2>&1; then MOCK_BIN="$(cygpath -u "$MOCK_BIN")"; fi
 
-PATH="$TMP_DIR/bin:$PATH" bash "$TEMPLATES_DIR/bin/verify-agent.sh" \
+if ! PATH="$MOCK_BIN:$PATH" bash "$TEMPLATES_DIR/bin/verify-agent.sh" \
   test-subscription test-resource-group test-agent --expected "$TMP_DIR/expected" \
-  > "$TMP_DIR/bash-output.txt"
+  > "$TMP_DIR/bash-output.txt"; then
+  cat "$TMP_DIR/bash-output.txt" >&2
+  exit 1
+fi
 grep -q 'Results: .*0 failed' "$TMP_DIR/bash-output.txt"
 grep -q 'Knowledge Sources.*2.*≥2.*PASS' "$TMP_DIR/bash-output.txt"
 grep -q 'GitHub OAuth.*true' "$TMP_DIR/bash-output.txt"
 
 if command -v pwsh >/dev/null 2>&1; then
-  PATH="$TMP_DIR/bin:$PATH" pwsh -NoLogo -NoProfile -File "$TEMPLATES_DIR/bin/ps/Verify-Agent.ps1" \
-    -Subscription test-subscription -ResourceGroup test-resource-group -AgentName test-agent \
+  cat > "$TMP_DIR/verify-harness.ps1" <<'EOF'
+param($MockDirectory, $Verifier, $Expected)
+$ErrorActionPreference = 'Stop'
+function az { & bash (Join-Path $MockDirectory 'az') @args }
+function Invoke-WebRequest {
+  param($Uri, $Headers, $TimeoutSec, [switch]$SkipHttpErrorCheck)
+  $body = (& bash (Join-Path $MockDirectory 'curl') $Uri) -join "`n"
+  if ($LASTEXITCODE -ne 0) { throw 'Mock transport failed.' }
+  [pscustomobject]@{ StatusCode = 200; Content = $body }
+}
+& $Verifier -Subscription test-subscription -ResourceGroup test-resource-group -AgentName test-agent -Expected $Expected
+exit $LASTEXITCODE
+EOF
+  pwsh -NoLogo -NoProfile -File "$TMP_DIR/verify-harness.ps1" \
+    -MockDirectory "$TMP_DIR/bin" -Verifier "$TEMPLATES_DIR/bin/ps/Verify-Agent.ps1" \
     -Expected "$TMP_DIR/expected" > "$TMP_DIR/powershell-output.txt"
   grep -q 'Results: .*0 failed' "$TMP_DIR/powershell-output.txt"
   grep -q 'Knowledge Sources.*2.*≥2.*PASS' "$TMP_DIR/powershell-output.txt"

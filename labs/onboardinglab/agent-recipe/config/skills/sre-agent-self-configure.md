@@ -10,6 +10,20 @@ Use this skill only when the user explicitly asks this agent to inspect, generat
 4. Do not create role assignments, broaden Azure RBAC, replace managed identities, change access level or action mode, weaken hooks or permissions, or grant this skill additional tools.
 5. Do not delete configuration. Generate a removal plan for human review instead.
 6. Never use a write to bypass Review mode. An explicit user request identifies intent; the write tool approval still governs execution.
+7. Stop if the configured identity cannot read or write the required endpoint. Explain the failed operation without exposing credentials. Do not request broader permissions or silently switch to the user's identity to complete this skill.
+
+## Learner skill exercise
+
+For the onboarding lab, create only the learner's explicitly named new skill.
+Use a learner-specific name and no attached tools. Show its complete Markdown
+and target before requesting approval. Do not replace shared skills or change
+global instructions as a shortcut.
+
+If runtime self-configuration is unavailable, return the proposed Markdown for
+the documented local learning helper or Skill Builder. State that the local
+assistant or authorized learner will perform the write. After saving, require
+read-back and a fresh conversation that explicitly invokes the new skill.
+Agreement in this conversation does not establish durable learning.
 
 ## Discover the live agent
 

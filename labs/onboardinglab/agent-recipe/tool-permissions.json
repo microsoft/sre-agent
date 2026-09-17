@@ -2,20 +2,16 @@
   "allow": [
     "GetAzCliHelp",
     "RunAzCliReadCommands",
+    "QueryAppInsightsUsingAppId",
     "ReadFile",
     "ListDir",
     "FileSearch",
     "GrepSearch",
     "read_skill_file",
-    "system-mcp-monitor/*",
-    "FetchGithubIssue",
-    "FetchGithubIssues",
-    "ListOutlookEmails"
+    "system-mcp-monitor/*"
   ],
   "ask": [
-    "RunAzCliWriteCommands",
-    "CreateGithubIssue",
-    "SendOutlookEmail"
+    "RunAzCliWriteCommands"
   ],
   "deny": [
     "RunKubectlWriteCommand",

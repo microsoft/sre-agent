@@ -148,7 +148,8 @@ function createHandler({ createClient, getAccessToken, telemetry, env = process.
       duration: performance.now() - started,
       resultCode: String(status),
       success,
-      properties: { simulated: 'true', outcome },
+      // AI 3.16.0 omits http.method for named requests; the exporter needs it for HTTP status mapping.
+      properties: { simulated: 'true', outcome, 'http.method': 'POST' },
     });
     if (success) {
       return json(response, status, {

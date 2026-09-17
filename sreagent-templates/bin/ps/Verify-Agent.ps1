@@ -103,7 +103,16 @@ $API_VERSION = '2025-05-01-preview'
 $ARM_BASE    = "https://management.azure.com/subscriptions/${Subscription}/resourceGroups/${ResourceGroup}/providers/Microsoft.App/agents/${AgentName}"
 
 $AgentJson = (az rest -m GET --url "${ARM_BASE}?api-version=${API_VERSION}" -o json 2>$null) -join "`n"
-if (-not $AgentJson) { $AgentJson = '{}' }
+if ($LASTEXITCODE -ne 0 -or -not $AgentJson) {
+    Write-Host "FAIL: Could not read agent ${AgentName} from ARM (Azure CLI exit $LASTEXITCODE)" -ForegroundColor Red
+    exit 1
+}
+try {
+    $null = ConvertFrom-Json -InputObject $AgentJson -ErrorAction Stop
+} catch {
+    Write-Host "FAIL: ARM returned invalid JSON for ${AgentName}" -ForegroundColor Red
+    exit 1
+}
 
 $Endpoint = $AgentJson | Invoke-Jq -Raw -Filter '.properties.agentEndpoint // empty'
 if (-not $Endpoint -or $Endpoint -eq 'null') {
@@ -112,29 +121,58 @@ if (-not $Endpoint -or $Endpoint -eq 'null') {
 }
 
 $Token = az account get-access-token --resource https://azuresre.dev --query accessToken -o tsv 2>$null
-if (-not $Token) {
+if ($LASTEXITCODE -ne 0 -or -not $Token) {
     Write-Host "FAIL: Could not get data-plane token" -ForegroundColor Red
     exit 1
 }
 
 function Invoke-Dp {
-    param([string]$Path)
-    $raw = (curl -sS "${Endpoint}${Path}" -H "Authorization: Bearer $Token" 2>$null) -join "`n"
-    # Validate response is JSON; return empty object/array fallback if not
-    if ($raw) {
-        try {
-            $null = $raw | jq -e 'type' 2>$null
-            if ($LASTEXITCODE -eq 0) { return $raw }
-        } catch { }
+    param([string]$Path, [switch]$Collection)
+    $script:UnavailableData = $false
+    try {
+        $response = Invoke-WebRequest -Uri "${Endpoint}${Path}" -Headers @{ Authorization = "Bearer $Token" } `
+            -TimeoutSec 30 -SkipHttpErrorCheck
+        if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300) {
+            throw "HTTP $($response.StatusCode)"
+        }
+        return (Convert-ApiResponse -Json $response.Content -Collection:$Collection)
+    } catch {
+        Add-RequestFailure "GET $Path" $_.Exception.Message
+        if ($Collection) { return '{"value":[]}' }
+        return '{}'
     }
-    return '{}'
 }
 
 function Invoke-Arm {
     param([string]$Path)
-    $result = (az rest -m GET --url "${ARM_BASE}${Path}?api-version=${API_VERSION}" -o json 2>$null) -join "`n"
-    if (-not $result) { return '{}' }
-    return $result
+    $script:UnavailableData = $false
+    try {
+        $result = (az rest -m GET --url "${ARM_BASE}${Path}?api-version=${API_VERSION}" -o json 2>$null) -join "`n"
+        if ($LASTEXITCODE -ne 0) { throw "Azure CLI exited $LASTEXITCODE" }
+        return (Convert-ApiResponse -Json $result -Collection)
+    } catch {
+        Add-RequestFailure "ARM GET $Path" $_.Exception.Message
+        return '{"value":[]}'
+    }
+}
+
+function Convert-ApiResponse {
+    param([string]$Json, [switch]$Collection)
+    if ([string]::IsNullOrWhiteSpace($Json)) { throw 'Empty API response' }
+    $parsed = ConvertFrom-Json -InputObject $Json -NoEnumerate
+    if ($null -eq $parsed) { throw 'Null API response' }
+    if ($parsed.PSObject.Properties['error']) { throw 'API returned an error object' }
+    if ($Collection) {
+        if ($parsed -is [array]) {
+            return (ConvertTo-Json -InputObject @{ value = $parsed } -Depth 100 -Compress)
+        }
+        if (-not $parsed.PSObject.Properties['value'] -or $parsed.value -isnot [array]) {
+            throw 'Expected an array or an object containing a value array'
+        }
+    } elseif ($parsed -isnot [PSCustomObject]) {
+        throw 'Expected a JSON object'
+    }
+    return $Json
 }
 
 # ─────────────────────────── Results tracking ───────────────────────────
@@ -142,6 +180,19 @@ function Invoke-Arm {
 $Pass = 0
 $Fail = 0
 $Results = [System.Collections.Generic.List[PSCustomObject]]::new()
+$UnavailableData = $false
+
+function Add-RequestFailure {
+    param([string]$Name, [string]$Detail)
+    $script:UnavailableData = $true
+    $script:Results.Add([PSCustomObject]@{
+        Name = $Name
+        Actual = $Detail
+        Expected = 'Successful response'
+        Result = 'FAIL'
+    })
+    $script:Fail++
+}
 
 function Add-Check {
     param(
@@ -158,7 +209,12 @@ function Add-Check {
         Result   = ''
     })
     $last = $script:Results[$script:Results.Count - 1]
-    if ($ExpectedVal -eq '-') {
+    if ($script:UnavailableData) {
+        $last.Actual = 'unavailable'
+        $last.Result = 'FAIL'
+        $script:Fail++
+    }
+    elseif ($ExpectedVal -eq '-') {
         $last.Expected = [char]0x2014   # em dash
         $last.Result   = [char]0x2705   # ✅
         $script:Pass++
@@ -199,7 +255,7 @@ function Add-InfoRow {
     param([string]$Name, [string]$Actual)
     $script:Results.Add([PSCustomObject]@{
         Name     = $Name
-        Actual   = $Actual
+        Actual   = $(if ($script:UnavailableData) { 'unavailable' } else { $Actual })
         Expected = [char]0x2014
         Result   = ''
     })
@@ -250,7 +306,7 @@ if ($ExpConnNames) {
 
 # ─────────────────────────── Knowledge Sources ───────────────────────────
 
-$AllDpConnectors = Invoke-Dp '/api/v2/extendedAgent/connectors'
+$AllDpConnectors = Invoke-Dp '/api/v2/extendedAgent/connectors' -Collection
 $KnowledgeCt = $AllDpConnectors | Invoke-Jq -Filter '[((.value // .)[]?) | select((.properties.dataConnectorType // "") | startswith("Knowledge"))] | length'
 $KnowledgeNames = ($AllDpConnectors | Invoke-Jq -Raw -Filter '(.value // .)[]? | select((.properties.dataConnectorType // "") | startswith("Knowledge")) | .name' | Sort-Object) -join ','
 $ExpKnowledgeCt = Get-Exp '.knowledgeSources | length'
@@ -262,7 +318,7 @@ if ($ExpKnowledgeNames) {
 
 # ─────────────────────────── Managed connectors (ConnectorV2) ───────────────────────────
 
-$ManagedConnectors   = Invoke-Dp '/api/v2/connectorV2/mcpservers'
+$ManagedConnectors   = Invoke-Dp '/api/v2/connectorV2/mcpservers' -Collection
 $ManagedConnCt       = $ManagedConnectors | Invoke-Jq -Filter '.value // [] | length'
 $ManagedConnNames    = ($ManagedConnectors | Invoke-Jq -Raw -Filter '.value[]?.name' | Sort-Object) -join ','
 $ExpManagedConnCt    = Get-Exp '.managedConnectors | length'
@@ -277,7 +333,7 @@ if ($ExpManagedConnNames) {
 
 # ─────────────────────────── Skills ───────────────────────────
 
-$Skills   = Invoke-Dp '/api/v1/extendedAgent/skills'
+$Skills   = Invoke-Dp '/api/v1/extendedAgent/skills' -Collection
 $SkillCt  = $Skills | Invoke-Jq -Filter 'if type == "array" then length elif .value then (.value | length) else 0 end'
 if (-not $SkillCt) { $SkillCt = '0' }
 $SkillNames   = ($Skills | Invoke-Jq -Raw -Filter '(if type == "array" then . elif .value then .value else [] end)[].name' | Sort-Object) -join ','
@@ -320,7 +376,7 @@ if ($ExpectedConfig) {
 
 # ─────────────────────────── Subagents ───────────────────────────
 
-$Subagents = Invoke-Dp '/api/v2/extendedAgent/agents'
+$Subagents = Invoke-Dp '/api/v2/extendedAgent/agents' -Collection
 $SaCt      = $Subagents | Invoke-Jq -Filter '.value | length'
 if (-not $SaCt) { $SaCt = '0' }
 $SaNames    = ($Subagents | Invoke-Jq -Raw -Filter '.value[].name' | Sort-Object) -join ','
@@ -336,7 +392,7 @@ if ($ExpSaNames) {
 
 # ─────────────────────────── Hooks ───────────────────────────
 
-$Hooks   = Invoke-Dp '/api/v2/extendedAgent/hooks'
+$Hooks   = Invoke-Dp '/api/v2/extendedAgent/hooks' -Collection
 $HookCt  = $Hooks | Invoke-Jq -Filter '.value // . | if type == "array" then length else 0 end'
 if (-not $HookCt) { $HookCt = '0' }
 $HookNames    = ($Hooks | Invoke-Jq -Raw -Filter '(.value // .)[].name' | Sort-Object) -join ','
@@ -352,7 +408,7 @@ if ($ExpHookNames) {
 
 # ─────────────────────────── Common Prompts ───────────────────────────
 
-$Prompts   = Invoke-Dp '/api/v2/extendedAgent/commonprompts'
+$Prompts   = Invoke-Dp '/api/v2/extendedAgent/commonprompts' -Collection
 $PromptCt  = $Prompts | Invoke-Jq -Filter '.value // . | if type == "array" then length else 0 end'
 if (-not $PromptCt) { $PromptCt = '0' }
 $PromptNames    = ($Prompts | Invoke-Jq -Raw -Filter '(.value // .)[].name' | Sort-Object) -join ','
@@ -368,7 +424,7 @@ if ($ExpPromptNames) {
 
 # ─────────────────────────── Scheduled Tasks ───────────────────────────
 
-$Tasks      = Invoke-Dp '/api/v2/extendedAgent/scheduledtasks'
+$Tasks      = Invoke-Dp '/api/v2/extendedAgent/scheduledtasks' -Collection
 $TaskCt     = $Tasks | Invoke-Jq -Filter '(.value // .) | if type == "array" then length else 0 end'
 if (-not $TaskCt) { $TaskCt = '0' }
 $TaskUnique = $Tasks | Invoke-Jq -Filter '[(.value // .)[].name] | unique | length'
@@ -387,7 +443,7 @@ if ($TaskCt -ne $TaskUnique) {
 
 # ─────────────────────────── Response Plans (Incident Filters) ───────────────────────────
 
-$Filters   = Invoke-Dp '/api/v2/extendedAgent/incidentFilters'
+$Filters   = Invoke-Dp '/api/v2/extendedAgent/incidentFilters' -Collection
 $FilterCt  = $Filters | Invoke-Jq -Filter '(.value // .) | if type == "array" then length else 0 end'
 if (-not $FilterCt) { $FilterCt = '0' }
 $FilterNames    = ($Filters | Invoke-Jq -Raw -Filter '[(.value // .)[].name] | sort | join(",")' )
@@ -409,7 +465,7 @@ Add-Check 'GitHub OAuth' $GhConfigured '-'
 
 # ─────────────────────────── Repos ───────────────────────────
 
-$Repos   = Invoke-Dp '/api/v2/repos'
+$Repos   = Invoke-Dp '/api/v2/repos' -Collection
 $RepoCt  = $Repos | Invoke-Jq -Filter '.value // . | if type == "array" then length else 0 end'
 if (-not $RepoCt) { $RepoCt = '0' }
 $RepoNames    = ($Repos | Invoke-Jq -Raw -Filter '(.value // .)[].name' | Sort-Object) -join ','
@@ -425,8 +481,10 @@ if ($ExpRepoNames) {
 if ($ExpectedConfig -and $expectedObject.PSObject.Properties['repoBranches']) {
     foreach ($expectedRepo in $expectedObject.repoBranches.PSObject.Properties) {
         $repoName = $expectedRepo.Name
-        $repo = @($Repos | ConvertFrom-Json).value | Where-Object name -eq $repoName | Select-Object -First 1
-        $actualBranch = if ($repo) { $repo.properties.branch } else { '' }
+        $repo = ($Repos | ConvertFrom-Json).value | Where-Object name -eq $repoName | Select-Object -First 1
+        $actualBranch = if ($repo -and $repo.PSObject.Properties['properties'] -and $repo.properties -and $repo.properties.PSObject.Properties['branch']) {
+            $repo.properties.branch
+        } else { '' }
         Add-Check "Repo branch ($repoName)" $actualBranch $expectedRepo.Value
     }
 }
@@ -448,7 +506,7 @@ foreach ($r in $Results) {
 Write-Host ''
 Write-Host (([string][char]0x2550) * 55) -ForegroundColor Cyan
 Write-Host "  Results: ${Pass} passed, ${Fail} failed" -ForegroundColor $(if ($Fail -gt 0) { 'Red' } else { 'Green' })
-Write-Host "  Portal:  https://sre.azure.com/#/agent/${Subscription}/${ResourceGroup}/${AgentName}" -ForegroundColor Cyan
+Write-Host "  Portal:  https://sre.azure.com/agents/subscriptions/${Subscription}/resourceGroups/${ResourceGroup}/providers/Microsoft.App/agents/${AgentName}" -ForegroundColor Cyan
 Write-Host (([string][char]0x2550) * 55) -ForegroundColor Cyan
 Write-Host ''
 
