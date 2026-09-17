@@ -70,13 +70,13 @@
     "ask": [
       "RunAzCliWriteCommands",
       "CreateGithubIssue",
-      "SendOutlookEmail"
+      "SendOutlookEmail",
+      "CreateFile"
     ],
     "deny": [
       "RunKubectlWriteCommand",
       "RunInTerminal",
       "Terminal",
-      "CreateFile",
       "CreateDirectory",
       "SaveFileToBlob",
       "ReplaceStringInFile",
