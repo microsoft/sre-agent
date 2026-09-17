@@ -104,26 +104,4 @@ custom_agent:
     Do not modify Azure resources. The operator performs the documented NSG
     reset.
 
-scheduled_task:
-  name: reservation-daily-health-report
-  description: Analyze ticket reservation health and return read-only findings in the task thread.
-  schedule: 0 9 * * 1-5
-  enabled: false
-  action_mode: Review
-
-  skill:
-    name: proactive-health-check
-    source: ./plugin/skills/proactive-health-check/SKILL.md
-
-  prompt: |
-    Use the proactive-health-check skill to assess ticket reservation availability,
-    failure rate, latency, dependency health, and resource health over the last
-    24 hours. Compare with the prior seven-day baseline only when sufficient
-    history exists. Return timestamped findings, evidence, missing data, risks,
-    and recommended follow-up in the task thread. Prepare the same summary for
-    {{notificationEmailRecipient}} using the authenticated Outlook connector,
-    and request Review-mode approval before sending it. Do not add CC or BCC
-    recipients, and never blindly retry an unknown send outcome. Do not modify
-    resources, create issues, update memory, or create or update a Live Report.
-    If severe customer impact is active, include an escalation draft for human
-    review in both summaries.
+scheduled_task: ./scheduled-tasks/reservation-daily-health-report.yaml

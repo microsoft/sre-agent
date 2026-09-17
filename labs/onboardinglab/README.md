@@ -30,7 +30,7 @@ flowchart LR
 | --- | --- |
 | [`ticketingapp-source/`](ticketingapp-source/) | Self-contained azd project with the Node.js app and Bicep workload infrastructure. |
 | [`agent-recipe/`](agent-recipe/) | Base-agent recipe with access, telemetry, Azure Monitor, source context, knowledge, hooks, prompts, policies, and the self-configuration skill. |
-| [`workflow-templates/`](workflow-templates/) | Agent-only workflow templates and their referenced skill content. |
+| [`workflow-templates/`](workflow-templates/) | Agent-only incident workflow and standalone scheduled-task YAML templates with their referenced skill content. |
 | [`scripts/`](scripts/) | Prerequisite setup, workflow installation, and controlled fault helpers for macOS and Windows. |
 | [`fault.bicep`](fault.bicep) | Narrow NSG rule update used only to inject or reset the lab incident. |
 | [`tests/`](tests/) | Offline workflow-template validation. The app unit tests are under `ticketingapp-source/app/test/`. |
@@ -314,7 +314,7 @@ Use these read-only UI checks. Do not create a GitHub issue or send a test email
 
 ## 3. Install the workflow template
 
-The installer accepts the existing agent name, subscription, workflow template, and approved notification email recipient. It renders that recipient only into the `alert-investigator` instructions and scheduled-task prompt; it is not added to the global agent prompt. The installer discovers the agent resource group, validates Azure Monitor and app telemetry, installs the skills and `alert-investigator` subagent, creates the `alert-investigation` response plan connected to that subagent, and installs the paused `reservation-daily-health-report` scheduled task. It installs only SRE Agent configuration and does not deploy Azure resources or alert rules.
+The installer accepts the existing agent name, subscription, workflow template, and approved notification email recipient. It renders that recipient only into the two workflow subagents; it is not added to the global agent prompt. The installer discovers the agent resource group, validates Azure Monitor and app telemetry, and installs two independent workflows. The incident trigger routes to `alert-investigator` through the `alert-investigation` response plan. The active `reservation-daily-health-report` scheduled task routes directly to `health-report-investigator`. It installs only SRE Agent configuration and does not deploy Azure resources or alert rules.
 
 macOS:
 
@@ -346,14 +346,15 @@ Windows:
 | Skill | `proactive-health-check` | Assesses ticket reservation availability, failures, latency, dependencies, and Azure resource health using read-only evidence. | [Skills](https://sre.azure.com/docs/concepts/skills) |
 | Subagent | `alert-investigator` | Correlates telemetry, Azure state, and source evidence without Azure write tools. | [Custom agents](https://sre.azure.com/docs/concepts/subagents) |
 | Response plan | `alert-investigation` | Routes Azure Monitor Sev1 and Sev2 incidents to the `alert-investigator` subagent in Review mode and merges related incidents for three hours. | [Incident response plans](https://sre.azure.com/docs/capabilities/incident-response-plans) |
-| Scheduled task | `reservation-daily-health-report` | Runs a weekday health analysis and proposes an Outlook summary to the configured recipient. The recurring schedule is installed paused. | [Scheduled tasks](https://sre.azure.com/docs/capabilities/scheduled-tasks) |
+| Subagent | `health-report-investigator` | Runs proactive reservation health analysis with the health-check and email follow-up skills. | [Custom agents](https://sre.azure.com/docs/concepts/subagents) |
+| Scheduled task | `reservation-daily-health-report` | Runs on weekdays and routes directly to the `health-report-investigator` subagent. The recurring schedule is installed active. | [Scheduled tasks](https://sre.azure.com/docs/capabilities/scheduled-tasks) |
 
 **Checkpoint: verify the workflow**
 
 1. Go to **Build + setup** > **Extensions** > **Skill Builder** and confirm all four skills are present.
-2. Go to **Build + setup** > **Workflows** and confirm the `alert-investigator` subagent is present.
+2. Go to **Build + setup** > **Workflows** and confirm the `alert-investigator` and `health-report-investigator` subagents are present.
 3. In **Workflows**, confirm the `alert-investigation` response plan routes Azure Monitor Sev1 and Sev2 incidents to the `alert-investigator` subagent in Review mode.
-4. Go to **Build + setup** > **Scheduled tasks** and confirm `reservation-daily-health-report` is present and paused.
+4. Go to **Build + setup** > **Scheduled tasks** and confirm `reservation-daily-health-report` is active and its handling agent is `health-report-investigator`.
 
 ## Architecture and responsibilities
 

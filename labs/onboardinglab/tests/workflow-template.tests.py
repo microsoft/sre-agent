@@ -11,6 +11,7 @@ import yaml
 LAB_ROOT = Path(__file__).resolve().parent.parent
 RENDERER = LAB_ROOT / "scripts/internal/render-workflow-template.py"
 TEMPLATE = LAB_ROOT / "workflow-templates/incidentinvestigation-workflowtemplate.yaml"
+SCHEDULED_TASK = LAB_ROOT / "workflow-templates/scheduled-tasks/reservation-daily-health-report.yaml"
 
 spec = importlib.util.spec_from_file_location("workflow_renderer", RENDERER)
 renderer = importlib.util.module_from_spec(spec)
@@ -19,6 +20,12 @@ spec.loader.exec_module(renderer)
 
 class WorkflowTemplateTests(unittest.TestCase):
     def test_current_template_renders_expected_agent_resources(self):
+        workflow = yaml.safe_load(TEMPLATE.read_text())
+        self.assertEqual(
+            workflow["scheduled_task"],
+            "./scheduled-tasks/reservation-daily-health-report.yaml",
+        )
+
         extras = renderer.render(TEMPLATE, "operator@example.com")
 
         self.assertEqual([item["metadata"]["name"] for item in extras["skills"]], [
@@ -27,7 +34,7 @@ class WorkflowTemplateTests(unittest.TestCase):
             "email-incident-followup",
             "proactive-health-check",
         ])
-        self.assertEqual(len(extras["subagents"]), 1)
+        self.assertEqual(len(extras["subagents"]), 2)
         custom_agent = extras["subagents"][0]
         self.assertEqual(custom_agent["metadata"]["name"], "alert-investigator")
         self.assertIn("operator@example.com", custom_agent["spec"]["instructions"])
@@ -39,6 +46,14 @@ class WorkflowTemplateTests(unittest.TestCase):
             "github-issue-followup",
             "email-incident-followup",
         ])
+        health_agent = extras["subagents"][1]
+        self.assertEqual(health_agent["metadata"]["name"], "health-report-investigator")
+        self.assertEqual(health_agent["spec"]["allowedSkills"], [
+            "proactive-health-check",
+            "email-incident-followup",
+        ])
+        self.assertIn("operator@example.com", health_agent["spec"]["instructions"])
+        self.assertNotIn("RunAzCliWriteCommands", health_agent["spec"]["tools"])
 
         self.assertEqual(len(extras["incidentFilters"]), 1)
         response_plan = extras["incidentFilters"][0]
@@ -55,10 +70,11 @@ class WorkflowTemplateTests(unittest.TestCase):
         self.assertEqual(scheduled_task["metadata"]["name"], "reservation-daily-health-report")
         self.assertEqual(scheduled_task["spec"]["schedule"], "0 9 * * 1-5")
         self.assertEqual(scheduled_task["spec"]["mode"], "Review")
-        self.assertFalse(scheduled_task["spec"]["enabled"])
-        self.assertIn("proactive-health-check skill", scheduled_task["spec"]["prompt"])
-        self.assertIn("operator@example.com", scheduled_task["spec"]["prompt"])
-        self.assertNotIn("{{notificationEmailRecipient}}", scheduled_task["spec"]["prompt"])
+        self.assertTrue(scheduled_task["spec"]["enabled"])
+        self.assertEqual(
+            scheduled_task["spec"]["handlingAgent"],
+            "health-report-investigator",
+        )
 
     def test_rejects_unsupported_incident_platform(self):
         document = yaml.safe_load(TEMPLATE.read_text())
@@ -78,11 +94,19 @@ class WorkflowTemplateTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "skill source must be a file under"):
             self._render_document(document)
 
-    def test_rejects_enabled_scheduled_task(self):
+    def test_rejects_disabled_scheduled_task(self):
         document = yaml.safe_load(TEMPLATE.read_text())
-        document["scheduled_task"]["enabled"] = True
-        with self.assertRaisesRegex(SystemExit, "must be false"):
-            self._render_document(document)
+        scheduled_task = yaml.safe_load(SCHEDULED_TASK.read_text())
+        scheduled_task["trigger"]["enabled"] = False
+        with self.assertRaisesRegex(SystemExit, "must be true"):
+            self._render_document(document, scheduled_task)
+
+    def test_rejects_scheduled_task_agent_mismatch(self):
+        document = yaml.safe_load(TEMPLATE.read_text())
+        scheduled_task = yaml.safe_load(SCHEDULED_TASK.read_text())
+        scheduled_task["trigger"]["handling_agent"] = "another-agent"
+        with self.assertRaisesRegex(SystemExit, "handling_agent must match"):
+            self._render_document(document, scheduled_task)
 
     def test_rejects_invalid_notification_email_recipient(self):
         with self.assertRaisesRegex(SystemExit, "valid email address"):
@@ -90,11 +114,20 @@ class WorkflowTemplateTests(unittest.TestCase):
 
     def test_requires_recipient_placeholder_in_both_scopes(self):
         document = yaml.safe_load(TEMPLATE.read_text())
-        document["scheduled_task"]["prompt"] = "Run the health check."
-        with self.assertRaisesRegex(SystemExit, "scheduled_task.prompt must include"):
-            self._render_document(document)
+        scheduled_task = yaml.safe_load(SCHEDULED_TASK.read_text())
+        scheduled_task["custom_agent"]["instructions"] = "Run the health check."
+        with self.assertRaisesRegex(SystemExit, "scheduled_task.custom_agent.instructions must include"):
+            self._render_document(document, scheduled_task)
 
-    def _render_document(self, document):
+    def _render_document(self, document, scheduled_task=None):
+        scheduled_task_path = None
+        if scheduled_task is not None:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".yaml", dir=SCHEDULED_TASK.parent, delete=False
+            ) as stream:
+                scheduled_task_path = Path(stream.name)
+                scheduled_task_path.write_text(yaml.safe_dump(scheduled_task))
+            document["scheduled_task"] = f"./scheduled-tasks/{scheduled_task_path.name}"
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".yaml", dir=TEMPLATE.parent, delete=False
         ) as stream:
@@ -104,6 +137,8 @@ class WorkflowTemplateTests(unittest.TestCase):
             return renderer.render(template, "operator@example.com")
         finally:
             template.unlink(missing_ok=True)
+            if scheduled_task_path is not None:
+                scheduled_task_path.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
