@@ -7,27 +7,33 @@ renderer="$script_dir/internal/render-workflow-template.py"
 apply_extras="$repo_root/sreagent-templates/bicep/apply-extras.sh"
 
 usage() {
-  echo 'Usage: ./scripts/install-workflow-template.sh --subscription <id> --agent-name <name> --template <path>' >&2
+  echo 'Usage: ./scripts/install-workflow-template.sh --subscription <id> --agent-name <name> --notification-email-recipient <email> --template <path>' >&2
 }
 
 subscription=''
 agent_name=''
+notification_email_recipient=''
 template=''
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --subscription) subscription="${2:-}"; shift 2 ;;
     --agent-name) agent_name="${2:-}"; shift 2 ;;
+    --notification-email-recipient) notification_email_recipient="${2:-}"; shift 2 ;;
     --template) template="${2:-}"; shift 2 ;;
     *) usage; exit 2 ;;
   esac
 done
 
-[[ -n "$subscription" && -n "$agent_name" && -n "$template" ]] || { usage; exit 2; }
+[[ -n "$subscription" && -n "$agent_name" && -n "$notification_email_recipient" && -n "$template" ]] || { usage; exit 2; }
 [[ "$subscription" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || {
   echo 'Error: --subscription must be an Azure subscription ID' >&2
   exit 1
 }
 [[ "$agent_name" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]] || { echo 'Error: invalid --agent-name' >&2; exit 1; }
+[[ "$notification_email_recipient" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || {
+  echo 'Error: invalid --notification-email-recipient' >&2
+  exit 1
+}
 for command_name in az curl jq python3; do
   command -v "$command_name" >/dev/null 2>&1 || { echo "Error: required command not found: $command_name" >&2; exit 1; }
 done
@@ -38,7 +44,8 @@ temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/onboarding-workflow.XXXXXX")"
 trap 'rm -rf "$temp_dir"' EXIT
 extras_file="$temp_dir/workflow.extras.json"
 agent_extras_file="$temp_dir/workflow-agent.extras.json"
-python3 "$renderer" --template "$template" --output "$extras_file"
+python3 "$renderer" --template "$template" --output "$extras_file" \
+  --notification-email-recipient "$notification_email_recipient"
 
 agents="$(az resource list --subscription "$subscription" --resource-type Microsoft.App/agents \
   --query "[?name=='$agent_name'].{id:id,resourceGroup:resourceGroup}" --output json)"

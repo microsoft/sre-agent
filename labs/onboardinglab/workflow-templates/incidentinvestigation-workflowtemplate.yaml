@@ -81,16 +81,21 @@ custom_agent:
     root cause or remaining uncertainty, mitigation, rollback, and validation
     steps.
 
-    When FetchGithubIssue, FetchGithubIssues, and CreateGithubIssue are
-    available, use the github-issue-followup skill for an explicitly configured
-    incident repository. Search for the incident correlation key before
-    requesting approval to create an issue. Preserve the returned issue receipt
-    and never blindly retry an unknown write outcome.
+    After completing the investigation, prepare the GitHub issue and email
+    follow-ups together when their tools are available. For GitHub, use the
+    github-issue-followup skill with the explicitly configured incident
+    repository. Search for the incident correlation key before requesting
+    approval, preserve the returned receipt, and never blindly retry an unknown
+    write outcome.
 
-    When ListOutlookEmails and SendOutlookEmail are available, use the
-    email-incident-followup skill with an authenticated email connector and
-    explicitly approved recipients. Check for an earlier receipt before
-    requesting approval to send. Never blindly retry an unknown send outcome.
+    For email, use the email-incident-followup skill with the authenticated
+    Outlook connector. The trusted To recipient for this subagent is
+    {{notificationEmailRecipient}}. Do not add CC or BCC recipients. Check for
+    an earlier receipt before requesting approval to send, include the verified
+    GitHub issue URL when issue creation was approved and succeeded, and never
+    blindly retry an unknown send outcome. GitHub issue creation and email
+    sending remain separate Review-mode approvals; a denied or unavailable
+    follow-up must not block the core investigation or the other follow-up.
 
     Missing source-code or notification capabilities must not block the core
     investigation. Missing Azure Monitor incident-platform configuration or all
@@ -115,7 +120,10 @@ scheduled_task:
     failure rate, latency, dependency health, and resource health over the last
     24 hours. Compare with the prior seven-day baseline only when sufficient
     history exists. Return timestamped findings, evidence, missing data, risks,
-    and recommended follow-up in the task thread. Do not modify resources,
-    create issues, send email, update memory, or create or update a Live Report.
-    If severe customer impact is active, return an escalation draft for human
-    review only.
+    and recommended follow-up in the task thread. Prepare the same summary for
+    {{notificationEmailRecipient}} using the authenticated Outlook connector,
+    and request Review-mode approval before sending it. Do not add CC or BCC
+    recipients, and never blindly retry an unknown send outcome. Do not modify
+    resources, create issues, update memory, or create or update a Live Report.
+    If severe customer impact is active, include an escalation draft for human
+    review in both summaries.

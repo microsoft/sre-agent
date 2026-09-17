@@ -3,6 +3,7 @@
 param(
     [Parameter(Mandatory)][ValidatePattern('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')][string] $Subscription,
     [Parameter(Mandatory)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9-]*$')][string] $AgentName,
+    [Parameter(Mandatory)][ValidatePattern('^[^\s@]+@[^\s@]+\.[^\s@]+$')][string] $NotificationEmailRecipient,
     [Parameter(Mandatory)][string] $Template
 )
 
@@ -43,7 +44,8 @@ New-Item -ItemType Directory -Path $tempDir | Out-Null
 try {
     $extrasFile = Join-Path $tempDir 'workflow.extras.json'
     $agentExtrasFile = Join-Path $tempDir 'workflow-agent.extras.json'
-    & $python.Command @($python.Arguments) $renderer --template $Template --output $extrasFile
+    & $python.Command @($python.Arguments) $renderer --template $Template --output $extrasFile `
+        --notification-email-recipient $NotificationEmailRecipient
 
     $agents = @(& az resource list --subscription $Subscription --resource-type Microsoft.App/agents `
         --query "[?name=='$AgentName'].{id:id,resourceGroup:resourceGroup}" --output json | ConvertFrom-Json)

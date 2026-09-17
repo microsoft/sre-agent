@@ -31,6 +31,14 @@ def require_name(value, label):
     return value
 
 
+def render_notification_recipient(value, label, recipient):
+    value = require_string(value, label)
+    placeholder = "{{notificationEmailRecipient}}"
+    if placeholder not in value:
+        fail(f"{label} must include {placeholder}")
+    return value.replace(placeholder, recipient)
+
+
 def read_skill(path, expected_name):
     text = path.read_text(encoding="utf-8")
     match = re.match(r"\A---\s*\n(.*?)\n---\s*\n", text, re.DOTALL)
@@ -51,7 +59,13 @@ def read_skill(path, expected_name):
     }
 
 
-def render(template_path):
+def render(template_path, notification_email_recipient):
+    notification_email_recipient = require_string(
+        notification_email_recipient, "notification email recipient"
+    )
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", notification_email_recipient):
+        fail("notification email recipient must be a valid email address")
+
     document = require_mapping(yaml.safe_load(template_path.read_text(encoding="utf-8")), "template")
     workflow_name = require_name(document.get("name"), "name")
     trigger = require_mapping(document.get("trigger"), "trigger")
@@ -126,7 +140,11 @@ def render(template_path):
     scheduled_task_mode = require_string(scheduled_task.get("action_mode"), "scheduled_task.action_mode")
     if scheduled_task_mode != "Review":
         fail("scheduled_task.action_mode must be Review")
-    scheduled_task_prompt = require_string(scheduled_task.get("prompt"), "scheduled_task.prompt")
+    scheduled_task_prompt = render_notification_recipient(
+        scheduled_task.get("prompt"),
+        "scheduled_task.prompt",
+        notification_email_recipient,
+    )
     scheduled_task_skill = require_mapping(scheduled_task.get("skill"), "scheduled_task.skill")
     scheduled_task_skill_name = require_name(scheduled_task_skill.get("name"), "scheduled_task.skill.name")
     scheduled_task_skill_source = require_string(
@@ -139,7 +157,11 @@ def render(template_path):
         fail(f"duplicate skill name: {scheduled_task_skill_name}")
     skills.append(read_skill(scheduled_task_skill_path, scheduled_task_skill_name))
 
-    instructions = require_string(custom_agent.get("instructions"), "custom_agent.instructions")
+    instructions = render_notification_recipient(
+        custom_agent.get("instructions"),
+        "custom_agent.instructions",
+        notification_email_recipient,
+    )
     extras = {
         "skills": skills,
         "subagents": [{
@@ -198,11 +220,12 @@ def main():
     parser = argparse.ArgumentParser(description="Render an onboarding workflow template to SRE Agent extras JSON.")
     parser.add_argument("--template", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--notification-email-recipient", required=True)
     args = parser.parse_args()
     template_path = args.template.resolve()
     if not template_path.is_file():
         fail(f"template not found: {template_path}")
-    extras = render(template_path)
+    extras = render(template_path, args.notification_email_recipient)
     args.output.write_text(json.dumps(extras, indent=2) + "\n", encoding="utf-8")
 
 

@@ -14,4 +14,4 @@ Use the connected application telemetry and read-only Azure tools to assess the 
 5. Separate confirmed findings from hypotheses and identify missing or contradictory evidence.
 6. Return evidence links, risks, and recommended follow-up in the current thread.
 
-Do not modify Azure resources, create issues, send email, update memory, or create or update a Live Report. If severe customer impact is active, provide an escalation draft for human review only.
+Do not modify Azure resources, create issues, update memory, or create or update a Live Report. Send email only when the invoking scheduled-task prompt supplies the trusted recipient and explicitly requests one Review-gated health summary. Do not add recipients or blindly retry an unknown send outcome. If severe customer impact is active, provide an escalation draft for human review only.

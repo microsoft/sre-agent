@@ -314,7 +314,7 @@ Use these read-only UI checks. Do not create a GitHub issue or send a test email
 
 ## 3. Install the workflow template
 
-The installer accepts the existing agent name, subscription, and workflow template. It discovers the agent resource group, validates Azure Monitor and app telemetry, installs the skills and `alert-investigator` subagent, creates the `alert-investigation` response plan connected to that subagent, and installs the paused `reservation-daily-health-report` scheduled task. It installs only SRE Agent configuration and does not deploy Azure resources or alert rules.
+The installer accepts the existing agent name, subscription, workflow template, and approved notification email recipient. It renders that recipient only into the `alert-investigator` instructions and scheduled-task prompt; it is not added to the global agent prompt. The installer discovers the agent resource group, validates Azure Monitor and app telemetry, installs the skills and `alert-investigator` subagent, creates the `alert-investigation` response plan connected to that subagent, and installs the paused `reservation-daily-health-report` scheduled task. It installs only SRE Agent configuration and does not deploy Azure resources or alert rules.
 
 macOS:
 
@@ -322,6 +322,7 @@ macOS:
 ./scripts/install-workflow-template.sh \
    --subscription "$subscription" \
    --agent-name "$agent_name" \
+   --notification-email-recipient 'YOUR-EMAIL@EXAMPLE.COM' \
    --template ./workflow-templates/incidentinvestigation-workflowtemplate.yaml
 ```
 
@@ -331,6 +332,7 @@ Windows:
 ./scripts/install-workflow-template.ps1 `
    -Subscription $Subscription `
    -AgentName $AgentName `
+   -NotificationEmailRecipient 'YOUR-EMAIL@EXAMPLE.COM' `
    -Template .\workflow-templates\incidentinvestigation-workflowtemplate.yaml
 ```
 
@@ -344,7 +346,7 @@ Windows:
 | Skill | `proactive-health-check` | Assesses ticket reservation availability, failures, latency, dependencies, and Azure resource health using read-only evidence. | [Skills](https://sre.azure.com/docs/concepts/skills) |
 | Subagent | `alert-investigator` | Correlates telemetry, Azure state, and source evidence without Azure write tools. | [Custom agents](https://sre.azure.com/docs/concepts/subagents) |
 | Response plan | `alert-investigation` | Routes Azure Monitor Sev1 and Sev2 incidents to the `alert-investigator` subagent in Review mode and merges related incidents for three hours. | [Incident response plans](https://sre.azure.com/docs/capabilities/incident-response-plans) |
-| Scheduled task | `reservation-daily-health-report` | Runs a read-only weekday health analysis. The recurring schedule is installed paused. | [Scheduled tasks](https://sre.azure.com/docs/capabilities/scheduled-tasks) |
+| Scheduled task | `reservation-daily-health-report` | Runs a weekday health analysis and proposes an Outlook summary to the configured recipient. The recurring schedule is installed paused. | [Scheduled tasks](https://sre.azure.com/docs/capabilities/scheduled-tasks) |
 
 **Checkpoint: verify the workflow**
 
@@ -438,7 +440,7 @@ This optional scenario assesses the same service without introducing a fault, th
 3. Select **Run task now**. Leave the recurring schedule paused.
 4. Review the result in the task thread.
 
-The task uses `proactive-health-check` to review ticket reservation availability, failures, latency, dependency health, and Azure resource health over the last 24 hours. It compares with prior data only when enough history exists and reports missing history explicitly.
+The task uses `proactive-health-check` to review ticket reservation availability, failures, latency, dependency health, and Azure resource health over the last 24 hours. It compares with prior data only when enough history exists and reports missing history explicitly. It then proposes the same summary to the configured Outlook recipient for Review-mode approval.
 
 **Create the Live Report**
 
@@ -464,7 +466,7 @@ The scheduled task and Live Report are separate operations. The task records evi
 - The task thread contains timestamped findings, evidence, risks, and recommended follow-up
 - The recurring task remains paused until an operator deliberately enables it
 - `Ticket Reservation Health` appears in **Live Reports** with refreshable read-only charts and status indicators
-- Neither operation modifies Azure resources, creates issues, or sends email
+- Neither operation modifies Azure resources or creates issues; the task sends email only after Review-mode approval
 
 ## Troubleshooting
 

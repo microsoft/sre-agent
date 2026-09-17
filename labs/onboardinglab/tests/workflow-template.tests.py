@@ -19,7 +19,7 @@ spec.loader.exec_module(renderer)
 
 class WorkflowTemplateTests(unittest.TestCase):
     def test_current_template_renders_expected_agent_resources(self):
-        extras = renderer.render(TEMPLATE)
+        extras = renderer.render(TEMPLATE, "operator@example.com")
 
         self.assertEqual([item["metadata"]["name"] for item in extras["skills"]], [
             "azure-monitor-rca",
@@ -30,6 +30,8 @@ class WorkflowTemplateTests(unittest.TestCase):
         self.assertEqual(len(extras["subagents"]), 1)
         custom_agent = extras["subagents"][0]
         self.assertEqual(custom_agent["metadata"]["name"], "alert-investigator")
+        self.assertIn("operator@example.com", custom_agent["spec"]["instructions"])
+        self.assertNotIn("{{notificationEmailRecipient}}", custom_agent["spec"]["instructions"])
         self.assertIn("SearchMemory", custom_agent["spec"]["tools"])
         self.assertNotIn("RunAzCliWriteCommands", custom_agent["spec"]["tools"])
         self.assertEqual(custom_agent["spec"]["allowedSkills"], [
@@ -55,6 +57,8 @@ class WorkflowTemplateTests(unittest.TestCase):
         self.assertEqual(scheduled_task["spec"]["mode"], "Review")
         self.assertFalse(scheduled_task["spec"]["enabled"])
         self.assertIn("proactive-health-check skill", scheduled_task["spec"]["prompt"])
+        self.assertIn("operator@example.com", scheduled_task["spec"]["prompt"])
+        self.assertNotIn("{{notificationEmailRecipient}}", scheduled_task["spec"]["prompt"])
 
     def test_rejects_unsupported_incident_platform(self):
         document = yaml.safe_load(TEMPLATE.read_text())
@@ -80,6 +84,16 @@ class WorkflowTemplateTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "must be false"):
             self._render_document(document)
 
+    def test_rejects_invalid_notification_email_recipient(self):
+        with self.assertRaisesRegex(SystemExit, "valid email address"):
+            renderer.render(TEMPLATE, "not-an-email")
+
+    def test_requires_recipient_placeholder_in_both_scopes(self):
+        document = yaml.safe_load(TEMPLATE.read_text())
+        document["scheduled_task"]["prompt"] = "Run the health check."
+        with self.assertRaisesRegex(SystemExit, "scheduled_task.prompt must include"):
+            self._render_document(document)
+
     def _render_document(self, document):
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".yaml", dir=TEMPLATE.parent, delete=False
@@ -87,7 +101,7 @@ class WorkflowTemplateTests(unittest.TestCase):
             template = Path(stream.name)
             template.write_text(yaml.safe_dump(document))
         try:
-            return renderer.render(template)
+            return renderer.render(template, "operator@example.com")
         finally:
             template.unlink(missing_ok=True)
 
