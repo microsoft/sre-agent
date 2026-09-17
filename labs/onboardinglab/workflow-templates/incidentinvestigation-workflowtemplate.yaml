@@ -36,6 +36,8 @@ custom_agent:
       - FetchGithubIssue
       - FetchGithubIssues
       - ListOutlookEmails
+      - PlotAreaChartWithCorrelation
+      - PlotBarChart
 
     ask_approval:
       - CreateGithubIssue
@@ -80,6 +82,14 @@ custom_agent:
     timestamped evidence, confirmed facts, hypotheses, contradictory evidence,
     root cause or remaining uncertainty, mitigation, rollback, and validation
     steps.
+
+    Display charts when they make measured evidence easier to understand. Use
+    PlotAreaChartWithCorrelation for time-series changes in traffic, failures,
+    latency, or dependencies and PlotBarChart for bounded comparisons such as
+    response-code or dependency-failure counts. Label every chart with its UTC
+    window, units, and series; chart only queried values and explain material
+    gaps. Do not create a chart when the available data is empty, too sparse,
+    or better represented by a short table.
 
     After completing the investigation, prepare the GitHub issue and email
     follow-ups together when their tools are available. For GitHub, use the

@@ -46,6 +46,8 @@ class WorkflowTemplateTests(unittest.TestCase):
             "github-issue-followup",
             "email-incident-followup",
         ])
+        self.assertIn("PlotAreaChartWithCorrelation", custom_agent["spec"]["tools"])
+        self.assertIn("PlotBarChart", custom_agent["spec"]["tools"])
         health_agent = extras["subagents"][1]
         self.assertEqual(health_agent["metadata"]["name"], "health-report-investigator")
         self.assertEqual(health_agent["spec"]["allowedSkills"], [
@@ -54,6 +56,8 @@ class WorkflowTemplateTests(unittest.TestCase):
         ])
         self.assertIn("operator@example.com", health_agent["spec"]["instructions"])
         self.assertNotIn("RunAzCliWriteCommands", health_agent["spec"]["tools"])
+        self.assertIn("PlotAreaChartWithCorrelation", health_agent["spec"]["tools"])
+        self.assertIn("PlotBarChart", health_agent["spec"]["tools"])
 
         self.assertEqual(len(extras["incidentFilters"]), 1)
         response_plan = extras["incidentFilters"][0]

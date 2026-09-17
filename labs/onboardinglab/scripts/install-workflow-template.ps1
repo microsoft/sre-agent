@@ -121,8 +121,9 @@ try {
 
     $installedAgent = Invoke-RestMethod -Method Get -Uri "$endpoint/api/v2/extendedAgent/agents/$customAgentName" -Headers $headers
     if ($installedAgent.name -ne $customAgentName) { throw "Custom agent verification failed: $customAgentName" }
-    foreach ($toolName in $telemetryTools) {
-        if ($toolName -notin $installedAgent.properties.tools) { throw "Custom agent is missing telemetry tool: $toolName" }
+    $expectedIncidentAgent = $extras.subagents | Where-Object { $_.metadata.name -eq $customAgentName }
+    foreach ($toolName in $expectedIncidentAgent.spec.tools) {
+        if ($toolName -notin $installedAgent.properties.tools) { throw "Custom agent $customAgentName is missing tool: $toolName" }
     }
     foreach ($toolName in $extras.installerRequirements.deniedTools) {
         if ($toolName -in $installedAgent.properties.tools) { throw "Custom agent contains denied tool: $toolName" }
@@ -130,6 +131,10 @@ try {
     $scheduledTaskAgentName = $extras.installerRequirements.scheduledTaskAgentName
     $scheduledTaskAgent = Invoke-RestMethod -Method Get -Uri "$endpoint/api/v2/extendedAgent/agents/$scheduledTaskAgentName" -Headers $headers
     if ($scheduledTaskAgent.name -ne $scheduledTaskAgentName) { throw "Custom agent verification failed: $scheduledTaskAgentName" }
+    $expectedScheduledTaskAgent = $extras.subagents | Where-Object { $_.metadata.name -eq $scheduledTaskAgentName }
+    foreach ($toolName in $expectedScheduledTaskAgent.spec.tools) {
+        if ($toolName -notin $scheduledTaskAgent.properties.tools) { throw "Custom agent $scheduledTaskAgentName is missing tool: $toolName" }
+    }
     foreach ($skillName in $extras.installerRequirements.scheduledTaskSkillNames) {
         if ($skillName -notin $scheduledTaskAgent.properties.allowedSkills) {
             throw "Scheduled task custom agent is missing skill: $skillName"

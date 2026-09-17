@@ -17,6 +17,8 @@ custom_agent:
       - GetAzCliHelp
       - RunAzCliReadCommands
       - ListOutlookEmails
+      - PlotAreaChartWithCorrelation
+      - PlotBarChart
     ask_approval:
       - SendOutlookEmail
     deny:
@@ -30,8 +32,13 @@ custom_agent:
     Use the proactive-health-check skill to assess ticket reservation availability,
     failure rate, latency, dependency health, and resource health over the last
     24 hours. Compare with the prior seven-day baseline only when sufficient
-    history exists. Return timestamped findings, evidence, missing data, risks,
-    and recommended follow-up in the task thread. Prepare the same summary for
+    history exists. Display evidence-grounded charts where they clarify health:
+    use PlotAreaChartWithCorrelation for the 24-hour availability, failure-rate,
+    and latency trends, and PlotBarChart for a valid current-versus-baseline or
+    dependency comparison. Label charts with UTC windows, units, and series,
+    and do not chart empty, sparse, or invented values. Return timestamped
+    findings, evidence, missing data, risks, and recommended follow-up in the
+    task thread. Prepare the same summary for
     {{notificationEmailRecipient}} using the authenticated Outlook connector,
     and request Review-mode approval before sending it. Do not add CC or BCC
     recipients, and never blindly retry an unknown send outcome. Do not modify
