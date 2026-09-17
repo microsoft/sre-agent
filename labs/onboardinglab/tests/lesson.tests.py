@@ -73,6 +73,20 @@ class LessonTests(unittest.TestCase):
         readme = (LAB / "README.md").read_text(encoding="utf-8")
         self.assertIn("not a blind benchmark", readme)
 
+    def test_standard_lesson_includes_authenticated_github_and_outlook_followups(self):
+        readme = (LAB / "README.md").read_text(encoding="utf-8")
+        setup = (LAB / "docs/setup.md").read_text(encoding="utf-8")
+        guide = (LAB / "agent-recipe/config/skills/onboarding-lab-guide.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("GitHub and Outlook are part of the standard lab", readme)
+        self.assertIn("Turn the investigation into follow-up work", readme)
+        self.assertIn("issue link and email receipt", readme)
+        self.assertIn("-Stage Connect", setup)
+        self.assertIn("-CoreOnly", setup)
+        self.assertIn("## Share the investigation", guide)
+        self.assertIn("obtain separate approval to send", guide)
+
     def test_local_document_links_resolve(self):
         documents = [
             LAB / "README.md",

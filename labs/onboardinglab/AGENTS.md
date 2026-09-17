@@ -29,9 +29,16 @@ Fault injection and reset belong to the facilitator on shared environments.
 Do not let one learner reset the workload for everyone else. Namespaced skills
 prevent naming collisions; they do not isolate access to a shared agent.
 
-GitHub code access, issues and Outlook are optional extensions. Complete consent
-only in the trusted sign-in UI. Never ask for tokens or passwords in chat.
-Do not send a test email or create a test issue during core setup.
+GitHub code access, issues and Outlook are part of the standard lab. Ask for the
+approved repository and email recipients, prepare the connections, and have the
+learner complete consent in the trusted sign-in UI. Then use setup's Connect
+stage to validate authentication and attach the follow-up tools.
+Never ask for tokens or passwords in chat. Setup must not create issues or send
+email; the learner separately approves each exercise output.
+
+Use `-CoreOnly` only as an explicit fallback for blocked access. Mark the GitHub
+and Outlook exercises skipped. On shared agents, use one designated connection
+owner; do not overwrite another learner's sign-in.
 
 Operator fault scripts can contain the answer key. Do not upload this file,
 the entire checkout or fault instructions as the incident agent's knowledge.

@@ -23,9 +23,10 @@ unavailable, the learner uses the documented local helper or Skill Builder,
 then verifies the saved artifact in a fresh conversation.
 
 GitHub repository and Outlook connector templates live under `optional/`, outside
-the automatically assembled configuration. The lab setup helper copies selected
-extensions into the generated directory and updates its expected configuration
-and approval policy. Core setup needs neither consent flow.
+the reusable base configuration. The standard lab setup helper includes both
+connections and their approval policy by default. After OAuth sign-in, its
+Connect stage validates readiness and attaches source, issue and email tools.
+The explicit `-CoreOnly` fallback omits these connections and skips their exercises.
 
 The workflow installer adds the incident handler and response plan. A scheduled
 health check is created separately during the learning exercise and is disabled

@@ -30,14 +30,33 @@ scripts as the manual setup. The deployed SRE Agent has a separate
 ## What you should leave with
 
 - An investigation supported by telemetry and resource evidence.
+- A reviewed GitHub follow-up and Outlook summary with verifiable results.
 - A skill you created, saved and used in a fresh conversation.
 - The result of a read-only scheduled check, with the task disabled afterward.
 - An explanation of what you would change for a customer's workload.
 
-GitHub code access, issue creation and Outlook email are optional extensions.
-They are not prerequisites for the core exercises.
+GitHub and Outlook are part of the standard lab. Setup prepares the connections;
+participants finish sign-in through the trusted GitHub and Microsoft connection
+UI. The facilitator provides an approved repository and email destination so
+participants can see the investigation turn into useful follow-up work.
+
+Never paste passwords or tokens into agent chat. If consent is blocked, use the
+explicit [core-only fallback](docs/setup.md#core-only-fallback) and mark those
+exercises as skipped.
 
 ## 1. Discover the environment
+
+### Complete the prepared connections
+
+For an assigned environment, open its GitHub Code access connection and Office
+365 Outlook connector. Complete the requested sign-in, then ask the facilitator
+or local assistant to run the setup helper's `Connect` stage with approved
+destinations. This validates authentication and attaches the follow-up tools.
+It does not create an issue or send an email.
+
+On shared agents, the designated connection owner completes sign-in. Participants
+must not replace each other's connected accounts. Setup details are in the
+[sign-in instructions](docs/setup.md#sign-in-and-activate-the-connected-exercises).
 
 ### Start the guided lesson
 
@@ -119,7 +138,29 @@ The facilitator runs the reset helper. Confirm that new reservations succeed
 and ask for fresh successful requests and dependencies after the reset.
 
 **Checkpoint:** a diagnosis with cited evidence, explicit uncertainty and verified
-recovery. The agent remains read-only; the operator performs the reset.
+recovery. Workload investigation remains read-only; the operator performs the reset.
+
+### Turn the investigation into follow-up work
+
+Use the approved repository and recipient supplied for your environment:
+
+> Prepare a GitHub follow-up for this investigation in our approved repository.
+> Include the impact, supporting evidence and next action. Check for an existing
+> issue first, then show me the proposed destination and content before creating it.
+
+Review the destination and a short, redacted summary. Approve creation only when
+both are correct, then open the returned issue link.
+
+> Draft an Outlook summary for the approved recipient with the diagnosis,
+> recovery evidence and GitHub issue link. Show me the recipients and message,
+> and wait for my approval before sending.
+
+After approval, inspect the send receipt. Do not treat a draft as a sent message
+or retry an unknown outcome blindly. Exclude credentials, raw logs and private
+customer information from outbound content.
+
+**Checkpoint:** an actual GitHub issue link and email receipt, or an explicit
+blocked/skipped result. Authentication alone does not authorize either write.
 
 ## 3. Teach the agent a useful rule
 
@@ -209,6 +250,8 @@ Windows and macOS prerequisite installers are provided; the shared setup and
 learning helpers run in PowerShell 7 on either platform.
 
 The Azure subscription must permit resource creation and role assignments.
+The standard path also needs a GitHub account with access to the approved
+repository and an account supported by the Office 365 Outlook connector.
 Confirm a region that supports both SRE Agent and this subscription's PostgreSQL
 16 / B1ms offering. Region availability does not guarantee quota or capacity.
 
@@ -253,7 +296,7 @@ Confirm all of the following:
 - The agent manages the correct resource group in Low access and Review mode.
 - The lab-guide, self-configuration and health-check skills are installed.
 - The incident workflow has the expected read-only tools and response plan.
-- Optional connections are either healthy or explicitly omitted.
+- GitHub and Outlook are authenticated and their workflow tools are ready, or the core-only fallback is explicitly selected.
 - The chosen learner skill-save path works with the available permissions.
 
 Do not continue to fault injection when the baseline is broken.
@@ -269,7 +312,7 @@ Do not continue to fault injection when the baseline is broken.
 | Agent cannot save a skill | Keep permissions unchanged. Use the authorized local helper or Skill Builder and verify read-back. |
 | No telemetry | Check the workload source and UTC interval. Missing data does not prove health or recovery. |
 | Scheduled task has no completed run | Inspect its enabled state, trigger and approval status. Do not substitute a manual chat as proof. |
-| Optional GitHub or Outlook output is unavailable | Complete the selected extension's consent separately. Continue the core read-only lesson without sending anything. |
+| GitHub or Outlook output is unavailable | Complete sign-in and Connect, or explicitly use core-only and mark the connected exercises skipped. Never bypass consent. |
 
 ## Cleanup
 

@@ -1,6 +1,6 @@
 {
   "_scenario": "onboardinglab-base",
-  "_description": "Core onboarding agent with read-only workload access, telemetry, knowledge and learner guidance. GitHub and Outlook are opt-in extensions.",
+  "_description": "Reusable base agent for the onboarding lab. The setup helper adds standard GitHub and Outlook connections unless the core-only fallback is selected.",
   "_prerequisites": [
     "Completed onboarding lab workload deployment",
     "Application Insights resource and application IDs from the azd environment"

@@ -21,9 +21,16 @@ Provide these items before the exercise:
 - The supported machine prerequisites or an assigned-environment alternative.
 - Where to find the README and the local-agent setup instructions.
 
-Keep GitHub and Outlook optional. Complete any selected consent flow before
-demonstrating external follow-ups. Do not use attendee preparation as approval
-to send email or create issues.
+Include GitHub and Outlook in the standard environment. Prepare an approved
+repository with Issues enabled and an approved email destination before the
+session. Attendees with isolated agents complete their own OAuth sign-in; a
+shared agent has one designated connection owner.
+
+After sign-in, run setup's Connect stage to validate authentication and attach
+the follow-up tools. This keeps connection-file editing out of the participant
+exercise. Sign-in does not authorize an issue or email: show the proposed
+destination and content, obtain approval, then verify the returned receipt.
+If consent is blocked, explicitly select core-only and record the skipped steps.
 
 ## Readiness checks
 
@@ -36,7 +43,8 @@ that the instructions do not explain.
 | Telemetry | Fresh checkout requests and PostgreSQL dependencies in the workload source |
 | Agent | Correct managed resource group, Review mode and configured tools |
 | Guidance | Lab-guide and health-check skills are present with the expected content |
-| Incident route | The lab alert matches the intended read-only response plan |
+| Incident route | The lab alert matches the intended Review-mode response plan; workload investigation stays read-only |
+| Connected follow-ups | GitHub and Outlook sign-in completed, approved destinations selected and Connect succeeded |
 | Learning | The selected save path can create a learner skill and read it back |
 | Schedule | A read-only handler and a supported enable/disable path are available |
 
@@ -70,6 +78,11 @@ For a shared workload, run fault injection once and tell participants which
 incident to examine. Capture the baseline and affected UTC intervals. Wait for
 the actual Azure alert and its routed agent thread; a successful fault command
 does not prove incident dispatch.
+
+After investigation, let participants create an approved GitHub follow-up and
+send an approved Outlook summary. Use a short, redacted report and verify the
+issue link and email receipt. Coordinate shared destinations to avoid duplicate
+issues or sending many copies to the same recipient.
 
 Use `scripts/fault.ps1 reset` on Windows or `scripts/fault.sh reset` on macOS to
 recover. These helpers preserve the fault rule and set it to Allow. Verify fresh

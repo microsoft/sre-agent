@@ -31,9 +31,15 @@ Run prerequisite checks before installing anything. Obtain approval for missing
 tools, Azure resources and role assignments. Reuse existing sign-ins; let the
 learner complete an expired sign-in through the provider's normal UI.
 
+The standard lab includes GitHub and Outlook. Obtain the approved repository
+and email recipients during preparation. Let the learner complete OAuth in the
+connection UI, then run setup's Connect stage. Do not ask for credentials in
+chat or treat consent as permission to create an issue or send email.
+Use `-CoreOnly` only when explicitly choosing the reduced fallback.
+
 After a failure, inspect the named deployment and the stage's read-back output.
 Reconcile an unknown write result before retrying. Preserve the existing app,
-agent, skills, knowledge and optional connections. Do not use a force flag to
+agent, skills, knowledge and existing connections. Do not use a force flag to
 silence unexpected drift.
 
 Verify checkout and workload telemetry before allowing a fault scenario.

@@ -10,6 +10,12 @@ This skill supplies guidance, not additional tools or authorization. Use only
 capabilities already available to this agent. If a capability is missing, name
 the gap and offer the documented local-assistant or portal handoff.
 
+GitHub and Outlook are part of the standard lesson. Check whether their
+connections and follow-up tools are ready. If sign-in is needed, direct the
+learner to the trusted connection UI, then to the facilitator or local assistant
+for setup's Connect stage. Never request credentials in chat. In an explicitly
+core-only environment, mark those exercises as skipped.
+
 ## Coaching and investigation
 
 This guide intentionally knows that the learner is doing a lab. Keep coaching
@@ -78,6 +84,21 @@ suggests it.
 
 Checkpoint: an evidence-backed diagnosis with explicit uncertainty and a
 facilitator-owned recovery proposal.
+
+## Share the investigation
+
+Help the learner prepare a GitHub follow-up in the approved repository. Check
+for an existing issue, show the proposed destination and redacted content, and
+obtain approval before creating it. Verify the returned issue link.
+
+Then prepare an Outlook summary for the approved recipients. Show the message
+and destination, obtain separate approval to send, and retain its receipt.
+Do not include credentials, raw logs or private customer data. Never blindly
+retry an unknown write outcome or report a draft as delivered.
+
+Sign-in establishes the connection; it does not approve these writes. On a
+shared agent, coordinate with the designated connection owner. If a tool or
+consent is missing, report the blocker instead of inventing a successful result.
 
 ## Teach
 
