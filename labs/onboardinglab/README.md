@@ -10,7 +10,9 @@ In this hands-on lab, you configure least-privilege access and safeguards, insta
 - Connect the agent to application telemetry, Azure Monitor incidents, source code, and operational knowledge.
 - Build reusable workflows from triggers, skills, subagents, tools, and response plans.
 - Run a read-only incident investigation while the operator controls mitigation and recovery.
-- Apply the same workflow pattern to proactive operations such as scheduled health checks.
+- Apply the same workflow pattern to scheduled health checks and evidence-grounded Live Reports.
+- Connect GitHub pull-request events to a dedicated validator through an authenticated HTTP-trigger bridge.
+- Compare realistic good and bad changes, producing `PASS` or `BLOCK` guidance while both pull requests remain unmerged and undeployed.
 
 ## Setup at a glance
 
