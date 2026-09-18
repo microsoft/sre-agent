@@ -511,7 +511,23 @@ if ($stCount -gt 0) {
                 cronExpression = if ($spec.schedule) { $spec.schedule } elseif ($spec.cronExpression) { $spec.cronExpression } else { "" }
                 agentPrompt    = if ($spec.prompt) { $spec.prompt } elseif ($spec.agentPrompt) { $spec.agentPrompt } else { "" }
                 agentMode      = if ($spec.mode) { $spec.mode } elseif ($spec.agentMode) { $spec.agentMode } else { "Review" }
+                agent          = if ($spec.handlingAgent) { $spec.handlingAgent } elseif ($spec.agent) { $spec.agent } else { "" }
                 isEnabled      = if ($null -ne $spec.enabled) { $spec.enabled } else { $true }
+            }
+            if ($props.agent) {
+                $token = Get-DpToken
+                $headers = @{ Authorization = "Bearer $token" }
+                $encodedName = [uri]::EscapeDataString($name)
+                $url = "$AgentEndpoint/api/v2/extendedAgent/scheduledtasks/$encodedName"
+                try {
+                    $existingTask = Invoke-RestMethod -TimeoutSec 30 -Uri $url -Method Get -Headers $headers
+                    if ($existingTask.properties.agent -ne $props.agent) {
+                        $null = Invoke-RestMethod -TimeoutSec 30 -Uri $url -Method Delete -Headers $headers
+                        Write-Host "  recreated scheduledtasks/$name to change handling agent"
+                    }
+                } catch {
+                    if ($_.Exception.Response.StatusCode -ne [System.Net.HttpStatusCode]::NotFound) { throw }
+                }
             }
             DataPlane-PutExtended -Kind "scheduledtasks" -Name $name -Type "ScheduledTask" -Tags @() -Properties $props
         }
@@ -1082,7 +1098,8 @@ if ($htCount -gt 0) {
         $token = Get-DpToken
         $headers = @{ Authorization = "Bearer $token" }
         try {
-            $existingTriggers = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/httpTriggers" -Headers $headers
+            $existingResponse = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/httpTriggers" -Headers $headers
+            $existingTriggers = if ($existingResponse.value) { @($existingResponse.value) } else { @($existingResponse) }
         } catch {
             $existingTriggers = @()
         }
@@ -1096,12 +1113,22 @@ if ($htCount -gt 0) {
                     $body[$p.Name] = $p.Value
                 }
             }
+            if ($body.prompt) {
+                $body.agentPrompt = $body.prompt
+                $body.Remove('prompt')
+            }
+            if ($body.handlingAgent) {
+                $body.agent = $body.handlingAgent
+                $body.Remove('handlingAgent')
+            }
             $bodyJson = $body | ConvertTo-Json -Compress -Depth 20
 
             # Check if trigger already exists
             $existingId = ($existingTriggers | Where-Object { $_.name -eq $name } | Select-Object -First 1).id
             if ($existingId) {
                 $existingUrl = "$AgentEndpoint/api/v1/httptriggers/trigger/$existingId"
+                $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/httptriggers/$existingId" `
+                    -Method Put -Headers $headers -Body $bodyJson -ContentType "application/json"
                 Write-Host "  httpTrigger/${name}: $existingUrl"
                 if (-not $HttpTriggerUrl) { $HttpTriggerUrl = $existingUrl }
             } else {
@@ -1146,7 +1173,7 @@ if ($cnCount -gt 0) {
 # ═════════════════════════════════════════════════════════════════════════════
 if ($HttpTriggerUrl) {
     $agentJsonDir = Split-Path $ExtrasFile -Parent
-    $whEnabled = $false
+    $whEnabled = $extras.enableWebhookBridge -eq $true
     $candidates = @(
         (Join-Path (Split-Path $agentJsonDir -Parent) "agent.json"),
         (Join-Path $agentJsonDir "agent.json")
@@ -1156,7 +1183,7 @@ if ($HttpTriggerUrl) {
         if (Test-Path $candidate) {
             try {
                 $agentJson = Get-Content -Raw $candidate | ConvertFrom-Json
-                $whEnabled = $agentJson.toggles.enableWebhookBridge -eq $true
+                if ($agentJson.toggles.enableWebhookBridge -eq $true) { $whEnabled = $true }
             } catch { }
             break
         }
@@ -1177,16 +1204,15 @@ if ($HttpTriggerUrl) {
             Write-Host ""
             Write-Host "-- Deploying webhook bridge Logic App --"
             Write-Host "  Trigger URL: $HttpTriggerUrl"
-            $scriptPath = $PSScriptRoot
-            # Look for bicep template relative to this script (../../bicep/logic-app-bridge.bicep)
-            $bicepPath = Join-Path (Split-Path (Split-Path $scriptPath -Parent) -Parent) "bicep" "logic-app-bridge.bicep"
+            $bicepPath = Join-Path $PSScriptRoot "logic-app-bridge.bicep"
             $location = az group show -n $ResourceGroup --query location -o tsv 2>$null
             try {
                 $laResultRaw = az deployment group create `
                     --resource-group $ResourceGroup `
                     --template-file $bicepPath `
                     --parameters agentName=$AgentName location=$location triggerUrl=$HttpTriggerUrl `
-                    --output json 2>&1
+                    --only-show-errors `
+                    --output json
                 $laResult = $laResultRaw | ConvertFrom-Json
                 $laState = $laResult.properties.provisioningState
                 if ($laState -eq "Succeeded") {

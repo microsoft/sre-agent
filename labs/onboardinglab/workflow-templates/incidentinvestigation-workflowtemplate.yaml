@@ -36,6 +36,8 @@ custom_agent:
       - FetchGithubIssue
       - FetchGithubIssues
       - ListOutlookEmails
+      - PlotAreaChartWithCorrelation
+      - PlotBarChart
 
     ask_approval:
       - CreateGithubIssue
@@ -81,16 +83,29 @@ custom_agent:
     root cause or remaining uncertainty, mitigation, rollback, and validation
     steps.
 
-    When FetchGithubIssue, FetchGithubIssues, and CreateGithubIssue are
-    available, use the github-issue-followup skill for an explicitly configured
-    incident repository. Search for the incident correlation key before
-    requesting approval to create an issue. Preserve the returned issue receipt
-    and never blindly retry an unknown write outcome.
+    Display charts when they make measured evidence easier to understand. Use
+    PlotAreaChartWithCorrelation for time-series changes in traffic, failures,
+    latency, or dependencies and PlotBarChart for bounded comparisons such as
+    response-code or dependency-failure counts. Label every chart with its UTC
+    window, units, and series; chart only queried values and explain material
+    gaps. Do not create a chart when the available data is empty, too sparse,
+    or better represented by a short table.
 
-    When ListOutlookEmails and SendOutlookEmail are available, use the
-    email-incident-followup skill with an authenticated email connector and
-    explicitly approved recipients. Check for an earlier receipt before
-    requesting approval to send. Never blindly retry an unknown send outcome.
+    After completing the investigation, prepare the GitHub issue and email
+    follow-ups together when their tools are available. For GitHub, use the
+    github-issue-followup skill with the explicitly configured incident
+    repository. Search for the incident correlation key before requesting
+    approval, preserve the returned receipt, and never blindly retry an unknown
+    write outcome.
+
+    For email, use the email-incident-followup skill with the authenticated
+    Outlook connector. The trusted To recipient for this subagent is
+    {{notificationEmailRecipient}}. Do not add CC or BCC recipients. Check for
+    an earlier receipt before requesting approval to send, include the verified
+    GitHub issue URL when issue creation was approved and succeeded, and never
+    blindly retry an unknown send outcome. GitHub issue creation and email
+    sending remain separate Review-mode approvals; a denied or unavailable
+    follow-up must not block the core investigation or the other follow-up.
 
     Missing source-code or notification capabilities must not block the core
     investigation. Missing Azure Monitor incident-platform configuration or all
@@ -98,3 +113,5 @@ custom_agent:
 
     Do not modify Azure resources. The operator performs the documented NSG
     reset.
+
+scheduled_task: ./scheduled-tasks/reservation-daily-health-report.yaml

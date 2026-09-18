@@ -1,4 +1,4 @@
-# Simulated checkout app
+# Simulated ticket reservation app
 
 Tiny plain-JavaScript Node.js >=22 app for source deployment to **Linux App
 Service**. There is no Docker image, bundler, React build, order schema, or real
@@ -17,7 +17,7 @@ npm start
 ```
 
 The HTTP server binds to `0.0.0.0` on `PORT`, default `8080`. Startup and health
-do not connect to PostgreSQL. Missing database settings only cause checkout to
+do not connect to PostgreSQL. Missing database settings only cause reservation requests to
 return a sanitized 503. Do not commit credentials or put them in browser code.
 
 ## Environment
@@ -29,7 +29,7 @@ return a sanitized 503. Do not commit credentials or put them in browser code.
 | `POSTGRES_PORT` | PostgreSQL port; default `5432` |
 | `POSTGRES_DATABASE` | Existing database name |
 | `POSTGRES_USER` | UAMI principal display name registered as the PostgreSQL Entra admin by the lab Bicep; not its client/object ID |
-| `AZURE_CLIENT_ID` | Client ID of the user-assigned managed identity (UAMI) attached to the app; required for checkout |
+| `AZURE_CLIENT_ID` | Client ID of the user-assigned managed identity (UAMI) attached to the app; required for reservation requests |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | Server-side SDK connection string; omit for local offline use |
 
 PostgreSQL is **Microsoft Entra-only**; there is no database password setting.
@@ -38,7 +38,7 @@ CLI credentials or a system-assigned identity fallback. On each fresh connection
 the async `pg.Client` password callback requests a token for
 `https://ossrdbms-aad.database.windows.net/.default`. The SDK may reuse a valid
 cached token; the app rejects missing/expired tokens and never logs or returns them.
-Local checkout requires a hosting environment with that UAMI available; all tests
+Local reservation requests require a hosting environment with that UAMI available; all tests
 inject credentials and database clients and make no real managed-identity calls.
 
 **Disposable lab only:** the hosting Bicep registers this UAMI as the PostgreSQL
@@ -47,7 +47,7 @@ is elevated database access, **not a production privilege model**. Production ap
 should use a separately provisioned, least-privilege database principal, not an
 Entra administrator. This app only executes `SELECT 1`.
 
-TLS certificate validation is mandatory. Each checkout constructs a fresh `pg`
+TLS certificate validation is mandatory. Each reservation constructs a fresh `pg`
 Client, connects and runs only `SELECT 1`, then closes/destroys the connection in
 `finally`. One five-second `Promise.race` deadline covers token acquisition,
 connection and query together. An outstanding SDK token request may finish after
@@ -75,12 +75,12 @@ Dependency target is a fixed label, not a connection string. No request bodies,
 query parameters, host headers, access tokens, or exception details are recorded.
 Automatic dependency, request, exception, console and live-metrics collection are
 disabled to prevent duplicates and sensitive diagnostics. Use in a controlled
-lab, not as a production checkout service. Missing telemetry config disables
-telemetry without blocking the app. Unavailable telemetry never fails checkout.
+lab, not as a production ticketing service. Missing telemetry config disables
+telemetry without blocking the app. Unavailable telemetry never fails reservation requests.
 
 ## Traffic and deployment handoff
 
-Manual checkout makes one request. The traffic loop waits for each request to
+Each manual reservation makes one request. The traffic loop waits for each request to
 finish, then waits three seconds; it automatically stops at ten minutes. Stop
 aborts the browser request and prevents subsequent attempts; already-started
 server work can run until its five-second deadline. No traffic starts on load.

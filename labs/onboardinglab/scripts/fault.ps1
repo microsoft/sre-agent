@@ -36,14 +36,14 @@ if ($Action -eq 'inject') {
     }
     $headers = @{ Authorization = 'Bearer ' + ($armToken -join '').Trim() }
     try { $alerts = (Invoke-RestMethod -Uri $alertsUrl -Method Get -Headers $headers).value }
-    catch { throw 'Unable to inspect prior checkout alerts before injecting the fault.' }
+    catch { throw 'Unable to inspect prior reservation alerts before injecting the fault.' }
 
     $priorAlerts = @($alerts | Where-Object { $_.properties.essentials.alertRule -ieq $alertRuleId })
     foreach ($alert in $priorAlerts) {
         $essentials = $alert.properties.essentials
         if ($essentials.alertState -ieq 'Closed') { continue }
         if ($essentials.monitorCondition -ine 'Resolved') {
-            throw 'A prior checkout alert is still fired. Reset the fault, generate successful traffic, and wait for the alert to resolve before reinjecting.'
+            throw 'A prior reservation alert is still fired. Reset the fault, generate successful traffic, and wait for the alert to resolve before reinjecting.'
         }
         $changeStateUrl = "https://management.azure.com$($alert.id)/changestate?api-version=2019-03-01&newState=Closed"
         $body = @{ comments = 'Closed by the Azure SRE Agent Onboarding Lab fault helper before a new rehearsal.' } | ConvertTo-Json -Compress
@@ -51,7 +51,7 @@ if ($Action -eq 'inject') {
             $null = Invoke-RestMethod -Uri $changeStateUrl -Method Post -Headers $headers `
                 -ContentType 'application/json' -Body $body
         }
-        catch { throw 'Unable to close the prior checkout alert before injecting the fault.' }
+        catch { throw 'Unable to close the prior reservation alert before injecting the fault.' }
     }
     $headers.Clear()
     $armToken = $null
@@ -62,4 +62,4 @@ if ($Action -eq 'inject') {
     --name onboardinglab-fault --template-file (Join-Path $labRoot 'fault.bicep') `
     --parameters "networkSecurityGroupName=$nsg" "injectDatabaseFault=$fault" --output none
 if ($LASTEXITCODE -ne 0) { throw 'Fault rule deployment failed.' }
-Write-Host "Fault $Action completed. Generate new checkout traffic to verify the result."
+Write-Host "Fault $Action completed. Generate new reservation traffic to verify the result."

@@ -399,7 +399,7 @@ if [[ "$count" -gt 0 ]]; then
         cronExpression: (.schedule // .cronExpression // ""),
         agentPrompt: (.prompt // .agentPrompt // ""),
         agentMode: (.mode // .agentMode // "Review"),
-        isEnabled: (.enabled // true)
+        isEnabled: (if has("enabled") then .enabled else true end)
       }' <<< "$spec")
       dataplane_put_extended "scheduledtasks" "$name" "ScheduledTask" "[]" "$props"
     done
@@ -1023,10 +1023,12 @@ if [[ -n "$HTTP_TRIGGER_URL" ]]; then
   AGENT_JSON_DIR=$(dirname "$FILE")
   # The FILE is extras.json — look for agent.json in the original config dir
   # deploy.sh passes INPUT as an env var if available
-  WH_ENABLED="false"
+  WH_ENABLED=$(jq -r '.enableWebhookBridge // false' "$FILE")
   for candidate in "${INPUT}/agent.json" "${AGENT_JSON_DIR}/../agent.json" "${AGENT_JSON_DIR}/agent.json"; do
     if [[ -f "$candidate" ]]; then
-      WH_ENABLED=$(jq -r '.toggles.enableWebhookBridge // false' "$candidate" 2>/dev/null)
+      if [[ $(jq -r '.toggles.enableWebhookBridge // false' "$candidate" 2>/dev/null) == "true" ]]; then
+        WH_ENABLED="true"
+      fi
       break
     fi
   done
@@ -1050,7 +1052,8 @@ if [[ -n "$HTTP_TRIGGER_URL" ]]; then
         --resource-group "$RG" \
         --template-file "${SCRIPT_PATH}/logic-app-bridge.bicep" \
         --parameters agentName="$AGENT" location="$(az group show -n "$RG" --query location -o tsv)" triggerUrl="$HTTP_TRIGGER_URL" \
-        --output json 2>&1)
+        --only-show-errors \
+        --output json)
       LA_STATE=$(echo "$LA_RESULT" | jq -r '.properties.provisioningState // "?"' 2>/dev/null)
       if [[ "$LA_STATE" == "Succeeded" ]]; then
         WH_CALLBACK=$(echo "$LA_RESULT" | jq -r '.properties.outputs.logicAppCallbackUrl.value // empty')

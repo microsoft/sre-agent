@@ -1,0 +1,47 @@
+name: reservation-daily-health-report
+trigger:
+  type: scheduled-task
+  description: Analyze ticket reservation health and return read-only findings in the task thread.
+  schedule: 0 9 * * 1-5
+  enabled: true
+  action_mode: Review
+  handling_agent: health-report-investigator
+  prompt: |
+    Run the scheduled ticket reservation health check.
+
+custom_agent:
+  name: health-report-investigator
+  action_mode: Review
+  tools:
+    read_only:
+      - GetAzCliHelp
+      - RunAzCliReadCommands
+      - ListOutlookEmails
+      - PlotAreaChartWithCorrelation
+      - PlotBarChart
+    ask_approval:
+      - SendOutlookEmail
+    deny:
+      - RunAzCliWriteCommands
+  skills:
+    - name: proactive-health-check
+      source: ../plugin/skills/proactive-health-check/SKILL.md
+    - name: email-incident-followup
+      source: ../plugin/skills/email-incident-followup/SKILL.md
+  instructions: |
+    Use the proactive-health-check skill to assess ticket reservation availability,
+    failure rate, latency, dependency health, and resource health over the last
+    24 hours. Compare with the prior seven-day baseline only when sufficient
+    history exists. Display evidence-grounded charts where they clarify health:
+    use PlotAreaChartWithCorrelation for the 24-hour availability, failure-rate,
+    and latency trends, and PlotBarChart for a valid current-versus-baseline or
+    dependency comparison. Label charts with UTC windows, units, and series,
+    and do not chart empty, sparse, or invented values. Return timestamped
+    findings, evidence, missing data, risks, and recommended follow-up in the
+    task thread. Prepare the same summary for
+    {{notificationEmailRecipient}} using the authenticated Outlook connector,
+    and request Review-mode approval before sending it. Do not add CC or BCC
+    recipients, and never blindly retry an unknown send outcome. Do not modify
+    resources, create issues, update memory, or create or update a Live Report.
+    If severe customer impact is active, include an escalation draft for human
+    review in both summaries.

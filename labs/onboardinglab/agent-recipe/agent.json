@@ -19,11 +19,11 @@
       "required": true
     },
     "appInsightsId": {
-      "ask": "Checkout Application Insights resource ID",
+      "ask": "Ticket reservation Application Insights resource ID",
       "required": true
     },
     "appInsightsAppId": {
-      "ask": "Checkout Application Insights application ID",
+      "ask": "Ticket reservation Application Insights application ID",
       "required": true
     },
     "githubRepo": {

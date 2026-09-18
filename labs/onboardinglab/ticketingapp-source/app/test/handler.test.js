@@ -57,7 +57,7 @@ async function invoke(handler, method = 'POST', url = '/checkout') {
   return response;
 }
 
-test('checkout succeeds with a fresh verified-TLS client, SELECT 1, cleanup and exact telemetry', async () => {
+test('reservation succeeds with a fresh verified-TLS client, SELECT 1, cleanup and exact telemetry', async () => {
   const f = fixture();
   for (let i = 0; i < 2; i += 1) {
     const response = await invoke(f.handler);
@@ -116,7 +116,7 @@ for (const phase of ['connect', 'query']) {
   });
 }
 
-test('missing configuration affects only checkout; health and assets work without a DB', async () => {
+test('missing configuration affects only reservations; health and assets work without a DB', async () => {
   const f = fixture({ handler: { env: {} } });
   assert.equal((await invoke(f.handler, 'GET', '/healthz')).status, 200);
   assert.equal((await invoke(f.handler, 'GET', '/')).status, 200);
@@ -274,7 +274,7 @@ test('idle socket errors are sanitized and cleanup errors cannot expose credenti
   assert.equal(g.clients[0].destroyed, 1);
 });
 
-test('telemetry errors do not change checkout responses', async () => {
+test('telemetry errors do not change reservation responses', async () => {
   const f = fixture();
   f.telemetry.trackRequest = () => { throw secretError; };
   f.telemetry.trackDependency = () => { throw secretError; };

@@ -1,0 +1,56 @@
+name: SRE Agent PR validation
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send verified PR metadata to SRE Agent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WEBHOOK_URL: ${{ secrets.SRE_AGENT_WEBHOOK_URL }}
+          EVENT_NAME: pull_request
+          EVENT_ACTION: ${{ github.event.action }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_DIFF_URL: ${{ github.event.pull_request.diff_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          test -n "$WEBHOOK_URL"
+          test "${{ github.event.pull_request.changed_files }}" -le 100
+          changed_files="$(gh api \
+            -H 'Accept: application/vnd.github+json' \
+            "repos/$REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+            --jq '[.[] | {filename, status, additions, deletions, changes, patch}]')"
+          jq -n \
+            --arg event "$EVENT_NAME" \
+            --arg action "$EVENT_ACTION" \
+            --arg repo "$REPOSITORY" \
+            --argjson pr_number "$PR_NUMBER" \
+            --arg pr_url "$PR_URL" \
+            --arg pr_diff_url "$PR_DIFF_URL" \
+            --arg pr_author "$PR_AUTHOR" \
+            --arg base_ref "$BASE_REF" \
+            --arg head_ref "$HEAD_REF" \
+            --arg head_sha "$HEAD_SHA" \
+            --argjson changed_files "$changed_files" \
+            '{event: $event, action: $action, repo: $repo, pr_number: $pr_number,
+              pr_url: $pr_url, pr_diff_url: $pr_diff_url, pr_author: $pr_author,
+              base_ref: $base_ref, head_ref: $head_ref, head_sha: $head_sha,
+              changed_files: $changed_files}' \
+            | curl --fail-with-body --silent --show-error \
+                --retry 2 --retry-all-errors \
+                --header 'Content-Type: application/json' \
+                --data-binary @- "$WEBHOOK_URL"

@@ -8,7 +8,7 @@ const { join } = require('node:path');
 const { runInNewContext } = require('node:vm');
 const { createHandler } = require('../handler');
 
-test('server selects the UAMI and fetches the PostgreSQL scope only on checkout, never on startup', async () => {
+test('server selects the UAMI and fetches the PostgreSQL scope only on reservation, never on startup', async () => {
   const env = {
     AZURE_CLIENT_ID: 'test-uami-client-id', POSTGRES_USER: 'lab-uami-display-name',
     POSTGRES_HOST: 'private.example.test', POSTGRES_DATABASE: 'lab',

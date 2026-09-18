@@ -3,6 +3,7 @@
 param(
     [Parameter(Mandatory)][ValidatePattern('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')][string] $Subscription,
     [Parameter(Mandatory)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9-]*$')][string] $AgentName,
+    [Parameter(Mandatory)][ValidatePattern('^[^\s@]+@[^\s@]+\.[^\s@]+$')][string] $NotificationEmailRecipient,
     [Parameter(Mandatory)][string] $Template
 )
 
@@ -43,7 +44,9 @@ New-Item -ItemType Directory -Path $tempDir | Out-Null
 try {
     $extrasFile = Join-Path $tempDir 'workflow.extras.json'
     $agentExtrasFile = Join-Path $tempDir 'workflow-agent.extras.json'
-    & $python.Command @($python.Arguments) $renderer --template $Template --output $extrasFile
+    $scheduledTaskExtrasFile = Join-Path $tempDir 'workflow-scheduled-task.extras.json'
+    & $python.Command @($python.Arguments) $renderer --template $Template --output $extrasFile `
+        --notification-email-recipient $NotificationEmailRecipient
 
     $agents = @(& az resource list --subscription $Subscription --resource-type Microsoft.App/agents `
         --query "[?name=='$AgentName'].{id:id,resourceGroup:resourceGroup}" --output json | ConvertFrom-Json)
@@ -80,12 +83,19 @@ try {
     Write-Host "  ok healthy telemetry connectors: $healthy"
     Write-Host "  ok telemetry query tools: $($telemetryTools -join ', ')"
     Write-Host 'Workflow prerequisites validated.'
-    $extras.subagents[0].spec.tools = @($extras.subagents[0].spec.tools + $telemetryTools | Sort-Object -Unique)
+    foreach ($subagent in $extras.subagents) {
+        $subagent.spec.tools = @($subagent.spec.tools + $telemetryTools | Sort-Object -Unique)
+    }
 
     @{ skills = $extras.skills; subagents = $extras.subagents } |
         ConvertTo-Json -Depth 50 | Set-Content -LiteralPath $agentExtrasFile -Encoding utf8
-    Write-Host 'Installing workflow skills and subagent...'
+    Write-Host 'Installing workflow skills and subagents...'
     & $applyExtras -Subscription $Subscription -ResourceGroup $resourceGroup -AgentName $AgentName -ExtrasFile $agentExtrasFile
+
+    @{ scheduledTasks = $extras.scheduledTasks } |
+        ConvertTo-Json -Depth 50 | Set-Content -LiteralPath $scheduledTaskExtrasFile -Encoding utf8
+    Write-Host 'Installing scheduled task after its handling subagent...'
+    & $applyExtras -Subscription $Subscription -ResourceGroup $resourceGroup -AgentName $AgentName -ExtrasFile $scheduledTaskExtrasFile
 
     $token = (& az account get-access-token --resource https://azuresre.dev --query accessToken --output tsv).Trim()
     $headers = @{ Authorization = "Bearer $token" }
@@ -111,11 +121,24 @@ try {
 
     $installedAgent = Invoke-RestMethod -Method Get -Uri "$endpoint/api/v2/extendedAgent/agents/$customAgentName" -Headers $headers
     if ($installedAgent.name -ne $customAgentName) { throw "Custom agent verification failed: $customAgentName" }
-    foreach ($toolName in $telemetryTools) {
-        if ($toolName -notin $installedAgent.properties.tools) { throw "Custom agent is missing telemetry tool: $toolName" }
+    $expectedIncidentAgent = $extras.subagents | Where-Object { $_.metadata.name -eq $customAgentName }
+    foreach ($toolName in $expectedIncidentAgent.spec.tools) {
+        if ($toolName -notin $installedAgent.properties.tools) { throw "Custom agent $customAgentName is missing tool: $toolName" }
     }
     foreach ($toolName in $extras.installerRequirements.deniedTools) {
         if ($toolName -in $installedAgent.properties.tools) { throw "Custom agent contains denied tool: $toolName" }
+    }
+    $scheduledTaskAgentName = $extras.installerRequirements.scheduledTaskAgentName
+    $scheduledTaskAgent = Invoke-RestMethod -Method Get -Uri "$endpoint/api/v2/extendedAgent/agents/$scheduledTaskAgentName" -Headers $headers
+    if ($scheduledTaskAgent.name -ne $scheduledTaskAgentName) { throw "Custom agent verification failed: $scheduledTaskAgentName" }
+    $expectedScheduledTaskAgent = $extras.subagents | Where-Object { $_.metadata.name -eq $scheduledTaskAgentName }
+    foreach ($toolName in $expectedScheduledTaskAgent.spec.tools) {
+        if ($toolName -notin $scheduledTaskAgent.properties.tools) { throw "Custom agent $scheduledTaskAgentName is missing tool: $toolName" }
+    }
+    foreach ($skillName in $extras.installerRequirements.scheduledTaskSkillNames) {
+        if ($skillName -notin $scheduledTaskAgent.properties.allowedSkills) {
+            throw "Scheduled task custom agent is missing skill: $skillName"
+        }
     }
     foreach ($skillName in $extras.installerRequirements.skillNames) {
         $installedSkill = Invoke-RestMethod -Method Get -Uri "$endpoint/api/v2/extendedAgent/skills/$skillName" -Headers $headers
@@ -126,7 +149,19 @@ try {
         (Compare-Object @($filter.properties.priorities) @('Sev1', 'Sev2'))) {
         throw "Response plan verification failed: $filterName"
     }
-    Write-Host "Workflow $filterName installed with response plan $filterName connected to subagent $customAgentName."
+    $scheduledTaskName = $extras.installerRequirements.scheduledTaskName
+    $scheduledTaskSchedule = $extras.installerRequirements.scheduledTaskSchedule
+    $scheduledTaskResponse = Invoke-RestMethod -Method Get -Uri "$endpoint/api/v2/extendedAgent/scheduledtasks" -Headers $headers
+    $scheduledTasks = if ($scheduledTaskResponse.value) { @($scheduledTaskResponse.value) } else { @($scheduledTaskResponse) }
+    $scheduledTask = @($scheduledTasks | Where-Object { $_.name -eq $scheduledTaskName })
+    $scheduledTaskIsActive = $scheduledTask.Count -eq 1 -and
+        ($scheduledTask[0].properties.status -eq 'Active' -or $scheduledTask[0].properties.isEnabled -eq $true)
+    if ($scheduledTask.Count -ne 1 -or $scheduledTask[0].properties.cronExpression -ne $scheduledTaskSchedule -or
+        $scheduledTask[0].properties.agent -ne $scheduledTaskAgentName -or
+        $scheduledTask[0].properties.agentMode -ne 'Review' -or -not $scheduledTaskIsActive) {
+        throw "Scheduled task verification failed: $scheduledTaskName"
+    }
+    Write-Host "Workflow $filterName installed with response plan $filterName connected to subagent $customAgentName and active scheduled task $scheduledTaskName connected to subagent $scheduledTaskAgentName."
 }
 finally {
     Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue

@@ -15,16 +15,16 @@
   "ask": [
     "RunAzCliWriteCommands",
     "CreateGithubIssue",
-    "SendOutlookEmail"
+    "SendOutlookEmail",
+    "CreateFile",
+    "ReplaceStringInFile",
+    "MultiReplaceStringInFile"
   ],
   "deny": [
     "RunKubectlWriteCommand",
     "RunInTerminal",
     "Terminal",
-    "CreateFile",
     "CreateDirectory",
-    "SaveFileToBlob",
-    "ReplaceStringInFile",
-    "MultiReplaceStringInFile"
+    "SaveFileToBlob"
   ]
 }

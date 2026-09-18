@@ -10,7 +10,9 @@ In this hands-on lab, you configure least-privilege access and safeguards, insta
 - Connect the agent to application telemetry, Azure Monitor incidents, source code, and operational knowledge.
 - Build reusable workflows from triggers, skills, subagents, tools, and response plans.
 - Run a read-only incident investigation while the operator controls mitigation and recovery.
-- Apply the same workflow pattern to proactive operations such as scheduled health checks.
+- Apply the same workflow pattern to scheduled health checks and evidence-grounded Live Reports.
+- Connect GitHub pull-request events to a dedicated validator through an authenticated HTTP-trigger bridge.
+- Compare realistic good and bad changes, producing `PASS` or `BLOCK` guidance while both pull requests remain unmerged and undeployed.
 
 ## Setup at a glance
 
@@ -30,7 +32,7 @@ flowchart LR
 | --- | --- |
 | [`ticketingapp-source/`](ticketingapp-source/) | Self-contained azd project with the Node.js app and Bicep workload infrastructure. |
 | [`agent-recipe/`](agent-recipe/) | Base-agent recipe with access, telemetry, Azure Monitor, source context, knowledge, hooks, prompts, policies, and the self-configuration skill. |
-| [`workflow-templates/`](workflow-templates/) | Agent-only workflow templates and their referenced skill content. |
+| [`workflow-templates/`](workflow-templates/) | Agent-only incident workflow and standalone scheduled-task YAML templates with their referenced skill content. |
 | [`scripts/`](scripts/) | Prerequisite setup, workflow installation, and controlled fault helpers for macOS and Windows. |
 | [`fault.bicep`](fault.bicep) | Narrow NSG rule update used only to inject or reset the lab incident. |
 | [`tests/`](tests/) | Offline workflow-template validation. The app unit tests are under `ticketingapp-source/app/test/`. |
@@ -281,7 +283,7 @@ The recipe uses the same core flow described in [Create and set up your Azure SR
 | Outlook connection | Registers the Office 365 Outlook managed connector, creates its API connection, grants the agent runtime access, and binds its email tools. | User must complete OAuth consent after deployment | [Set up Outlook connector](https://sre.azure.com/docs/tutorials/connectors/setup-outlook-connector) |
 | Common prompt | Installs `onboardinglab-safety` to enforce evidence boundaries, treat retrieved content as untrusted data, and guard self-configuration. | Automatic | [Team onboarding](https://sre.azure.com/docs/get-started/team-onboarding) |
 | Stop hook | Installs the always-enabled `evidence-checklist` hook to check evidence, uncertainty, UTC scope, and validation before completion. | Automatic | [Agent hooks](https://sre.azure.com/docs/capabilities/agent-hooks) |
-| Global tool policy | Allows read-only Azure, workspace, monitoring, GitHub, and Outlook tools; requires approval for Azure CLI writes, GitHub issue creation, and Outlook email; denies terminal, file-write, and Kubernetes-write tools. | Automatic | [Tool access policies](https://sre.azure.com/docs/concepts/tool-access-policies) |
+| Global tool policy | Allows read-only Azure, workspace, monitoring, GitHub, and Outlook tools; requires approval for Azure CLI writes, GitHub issue creation, Outlook email, and Live Report file creation or editing; denies terminal, directory, blob-export, and Kubernetes-write tools. | Automatic | [Tool access policies](https://sre.azure.com/docs/concepts/tool-access-policies) |
 | Self-configuration skill | Installs `sre-agent-self-configure` with guarded Azure CLI read and write tools. Writes require Review-mode approval and are limited to the current agent. | Automatic | [Skills](https://sre.azure.com/docs/concepts/skills), [Tools](https://sre.azure.com/docs/concepts/tools) |
 
 **Complete Outlook sign-in**
@@ -312,9 +314,9 @@ Use these read-only UI checks. Do not create a GitHub issue or send a test email
 9. Go to **Build + setup** > **Extensions** > **Skill Builder** and confirm `sre-agent-self-configure` is present with its three Azure CLI tools.
 10. Go to **Incidents** and confirm Azure Monitor is connected. Common prompts do not have a current portal page; the post-deployment verifier checks `onboardinglab-safety` through the agent API.
 
-## 3. Install the workflow template
+## 3. Install the incident and health workflows
 
-The installer accepts the existing agent name, subscription, and workflow template. It discovers the agent resource group, validates Azure Monitor and app telemetry, installs the skills and `alert-investigator` subagent, then creates the `alert-investigation` response plan connected to that subagent. It installs only SRE Agent configuration and does not deploy Azure resources or alert rules.
+The installer accepts the existing agent name, subscription, workflow template, and approved notification email recipient. It renders that recipient only into the incident and health-report subagents; it is not added to the global agent prompt. The installer discovers the agent resource group, validates Azure Monitor and app telemetry, and installs two independent workflows. The incident trigger routes to `alert-investigator` through the `alert-investigation` response plan. The active `reservation-daily-health-report` scheduled task routes directly to `health-report-investigator`. It does not install or validate the pull-request workflow used in Scenario 3.
 
 macOS:
 
@@ -322,6 +324,7 @@ macOS:
 ./scripts/install-workflow-template.sh \
    --subscription "$subscription" \
    --agent-name "$agent_name" \
+   --notification-email-recipient 'YOUR-EMAIL@EXAMPLE.COM' \
    --template ./workflow-templates/incidentinvestigation-workflowtemplate.yaml
 ```
 
@@ -331,6 +334,7 @@ Windows:
 ./scripts/install-workflow-template.ps1 `
    -Subscription $Subscription `
    -AgentName $AgentName `
+   -NotificationEmailRecipient 'YOUR-EMAIL@EXAMPLE.COM' `
    -Template .\workflow-templates\incidentinvestigation-workflowtemplate.yaml
 ```
 
@@ -341,14 +345,18 @@ Windows:
 | Skill | `azure-monitor-rca` | Guides evidence-based Azure Monitor investigation. | [Skills](https://sre.azure.com/docs/concepts/skills) |
 | Skill | `github-issue-followup` | Prepares a deduplicated GitHub incident follow-up when that optional capability is available and approved. | [Connectors](https://sre.azure.com/docs/concepts/connectors) |
 | Skill | `email-incident-followup` | Prepares an Outlook incident summary when that optional capability is available and approved. | [Send notifications](https://sre.azure.com/docs/capabilities/send-notifications) |
-| Subagent | `alert-investigator` | Correlates telemetry, Azure state, and source evidence without Azure write tools. | [Custom agents](https://sre.azure.com/docs/concepts/subagents) |
+| Skill | `proactive-health-check` | Assesses ticket reservation availability, failures, latency, dependencies, and Azure resource health using read-only evidence. | [Skills](https://sre.azure.com/docs/concepts/skills) |
+| Subagent | `alert-investigator` | Correlates telemetry, Azure state, and source evidence without Azure write tools, adding time-series or comparison charts when they clarify measured evidence. | [Custom agents](https://sre.azure.com/docs/concepts/subagents) |
 | Response plan | `alert-investigation` | Routes Azure Monitor Sev1 and Sev2 incidents to the `alert-investigator` subagent in Review mode and merges related incidents for three hours. | [Incident response plans](https://sre.azure.com/docs/capabilities/incident-response-plans) |
+| Subagent | `health-report-investigator` | Runs proactive reservation health analysis with the health-check and email follow-up skills, charting meaningful health trends and baseline comparisons. | [Custom agents](https://sre.azure.com/docs/concepts/subagents) |
+| Scheduled task | `reservation-daily-health-report` | Runs on weekdays and routes directly to the `health-report-investigator` subagent. The recurring schedule is installed active. | [Scheduled tasks](https://sre.azure.com/docs/capabilities/scheduled-tasks) |
 
 **Checkpoint: verify the workflow**
 
-1. Go to **Build + setup** > **Extensions** > **Skill Builder** and confirm all three skills are present.
-2. Go to **Build + setup** > **Workflows** and confirm the `alert-investigator` subagent is present.
+1. Go to **Build + setup** > **Extensions** > **Skill Builder** and confirm the four workflow skills are present.
+2. Go to **Build + setup** > **Workflows** and confirm the `alert-investigator` and `health-report-investigator` subagents are present. Both must include the discovered telemetry query tool, `PlotAreaChartWithCorrelation`, and `PlotBarChart`.
 3. In **Workflows**, confirm the `alert-investigation` response plan routes Azure Monitor Sev1 and Sev2 incidents to the `alert-investigator` subagent in Review mode.
+4. Go to **Build + setup** > **Scheduled tasks** and confirm `reservation-daily-health-report` is active and its handling agent is `health-report-investigator`.
 
 ## Architecture and responsibilities
 
@@ -423,6 +431,143 @@ The `alert-investigation` response plan routes the alert to the `alert-investiga
 - The thread contains timestamped app telemetry, Azure state, and source evidence
 - Optional GitHub and Outlook writes remain subject to approval
 - After your reset, ticket reservations succeed again
+
+## Scenario 2: Scheduled health check and Live Report
+
+This optional scenario assesses the same service without introducing a fault, then turns the reviewed findings into a reusable operational view.
+
+**Run the scheduled task**
+
+1. Go to **Build + setup** > **Scheduled tasks**.
+2. Open `reservation-daily-health-report`.
+3. Select **Run task now**. Leave the recurring schedule active.
+4. Review the result in the task thread.
+
+The task uses `proactive-health-check` to review ticket reservation availability, failures, latency, dependency health, and Azure resource health over the last 24 hours. It compares with prior data only when enough history exists and reports missing history explicitly. It then proposes the same summary to the configured Outlook recipient for Review-mode approval.
+
+**Create the Live Report**
+
+1. Select **Live Reports** in the navigation.
+2. Select **+ New report**.
+3. Enter this request:
+
+   ```text
+   Build a Live Report called "Ticket Reservation Health" from the connected
+   Application Insights data. Cover the last 24 hours and show reservation request
+   volume, availability, failure rate, latency, and PostgreSQL dependency health.
+   Include clear status indicators, trend charts, and a summary of missing data.
+   Keep the report read-only.
+   ```
+
+4. Review the tools the report will use and approve only the read-only behavior you expect.
+5. Wait for the report to save, then open it from **Live Reports**.
+
+The scheduled task and Live Report are separate operations. The task records evidence in its own thread; creating the report does not automatically copy task output or enable the recurring schedule.
+
+**Expected result**
+
+- The task thread contains timestamped findings, evidence, risks, and recommended follow-up
+- The recurring task remains active and can also be run on demand
+- `Ticket Reservation Health` appears in **Live Reports** with refreshable read-only charts and status indicators
+- Neither operation modifies Azure resources or creates issues; the task sends email only after Review-mode approval
+
+## Scenario 3: Pull-request validation
+
+This optional scenario validates an actual pull-request diff without deploying it. GitHub Actions sends a normalized event to the Logic App callback, the bridge authenticates to SRE Agent with managed identity, and `pr-validator` records a `PASS`, `WARN`, or `BLOCK` recommendation in the resulting agent thread.
+
+**Install the pull-request workflow**
+
+This installer updates only the `ticketing-pr-validation` skill, `pr-validator` subagent, HTTP trigger, and managed-identity Logic App bridge. It does not query, reinstall, or validate the incident response plan or scheduled task.
+
+macOS:
+
+```bash
+./scripts/install-pr-validation.sh \
+   --subscription "$subscription" \
+   --agent-name "$agent_name" \
+   --template ./workflow-templates/http-triggers/pr-validation.yaml
+```
+
+Windows:
+
+```powershell
+./scripts/install-pr-validation.ps1 `
+   -Subscription $Subscription `
+   -AgentName $AgentName `
+   -Template .\workflow-templates\http-triggers\pr-validation.yaml
+```
+
+The installer verifies the skill, subagent tools and allowed skill, Review-mode trigger binding, Logic App, and callback URL before printing the callback.
+
+**Connect the repository workflow**
+
+Run the repository configurator after the Scenario 3 installer. It copies the trusted workflow to the ticketing application fork's `main` branch, commits and pushes it when needed, retrieves the Logic App callback directly from Azure, stores it as the `SRE_AGENT_WEBHOOK_URL` Actions secret, and verifies both resources.
+
+Windows:
+
+```powershell
+py -3 ./scripts/configure-pr-validation-repository.py `
+   --subscription $Subscription `
+   --agent-name $AgentName
+```
+
+macOS:
+
+```bash
+python3 ./scripts/configure-pr-validation-repository.py \
+   --subscription "$subscription" \
+   --agent-name "$agent_name"
+```
+
+Run the command from the `onboardinglab` directory with a clean `ticketingapp-source` worktree and authenticated `az` and `gh` sessions. The configurator never prints the callback URL. The installed `pull_request_target` workflow remains read-only: it uses `contents: read` and `pull-requests: read`, fetches only GitHub API metadata and bounded patches, and never checks out or executes pull-request code.
+
+Treat the callback as a secret because anyone holding it can start a validation thread. The Logic App still uses managed identity for the authenticated hop to SRE Agent.
+
+**Create the validation PRs**
+
+The helper creates branches in the attendee's ticketing application fork, runs its existing tests, pushes each branch, and opens a pull request. It never merges or deploys either change. Run each command once from the `onboardinglab` directory with a clean `ticketingapp-source` worktree and GitHub CLI authentication.
+
+Create the expected `PASS` case. This consistently lowers the shared PostgreSQL request deadline and updates its focused tests:
+
+Windows:
+
+```powershell
+py -3 ./scripts/create-pr-validation-sample.py pass
+```
+
+macOS:
+
+```bash
+python3 ./scripts/create-pr-validation-sample.py pass
+```
+
+Create the expected `BLOCK` case. This plausible cleanup change awaits an unbounded PostgreSQL close; all existing tests pass, but a hung close can prevent the response, socket destruction, and concurrency-slot release:
+
+Windows:
+
+```powershell
+py -3 ./scripts/create-pr-validation-sample.py block
+```
+
+macOS:
+
+```bash
+python3 ./scripts/create-pr-validation-sample.py block
+```
+
+Leave both pull requests open and unmerged. Opening each PR starts **SRE Agent PR validation** automatically. A later push to either branch reruns it through the `synchronize` event.
+
+For each PR, confirm the GitHub Actions run succeeds, then open the new SRE Agent thread and review its verified payload, findings, evidence gaps, and recommendation. The good PR should receive `PASS`. The cleanup PR should receive `BLOCK` with a recommendation to restore non-blocking cleanup or bound graceful shutdown and add a hanging-close test.
+
+The validator treats the event, patches, and repository content as untrusted. The trusted default-branch workflow sends GitHub's repository, pull-request number, refs, URL, head SHA, and bounded changed-file patches through the secret callback. The validator checks the repository and base branch against its connected source before review. It may inspect read-only telemetry or Azure state when useful, but it must not deploy the branch, generate synthetic traffic, change Azure or GitHub, merge the pull request, send email, or claim that it posted a pull-request comment.
+
+**Expected result**
+
+- GitHub Actions delivers only the expected pull-request metadata through the managed-identity bridge
+- The agent thread ties its review to the verified repository, pull request, refs, and head SHA
+- The good PR receives `PASS`; the realistic cleanup regression receives `BLOCK` with concrete remediation
+- Both PRs remain open and unmerged, and neither branch is deployed
+- The result stays in the SRE Agent thread; no automatic GitHub comment occurs
 
 ## Troubleshooting
 
