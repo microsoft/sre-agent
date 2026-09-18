@@ -53,15 +53,30 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Execution Alias resolves as python3 but exits non-zero on every invocation.
 # Without this check the YAML readers below fail silently and the assembler
 # emits an empty configuration that still deploys and strips a live agent.
-PYTHON=""
+PYTHON=()
 PYTHON_CACHE="${SRE_AGENT_PYTHON_HOME:-${XDG_CACHE_HOME:-${HOME:-$SCRIPT_DIR}/.cache}/sre-agent/python}"
-for candidate in python3 python py "$PYTHON_CACHE/bin/python" "$PYTHON_CACHE/Scripts/python.exe"; do
-  if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c "import yaml" >/dev/null 2>&1; then
-    PYTHON="$candidate"
-    break
+
+select_python() {
+  local candidate="$1"
+  shift
+  if command -v "$candidate" >/dev/null 2>&1 \
+    && "$candidate" "$@" -c "import sys, yaml; assert sys.version_info.major == 3" >/dev/null 2>&1; then
+    PYTHON=("$candidate" "$@")
+    return 0
   fi
-done
-if [[ -z "$PYTHON" ]]; then
+  return 1
+}
+
+# Match the Windows onboarding prerequisite flow: prefer the Python launcher
+# with an explicit Python 3 selector, then fall back to ordinary executables.
+select_python py -3 \
+  || select_python python \
+  || select_python python3 \
+  || select_python "$PYTHON_CACHE/bin/python" \
+  || select_python "$PYTHON_CACHE/Scripts/python.exe" \
+  || true
+
+if [[ ${#PYTHON[@]} -eq 0 ]]; then
   echo "Error: Python 3 with PyYAML is required to assemble YAML configuration." >&2
   echo "Install it with: ${SCRIPT_DIR}/../bin/install-prerequisites.sh --python-only" >&2
   echo "Or install manually: python3 -m pip install --user pyyaml" >&2
@@ -94,7 +109,7 @@ resolve_file_refs() {
   # Pass JSON on stdin: interpolating it into the Python source breaks on any
   # skill body containing a triple quote, and the old fallback hid that failure
   # by emitting the unresolved path as the skill's content.
-  if ! printf '%s' "$json" | "$PYTHON" -c "
+  if ! printf '%s' "$json" | "${PYTHON[@]}" -c "
 import json, os, sys
 base = sys.argv[1]
 data = json.load(sys.stdin)
@@ -137,7 +152,7 @@ collect_config() {
       for f in "${full}"/*.yaml "${full}"/*.yml; do
         [[ -f "$f" ]] || continue
         local item
-        if ! item=$("$PYTHON" -c "
+        if ! item=$("${PYTHON[@]}" -c "
 import json, sys, yaml
 with open(sys.argv[1], encoding='utf-8') as fh:
     print(json.dumps(yaml.safe_load(fh)))
@@ -163,7 +178,7 @@ with open(sys.argv[1], encoding='utf-8') as fh:
 # ── Helper: substitute env vars in connector JSON ──
 resolve_env_vars() {
   local json="$1"
-  if ! echo "$json" | "$PYTHON" -c "
+  if ! echo "$json" | "${PYTHON[@]}" -c "
 import json, sys, os, re
 data = json.load(sys.stdin)
 def sub(obj):
