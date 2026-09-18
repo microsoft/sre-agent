@@ -1,6 +1,39 @@
 # Check-Prerequisites.ps1 — verifies required tools are installed
 # Dot-source from any script: . "$PSScriptRoot\Check-Prerequisites.ps1"
 
+function Get-PythonPrerequisite {
+    $seen = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase
+    )
+    $usablePython = $null
+
+    foreach ($name in @('python3', 'python', 'py')) {
+        $command = Get-Command $name -ErrorAction SilentlyContinue
+        if (-not $command) { continue }
+
+        $executable = $command.Source
+        if (-not $executable -or -not $seen.Add($executable)) { continue }
+
+        & $executable -c 'import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)' *> $null
+        if ($LASTEXITCODE -ne 0) { continue }
+
+        if (-not $usablePython) { $usablePython = $executable }
+
+        & $executable -c 'import yaml' *> $null
+        if ($LASTEXITCODE -eq 0) {
+            return [PSCustomObject]@{
+                Command = $executable
+                HasYaml = $true
+            }
+        }
+    }
+
+    return [PSCustomObject]@{
+        Command = $usablePython
+        HasYaml = $false
+    }
+}
+
 function Test-Prerequisites {
     param(
         [switch]$IncludePython,
@@ -25,15 +58,12 @@ function Test-Prerequisites {
 
     # Python 3 + PyYAML
     if ($IncludePython) {
-        $py = Get-Command python3 -ErrorAction SilentlyContinue
-        if (-not $py) { $py = Get-Command python -ErrorAction SilentlyContinue }
-        if (-not $py) {
+        $python = Get-PythonPrerequisite
+        if (-not $python.Command) {
             $missing += "Python 3 — install: https://www.python.org/downloads/"
-        } else {
-            $hasYaml = & $py.Source -c "import yaml" 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                $missing += "PyYAML — install: pip install pyyaml"
-            }
+        }
+        elseif (-not $python.HasYaml) {
+            $missing += "PyYAML — install: $($python.Command) -m pip install pyyaml"
         }
     }
 
