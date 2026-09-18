@@ -529,16 +529,30 @@ The helper creates branches in the attendee's ticketing application fork, runs i
 
 Create the expected `PASS` case. This consistently lowers the shared PostgreSQL request deadline and updates its focused tests:
 
+Windows:
+
 ```powershell
 py -3 ./scripts/create-pr-validation-sample.py pass
 ```
 
-On macOS, use `python3` instead of `py -3`.
+macOS:
+
+```bash
+python3 ./scripts/create-pr-validation-sample.py pass
+```
 
 Create the expected `BLOCK` case. This plausible cleanup change awaits an unbounded PostgreSQL close; all existing tests pass, but a hung close can prevent the response, socket destruction, and concurrency-slot release:
 
+Windows:
+
 ```powershell
 py -3 ./scripts/create-pr-validation-sample.py block
+```
+
+macOS:
+
+```bash
+python3 ./scripts/create-pr-validation-sample.py block
 ```
 
 Leave both pull requests open and unmerged. Opening each PR starts **SRE Agent PR validation** automatically. A later push to either branch reruns it through the `synchronize` event.
