@@ -20,11 +20,11 @@
     "onboardinglab-architecture-md",
     "onboardinglab-incident-r-2bcbfae"
   ],
-  "managedConnectors": [
-    "office365"
-  ],
+  "managedConnectors": [],
   "skills": [
-    "sre-agent-self-configure"
+    "sre-agent-self-configure",
+    "onboarding-lab-guide",
+    "onboarding-health-check"
   ],
   "skillDetails": [
     {
@@ -33,6 +33,20 @@
         "GetAzCliHelp",
         "RunAzCliReadCommands",
         "RunAzCliWriteCommands"
+      ],
+      "requireDescription": true,
+      "requireContent": true
+    },
+    {
+      "name": "onboarding-lab-guide",
+      "tools": [],
+      "requireDescription": true,
+      "requireContent": true
+    },
+    {
+      "name": "onboarding-health-check",
+      "tools": [
+        "QueryAppInsightsUsingAppId"
       ],
       "requireDescription": true,
       "requireContent": true
@@ -47,30 +61,22 @@
   ],
   "scheduledTasks": [],
   "responsePlans": [],
-  "repos": [
-    "ticketingapp-source"
-  ],
-  "repoBranches": {
-    "ticketingapp-source": "main"
-  },
+  "repos": [],
+  "repoBranches": {},
   "toolPermissions": {
     "allow": [
       "GetAzCliHelp",
       "RunAzCliReadCommands",
+      "QueryAppInsightsUsingAppId",
       "ReadFile",
       "ListDir",
       "FileSearch",
       "GrepSearch",
       "read_skill_file",
-      "system-mcp-monitor/*",
-      "FetchGithubIssue",
-      "FetchGithubIssues",
-      "ListOutlookEmails"
+      "system-mcp-monitor/*"
     ],
     "ask": [
-      "RunAzCliWriteCommands",
-      "CreateGithubIssue",
-      "SendOutlookEmail"
+      "RunAzCliWriteCommands"
     ],
     "deny": [
       "RunKubectlWriteCommand",

@@ -8,3 +8,13 @@ services:
     project: ./app
     language: js
     host: appservice
+hooks:
+  postdeploy:
+    windows:
+      shell: pwsh
+      run: ./post-deploy.ps1
+      interactive: true
+    posix:
+      shell: sh
+      run: ./post-deploy.sh
+      interactive: true

@@ -1,0 +1,8 @@
+metadata:
+  name: onboarding-health-check
+  description: Report checkout and PostgreSQL health from bounded read-only telemetry, including missing evidence.
+  spec:
+    tools:
+      - QueryAppInsightsUsingAppId
+skillContent: skills/onboarding-health-check.md
+additionalFiles: []

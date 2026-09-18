@@ -1,0 +1,7 @@
+metadata:
+  name: onboarding-lab-guide
+  description: "Use only when a learner explicitly requests onboarding-lab-guide or asks to start the onboarding lab as a guided lesson. Do not select for incident diagnosis or a generic next-step question. Guide discovery, skill creation, fresh-thread reuse and scheduling."
+  spec:
+    tools: []
+skillContent: skills/onboarding-lab-guide.md
+additionalFiles: []

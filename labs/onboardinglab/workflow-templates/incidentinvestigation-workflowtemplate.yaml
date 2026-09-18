@@ -28,18 +28,9 @@ custom_agent:
     read_only:
       - GetAzCliHelp
       - RunAzCliReadCommands
-      - ReadFile
-      - ListDir
-      - FileSearch
-      - GrepSearch
       - SearchMemory
-      - FetchGithubIssue
-      - FetchGithubIssues
-      - ListOutlookEmails
 
-    ask_approval:
-      - CreateGithubIssue
-      - SendOutlookEmail
+    ask_approval: []
 
     deny:
       - RunAzCliWriteCommands
@@ -48,11 +39,21 @@ custom_agent:
     - name: azure-monitor-rca
       source: ./plugin/skills/azure-monitor-rca/SKILL.md
 
-    - name: github-issue-followup
-      source: ./plugin/skills/github-issue-followup/SKILL.md
-
-    - name: email-incident-followup
-      source: ./plugin/skills/email-incident-followup/SKILL.md
+  optional_capabilities:
+    source_code:
+      read_only: [ReadFile, ListDir, FileSearch, GrepSearch]
+    github_issues:
+      read_only: [FetchGithubIssue, FetchGithubIssues]
+      ask_approval: [CreateGithubIssue]
+      skills:
+        - name: github-issue-followup
+          source: ./plugin/skills/github-issue-followup/SKILL.md
+    email:
+      read_only: [ListOutlookEmails]
+      ask_approval: [SendOutlookEmail]
+      skills:
+        - name: email-incident-followup
+          source: ./plugin/skills/email-incident-followup/SKILL.md
 
   instructions: |
     Investigate the incident received from the Azure Monitor incident platform.
@@ -96,5 +97,5 @@ custom_agent:
     investigation. Missing Azure Monitor incident-platform configuration or all
     telemetry query capabilities must fail validation before deployment.
 
-    Do not modify Azure resources. The operator performs the documented NSG
-    reset.
+    Do not modify Azure resources, even if a learner asks for remediation.
+    The lab operator owns fault injection and reset.

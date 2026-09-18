@@ -10,8 +10,8 @@ Use this runbook when ticket reservations return HTTP 503 or the `POST /checkout
 2. Correlate failed requests with PostgreSQL dependency failures. A healthy `GET /healthz` response does not prove that checkout is healthy.
 3. Inspect the PostgreSQL Flexible Server resource health, availability, and configuration without changing it.
 4. Inspect the App Service virtual network integration, subnet, private DNS path, and the application-subnet network security group.
-5. Check the outbound rule named `PostgreSqlFaultInjection`. A Deny action for TCP 5432 from the application subnet to the database subnet explains simultaneous checkout and PostgreSQL dependency failures when PostgreSQL itself remains healthy.
-6. Review the connected `ticketingapp-source` repository to confirm that checkout creates a fresh connection, uses Microsoft Entra authentication, enforces TLS validation, executes only `SELECT 1`, and applies one five-second deadline.
+5. Compare effective network rules, DNS resolution, routes, and recent configuration changes with the observed failure interval. Identify competing causes before proposing a diagnosis.
+6. If source access was selected during setup, inspect the connected repository for relevant application behavior and configuration. Otherwise report the source-evidence gap and continue with telemetry and Azure state.
 
 ## Evidence standard
 
@@ -19,6 +19,6 @@ Separate confirmed facts from hypotheses. Cite resource IDs, UTC timestamps, tel
 
 ## Recovery boundary
 
-Do not modify the network security group, PostgreSQL server, App Service, identities, role assignments, or agent safeguards. Recommend the narrow reversible reset and let the lab operator run the documented fault-reset command.
+Do not modify the network security group, PostgreSQL server, App Service, identities, role assignments, or agent safeguards. Present an evidence-backed mitigation proposal. The lab operator owns fault injection and reset through the local operator instructions.
 
 After reset, require fresh successful `POST /checkout` requests and successful PostgreSQL dependencies in the new UTC interval before reporting recovery.

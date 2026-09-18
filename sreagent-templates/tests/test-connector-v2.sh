@@ -5,9 +5,13 @@ TEMPLATES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_DIR="$(cd "${TEMPLATES_DIR}/.." && pwd)"
 RECIPE_DIR="${REPO_DIR}/labs/onboardinglab/agent-recipe"
 TMP_DIR="$(mktemp -d)"
+if command -v cygpath >/dev/null 2>&1; then TMP_DIR="$(cygpath -m "$TMP_DIR")"; fi
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-bash "${TEMPLATES_DIR}/bicep/assemble-agent.sh" "$RECIPE_DIR" --output "$TMP_DIR/onboarding" >/dev/null
+cp -R "$RECIPE_DIR" "$TMP_DIR/recipe"
+mkdir -p "$TMP_DIR/recipe/config/connectorv2"
+cp "$RECIPE_DIR/optional/connectorv2/outlook.yaml" "$TMP_DIR/recipe/config/connectorv2/"
+bash "${TEMPLATES_DIR}/bicep/assemble-agent.sh" "$TMP_DIR/recipe" --output "$TMP_DIR/onboarding" >/dev/null
 jq -e '
   (.connectorV2 | length) == 1 and
   .connectorV2[0].metadata.name == "outlook" and
@@ -51,10 +55,12 @@ else
 fi
 EOF
 chmod +x "$TMP_DIR/bin/az" "$TMP_DIR/bin/curl"
+MOCK_BIN="$TMP_DIR/bin"
+if command -v cygpath >/dev/null 2>&1; then MOCK_BIN="$(cygpath -u "$MOCK_BIN")"; fi
 
 export CALL_LOG="$TMP_DIR/calls.log"
 export MCP_BODY="$TMP_DIR/mcp-body.json"
-PATH="$TMP_DIR/bin:$PATH" bash "${TEMPLATES_DIR}/bicep/apply-extras.sh" \
+PATH="$MOCK_BIN:$PATH" bash "${TEMPLATES_DIR}/bicep/apply-extras.sh" \
   test-subscription test-resource-group test-agent "$TMP_DIR/connector.extras.json" >/dev/null
 
 cat > "$TMP_DIR/expected-calls.log" <<'EOF'

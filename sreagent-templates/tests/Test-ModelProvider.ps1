@@ -56,6 +56,26 @@ try {
     if (-not ($extras.toolPermissions.allow -contains 'GetAzCliHelp')) {
         throw 'PowerShell assembly must include tool-permissions.json in extras.'
     }
+    $expected = Get-Content (Join-Path $TemporaryDirectory 'default/expected-config.json') -Raw | ConvertFrom-Json
+    foreach ($skillName in @('onboarding-lab-guide', 'onboarding-health-check')) {
+        if ($skillName -notin $expected.skills) { throw "Missing required skill: $skillName" }
+        $detail = @($expected.skillDetails | Where-Object name -eq $skillName)
+        $skill = @($extras.skills | Where-Object { $_.metadata.name -eq $skillName })
+        if ($detail.Count -ne 1 -or $skill.Count -ne 1) { throw "Missing or duplicated skill contract: $skillName" }
+        if (-not $detail[0].requireDescription -or -not $detail[0].requireContent) { throw "Incomplete verification contract: $skillName" }
+        if ((@($detail[0].tools | Sort-Object) -join ',') -ne (@($skill[0].metadata.spec.tools | Sort-Object) -join ',')) {
+            throw "Skill tool contract differs from its registration: $skillName"
+        }
+    }
+    foreach ($policy in @('allow', 'ask', 'deny')) {
+        if ((@($expected.toolPermissions.$policy | Sort-Object) -join ',') -ne (@($extras.toolPermissions.$policy | Sort-Object) -join ',')) {
+            throw "Expected and assembled tool policy differ: $policy"
+        }
+    }
+    if ('QueryAppInsightsUsingAppId' -notin $extras.toolPermissions.allow) { throw 'The health check requires read-only telemetry access.' }
+    if (@($expected.scheduledTasks).Count -ne 0 -or @($extras.scheduledTasks).Count -ne 0) {
+        throw 'Base setup must not install the scheduled lesson task.'
+    }
 
     $deployScript = Get-Content (Join-Path $TemplatesDirectory 'bin/ps/Deploy-Agent.ps1') -Raw
     if ($deployScript -notmatch "skills\s*=\s*'Skills'" -or $deployScript -notmatch "connectorV2\s*=\s*'Managed connectors'") {

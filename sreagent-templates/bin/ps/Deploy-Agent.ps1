@@ -146,7 +146,8 @@ if (-not (Test-Path $Template)) {
 }
 
 # ── Detect input type and resolve to parameters.json ──
-$CleanupFiles = @()
+$ScratchDirectory = $null
+try {
 $ExtrasFile = ''
 $IsDirectory = Test-Path $InputPath -PathType Container
 $StrictVerification = $false
@@ -173,18 +174,19 @@ if ($IsDirectory) {
         $AssembleScript = Join-Path $BicepDir 'assemble-agent.sh'
     }
 
-    $AssembleTmp = Join-Path ([System.IO.Path]::GetTempPath()) "assembled-$(New-Guid)"
-    $AssembleOut = $AssembleTmp
+    $ScratchDirectory = (New-Item -ItemType Directory -Path (Join-Path ([System.IO.Path]::GetTempPath()) "sre-deploy-$([guid]::NewGuid())")).FullName
+    $AssembleOut = Join-Path $ScratchDirectory 'assembled'
 
+    $global:LASTEXITCODE = 0
     if ($AssembleScript -match '\.ps1$') {
         & $AssembleScript -ConfigDir $InputPath -Output $AssembleOut
     } else {
         bash $AssembleScript $InputPath --output $AssembleOut
     }
+    if ($LASTEXITCODE -ne 0) { throw "Agent assembly failed (exit $LASTEXITCODE)." }
 
     $ParametersFile = "${AssembleOut}.parameters.json"
     $ExtrasFile = "${AssembleOut}.extras.json"
-    $CleanupFiles += $ParametersFile, $ExtrasFile, (Split-Path $AssembleTmp -Parent)
 
     # Copy extras.json into InputPath so it survives cleanup and can be re-used
     # (e.g. re-running Apply-Extras standalone without a full re-deploy)
@@ -557,7 +559,7 @@ if ($State -ne 'Succeeded') {
 
 Write-Host ''
 Write-Header '─────────────── Deployment Succeeded ───────────────'
-$portalUrl       = $deployResult.properties.outputs.agentPortalUrl.value
+$portalUrl       = "https://sre.azure.com/agents/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.App/agents/$AgentName"
 $rgPortalUrl     = $deployResult.properties.outputs.resourceGroupPortalUrl.value
 $dataPlaneUrl    = $deployResult.properties.outputs.agentDataPlaneUrl.value
 Write-Host "  Agent (portal):  $portalUrl"
@@ -583,6 +585,7 @@ if (-not $NoTelemetry -and (Get-Command Send-Telemetry -ErrorAction SilentlyCont
 }
 
 # ── Auto-run Apply-Extras if extras file exists ──
+$ApplyExtrasExit = 0
 if ($ExtrasFile -and (Test-Path $ExtrasFile -ErrorAction SilentlyContinue)) {
     $ExtrasContent = Get-Content $ExtrasFile -Raw | ConvertFrom-Json
     # Count non-empty data-plane entries
@@ -615,7 +618,9 @@ if ($ExtrasFile -and (Test-Path $ExtrasFile -ErrorAction SilentlyContinue)) {
                 ExtrasFile    = $ExtrasFile
             }
             if ($Force) { $applyParams['Force'] = $true }
+            $global:LASTEXITCODE = 0
             & $ApplyExtrasScript @applyParams
+            $ApplyExtrasExit = $LASTEXITCODE
         } else {
             # Fallback to bash
             $applyExtrasBash = Join-Path $BicepDir 'apply-extras.sh'
@@ -623,9 +628,11 @@ if ($ExtrasFile -and (Test-Path $ExtrasFile -ErrorAction SilentlyContinue)) {
                 $env:INPUT = $InputPath
                 $forceArg = if ($Force) { '--force' } else { '' }
                 bash $applyExtrasBash $SubscriptionId $ResourceGroup $AgentName $ExtrasFile $forceArg
+                $ApplyExtrasExit = $LASTEXITCODE
             } else {
                 Write-Host "  ⚠ Apply-Extras script not found. Run manually:"
                 Write-Host "    Apply-Extras.ps1 -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AgentName $AgentName -ExtrasFile $ExtrasFile"
+                $ApplyExtrasExit = 1
             }
         }
     } else {
@@ -673,11 +680,14 @@ if ($IsDirectory) {
         if (Test-Path $verifyBash) {
             try {
                 $VerifyOutput = bash $verifyBash $SubscriptionId $ResourceGroup $AgentName --expected $InputPath 2>&1 | Out-String
+                $VerifyExit = $LASTEXITCODE
             } catch {
                 $VerifyOutput = $_.Exception.Message
+                $VerifyExit = 1
             }
         } else {
             $VerifyOutput = '(Verify-Agent script not found — skipping)'
+            $VerifyExit = 1
         }
     }
     Write-Host $VerifyOutput
@@ -917,14 +927,14 @@ if ($IsDirectory) {
                 Write-Host ''
                 Write-Host '  Test: trigger a problem in Dynatrace (or use the test button)'
                 Write-Host '  Then check the agent portal for the incoming investigation:'
-                Write-Host "  Portal: https://sre.azure.com/#/agent/$SubscriptionId/$ResourceGroup/$AgentName"
+                Write-Host "  Portal: $portalUrl"
                 Write-Host ''
             }
             'pagerduty-law-vmcosmos' {
                 Write-Host ''
                 Write-Header '── PagerDuty setup ──'
                 Write-Host ''
-                Write-Host "  1. Open the agent portal: https://sre.azure.com/#/agent/$SubscriptionId/$ResourceGroup/$AgentName"
+                Write-Host "  1. Open the agent portal: $portalUrl"
                 Write-Host '  2. Navigate to Incident Platforms → PagerDuty'
                 Write-Host '  3. Complete the OAuth flow to connect your PagerDuty account'
                 Write-Host '  4. Select which PagerDuty services to monitor'
@@ -935,9 +945,14 @@ if ($IsDirectory) {
     }
 }
 
-# ── Cleanup temp files ──
-foreach ($f in $CleanupFiles) {
-    if (Test-Path $f -ErrorAction SilentlyContinue) {
-        Remove-Item $f -Recurse -Force -ErrorAction SilentlyContinue
+if ($ApplyExtrasExit -ne 0) {
+    Write-Fail 'Data-plane configuration failed. Review the extras errors above and rerun the failed stage.'
+    exit $ApplyExtrasExit
+}
+
+# Cleanup also runs on dry-run, early exit, assembly failure and deployment errors.
+} finally {
+    if ($ScratchDirectory -and (Test-Path -LiteralPath $ScratchDirectory)) {
+        Remove-Item -LiteralPath $ScratchDirectory -Recurse -Force
     }
 }

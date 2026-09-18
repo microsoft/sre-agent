@@ -1,6 +1,6 @@
 ---
 name: email-incident-followup
-description: Send the configured incident summary during an authorized automated response, with best-effort duplicate checks.
+description: Draft an opted-in incident email and request approval before sending, with best-effort duplicate checks.
 ---
 
 # Email incident follow-up
@@ -16,7 +16,7 @@ Require a trusted existing email connector name, explicitly configured recipient
 1. Discover the named connector's tools and inspect their actual schemas. Do not guess tool names or silently substitute another mailbox. Check the current incident thread for prior send receipts and, when supported, query sent messages for the same incident correlation marker and recipient set.
 2. Prepare the subject and body with impact, UTC incident window, confirmed cause versus uncertainty, mitigation status, validation evidence and next steps. Include the stable incident correlation marker and only a verified GitHub issue URL if one exists; otherwise state that the issue is not yet published. Never invent issue links or claim recovery that has not been verified.
 3. Redact secrets and unnecessary personal/customer data. Confirm the exact connector/sending account and To/CC/BCC lists against the trusted setup binding. Do not add recipients, attachments or forwarding destinations that were not configured.
-4. The configured autonomous incident response plan authorizes one send through that connector to those recipients. It does not authorize another connector, changed recipients, replies, forwarding, or any Azure resource change.
+4. Obtain an explicit request and Review-mode approval for the exact sending account, recipients, subject, and body. Enabling email or running a response plan does not authorize a send. Changed recipients or content require renewed approval.
 5. Recheck available receipts immediately before the authorized send. If a matching message exists, report its receipt rather than resend. When sent-message lookup is unavailable, disclose that limitation in the result. Make only the authorized send call and record the correlation marker, recipients, UTC time and returned message ID/status in the current thread. Provider acceptance is not proof of delivery or reading.
 
 ## Uncertain outcomes and retries

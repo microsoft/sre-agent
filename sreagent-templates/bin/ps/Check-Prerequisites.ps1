@@ -1,6 +1,26 @@
 # Check-Prerequisites.ps1 — verifies required tools are installed
 # Dot-source from any script: . "$PSScriptRoot\Check-Prerequisites.ps1"
 
+function Resolve-PythonWithYaml {
+    $failures = @()
+    foreach ($candidate in @('python3', 'python')) {
+        $commands = @(Get-Command $candidate -CommandType Application -All -ErrorAction SilentlyContinue)
+        foreach ($command in $commands) {
+            try {
+                $probe = & $command.Source -c "import sys; import yaml; sys.exit('Python 3 required') if sys.version_info.major != 3 else print('sre-python-ready')" 2>&1
+                if ($LASTEXITCODE -eq 0 -and $probe -contains 'sre-python-ready') {
+                    return $command.Source
+                }
+                $failures += "$($command.Source): Python 3/PyYAML probe failed (exit $LASTEXITCODE)"
+            } catch {
+                $failures += "$($command.Source): $($_.Exception.Message)"
+            }
+        }
+    }
+    if ($failures.Count -eq 0) { $failures += 'python3 and python were not found in PATH' }
+    throw "Python 3 with PyYAML is required. $($failures -join '; '). Install PyYAML using the intended interpreter: python -m pip install pyyaml"
+}
+
 function Test-Prerequisites {
     param(
         [switch]$IncludePython,
@@ -25,15 +45,12 @@ function Test-Prerequisites {
 
     # Python 3 + PyYAML
     if ($IncludePython) {
-        $py = Get-Command python3 -ErrorAction SilentlyContinue
-        if (-not $py) { $py = Get-Command python -ErrorAction SilentlyContinue }
-        if (-not $py) {
-            $missing += "Python 3 — install: https://www.python.org/downloads/"
-        } else {
-            $hasYaml = & $py.Source -c "import yaml" 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                $missing += "PyYAML — install: pip install pyyaml"
-            }
+        try {
+            $py = Resolve-PythonWithYaml
+            # Legacy consumers invoke python3 directly; keep them on the tested interpreter.
+            Set-Alias -Name python3 -Value $py -Scope Script
+        } catch {
+            $missing += $_.Exception.Message
         }
     }
 

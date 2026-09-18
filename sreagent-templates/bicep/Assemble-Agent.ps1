@@ -65,20 +65,13 @@ if (-not (Test-Path $InvokeJqPath)) {
 . $InvokeJqPath
 
 # ── Resolve Python executable (python3 on Windows may be a Store stub) ──
-$Python = $null
-foreach ($candidate in @('python3', 'python')) {
-    $cmd = Get-Command $candidate -ErrorAction SilentlyContinue
-    if ($cmd) {
-        # Verify it's real Python, not the Windows Store stub
-        $ver = & $cmd.Source --version 2>&1
-        if ($LASTEXITCODE -eq 0 -and $ver -match 'Python 3') {
-            $Python = $cmd.Source
-            break
-        }
-    }
-}
-if (-not $Python) {
-    Write-Error "Python 3 is required but not found. Install from https://www.python.org/downloads/"
+. (Join-Path (Split-Path $PSScriptRoot -Parent) 'bin\ps\Check-Prerequisites.ps1')
+$Python = Resolve-PythonWithYaml
+
+$AssemblyScratch = (New-Item -ItemType Directory -Path (Join-Path ([IO.Path]::GetTempPath()) "sre-assemble-$([guid]::NewGuid())")).FullName
+try {
+function Get-AssemblyTempPath {
+    return (Join-Path $AssemblyScratch ([guid]::NewGuid().ToString()))
 }
 
 # ── Load secrets into environment variables (for connector token substitution) ──
@@ -135,7 +128,7 @@ print(json.dumps(resolve(data)))
 '@
 
     try {
-        $pyTmp = [System.IO.Path]::GetTempFileName() + '.py'
+        $pyTmp = Get-AssemblyTempPath
         Set-Content -Path $pyTmp -Value $pyScript -Encoding UTF8
         $result = $Json | & $Python $pyTmp $BaseDir 2>$null
         Remove-Item $pyTmp -Force -ErrorAction SilentlyContinue
@@ -171,13 +164,13 @@ with open(sys.argv[1]) as fh:
 print(json.dumps(data))
 '@
             try {
-                $pyTmp = [System.IO.Path]::GetTempFileName() + '.py'
+                $pyTmp = Get-AssemblyTempPath
                 Set-Content -Path $pyTmp -Value $pyYaml -Encoding UTF8
                 $item = & $Python $pyTmp $f.FullName 2>$null
                 Remove-Item $pyTmp -Force -ErrorAction SilentlyContinue
                 if ($LASTEXITCODE -ne 0 -or -not $item) { continue }
                 # Use --slurpfile to safely pass JSON without --argjson quoting issues
-                $tmpItem = [System.IO.Path]::GetTempFileName()
+                $tmpItem = Get-AssemblyTempPath
                 Set-Content -Path $tmpItem -Value $item -NoNewline -Encoding UTF8
                 $items = $items | Invoke-Jq -Compact -Filter '. + [$i[0]]' -ExtraArgs @('--slurpfile', 'i', $tmpItem)
                 Remove-Item $tmpItem -ErrorAction SilentlyContinue
@@ -221,7 +214,7 @@ print(json.dumps(sub(data)))
 '@
 
     try {
-        $pyTmp = [System.IO.Path]::GetTempFileName() + '.py'
+        $pyTmp = Get-AssemblyTempPath
         Set-Content -Path $pyTmp -Value $pyScript -Encoding UTF8
         $result = $Json | & $Python $pyTmp 2>$null
         Remove-Item $pyTmp -Force -ErrorAction SilentlyContinue
@@ -440,7 +433,7 @@ if ($mdFiles.Count -gt 0) {
         $fname   = $mdf.Name
         $content = Get-Content $mdf.FullName -Raw
         # Build JSON item via Python to avoid jq --arg quoting issues with large content
-        $tmpContent = [System.IO.Path]::GetTempFileName()
+        $tmpContent = Get-AssemblyTempPath
         Set-Content -Path $tmpContent -Value $content -NoNewline -Encoding UTF8
         $pyKnowledge = @'
 import json, sys
@@ -448,13 +441,13 @@ with open(sys.argv[1]) as f:
     content = f.read()
 print(json.dumps({"name": sys.argv[2], "type": "KnowledgeText", "content": content}))
 '@
-        $pyTmp = [System.IO.Path]::GetTempFileName() + '.py'
+        $pyTmp = Get-AssemblyTempPath
         Set-Content -Path $pyTmp -Value $pyKnowledge -Encoding UTF8
         $item = & $Python $pyTmp $tmpContent $fname 2>$null
         Remove-Item $pyTmp -Force -ErrorAction SilentlyContinue
         Remove-Item $tmpContent -ErrorAction SilentlyContinue
         if ($LASTEXITCODE -eq 0 -and $item) {
-            $tmpItem = [System.IO.Path]::GetTempFileName()
+            $tmpItem = Get-AssemblyTempPath
             Set-Content -Path $tmpItem -Value $item -NoNewline -Encoding UTF8
             $knowledgeItems = $knowledgeItems | Invoke-Jq -Compact -Filter '. + [$i[0]]' -ExtraArgs @('--slurpfile', 'i', $tmpItem)
             Remove-Item $tmpItem -ErrorAction SilentlyContinue
@@ -660,3 +653,6 @@ Write-Host "Deploy with:"
 Write-Host "  ./deploy.sh $ParamsFile"
 Write-Host "  ./apply-extras.sh $subDisplay $agentRg $agentName $ExtrasFile"
 Write-Host ''
+} finally {
+    Remove-Item -LiteralPath $AssemblyScratch -Recurse -Force
+}

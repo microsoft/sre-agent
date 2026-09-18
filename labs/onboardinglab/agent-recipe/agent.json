@@ -1,6 +1,6 @@
 {
   "_scenario": "onboardinglab-base",
-  "_description": "Base Azure SRE Agent for the onboarding lab. Creates the agent, read-only Azure access, app telemetry, Azure Monitor incident platform, and ticketing app source context. Workflow extensions are installed separately.",
+  "_description": "Reusable base agent for the onboarding lab. The setup helper adds standard GitHub and Outlook connections unless the core-only fallback is selected.",
   "_prerequisites": [
     "Completed onboarding lab workload deployment",
     "Application Insights resource and application IDs from the azd environment"
@@ -24,10 +24,6 @@
     },
     "appInsightsAppId": {
       "ask": "Checkout Application Insights application ID",
-      "required": true
-    },
-    "githubRepo": {
-      "ask": "Attendee GitHub repository URL for the self-contained ticketing app project",
       "required": true
     },
     "modelProvider": {
