@@ -44,6 +44,7 @@ temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/onboarding-workflow.XXXXXX")"
 trap 'rm -rf "$temp_dir"' EXIT
 extras_file="$temp_dir/workflow.extras.json"
 agent_extras_file="$temp_dir/workflow-agent.extras.json"
+scheduled_task_extras_file="$temp_dir/workflow-scheduled-task.extras.json"
 python3 "$renderer" --template "$template" --output "$extras_file" \
   --notification-email-recipient "$notification_email_recipient"
 
@@ -74,14 +75,17 @@ echo "  ok healthy telemetry connectors: $healthy"
 echo "  ok telemetry query tools: $(jq -r 'join(", ")' <<<"$telemetry_tools")"
 echo 'Workflow prerequisites validated.'
 jq --argjson telemetryTools "$telemetry_tools" \
-  '.subagents[0].spec.tools = (.subagents[0].spec.tools + $telemetryTools | unique)' \
+  '.subagents |= map(.spec.tools = (.spec.tools + $telemetryTools | unique))' \
   "$extras_file" >"$extras_file.tmp"
 mv "$extras_file.tmp" "$extras_file"
 
-jq '{skills, subagents, scheduledTasks}' "$extras_file" >"$agent_extras_file"
+jq '{skills, subagents}' "$extras_file" >"$agent_extras_file"
+jq '{scheduledTasks}' "$extras_file" >"$scheduled_task_extras_file"
 
-echo 'Installing workflow skills, subagent, and scheduled task...'
+echo 'Installing workflow skills and subagents...'
 bash "$apply_extras" "$subscription" "$resource_group" "$agent_name" "$agent_extras_file"
+echo 'Installing scheduled task after its handling subagent...'
+bash "$apply_extras" "$subscription" "$resource_group" "$agent_name" "$scheduled_task_extras_file"
 echo 'Creating response plan and connecting it to the subagent...'
 token="$(az account get-access-token --resource https://azuresre.dev --query accessToken --output tsv)"
 auth_header="Authorization: Bearer $token"
@@ -100,10 +104,16 @@ fi
 echo "  ok response plan: $workflow_name -> $custom_agent"
 
 installed_agent="$(curl -fsS "$endpoint/api/v2/extendedAgent/agents/$custom_agent" -H "$auth_header")"
-jq -e --arg name "$custom_agent" --argjson telemetryTools "$telemetry_tools" \
+jq -e --arg name "$custom_agent" --argjson expectedTools "$(jq --arg name "$custom_agent" '.subagents[] | select(.metadata.name == $name) | .spec.tools' "$extras_file")" \
   --argjson deniedTools "$(jq '.installerRequirements.deniedTools' "$extras_file")" \
-  '.name == $name and ($telemetryTools - .properties.tools | length) == 0 and ($deniedTools - .properties.tools | length) == ($deniedTools | length)' \
+  '.name == $name and ($expectedTools - .properties.tools | length) == 0 and ($deniedTools - .properties.tools | length) == ($deniedTools | length)' \
   <<<"$installed_agent" >/dev/null
+while IFS= read -r agent_name_to_verify; do
+  expected_tools="$(jq --arg name "$agent_name_to_verify" '.subagents[] | select(.metadata.name == $name) | .spec.tools' "$extras_file")"
+  curl -fsS "$endpoint/api/v2/extendedAgent/agents/$agent_name_to_verify" -H "$auth_header" |
+    jq -e --arg name "$agent_name_to_verify" --argjson expectedTools "$expected_tools" \
+      '.name == $name and ($expectedTools - .properties.tools | length) == 0' >/dev/null
+done < <(jq -r '.subagents[].metadata.name' "$extras_file")
 while IFS= read -r skill; do
   curl -fsS "$endpoint/api/v2/extendedAgent/skills/$skill" -H "$auth_header" | jq -e --arg name "$skill" '.name == $name' >/dev/null
 done < <(jq -r '.installerRequirements.skillNames[]' "$extras_file")
@@ -112,7 +122,7 @@ curl -fsS "$endpoint/api/v2/extendedAgent/incidentFilters/$workflow_name" -H "$a
 scheduled_task="$(jq -r '.installerRequirements.scheduledTaskName' "$extras_file")"
 scheduled_task_schedule="$(jq -r '.installerRequirements.scheduledTaskSchedule' "$extras_file")"
 curl -fsS "$endpoint/api/v2/extendedAgent/scheduledtasks" -H "$auth_header" |
-  jq -e --arg name "$scheduled_task" --arg schedule "$scheduled_task_schedule" \
-    '(.value // .) | any(.[]; .name == $name and .properties.cronExpression == $schedule and .properties.agentMode == "Review" and .properties.isEnabled == false)' >/dev/null
+  jq -e --arg name "$scheduled_task" --arg schedule "$scheduled_task_schedule" --arg agent "$(jq -r '.installerRequirements.scheduledTaskAgentName' "$extras_file")" \
+    '(.value // .) | any(.[]; .name == $name and .properties.cronExpression == $schedule and .properties.agent == $agent and .properties.agentMode == "Review" and (.properties.status == "Active" or .properties.isEnabled == true))' >/dev/null
 
-echo "Workflow $workflow_name installed with response plan $workflow_name connected to subagent $custom_agent and scheduled task $scheduled_task paused."
+echo "Workflow $workflow_name installed with response plan $workflow_name connected to subagent $custom_agent and active scheduled task $scheduled_task."

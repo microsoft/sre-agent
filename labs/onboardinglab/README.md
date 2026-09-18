@@ -312,9 +312,9 @@ Use these read-only UI checks. Do not create a GitHub issue or send a test email
 9. Go to **Build + setup** > **Extensions** > **Skill Builder** and confirm `sre-agent-self-configure` is present with its three Azure CLI tools.
 10. Go to **Incidents** and confirm Azure Monitor is connected. Common prompts do not have a current portal page; the post-deployment verifier checks `onboardinglab-safety` through the agent API.
 
-## 3. Install the workflow template
+## 3. Install the incident and health workflows
 
-The installer accepts the existing agent name, subscription, workflow template, and approved notification email recipient. It renders that recipient only into the two workflow subagents; it is not added to the global agent prompt. The installer discovers the agent resource group, validates Azure Monitor and app telemetry, and installs two independent workflows. The incident trigger routes to `alert-investigator` through the `alert-investigation` response plan. The active `reservation-daily-health-report` scheduled task routes directly to `health-report-investigator`. It installs only SRE Agent configuration and does not deploy Azure resources or alert rules.
+The installer accepts the existing agent name, subscription, workflow template, and approved notification email recipient. It renders that recipient only into the incident and health-report subagents; it is not added to the global agent prompt. The installer discovers the agent resource group, validates Azure Monitor and app telemetry, and installs two independent workflows. The incident trigger routes to `alert-investigator` through the `alert-investigation` response plan. The active `reservation-daily-health-report` scheduled task routes directly to `health-report-investigator`. It does not install or validate the pull-request workflow used in Scenario 3.
 
 macOS:
 
@@ -351,8 +351,8 @@ Windows:
 
 **Checkpoint: verify the workflow**
 
-1. Go to **Build + setup** > **Extensions** > **Skill Builder** and confirm all four skills are present.
-2. Go to **Build + setup** > **Workflows** and confirm the `alert-investigator` and `health-report-investigator` subagents are present. Both must include `PlotAreaChartWithCorrelation`, `PlotBarChart`, and the discovered telemetry query tool.
+1. Go to **Build + setup** > **Extensions** > **Skill Builder** and confirm the four workflow skills are present.
+2. Go to **Build + setup** > **Workflows** and confirm the `alert-investigator` and `health-report-investigator` subagents are present. Both must include the discovered telemetry query tool, `PlotAreaChartWithCorrelation`, and `PlotBarChart`.
 3. In **Workflows**, confirm the `alert-investigation` response plan routes Azure Monitor Sev1 and Sev2 incidents to the `alert-investigator` subagent in Review mode.
 4. Go to **Build + setup** > **Scheduled tasks** and confirm `reservation-daily-health-report` is active and its handling agent is `health-report-investigator`.
 
@@ -438,7 +438,7 @@ This optional scenario assesses the same service without introducing a fault, th
 
 1. Go to **Build + setup** > **Scheduled tasks**.
 2. Open `reservation-daily-health-report`.
-3. Select **Run task now**. Leave the recurring schedule paused.
+3. Select **Run task now**. Leave the recurring schedule active.
 4. Review the result in the task thread.
 
 The task uses `proactive-health-check` to review ticket reservation availability, failures, latency, dependency health, and Azure resource health over the last 24 hours. It compares with prior data only when enough history exists and reports missing history explicitly. It then proposes the same summary to the configured Outlook recipient for Review-mode approval.
@@ -465,9 +465,61 @@ The scheduled task and Live Report are separate operations. The task records evi
 **Expected result**
 
 - The task thread contains timestamped findings, evidence, risks, and recommended follow-up
-- The recurring task remains paused until an operator deliberately enables it
+- The recurring task remains active and can also be run on demand
 - `Ticket Reservation Health` appears in **Live Reports** with refreshable read-only charts and status indicators
 - Neither operation modifies Azure resources or creates issues; the task sends email only after Review-mode approval
+
+## Scenario 3: Pull-request validation
+
+This optional scenario validates an actual pull-request diff without deploying it. GitHub Actions sends a normalized event to the Logic App callback, the bridge authenticates to SRE Agent with managed identity, and `pr-validator` records a `PASS`, `WARN`, or `BLOCK` recommendation in the resulting agent thread.
+
+**Install the pull-request workflow**
+
+This installer updates only the `ticketing-pr-validation` skill, `pr-validator` subagent, HTTP trigger, and managed-identity Logic App bridge. It does not query, reinstall, or validate the incident response plan or scheduled task.
+
+macOS:
+
+```bash
+./scripts/install-pr-validation.sh \
+   --subscription "$subscription" \
+   --agent-name "$agent_name" \
+   --template ./workflow-templates/http-triggers/pr-validation.yaml
+```
+
+Windows:
+
+```powershell
+./scripts/install-pr-validation.ps1 `
+   -Subscription $Subscription `
+   -AgentName $AgentName `
+   -Template .\workflow-templates\http-triggers\pr-validation.yaml
+```
+
+The installer verifies the skill, subagent tools and allowed skill, Review-mode trigger binding, Logic App, and callback URL before printing the callback.
+
+**Connect the repository workflow**
+
+1. Copy `workflow-templates/http-triggers/github-pr-validation.yml` into the attendee's ticketing application fork as `.github/workflows/sre-agent-pr-validation.yml` on the default branch.
+2. In the fork, go to **Settings** > **Secrets and variables** > **Actions** and create the repository secret `SRE_AGENT_WEBHOOK_URL` with the callback URL printed by the Scenario 3 installer.
+3. Keep the workflow permissions at `contents: read` and `pull-requests: read`. Do not replace the Logic App callback with the SRE Agent trigger URL; GitHub cannot acquire the required SRE Agent data-plane token.
+
+Treat the callback as a secret because anyone holding it can start a validation thread. The Logic App still uses managed identity for the authenticated hop to SRE Agent.
+
+**Open a realistic validation PR**
+
+1. Create a branch in the ticketing application fork.
+2. Change the bounded PostgreSQL request timeout in `app/handler.js`, and update or add a focused test that establishes the intended timeout behavior. Keep the change unmerged and do not deploy it.
+3. Open a pull request to the default branch. Updating the branch also reruns validation through the `synchronize` event.
+4. Confirm the **SRE Agent PR validation** GitHub Actions run succeeds, then open the new SRE Agent thread and review its verified payload, findings, evidence gaps, and recommendation.
+
+The validator treats the event and repository content as untrusted. It verifies the repository, pull-request number, refs, URL, and head SHA before reviewing the diff. It may inspect read-only telemetry or Azure state when useful, but it must not deploy the branch, generate synthetic traffic, change Azure or GitHub, merge the pull request, send email, or claim that it posted a pull-request comment.
+
+**Expected result**
+
+- GitHub Actions delivers only the expected pull-request metadata through the managed-identity bridge
+- The agent thread ties its review to the verified repository, pull request, refs, and head SHA
+- Findings focus on the changed timeout behavior, bounded cleanup, telemetry, tests, and rollback evidence
+- The result stays in the SRE Agent thread as `PASS`, `WARN`, or `BLOCK`; no automatic GitHub comment or deployment occurs
 
 ## Troubleshooting
 
