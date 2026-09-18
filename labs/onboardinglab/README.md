@@ -499,7 +499,7 @@ The installer verifies the skill, subagent tools and allowed skill, Review-mode 
 
 **Connect the repository workflow**
 
-1. Copy `workflow-templates/http-triggers/github-pr-validation.yml` into the attendee's ticketing application fork as `.github/workflows/sre-agent-pr-validation.yml` on the default branch.
+1. Copy `workflow-templates/http-triggers/github-pr-validation.yml` into the attendee's ticketing application fork as `.github/workflows/sre-agent-pr-validation.yml` on the default branch. The `pull_request_target` workflow must remain read-only: it may fetch GitHub API metadata and patches, but it must never check out or execute pull-request code.
 2. In the fork, go to **Settings** > **Secrets and variables** > **Actions** and create the repository secret `SRE_AGENT_WEBHOOK_URL` with the callback URL printed by the Scenario 3 installer.
 3. Keep the workflow permissions at `contents: read` and `pull-requests: read`. Do not replace the Logic App callback with the SRE Agent trigger URL; GitHub cannot acquire the required SRE Agent data-plane token.
 
@@ -512,7 +512,7 @@ Treat the callback as a secret because anyone holding it can start a validation 
 3. Open a pull request to the default branch. Updating the branch also reruns validation through the `synchronize` event.
 4. Confirm the **SRE Agent PR validation** GitHub Actions run succeeds, then open the new SRE Agent thread and review its verified payload, findings, evidence gaps, and recommendation.
 
-The validator treats the event and repository content as untrusted. It verifies the repository, pull-request number, refs, URL, and head SHA before reviewing the diff. It may inspect read-only telemetry or Azure state when useful, but it must not deploy the branch, generate synthetic traffic, change Azure or GitHub, merge the pull request, send email, or claim that it posted a pull-request comment.
+The validator treats the event, patches, and repository content as untrusted. The trusted default-branch workflow sends GitHub's repository, pull-request number, refs, URL, head SHA, and bounded changed-file patches through the secret callback. The validator checks the repository and base branch against its connected source before review. It may inspect read-only telemetry or Azure state when useful, but it must not deploy the branch, generate synthetic traffic, change Azure or GitHub, merge the pull request, send email, or claim that it posted a pull-request comment.
 
 **Expected result**
 

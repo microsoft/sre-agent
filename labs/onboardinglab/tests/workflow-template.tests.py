@@ -166,6 +166,9 @@ class PullRequestValidationTemplateTests(unittest.TestCase):
         self.assertIn("FetchGithubIssue", agent["spec"]["tools"])
         self.assertIn("PlotAreaChartWithCorrelation", agent["spec"]["tools"])
         self.assertNotIn("RunAzCliWriteCommands", agent["spec"]["tools"])
+        self.assertNotIn("RunInTerminal", agent["spec"]["tools"])
+        self.assertIn("changed_files", agent["spec"]["instructions"])
+        self.assertIn("Do not invoke RunInTerminal", agent["spec"]["instructions"])
 
         self.assertEqual(len(extras["httpTriggers"]), 1)
         trigger = extras["httpTriggers"][0]

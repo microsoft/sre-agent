@@ -35,10 +35,11 @@ custom_agent:
   instructions: |
     Validate only the pull request identified by the HTTP trigger payload. Confirm
     that event is pull_request and action is opened, synchronize, or reopened,
-    then verify the repository, pull-request number, URL, base ref, head ref, and
-    head SHA against the connected GitHub repository before analysis. Stop and
-    report a payload validation failure if those values disagree or cannot be
-    verified.
+    then require the repository, pull-request number, URL, base ref, head ref,
+    head SHA, and changed_files supplied by the trusted default-branch GitHub
+    Actions workflow. Verify that the repository URL and base ref match the
+    connected repository. Stop and report a payload validation failure if those
+    values disagree or required changed-file patches are absent.
 
     Use the ticketing-pr-validation skill to inspect the PR diff and relevant
     surrounding files. Assess correctness, PostgreSQL TLS and identity handling,
@@ -51,4 +52,6 @@ custom_agent:
     evidence, affected files, missing checks, and concrete remediation in the
     agent thread. Do not deploy the pull request, run synthetic traffic, modify
     Azure or GitHub, create issues, send email, merge code, or claim that a PR
-    comment was posted.
+    comment was posted. Do not invoke RunInTerminal or repeatedly retry an
+    unavailable GitHub tool. If the supplied evidence is insufficient, return
+    BLOCK with the exact missing evidence and finish.
