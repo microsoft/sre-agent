@@ -505,12 +505,27 @@ The installer verifies the skill, subagent tools and allowed skill, Review-mode 
 
 Treat the callback as a secret because anyone holding it can start a validation thread. The Logic App still uses managed identity for the authenticated hop to SRE Agent.
 
-**Open a realistic validation PR**
+**Create the validation PRs**
 
-1. Create a branch in the ticketing application fork.
-2. Change the bounded PostgreSQL request timeout in `app/handler.js`, and update or add a focused test that establishes the intended timeout behavior. Keep the change unmerged and do not deploy it.
-3. Open a pull request to the default branch. Updating the branch also reruns validation through the `synchronize` event.
-4. Confirm the **SRE Agent PR validation** GitHub Actions run succeeds, then open the new SRE Agent thread and review its verified payload, findings, evidence gaps, and recommendation.
+The helper creates branches in the attendee's ticketing application fork, runs its existing tests, pushes each branch, and opens a pull request. It never merges or deploys either change. Run each command once from the `onboardinglab` directory with a clean `ticketingapp-source` worktree and GitHub CLI authentication.
+
+Create the expected `PASS` case. This consistently lowers the shared PostgreSQL request deadline and updates its focused tests:
+
+```powershell
+py -3 ./scripts/create-pr-validation-sample.py pass
+```
+
+On macOS, use `python3` instead of `py -3`.
+
+Create the expected `BLOCK` case. This plausible cleanup change awaits an unbounded PostgreSQL close; all existing tests pass, but a hung close can prevent the response, socket destruction, and concurrency-slot release:
+
+```powershell
+py -3 ./scripts/create-pr-validation-sample.py block
+```
+
+Leave both pull requests open and unmerged. Opening each PR starts **SRE Agent PR validation** automatically. A later push to either branch reruns it through the `synchronize` event.
+
+For each PR, confirm the GitHub Actions run succeeds, then open the new SRE Agent thread and review its verified payload, findings, evidence gaps, and recommendation. The good PR should receive `PASS`. The cleanup PR should receive `BLOCK` with a recommendation to restore non-blocking cleanup or bound graceful shutdown and add a hanging-close test.
 
 The validator treats the event, patches, and repository content as untrusted. The trusted default-branch workflow sends GitHub's repository, pull-request number, refs, URL, head SHA, and bounded changed-file patches through the secret callback. The validator checks the repository and base branch against its connected source before review. It may inspect read-only telemetry or Azure state when useful, but it must not deploy the branch, generate synthetic traffic, change Azure or GitHub, merge the pull request, send email, or claim that it posted a pull-request comment.
 
@@ -518,8 +533,9 @@ The validator treats the event, patches, and repository content as untrusted. Th
 
 - GitHub Actions delivers only the expected pull-request metadata through the managed-identity bridge
 - The agent thread ties its review to the verified repository, pull request, refs, and head SHA
-- Findings focus on the changed timeout behavior, bounded cleanup, telemetry, tests, and rollback evidence
-- The result stays in the SRE Agent thread as `PASS`, `WARN`, or `BLOCK`; no automatic GitHub comment or deployment occurs
+- The good PR receives `PASS`; the realistic cleanup regression receives `BLOCK` with concrete remediation
+- Both PRs remain open and unmerged, and neither branch is deployed
+- The result stays in the SRE Agent thread; no automatic GitHub comment occurs
 
 ## Troubleshooting
 
