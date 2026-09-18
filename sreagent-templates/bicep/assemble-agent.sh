@@ -46,6 +46,28 @@ done
 [[ -f "${DIR}/agent.json" ]] || { echo "Error: ${DIR}/agent.json not found" >&2; exit 1; }
 command -v jq >/dev/null || { echo "Error: jq is required" >&2; exit 1; }
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ── Resolve a Python 3 interpreter that can actually read YAML ──
+# Probe by importing yaml rather than trusting command -v: the Windows App
+# Execution Alias resolves as python3 but exits non-zero on every invocation.
+# Without this check the YAML readers below fail silently and the assembler
+# emits an empty configuration that still deploys and strips a live agent.
+PYTHON=""
+PYTHON_CACHE="${SRE_AGENT_PYTHON_HOME:-${XDG_CACHE_HOME:-${HOME:-$SCRIPT_DIR}/.cache}/sre-agent/python}"
+for candidate in python3 python py "$PYTHON_CACHE/bin/python" "$PYTHON_CACHE/Scripts/python.exe"; do
+  if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c "import yaml" >/dev/null 2>&1; then
+    PYTHON="$candidate"
+    break
+  fi
+done
+if [[ -z "$PYTHON" ]]; then
+  echo "Error: Python 3 with PyYAML is required to assemble YAML configuration." >&2
+  echo "Install it with: ${SCRIPT_DIR}/../bin/install-prerequisites.sh --python-only" >&2
+  echo "Or install manually: python3 -m pip install --user pyyaml" >&2
+  exit 1
+fi
+
 [[ -n "$OUT_PREFIX" ]] || OUT_PREFIX="$DIR"
 [[ -n "$SECRETS" ]] || SECRETS="${DIR}/connectors.secrets.env"
 
@@ -69,34 +91,37 @@ fi
 # This function reads the file and inlines its content.
 resolve_file_refs() {
   local json="$1" base_dir="$2"
-  python3 -c "
-import json, sys, os
-base = '$base_dir'
-data = json.loads('''$json''') if isinstance('''$json''', str) else json.load(sys.stdin)
+  # Pass JSON on stdin: interpolating it into the Python source breaks on any
+  # skill body containing a triple quote, and the old fallback hid that failure
+  # by emitting the unresolved path as the skill's content.
+  if ! printf '%s' "$json" | "$PYTHON" -c "
+import json, os, sys
+base = sys.argv[1]
+data = json.load(sys.stdin)
 def resolve(obj):
     if isinstance(obj, str):
-        # Check if it's a relative path to a file in config/
-        for prefix in ['skills/', 'subagents/', 'common-prompts/']:
+        for prefix in ('skills/', 'subagents/', 'common-prompts/'):
             if obj.startswith(prefix) and obj.endswith(('.md', '.txt')):
-                for config_base in ['config']:
-                    path = os.path.join(base, config_base, obj)
-                    if os.path.isfile(path):
-                        with open(path) as f:
-                            return f.read()
-        # Also handle _file: prefix (legacy)
+                path = os.path.join(base, 'config', obj)
+                if os.path.isfile(path):
+                    with open(path, encoding='utf-8') as fh:
+                        return fh.read()
         if obj.startswith('_file:'):
             path = os.path.join(base, obj[6:])
             if os.path.isfile(path):
-                with open(path) as f:
-                    return f.read()
+                with open(path, encoding='utf-8') as fh:
+                    return fh.read()
         return obj
-    elif isinstance(obj, dict):
+    if isinstance(obj, dict):
         return {k: resolve(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
+    if isinstance(obj, list):
         return [resolve(v) for v in obj]
     return obj
 print(json.dumps(resolve(data)))
-" 2>/dev/null || echo "$json"
+" "$base_dir"; then
+    echo "Error: could not resolve file references under ${base_dir}/config" >&2
+    return 1
+  fi
 }
 
 # ── Helper: collect all YAML (or JSON) files from a config subdirectory into a JSON array ──
@@ -112,12 +137,14 @@ collect_config() {
       for f in "${full}"/*.yaml "${full}"/*.yml; do
         [[ -f "$f" ]] || continue
         local item
-        item=$(python3 -c "
-import sys, yaml, json
-with open('$f') as fh:
-    data = yaml.safe_load(fh)
-print(json.dumps(data))
-" 2>/dev/null) || continue
+        if ! item=$("$PYTHON" -c "
+import json, sys, yaml
+with open(sys.argv[1], encoding='utf-8') as fh:
+    print(json.dumps(yaml.safe_load(fh)))
+" "$f"); then
+          echo "Error: could not parse YAML file: $f" >&2
+          return 1
+        fi
         items=$(echo "$items" | jq -c --argjson i "$item" '. + [$i]')
       done
       # Also read JSON files (for backward compat)
@@ -136,7 +163,7 @@ print(json.dumps(data))
 # ── Helper: substitute env vars in connector JSON ──
 resolve_env_vars() {
   local json="$1"
-  echo "$json" | python3 -c "
+  if ! echo "$json" | "$PYTHON" -c "
 import json, sys, os, re
 data = json.load(sys.stdin)
 def sub(obj):
@@ -148,7 +175,10 @@ def sub(obj):
         return [sub(v) for v in obj]
     return obj
 print(json.dumps(sub(data)))
-" 2>/dev/null || echo "$json"
+"; then
+    echo 'Error: could not substitute environment variables in connector configuration' >&2
+    return 1
+  fi
 }
 
 # ═══════ Read agent.json ═══════
