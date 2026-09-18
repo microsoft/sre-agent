@@ -84,12 +84,12 @@ function Get-NodeMajorVersion {
         return 0
     }
 
-    $major = & node -p 'Number(process.versions.node.split(".")[0])' 2>$null
-    if ($LASTEXITCODE -ne 0 -or $major -notmatch '^\d+$') {
+    $version = & node --version 2>$null
+    if ($LASTEXITCODE -ne 0 -or $version -notmatch '^v?(\d+)\.') {
         return 0
     }
 
-    return [int]$major
+    return [int]$Matches[1]
 }
 
 function Ensure-Node {
@@ -212,6 +212,7 @@ Write-Host ''
 Write-Host 'Platform: Windows'
 Write-Host ''
 
+Update-ProcessPath
 Ensure-Command -Name 'Azure CLI' -Command 'az' -PackageId 'Microsoft.AzureCLI'
 Ensure-Command -Name 'Azure Developer CLI' -Command 'azd' -PackageId 'Microsoft.Azd'
 Ensure-Command -Name 'PowerShell 7' -Command 'pwsh' -PackageId 'Microsoft.PowerShell'
