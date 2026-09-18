@@ -501,9 +501,25 @@ The installer verifies the skill, subagent tools and allowed skill, Review-mode 
 
 **Connect the repository workflow**
 
-1. Copy `workflow-templates/http-triggers/github-pr-validation.yml` into the attendee's ticketing application fork as `.github/workflows/sre-agent-pr-validation.yml` on the default branch. The `pull_request_target` workflow must remain read-only: it may fetch GitHub API metadata and patches, but it must never check out or execute pull-request code.
-2. In the fork, go to **Settings** > **Secrets and variables** > **Actions** and create the repository secret `SRE_AGENT_WEBHOOK_URL` with the callback URL printed by the Scenario 3 installer.
-3. Keep the workflow permissions at `contents: read` and `pull-requests: read`. Do not replace the Logic App callback with the SRE Agent trigger URL; GitHub cannot acquire the required SRE Agent data-plane token.
+Run the repository configurator after the Scenario 3 installer. It copies the trusted workflow to the ticketing application fork's `main` branch, commits and pushes it when needed, retrieves the Logic App callback directly from Azure, stores it as the `SRE_AGENT_WEBHOOK_URL` Actions secret, and verifies both resources.
+
+Windows:
+
+```powershell
+py -3 ./scripts/configure-pr-validation-repository.py `
+   --subscription $Subscription `
+   --agent-name $AgentName
+```
+
+macOS:
+
+```bash
+python3 ./scripts/configure-pr-validation-repository.py \
+   --subscription "$subscription" \
+   --agent-name "$agent_name"
+```
+
+Run the command from the `onboardinglab` directory with a clean `ticketingapp-source` worktree and authenticated `az` and `gh` sessions. The configurator never prints the callback URL. The installed `pull_request_target` workflow remains read-only: it uses `contents: read` and `pull-requests: read`, fetches only GitHub API metadata and bounded patches, and never checks out or executes pull-request code.
 
 Treat the callback as a secret because anyone holding it can start a validation thread. The Logic App still uses managed identity for the authenticated hop to SRE Agent.
 
