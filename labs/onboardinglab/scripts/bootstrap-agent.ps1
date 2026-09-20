@@ -18,8 +18,10 @@
       2. Create the lab resource group.
       3. Create Log Analytics, Application Insights, a managed identity and the final agent.
       4. Append the egress hosts the agent needs to reach while deploying.
-      5. Grant the agent's identity temporary Owner on the lab resource group.
-      6. Pause while you connect your fork as a code repository.
+      5. Grant the agent identity temporary Owner and grant agent-scoped
+         SRE Agent Administrator to the identity and signed-in user.
+      6. Acquire an interactive data-plane token when Cloud Shell requires one,
+         then pause while you connect your fork as a code repository.
       7. Start a thread asking the agent to deploy the lab.
 
     The script is re-entrant, because a portal session can die at any point. Run it
@@ -228,6 +230,114 @@ function Invoke-Az {
     }
 }
 
+function Get-SignedInUserObjectId {
+    try {
+        $user = Invoke-Az @('ad', 'signed-in-user', 'show', '--query', '{id:id}', '-o', 'json')
+        if (-not [string]::IsNullOrWhiteSpace($user.id)) {
+            return $user.id
+        }
+    }
+    catch {
+        Write-Note 'Microsoft Graph did not return the signed-in user. Reading the object ID from the ARM token instead.'
+    }
+
+    $token = (& az account get-access-token --resource 'https://management.azure.com/' `
+        --query accessToken --only-show-errors -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($token -join ''))) {
+        throw 'Could not determine the signed-in user object ID.'
+    }
+
+    try {
+        $payload = (($token -join '').Trim().Split('.')[1]).Replace('-', '+').Replace('_', '/')
+        $payload = $payload.PadRight($payload.Length + ((4 - ($payload.Length % 4)) % 4), '=')
+        $claims = [System.Text.Encoding]::UTF8.GetString(
+            [Convert]::FromBase64String($payload)
+        ) | ConvertFrom-Json
+        if ([string]::IsNullOrWhiteSpace($claims.oid)) {
+            throw 'The ARM token has no oid claim.'
+        }
+        return $claims.oid
+    }
+    catch {
+        throw "Could not determine the signed-in user object ID: $($_.Exception.Message)"
+    }
+}
+
+$script:DataPlaneToken = $null
+$script:SelectedSubscriptionId = $null
+$script:SignedInUserObjectId = $null
+
+function Get-DataPlaneToken {
+    if (-not [string]::IsNullOrWhiteSpace($script:DataPlaneToken)) {
+        return $script:DataPlaneToken
+    }
+
+    $token = (& az account get-access-token --scope 'https://azuresre.dev/.default' `
+        --query accessToken --only-show-errors -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($token -join ''))) {
+        Write-Warning 'Cloud Shell could not issue an SRE Agent data-plane token with its built-in credential.'
+        Write-Host '   An interactive Azure CLI sign-in is required for Code Access and agent data-plane calls.' -ForegroundColor Yellow
+        $reply = Read-Host '   Start device-code sign-in now? [Y/n]'
+        if ($reply -match '^\s*[Nn]') {
+            throw 'SRE Agent sign-in is required. Run az login --use-device-code --scope "https://azuresre.dev/.default", then rerun this script.'
+        }
+
+        & az login --use-device-code --scope 'https://azuresre.dev/.default' --output none
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Interactive Azure CLI sign-in failed. Rerun the script to try again.'
+        }
+        if (-not [string]::IsNullOrWhiteSpace($script:SelectedSubscriptionId)) {
+            $null = Invoke-Az @('account', 'set', '--subscription', $script:SelectedSubscriptionId) -AllowEmpty
+        }
+        $interactiveUserObjectId = Get-SignedInUserObjectId
+        if (-not [string]::IsNullOrWhiteSpace($script:SignedInUserObjectId) -and
+            $interactiveUserObjectId -ne $script:SignedInUserObjectId) {
+            throw 'Interactive sign-in used a different account. Sign in with the same user that started the bootstrap script.'
+        }
+
+        $token = (& az account get-access-token --scope 'https://azuresre.dev/.default' `
+            --query accessToken --only-show-errors -o tsv 2>$null)
+    }
+
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($token -join ''))) {
+        throw 'Could not get an SRE Agent data-plane token after interactive sign-in.'
+    }
+
+    $script:DataPlaneToken = ($token -join '').Trim()
+    return $script:DataPlaneToken
+}
+
+function Invoke-DataPlaneGet {
+    param([Parameter(Mandatory)][string] $Url)
+
+    $token = Get-DataPlaneToken
+    try {
+        for ($attempt = 1; $attempt -le 7; $attempt++) {
+            try {
+                return Invoke-RestMethod -Uri $Url -Method Get `
+                    -Headers @{ Authorization = "Bearer $token" } -TimeoutSec 60
+            }
+            catch {
+                $statusCode = [int]$_.Exception.Response.StatusCode
+                if ($statusCode -eq 403 -and $attempt -lt 7) {
+                    if ($attempt -eq 1) {
+                        Write-Note 'Waiting for the SRE Agent Administrator assignment to propagate...'
+                    }
+                    Start-Sleep -Seconds 10
+                    continue
+                }
+                if ($statusCode -eq 403) {
+                    throw 'SRE Agent data-plane access was denied after waiting for RBAC propagation. Wait another minute, sign out and back in if using the portal, then rerun this script.'
+                }
+                throw "SRE Agent data-plane request failed for $Url`: $($_.Exception.Message)"
+            }
+        }
+    }
+    finally {
+        $token = $null
+    }
+}
+
 function Invoke-ArmRequest {
     <#
         PUT or PATCH an ARM resource through 'az rest'. Used instead of
@@ -258,12 +368,7 @@ function Invoke-ArmRequest {
 function Get-ConnectedRepositories {
     param([Parameter(Mandatory)][string] $Endpoint)
 
-    $response = Invoke-Az @(
-        'rest', '--method', 'get',
-        '--url', "$($Endpoint.TrimEnd('/'))/api/v2/repos",
-        '--resource', 'https://azuresre.dev',
-        '-o', 'json'
-    )
+    $response = Invoke-DataPlaneGet -Url "$($Endpoint.TrimEnd('/'))/api/v2/repos"
     if ($response.PSObject.Properties['value']) {
         return @($response.value)
     }
@@ -345,11 +450,18 @@ elseif ($state.Contains('subscriptionId') -and $account.id -ne $state['subscript
 }
 
 $subId = $account.id
+$script:SelectedSubscriptionId = $subId
 $state['subscriptionId'] = $subId
 Save-State -State $state
 
 Write-Ok "Subscription: $($account.name) ($subId)"
 Write-Ok "Signed in as: $($account.user.name)"
+
+if ($account.user.type -ne 'user') {
+    throw 'This bootstrap flow requires an interactive human Azure CLI sign-in so it can grant agent data-plane access for Code Access.'
+}
+$signedInUserObjectId = Get-SignedInUserObjectId
+$script:SignedInUserObjectId = $signedInUserObjectId
 
 # Resolve the lab resource group name up front. The agent is created with both resource
 # groups in scope, so the name has to be known before the agent is created.
@@ -453,23 +565,13 @@ if ($Finalize) {
     }
     foreach ($item in $requiredDataPlaneObjects) {
         $encodedName = [uri]::EscapeDataString($item.Name)
-        $installed = Invoke-Az @(
-            'rest', '--method', 'get',
-            '--url', "$endpoint/api/v2/extendedAgent/$($item.Kind)/$encodedName",
-            '--resource', 'https://azuresre.dev',
-            '-o', 'json'
-        )
+        $installed = Invoke-DataPlaneGet -Url "$endpoint/api/v2/extendedAgent/$($item.Kind)/$encodedName"
         if ($installed.name -ne $item.Name) {
             throw "Cannot finalize because $($item.Kind)/$($item.Name) could not be verified."
         }
     }
 
-    $globalSettings = Invoke-Az @(
-        'rest', '--method', 'get',
-        '--url', "$endpoint/api/v2/agent/settings/global",
-        '--resource', 'https://azuresre.dev',
-        '-o', 'json'
-    )
+    $globalSettings = Invoke-DataPlaneGet -Url "$endpoint/api/v2/agent/settings/global"
     if ('RunAzCliWriteCommands' -notin @($globalSettings.permissions.ask) -or
         'RunInTerminal' -notin @($globalSettings.permissions.deny) -or
         'Terminal' -notin @($globalSettings.permissions.deny)) {
@@ -838,6 +940,25 @@ if (-not ($agentAdminAssignments -and @($agentAdminAssignments).Count -gt 0)) {
 }
 Write-Ok 'Agent identity can configure its own agent data plane.'
 
+$userAdminAssignments = Invoke-Az @(
+    'role', 'assignment', 'list',
+    '--assignee', $signedInUserObjectId,
+    '--scope', $agent.id,
+    '--query', "[?roleDefinitionName=='SRE Agent Administrator']",
+    '-o', 'json'
+) -AllowEmpty
+if (-not ($userAdminAssignments -and @($userAdminAssignments).Count -gt 0)) {
+    $null = Invoke-Az @(
+        'role', 'assignment', 'create',
+        '--assignee-object-id', $signedInUserObjectId,
+        '--assignee-principal-type', 'User',
+        '--role', 'SRE Agent Administrator',
+        '--scope', $agent.id,
+        '-o', 'json'
+    ) -AllowEmpty
+}
+Write-Ok 'Signed-in user can administer the agent and configure Code Access.'
+
 # ── Step 6: connect the code repository ─────────────────────────────────────
 
 Write-Step 'Step 6 - Connect your fork as a code repository'
@@ -933,11 +1054,7 @@ Do not modify anything outside $LabResourceGroup. Report when external finalizat
 "@
 
 if ($startThread) {
-    $dpToken = (& az account get-access-token --resource 'https://azuresre.dev' --query accessToken -o tsv 2>$null)
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($dpToken -join ''))) {
-        throw 'Could not get a data-plane token for https://azuresre.dev. Run: az login --scope "https://azuresre.dev/.default" and re-run this script.'
-    }
-    $dpToken = ($dpToken -join '').Trim()
+    $dpToken = Get-DataPlaneToken
 
     $body = @{ StartMessage = $startMessage } | ConvertTo-Json -Depth 5
 

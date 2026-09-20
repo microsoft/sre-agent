@@ -101,6 +101,21 @@ class LessonTests(unittest.TestCase):
         self.assertNotIn("onboardinglab-incident-r-2bcbfae", bootstrap)
         self.assertIn("/api/v2/repos", bootstrap)
         self.assertIn("No connected repository was found", bootstrap)
+        self.assertIn("'--assignee-principal-type', 'User'", bootstrap)
+        self.assertIn("'--role', 'SRE Agent Administrator'", bootstrap)
+        self.assertIn("https://azuresre.dev/.default", bootstrap)
+        self.assertIn("--use-device-code", bootstrap)
+
+        finalize = bootstrap[
+            bootstrap.index("if ($Finalize) {"):
+            bootstrap.index("# ── Step 1: register the resource provider")
+        ]
+        self.assertIn(
+            "Invoke-Az @('role', 'assignment', 'delete', '--ids', $ownerAssignmentId)",
+            finalize,
+        )
+        self.assertNotIn("$signedInUserObjectId", finalize)
+
         self.assertIn("Do not create another agent", runbook)
         self.assertIn("--template-file labs/onboardinglab/infra/main.bicep", runbook)
         self.assertIn("module workload", infrastructure)
