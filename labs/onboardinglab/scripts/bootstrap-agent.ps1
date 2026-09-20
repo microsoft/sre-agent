@@ -1047,9 +1047,8 @@ elseif ($agentAlreadyExisted -and -not $NewThread) {
 $startMessage = @"
 Deploy the Azure SRE Agent Onboarding Lab.
 
-The sre-agent repository you connected through Code Access is already synced into your
-workspace. Follow the runbook at $RunbookPath. Work through every step in order and run its
-verification before moving on.
+Follow the runbook at $RunbookPath under the sre-agent repository. Work through every step
+in order and run its verification before moving on.
 
 Inputs:
 - SUBSCRIPTION: $subId
@@ -1060,9 +1059,12 @@ Inputs:
 - AGENT_IDENTITY_NAME: $($state['agentIdentityName'])
 
 You are the final lab agent. The resource group already exists and your action identity has
-temporary Owner on it. Deploy the workload and converge your durable configuration through
-Bicep. Do not create another SRE Agent or managed identity. Leave the database fault off.
-Do not modify anything outside $LabResourceGroup. Report when external finalization is safe.
+temporary Owner on it.
+* Deploy the workload and converge your durable configuration through Bicep. Do not create
+  another SRE Agent or managed identity.
+* Leave the database fault off.
+* Do not modify anything outside $LabResourceGroup.
+* Report when external finalization is safe.
 "@
 
 if ($startThread) {

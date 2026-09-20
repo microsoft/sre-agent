@@ -109,6 +109,11 @@ class LessonTests(unittest.TestCase):
         self.assertIn("onboardingLabDeploymentStatus", bootstrap)
         self.assertIn("onboardingLabDeploymentStatus=verified", runbook)
         self.assertIn(
+            "Follow the runbook at $RunbookPath under the sre-agent repository.",
+            bootstrap,
+        )
+        self.assertIn("* Report when external finalization is safe.", bootstrap)
+        self.assertIn(
             "https://sre.azure.com/agents/subscriptions/$subId/resourceGroups/"
             "$LabResourceGroup/providers/Microsoft.App/agents/$AgentName",
             bootstrap,
