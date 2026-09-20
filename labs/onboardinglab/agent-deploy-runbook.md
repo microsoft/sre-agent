@@ -2,8 +2,11 @@
 
 This runbook is written **for an Azure SRE Agent to execute**, not for a human shell.
 The bootstrap script (`scripts/bootstrap-agent.ps1`) creates the final onboarding agent with
-temporary deployment access, then starts a thread pointing at this file.
-It starts the thread only after the live Code Access API reports at least one connected repository.
+temporary deployment access and grants the operator SRE Agent Administrator on that agent.
+When the Azure CLI can acquire an SRE Agent data-plane token, the script verifies Code Access
+and starts a thread pointing at this file. In Azure Cloud Shell environments where that token
+audience is unavailable, the operator connects the repository and starts or reuses the thread
+in the agent portal with the exact deployment request printed by the script.
 
 Work through the steps in order. Each step states what to run and how to confirm it worked.
 Stop and report if a verification fails — do not continue past a failed step.
@@ -289,6 +292,20 @@ empty even when items exist, so do not rely on it.
    ```
    An empty result immediately after sending traffic is normal — wait and retry before concluding
    anything is broken. Only `POST /checkout` is tracked as a request; `GET /` is not.
+
+5. **Completion marker** — only after every check above and every Step 5 data-plane read-back
+   succeeds, record completion through ARM:
+   ```bash
+   az tag update \
+     --resource-id /subscriptions/<SUBSCRIPTION>/resourceGroups/<LAB_RG> \
+     --operation Merge \
+     --tags onboardingLabDeploymentStatus=verified
+   az group show --subscription <SUBSCRIPTION> -n <LAB_RG> \
+     --query tags.onboardingLabDeploymentStatus -o tsv
+   ```
+   The result must be `verified`. Do not write this marker if any deployment or verification
+   step failed or was skipped. The external finalizer uses it when the operator's Cloud Shell
+   cannot acquire an SRE Agent data-plane token.
 
 ---
 

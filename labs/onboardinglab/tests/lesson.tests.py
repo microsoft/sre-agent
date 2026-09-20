@@ -104,7 +104,10 @@ class LessonTests(unittest.TestCase):
         self.assertIn("'--assignee-principal-type', 'User'", bootstrap)
         self.assertIn("'--role', 'SRE Agent Administrator'", bootstrap)
         self.assertIn("https://azuresre.dev/.default", bootstrap)
-        self.assertIn("--use-device-code", bootstrap)
+        self.assertNotIn("--use-device-code", bootstrap)
+        self.assertIn("Automatic thread creation is unavailable", bootstrap)
+        self.assertIn("onboardingLabDeploymentStatus", bootstrap)
+        self.assertIn("onboardingLabDeploymentStatus=verified", runbook)
 
         finalize = bootstrap[
             bootstrap.index("if ($Finalize) {"):
@@ -115,6 +118,10 @@ class LessonTests(unittest.TestCase):
             finalize,
         )
         self.assertNotIn("$signedInUserObjectId", finalize)
+        self.assertLess(
+            finalize.index("onboardingLabDeploymentStatus"),
+            finalize.index("Invoke-Az @('role', 'assignment', 'delete'"),
+        )
 
         self.assertIn("Do not create another agent", runbook)
         self.assertIn("--template-file labs/onboardinglab/infra/main.bicep", runbook)

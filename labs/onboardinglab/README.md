@@ -324,14 +324,15 @@ The script:
 6. Grants the signed-in user SRE Agent Administrator on the agent resource so they can
    open the agent and configure Code Access.
 7. Pauses while you connect your fork as a code repository. This step needs an interactive
-   OAuth consent and cannot be scripted. The script queries the live Code Access state after
-   you return and does not start a deployment thread until a repository is connected.
-8. Starts an agent thread pointing at the runbook.
+   OAuth consent and cannot be scripted.
+8. Starts an agent thread pointing at the runbook when the current Azure CLI credential can
+   acquire an SRE Agent data-plane token.
 
 Azure Cloud Shell's built-in credential might not support the `https://azuresre.dev`
-token audience. If so, the script offers a device-code sign-in for that scope, restores
-the selected subscription, and resumes. This second sign-in does not replace the manual
-GitHub consent required for Code Access.
+token audience. The script does not require another Azure sign-in. It instead prints the
+agent portal link and exact deployment request for you to paste into a new or existing
+agent chat. The agent writes an ARM completion marker only after its end-to-end checks pass,
+so finalization can still verify completion without a human data-plane token.
 
 The agent uses Bicep to deploy the workload and converge its permanent read-only RBAC and
 Application Insights connector. Skills, knowledge, hooks, prompts, and the incident platform use
@@ -346,11 +347,14 @@ that already exists, so they behave correctly even on a completely fresh session
 is also written to `~/.onboardinglab-agent-bootstrap.json`. In Cloud Shell that file persists
 only when a storage account is mounted, so an **ephemeral session loses it** — which is
 safe. If the browser closes during Code Access, reconnect, rerun the script, and complete the
-same step. The script reads the live repository connection instead of trusting the state file.
-The only step that cannot simply be repeated is the last one. Starting a
-second deployment thread would put two agents in the same resource group at once, so the
-script skips that step when a thread is already recorded, and asks first if the record was
-lost. Use `-NewThread` to start another one deliberately.
+same step. When a data-plane token is available, the script reads the live repository connection
+instead of trusting the state file. In portal-only mode, confirm the repository in the portal
+and reuse the existing chat rather than creating another deployment.
+When automatic thread creation is available, the last step cannot simply be repeated.
+Starting a second deployment thread would put two agents in the same resource group at once,
+so the script skips that step when a thread is already recorded and asks first if the record
+was lost. Use `-NewThread` to start another one deliberately. In the Cloud Shell portal-only
+fallback, reuse the existing agent chat rather than starting a duplicate deployment.
 
 Choose a region that supports both Azure SRE Agent and this subscription's PostgreSQL
 16 / B1ms offering. The default is `swedencentral`. Some subscriptions are restricted from
@@ -368,8 +372,10 @@ access:
 ```
 
 Finalization refuses to continue unless the permanent read-only roles, workload Application
-Insights connector, incident platform, base skills, knowledge, hook, prompt, and tool policy can
-be read back. It then removes Owner, changes the agent to Low/Review, and verifies both changes.
+Insights connector, incident platform, and the agent-written verified completion marker can be
+read back. When an SRE Agent data-plane token is available, it also directly verifies the base
+skills, knowledge, hook, prompt, and tool policy. It then removes Owner, changes the agent to
+Low/Review, and verifies both changes.
 Pass `-AgentName` too if you changed the default. After finalization, continue to
 [Verify before the exercises](#verify-before-the-exercises).
 If the Cloud Shell session or uploaded file is gone, upload the same script again and run the
@@ -448,7 +454,7 @@ Do not continue to fault injection when the baseline is broken.
 | No telemetry | Check the workload source and UTC interval. Missing data does not prove health or recovery. |
 | Scheduled task has no completed run | Inspect its enabled state, trigger and approval status. Do not substitute a manual chat as proof. |
 | GitHub or Outlook output is unavailable | Complete sign-in and Connect, or explicitly use core-only and mark the connected exercises skipped. Never bypass consent. |
-| Cloud Shell reports an unsupported `https://azuresre.dev` MSI token audience | Accept the script's device-code sign-in prompt. If it was declined, run `az login --use-device-code --scope "https://azuresre.dev/.default"` and rerun the script. |
+| Cloud Shell reports an unsupported `https://azuresre.dev` MSI token audience | Use the portal link and deployment request printed by the script. No second Azure sign-in is required. |
 | The portal says you do not have access to the new agent | Rerun the bootstrap script to apply SRE Agent Administrator to the signed-in user. Allow one minute for RBAC propagation, then sign out and back in to the portal. |
 
 ## Cleanup
