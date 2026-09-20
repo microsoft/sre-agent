@@ -321,10 +321,17 @@ The script:
 4. Adds `*.bicep.azure.com`, `*.azurewebsites.net` and `*.azuresre.ai` to that agent's
    egress allowlist, preserving the existing entries.
 5. Grants the agent's managed identity temporary Owner on the lab resource group.
-6. Pauses while you connect your fork as a code repository. This step needs an interactive
+6. Grants the signed-in user SRE Agent Administrator on the agent resource so they can
+   open the agent and configure Code Access.
+7. Pauses while you connect your fork as a code repository. This step needs an interactive
    OAuth consent and cannot be scripted. The script queries the live Code Access state after
    you return and does not start a deployment thread until a repository is connected.
-7. Starts an agent thread pointing at the runbook.
+8. Starts an agent thread pointing at the runbook.
+
+Azure Cloud Shell's built-in credential might not support the `https://azuresre.dev`
+token audience. If so, the script offers a device-code sign-in for that scope, restores
+the selected subscription, and resumes. This second sign-in does not replace the manual
+GitHub consent required for Code Access.
 
 The agent uses Bicep to deploy the workload and converge its permanent read-only RBAC and
 Application Insights connector. Skills, knowledge, hooks, prompts, and the incident platform use
@@ -441,6 +448,8 @@ Do not continue to fault injection when the baseline is broken.
 | No telemetry | Check the workload source and UTC interval. Missing data does not prove health or recovery. |
 | Scheduled task has no completed run | Inspect its enabled state, trigger and approval status. Do not substitute a manual chat as proof. |
 | GitHub or Outlook output is unavailable | Complete sign-in and Connect, or explicitly use core-only and mark the connected exercises skipped. Never bypass consent. |
+| Cloud Shell reports an unsupported `https://azuresre.dev` MSI token audience | Accept the script's device-code sign-in prompt. If it was declined, run `az login --use-device-code --scope "https://azuresre.dev/.default"` and rerun the script. |
+| The portal says you do not have access to the new agent | Rerun the bootstrap script to apply SRE Agent Administrator to the signed-in user. Allow one minute for RBAC propagation, then sign out and back in to the portal. |
 
 ## Cleanup
 
