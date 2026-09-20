@@ -75,12 +75,18 @@ Then confirm PostgreSQL Flexible Server is actually provisionable — **this is 
 region-specific and is the most common hard blocker**:
 
 ```bash
-az postgres flexible-server list-skus --subscription <SUBSCRIPTION> --location <LOCATION> --query "[?name=='Standard_B1ms']" -o json
+az postgres flexible-server list-skus \
+  --subscription <SUBSCRIPTION> \
+  --location <LOCATION> \
+  --query "[].{reason:reason,versions:supportedServerVersions[].name,skus:supportedServerEditions[].supportedServerSkus[].name}" \
+  -o json
 ```
 
-An empty result, or a `restrictions` entry with a `reason`, means the region is unusable. Known
-restricted regions on some subscriptions: `eastus` ("Provisioning is restricted in this region")
-and `eastus2` ("Subscriptions are restricted from provisioning in this region").
+The SKU names are nested under `supportedServerEditions[].supportedServerSkus`; do not filter
+the top-level objects by `name`. Confirm that version `16` and SKU `Standard_B1ms` appear in
+the projected response. If either is absent, report any returned `reason` values. Known
+restricted regions on some subscriptions include `eastus` ("Provisioning is restricted in this
+region") and `eastus2` ("Subscriptions are restricted from provisioning in this region").
 
 Also confirm the region supports the agent resource type:
 

@@ -109,6 +109,11 @@ class LessonTests(unittest.TestCase):
         self.assertIn("onboardingLabDeploymentStatus", bootstrap)
         self.assertIn("onboardingLabDeploymentStatus=verified", runbook)
         self.assertIn(
+            "supportedServerEditions[].supportedServerSkus[].name",
+            runbook,
+        )
+        self.assertNotIn("[?name=='Standard_B1ms']", runbook)
+        self.assertIn(
             "Follow the runbook at $RunbookPath under the sre-agent repository.",
             bootstrap,
         )
