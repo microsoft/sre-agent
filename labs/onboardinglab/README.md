@@ -14,7 +14,8 @@ and closes the connection. No tickets, payments or customer data are stored.
 | --- | --- |
 | The facilitator gave you an agent and application link | Open both links and [start the guided lesson](#start-the-guided-lesson). Do not deploy or reset shared resources. |
 | You have a checkout and a local coding assistant | Open `labs/onboardinglab` as the working directory. Ask: **Help me set up or resume this lab. Check my environment and explain any approvals before changing anything.** |
-| You want to run the commands yourself | Follow [Setup](#setup), then begin the same exercises. |
+| You want an agent to deploy the lab for you | Run the [agent-driven setup](#agent-driven-setup) from Azure Cloud Shell. No local tooling required. |
+| You want to run the commands yourself | Follow [manual setup](#manual-setup), then begin the same exercises. |
 | You lack a subscription, permissions or required tools | Ask the facilitator for an assigned environment. A local assistant can explain the blocker but cannot grant access. |
 
 The local assistant reads [AGENTS.md](AGENTS.md) and the
@@ -242,7 +243,114 @@ separate from the incident agent's evidence so the exercise requires investigati
 
 ## Setup
 
-### Prerequisites
+There are two ways to stand the lab up. **Agent-driven setup** needs nothing installed
+locally and is the quickest path. **Manual setup** gives you direct control and uses
+`azd`.
+
+### Agent-driven setup
+
+A bootstrap script creates a small "lab creator" agent, then asks that agent to deploy the
+lab for you by following [agent-deploy-runbook.md](agent-deploy-runbook.md). You approve each
+action as it is proposed.
+
+You need:
+
+- Owner on the subscription (the script registers a resource provider and creates role
+  assignments).
+- Azure Cloud Shell (PowerShell). Nothing else is installed locally.
+- A fork of this repository, created below.
+
+#### Fork this repository
+
+The lab creator agent clones a repository through Code Access and deploys the lab from it,
+reading [agent-deploy-runbook.md](agent-deploy-runbook.md) and the Bicep templates. You
+connect that repository in step 6.
+
+Connect a fork you own rather than `microsoft/sre-agent` directly. Code Access grants the
+agent the repositories your GitHub account can reach, and many organisations restrict
+connecting repositories outside the org. A fork also pins the lab at a revision you control,
+so an upstream change cannot move the runbook under you part way through.
+
+Fork from the GitHub UI at [microsoft/sre-agent](https://github.com/microsoft/sre-agent)
+using **Fork**, or from Cloud Shell if the GitHub CLI is signed in:
+
+```powershell
+gh repo fork microsoft/sre-agent --clone=false
+```
+
+**You do not clone the fork yourself.** The agent does that. You only need one file.
+
+#### Download the bootstrap script
+
+Download the script from your fork in a browser, then upload it to Cloud Shell. Do not fetch
+it from inside Cloud Shell.
+
+1. On github.com, open your fork and navigate to
+   `labs/onboardinglab/scripts/bootstrap-labcreator.ps1`.
+2. Choose **Raw**, then save the file (right-click the Raw view and pick **Save link as**,
+   or press Ctrl+S).
+3. Check the saved name is exactly `bootstrap-labcreator.ps1`. Some browsers append `.txt`.
+
+Take it from your fork rather than from `microsoft/sre-agent`, so the script matches the
+runbook revision the agent will follow.
+
+#### Upload it to Cloud Shell and run it
+
+1. Open [Azure Cloud Shell](https://shell.azure.com) and switch it to **PowerShell**.
+2. On the Cloud Shell toolbar choose **Manage files**, then **Upload**, and pick the file you
+   just saved. It lands in your home directory.
+3. Run it:
+
+```powershell
+./bootstrap-labcreator.ps1
+```
+
+The script is self-contained: it uses only the Azure CLI, needs no repository clone and
+compiles no Bicep.
+
+This fork is separate from the GitHub repository used in
+[manual setup](#manual-setup), where the lab agent files issues and any repository you can
+already create issues in is fine.
+
+The script:
+
+1. Registers the `Microsoft.App` resource provider.
+2. Creates `SreAgentLabCreatorRG` and the lab resource group (default
+   `SreAgentOnboardingLabRG`, prompted).
+3. Creates Log Analytics, Application Insights, a managed identity, and the
+   `labcreator-sreagent` agent in High access, Review mode.
+4. Adds `*.bicep.azure.com`, `*.azurewebsites.net` and `*.azuresre.ai` to that agent's
+   egress allowlist, preserving the existing entries.
+5. Grants the agent's managed identity Owner on the lab resource group.
+6. Pauses while you connect your fork as a code repository. This step needs an interactive
+   OAuth consent and cannot be scripted.
+7. Starts an agent thread pointing at the runbook.
+
+The script is **re-entrant**. Run it again after any interruption and it resumes at the
+first incomplete step. Use `-Reset` to start over.
+
+Most steps do not rely on saved progress at all: they check Azure itself and skip work
+that already exists, so they behave correctly even on a completely fresh session. Progress
+is also written to `~/.onboardinglab-bootstrap.json`. In Cloud Shell that file persists
+only when a storage account is mounted, so an **ephemeral session loses it** — which is
+safe, because the only step that cannot simply be repeated is the last one. Starting a
+second deployment thread would put two agents in the same resource group at once, so the
+script skips that step when a thread is already recorded, and asks first if the record was
+lost. Use `-NewThread` to start another one deliberately.
+
+Choose a region that supports both Azure SRE Agent and this subscription's PostgreSQL
+16 / B1ms offering. The default is `swedencentral`. Some subscriptions are restricted from
+provisioning PostgreSQL Flexible Server in `eastus` and `eastus2`; the runbook's preflight
+checks this and stops rather than silently choosing another region.
+
+The resource group's own region does not matter. A group in one region can hold resources in
+another, so an existing group is never a reason to change `-Location`.
+
+When the agent finishes, skip to [Verify before the exercises](#verify-before-the-exercises).
+
+### Manual setup
+
+#### Prerequisites
 
 Use Git, Azure CLI, Azure Developer CLI, PowerShell 7, Node.js 22 or later,
 Python 3 with PyYAML, and jq. The scripts check the dependencies they use.
@@ -271,7 +379,7 @@ source ./scripts/prereqs.sh --check
 Remove the check-only option to install missing prerequisites after reviewing
 the required changes. Complete Azure CLI and azd sign-in through their trusted UI.
 
-### Prepare the approved environment
+#### Prepare the approved environment
 
 Choose a unique environment name and approved subscription:
 
@@ -324,6 +432,16 @@ After the resource owner approves deletion:
 ```powershell
 azd down -C .\ticketingapp-source
 ```
+
+If the lab was deployed by the agent there is no azd environment to tear down. Delete the lab
+resource group directly instead, after confirming it contains only lab resources:
+
+```powershell
+az group delete --name YOUR-LAB-RESOURCE-GROUP --subscription YOUR-SUBSCRIPTION
+```
+
+Remember the lab-creator agent and `SreAgentLabCreatorRG` are separate and survive this; remove
+them too once you are finished with the lab.
 
 Confirm that the intended resource group was removed. GitHub issues and sent
 email are external artifacts and are not removed by azd. If the lab stays

@@ -4,6 +4,12 @@ Run these commands from `labs/onboardinglab` in PowerShell 7. On macOS, start
 `pwsh` after running the macOS prerequisite script. The local coding assistant
 can follow the same stages after checking your environment and approvals.
 
+> [!TIP]
+> This page covers the **manual** path, which uses `azd` and local tooling. If you would
+> rather have an agent stand the lab up for you from Azure Cloud Shell with nothing installed
+> locally, use [agent-driven setup](../README.md#agent-driven-setup) instead. That path does
+> not use `azd` at all.
+
 The standard lab includes GitHub code access and issue follow-ups, plus Outlook
 email. The facilitator selects an approved repository and recipients during
 preparation. Participants complete OAuth sign-in through the trusted connection
