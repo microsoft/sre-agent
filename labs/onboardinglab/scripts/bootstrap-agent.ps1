@@ -146,6 +146,25 @@ function Get-StableGuid {
     }
 }
 
+function Get-KnowledgeResourceName {
+    param([Parameter(Mandatory)][string] $FileName)
+
+    $sanitized = ($FileName.ToLowerInvariant() -replace '[^a-z0-9-]', '-') -replace '-+', '-' -replace '^-|-$', ''
+    if ($sanitized.Length -le 32) {
+        return $sanitized
+    }
+
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = (($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($sanitized)) |
+            ForEach-Object { $_.ToString('x2') }) -join '').Substring(0, 7)
+        return "$($sanitized.Substring(0, 24))-$hash"
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
 # ── State (re-entrancy) ─────────────────────────────────────────────────────
 
 function Get-State {
@@ -234,6 +253,21 @@ function Invoke-ArmRequest {
     finally {
         Remove-Item -Path $file -ErrorAction SilentlyContinue
     }
+}
+
+function Get-ConnectedRepositories {
+    param([Parameter(Mandatory)][string] $Endpoint)
+
+    $response = Invoke-Az @(
+        'rest', '--method', 'get',
+        '--url', "$($Endpoint.TrimEnd('/'))/api/v2/repos",
+        '--resource', 'https://azuresre.dev',
+        '-o', 'json'
+    )
+    if ($response.PSObject.Properties['value']) {
+        return @($response.value)
+    }
+    return @($response)
 }
 
 function Get-AgentResource {
@@ -410,9 +444,13 @@ if ($Finalize) {
         @{ Kind = 'skills'; Name = 'onboarding-health-check' }
         @{ Kind = 'hooks'; Name = 'evidence-checklist' }
         @{ Kind = 'commonprompts'; Name = 'onboardinglab-safety' }
-        @{ Kind = 'connectors'; Name = 'onboardinglab-architecture-md' }
-        @{ Kind = 'connectors'; Name = 'onboardinglab-incident-r-2bcbfae' }
     )
+    foreach ($fileName in @('onboardinglab-architecture.md', 'onboardinglab-incident-runbook.md')) {
+        $requiredDataPlaneObjects += @{
+            Kind = 'connectors'
+            Name = (Get-KnowledgeResourceName -FileName $fileName)
+        }
+    }
     foreach ($item in $requiredDataPlaneObjects) {
         $encodedName = [uri]::EscapeDataString($item.Name)
         $installed = Invoke-Az @(
@@ -804,8 +842,11 @@ Write-Ok 'Agent identity can configure its own agent data plane.'
 
 Write-Step 'Step 6 - Connect your fork as a code repository'
 
-if (Test-StepDone -State $state -Name 'codeAccessConfirmed') {
-    Write-Ok 'Already confirmed (from saved state). Use -Reset to redo this step.'
+$connectedRepositories = @(Get-ConnectedRepositories -Endpoint $agentEndpoint)
+if ($connectedRepositories.Count -gt 0) {
+    $repositoryNames = @($connectedRepositories | ForEach-Object { $_.name } | Where-Object { $_ })
+    Set-StepDone -State $state -Name 'codeAccessConfirmed'
+    Write-Ok "Code access verified: $($repositoryNames -join ', ')"
 }
 else {
     $portalUrl = "https://sre.azure.com/#/agent/$subId/$LabResourceGroup/$AgentName"
@@ -826,8 +867,15 @@ else {
     Write-Host ''
 
     $null = Read-Host '   Press Enter once the repository is connected'
+    $connectedRepositories = @(Get-ConnectedRepositories -Endpoint $agentEndpoint)
+    if ($connectedRepositories.Count -eq 0) {
+        $state['codeAccessConfirmed'] = $false
+        Save-State -State $state
+        throw 'No connected repository was found. Complete Code Access and rerun this script; no deployment thread was started.'
+    }
     Set-StepDone -State $state -Name 'codeAccessConfirmed'
-    Write-Ok 'Code access confirmed.'
+    $repositoryNames = @($connectedRepositories | ForEach-Object { $_.name } | Where-Object { $_ })
+    Write-Ok "Code access verified: $($repositoryNames -join ', ')"
 }
 
 # ── Step 7: start the deployment thread ─────────────────────────────────────

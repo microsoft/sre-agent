@@ -268,8 +268,8 @@ connect that repository in step 6.
 
 Connect a fork you own rather than `microsoft/sre-agent` directly. Code Access grants the
 agent the repositories your GitHub account can reach, and many organisations restrict
-connecting repositories outside the org. A fork also pins the lab at a revision you control,
-so an upstream change cannot move the runbook under you part way through.
+connecting repositories outside the org. A fork isolates the lab from upstream changes. Do not
+change its selected branch while deployment is running.
 
 Fork from the GitHub UI at [microsoft/sre-agent](https://github.com/microsoft/sre-agent)
 using **Fork**, or from Cloud Shell if the GitHub CLI is signed in:
@@ -322,7 +322,8 @@ The script:
    egress allowlist, preserving the existing entries.
 5. Grants the agent's managed identity temporary Owner on the lab resource group.
 6. Pauses while you connect your fork as a code repository. This step needs an interactive
-   OAuth consent and cannot be scripted.
+   OAuth consent and cannot be scripted. The script queries the live Code Access state after
+   you return and does not start a deployment thread until a repository is connected.
 7. Starts an agent thread pointing at the runbook.
 
 The agent uses Bicep to deploy the workload and converge its permanent read-only RBAC and
@@ -335,9 +336,11 @@ first incomplete step. Use `-Reset` to start over.
 
 Most steps do not rely on saved progress at all: they check Azure itself and skip work
 that already exists, so they behave correctly even on a completely fresh session. Progress
-is also written to `~/.onboardinglab-bootstrap.json`. In Cloud Shell that file persists
+is also written to `~/.onboardinglab-agent-bootstrap.json`. In Cloud Shell that file persists
 only when a storage account is mounted, so an **ephemeral session loses it** — which is
-safe, because the only step that cannot simply be repeated is the last one. Starting a
+safe. If the browser closes during Code Access, reconnect, rerun the script, and complete the
+same step. The script reads the live repository connection instead of trusting the state file.
+The only step that cannot simply be repeated is the last one. Starting a
 second deployment thread would put two agents in the same resource group at once, so the
 script skips that step when a thread is already recorded, and asks first if the record was
 lost. Use `-NewThread` to start another one deliberately.

@@ -3,6 +3,7 @@
 This runbook is written **for an Azure SRE Agent to execute**, not for a human shell.
 The bootstrap script (`scripts/bootstrap-agent.ps1`) creates the final onboarding agent with
 temporary deployment access, then starts a thread pointing at this file.
+It starts the thread only after the live Code Access API reports at least one connected repository.
 
 Work through the steps in order. Each step states what to run and how to confirm it worked.
 Stop and report if a verification fails — do not continue past a failed step.
@@ -54,6 +55,8 @@ resource group's location is only metadata, so an `eastus` group can hold `swede
 resources. Deploy resources to `LOCATION`, not to the group's own region.
 
 Record the resolved values in your first reply so the run is auditable.
+Also run `git rev-parse HEAD` in the workspace and record the commit. Do not fetch, pull, or switch
+branches during deployment.
 
 ---
 
