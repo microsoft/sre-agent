@@ -87,6 +87,25 @@ class LessonTests(unittest.TestCase):
         self.assertIn("## Share the investigation", guide)
         self.assertIn("obtain separate approval to send", guide)
 
+    def test_agent_driven_setup_uses_one_agent_and_external_finalization(self):
+        bootstrap = (LAB / "scripts/bootstrap-agent.ps1").read_text(encoding="utf-8")
+        runbook = (LAB / "agent-deploy-runbook.md").read_text(encoding="utf-8")
+        infrastructure = (LAB / "infra/main.bicep").read_text(encoding="utf-8")
+
+        self.assertFalse((LAB / "scripts/bootstrap-labcreator.ps1").exists())
+        self.assertIn("[switch] $Finalize", bootstrap)
+        self.assertIn("'--role', 'Owner'", bootstrap)
+        self.assertIn("'role', 'assignment', 'delete'", bootstrap)
+        self.assertIn("accessLevel = 'Low'", bootstrap)
+        self.assertIn("function Get-KnowledgeResourceName", bootstrap)
+        self.assertNotIn("onboardinglab-incident-r-2bcbfae", bootstrap)
+        self.assertIn("/api/v2/repos", bootstrap)
+        self.assertIn("No connected repository was found", bootstrap)
+        self.assertIn("Do not create another agent", runbook)
+        self.assertIn("--template-file labs/onboardinglab/infra/main.bicep", runbook)
+        self.assertIn("module workload", infrastructure)
+        self.assertIn("module agentConfiguration", infrastructure)
+
     def test_local_document_links_resolve(self):
         documents = [
             LAB / "README.md",
