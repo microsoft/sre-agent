@@ -133,6 +133,8 @@ az deployment group create \
   --query "{state:properties.provisioningState,outputs:properties.outputs}" -o json
 ```
 
+After the deployment starts, keep monitoring its status and provisioned resources periodically until it reaches a terminal state; do not report failure only because the initial command or tool call timed out while Azure is still provisioning.
+
 This creates the VNet and NSG, Log Analytics, Application Insights, the App Service plan and
 Linux web app, the PostgreSQL flexible server with its private DNS zone, and the
 `<NAME_PREFIX>-checkout-failures` alert rule. It also declares the final agent's permanent

@@ -124,6 +124,7 @@ class LessonTests(unittest.TestCase):
         self.assertIn('AVAILABLE_KB=$(df -Pk /tmp', runbook)
         self.assertIn("from zipfile import ZIP_DEFLATED, ZipFile", runbook)
         self.assertNotIn("for tool in git zip jq", runbook)
+        self.assertIn("keep monitoring its status and provisioned resources periodically", runbook)
         self.assertIn(
             "supportedServerEditions[].supportedServerSkus[].name",
             runbook,
