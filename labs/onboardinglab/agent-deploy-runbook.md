@@ -177,17 +177,37 @@ PY
 ```
 
 Publish it with your CLI tool. The template disables SCM basic auth, so publish profiles do not
-work — `az webapp deploy` uses an Entra token and is the supported path:
+work — `az webapp deploy` uses an Entra token and is the supported path. Start OneDeploy
+asynchronously so the command returns within the agent's two-minute CLI budget:
 
 ```bash
 az webapp deploy --subscription <SUBSCRIPTION> -g <LAB_RG> -n <checkoutAppName> \
-  --type zip --src-path /tmp/checkout-app.zip
+  --type zip --src-path /tmp/checkout-app.zip --async true
 ```
+
+Poll the existing deployment separately:
+
+```bash
+az webapp log deployment list \
+  --subscription <SUBSCRIPTION> \
+  --resource-group <LAB_RG> \
+  --name <checkoutAppName> \
+  --query "[0].{id:id,status:status,start:start_time,end:end_time}" \
+  --output json
+```
+
+Keep polling until the latest deployment reaches a terminal state. If the initial command or
+agent action times out, check this deployment history before doing anything else. Do not submit
+the zip again while OneDeploy is still processing the previous upload.
 
 **Verify:**
 
 ```bash
-az webapp log deployment show --subscription <SUBSCRIPTION> -g <LAB_RG> -n <checkoutAppName> -o json
+az webapp log deployment show \
+  --subscription <SUBSCRIPTION> \
+  --resource-group <LAB_RG> \
+  --name <checkoutAppName> \
+  --output json
 ```
 
 Look for `"Deployment successful"` and an Oryx build reporting `Errors (0)`.

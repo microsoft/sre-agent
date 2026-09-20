@@ -125,6 +125,10 @@ class LessonTests(unittest.TestCase):
         self.assertIn("from zipfile import ZIP_DEFLATED, ZipFile", runbook)
         self.assertNotIn("for tool in git zip jq", runbook)
         self.assertIn("keep monitoring its status and provisioned resources periodically", runbook)
+        self.assertIn("--async true", runbook)
+        self.assertIn("az webapp log deployment list", runbook)
+        self.assertIn("Do not submit", runbook)
+        self.assertIn("while OneDeploy is still processing the previous upload", runbook)
         self.assertIn(
             "supportedServerEditions[].supportedServerSkus[].name",
             runbook,
