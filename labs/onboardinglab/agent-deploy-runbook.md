@@ -28,8 +28,9 @@ Two consequences:
   to `az` / `azd` and will fail here. This runbook replaces them.
 - `azd` is not installed. Every step below avoids it.
 
-`--template-file <file>.bicep` works directly: the onboarding agent allowlists
-`*.bicep.azure.com`, so the CLI can fetch the Bicep compiler on first use.
+The Bicep files are the IaC source of truth. Deploy the committed
+`infra/main.arm.json` artifact generated from `infra/main.bicep`; do not compile Bicep in the
+agent sandbox. Downloading the Bicep CLI can exhaust the sandbox filesystem before deployment.
 
 ### Re-entrancy
 
@@ -102,14 +103,16 @@ silently pick another region.
 
 ## Step 2 — Deploy the lab infrastructure through Bicep
 
-Deploy the lab's resource-group-scoped entry point. It composes the workload module with the
-existing agent's permanent read-only RBAC and Application Insights connector. Do **not** use
-`ticketingapp-source/main.bicep`: it is subscription-scoped and creates its own resource group.
+Deploy the compiled form of the lab's resource-group-scoped Bicep entry point. It composes the
+workload module with the existing agent's permanent read-only RBAC and Application Insights
+connector. `infra/main.bicep` remains the source of truth; `infra/main.arm.json` is its committed
+deployment artifact. Do **not** use `ticketingapp-source/main.bicep`: it is subscription-scoped
+and creates its own resource group.
 
 ```bash
 az deployment group create \
   --subscription <SUBSCRIPTION> -g <LAB_RG> --name onboardinglab \
-  --template-file labs/onboardinglab/infra/main.bicep \
+  --template-file labs/onboardinglab/infra/main.arm.json \
   --parameters location=<LOCATION> namePrefix=<NAME_PREFIX> \
                agentName=<AGENT_NAME> agentIdentityName=<AGENT_IDENTITY_NAME> \
   --query "{state:properties.provisioningState,outputs:properties.outputs}" -o json

@@ -318,8 +318,8 @@ The script:
 2. Creates the lab resource group (default `SreAgentOnboardingLabRG`, prompted).
 3. Creates Log Analytics, Application Insights, a managed identity, and the
    final `onboardinglab-agent` in High access, Review mode.
-4. Adds `*.bicep.azure.com`, `*.azurewebsites.net` and `*.azuresre.ai` to that agent's
-   egress allowlist, preserving the existing entries.
+4. Adds `*.azurewebsites.net` and `*.azuresre.ai` to that agent's egress allowlist,
+   preserving the existing entries.
 5. Grants the agent's managed identity temporary Owner on the lab resource group.
 6. Grants the signed-in user SRE Agent Administrator on the agent resource so they can
    open the agent and configure Code Access.
@@ -334,10 +334,11 @@ agent portal link and exact deployment request for you to paste into a new or ex
 agent chat. The agent writes an ARM completion marker only after its end-to-end checks pass,
 so finalization can still verify completion without a human data-plane token.
 
-The agent uses Bicep to deploy the workload and converge its permanent read-only RBAC and
-Application Insights connector. Skills, knowledge, hooks, prompts, and the incident platform use
-the SRE Agent data-plane APIs because those resources are not all available through the ARM
-resource provider.
+The infrastructure source is Bicep. The agent deploys its committed compiled ARM artifact so
+the constrained agent sandbox does not need to download the Bicep CLI. This deploys the workload
+and converges permanent read-only RBAC and the Application Insights connector. Skills, knowledge,
+hooks, prompts, and the incident platform use the SRE Agent data-plane APIs because those
+resources are not all available through the ARM resource provider.
 
 The script is **re-entrant**. Run it again after any interruption and it resumes at the
 first incomplete step. Use `-Reset` to start over.

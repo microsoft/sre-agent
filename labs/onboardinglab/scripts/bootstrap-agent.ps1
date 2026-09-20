@@ -116,11 +116,9 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $PSVersionTable.PSVersion.Minor -
 $AgentApiVersion = '2025-05-01-preview'
 
 # Hosts the onboarding agent must reach while it deploys the lab.
-#   *.bicep.azure.com     - download the Bicep compiler for --template-file *.bicep
 #   *.azurewebsites.net   - smoke-test the deployed checkout app
 #   *.azuresre.ai         - push skills/knowledge to the agent's data plane
 $RequiredEgressHosts = @(
-    '*.bicep.azure.com'
     '*.azurewebsites.net'
     '*.azuresre.ai'
 )
