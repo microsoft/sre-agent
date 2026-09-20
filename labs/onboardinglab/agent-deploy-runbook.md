@@ -72,7 +72,7 @@ First verify the non-Azure workspace tools and leave at least 50 MiB free for th
 archive and generated agent configuration:
 
 ```bash
-for tool in git zip jq python3 pwsh; do
+for tool in git jq python3 pwsh; do
   command -v "$tool" >/dev/null || { echo "Missing required tool: $tool"; exit 1; }
 done
 python3 -c "import yaml" || { echo "Missing Python module: PyYAML"; exit 1; }
@@ -161,7 +161,17 @@ server-side.
 
 ```bash
 cd labs/onboardinglab/ticketingapp-source/app
-zip -r /tmp/checkout-app.zip . -x 'node_modules/*' -x 'test/*' -x '.git/*'
+python3 - <<'PY'
+from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
+
+root = Path(".")
+excluded = {"node_modules", "test", ".git"}
+with ZipFile("/tmp/checkout-app.zip", "w", ZIP_DEFLATED) as archive:
+    for path in root.rglob("*"):
+        if path.is_file() and not excluded.intersection(path.parts):
+            archive.write(path, path.relative_to(root))
+PY
 ```
 
 Publish it with your CLI tool. The template disables SCM basic auth, so publish profiles do not
