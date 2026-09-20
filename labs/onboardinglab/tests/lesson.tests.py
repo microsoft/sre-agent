@@ -110,6 +110,18 @@ class LessonTests(unittest.TestCase):
         self.assertIn("Automatic thread creation is unavailable", bootstrap)
         self.assertIn("onboardingLabDeploymentStatus", bootstrap)
         self.assertIn("onboardingLabDeploymentStatus=verified", runbook)
+        for provider in (
+            "Microsoft.App",
+            "Microsoft.Authorization",
+            "Microsoft.DBforPostgreSQL",
+            "Microsoft.Insights",
+            "Microsoft.ManagedIdentity",
+            "Microsoft.Network",
+            "Microsoft.OperationalInsights",
+            "Microsoft.Web",
+        ):
+            self.assertIn(f"'{provider}'", bootstrap)
+        self.assertIn('AVAILABLE_KB=$(df -Pk /tmp', runbook)
         self.assertIn(
             "supportedServerEditions[].supportedServerSkus[].name",
             runbook,
@@ -131,7 +143,7 @@ class LessonTests(unittest.TestCase):
 
         finalize = bootstrap[
             bootstrap.index("if ($Finalize) {"):
-            bootstrap.index("# ── Step 1: register the resource provider")
+            bootstrap.index("# ── Step 1: register resource providers")
         ]
         self.assertIn(
             "Invoke-Az @('role', 'assignment', 'delete', '--ids', $ownerAssignmentId)",

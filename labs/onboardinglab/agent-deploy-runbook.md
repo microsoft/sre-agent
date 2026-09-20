@@ -68,6 +68,21 @@ branches during deployment.
 
 Confirm the group exists and the region can host the lab.
 
+First verify the non-Azure workspace tools and leave at least 50 MiB free for the application
+archive and generated agent configuration:
+
+```bash
+for tool in git zip jq python3 pwsh; do
+  command -v "$tool" >/dev/null || { echo "Missing required tool: $tool"; exit 1; }
+done
+python3 -c "import yaml" || { echo "Missing Python module: PyYAML"; exit 1; }
+AVAILABLE_KB=$(df -Pk /tmp | awk 'NR==2 {print $4}')
+[ "$AVAILABLE_KB" -ge 51200 ] || { echo "Less than 50 MiB free in /tmp"; exit 1; }
+```
+
+Do not install missing tools or dependencies in the sandbox. Stop and report the missing
+prerequisite so the lab image or workflow can be corrected.
+
 ```bash
 az group show --subscription <SUBSCRIPTION> -n <LAB_RG> --query "{name:name,location:location,state:properties.provisioningState}" -o json
 ```

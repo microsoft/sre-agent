@@ -14,7 +14,7 @@
 
     Steps:
       0. Preflight: check az, resolve the subscription, resolve the lab RG name.
-      1. Register the Microsoft.App resource provider.
+      1. Register the Azure resource providers required by the agent and workload.
       2. Create the lab resource group.
       3. Create Log Analytics, Application Insights, a managed identity and the final agent.
       4. Append the egress hosts the agent needs to reach while deploying.
@@ -114,6 +114,17 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $PSVersionTable.PSVersion.Minor -
 }
 
 $AgentApiVersion = '2025-05-01-preview'
+
+$RequiredResourceProviders = @(
+    'Microsoft.App'
+    'Microsoft.Authorization'
+    'Microsoft.DBforPostgreSQL'
+    'Microsoft.Insights'
+    'Microsoft.ManagedIdentity'
+    'Microsoft.Network'
+    'Microsoft.OperationalInsights'
+    'Microsoft.Web'
+)
 
 # Hosts the onboarding agent must reach while it deploys the lab.
 #   *.azurewebsites.net   - smoke-test the deployed checkout app
@@ -608,33 +619,38 @@ if ($Finalize) {
     return
 }
 
-# ── Step 1: register the resource provider ──────────────────────────────────
+# ── Step 1: register resource providers ─────────────────────────────────────
 
-Write-Step 'Step 1 - Register Microsoft.App'
+Write-Step 'Step 1 - Register required Azure resource providers'
 
-if (Test-StepDone -State $state -Name 'rpRegistered') {
-    Write-Ok 'Already registered (from saved state).'
+$pendingProviders = [System.Collections.Generic.List[string]]::new()
+foreach ($providerName in $RequiredResourceProviders) {
+    $provider = Invoke-Az @('provider', 'show', '-n', $providerName, '--query', '{state:registrationState}', '-o', 'json')
+    if ($provider.state -eq 'Registered') {
+        Write-Ok "$providerName is registered."
+        continue
+    }
+
+    Write-Note "Registering $providerName (current state: $($provider.state))..."
+    $null = Invoke-Az @('provider', 'register', '-n', $providerName) -AllowEmpty
+    $pendingProviders.Add($providerName)
 }
-else {
-    $provider = Invoke-Az @('provider', 'show', '-n', 'Microsoft.App', '--query', '{state:registrationState}', '-o', 'json')
-    if ($provider.state -ne 'Registered') {
-        Write-Note "Current state: $($provider.state). Registering..."
-        $null = Invoke-Az @('provider', 'register', '-n', 'Microsoft.App') -AllowEmpty
 
-        $deadline = (Get-Date).AddMinutes(10)
-        do {
-            Start-Sleep -Seconds 10
-            $provider = Invoke-Az @('provider', 'show', '-n', 'Microsoft.App', '--query', '{state:registrationState}', '-o', 'json')
-            Write-Note "  ... $($provider.state)"
-        } while ($provider.state -ne 'Registered' -and (Get-Date) -lt $deadline)
-
-        if ($provider.state -ne 'Registered') {
-            throw "Microsoft.App did not reach Registered within 10 minutes (last state: $($provider.state))."
+$deadline = (Get-Date).AddMinutes(15)
+while ($pendingProviders.Count -gt 0 -and (Get-Date) -lt $deadline) {
+    Start-Sleep -Seconds 10
+    foreach ($providerName in @($pendingProviders)) {
+        $provider = Invoke-Az @('provider', 'show', '-n', $providerName, '--query', '{state:registrationState}', '-o', 'json')
+        if ($provider.state -eq 'Registered') {
+            Write-Ok "$providerName is registered."
+            $null = $pendingProviders.Remove($providerName)
         }
     }
-    Write-Ok 'Microsoft.App is registered.'
-    Set-StepDone -State $state -Name 'rpRegistered'
 }
+if ($pendingProviders.Count -gt 0) {
+    throw "Azure resource providers did not reach Registered within 15 minutes: $($pendingProviders -join ', ')."
+}
+Set-StepDone -State $state -Name 'rpRegistered'
 
 # ── Step 2: resource groups ─────────────────────────────────────────────────
 

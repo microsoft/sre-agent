@@ -314,7 +314,7 @@ already create issues in is fine.
 
 The script:
 
-1. Registers the `Microsoft.App` resource provider.
+1. Registers the Azure resource providers required by the agent and workload.
 2. Creates the lab resource group (default `SreAgentOnboardingLabRG`, prompted).
 3. Creates Log Analytics, Application Insights, a managed identity, and the
    final `onboardinglab-agent` in High access, Review mode.
