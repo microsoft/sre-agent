@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Creates the "lab creator" SRE Agent that deploys the Onboarding Lab for you.
+    Creates the final SRE Agent that deploys its own Onboarding Lab environment.
 
 .DESCRIPTION
     Run this in Azure Cloud Shell (PowerShell). It is self-contained: it uses only
@@ -8,21 +8,24 @@
     repository. Every Azure resource is created through az, so there is no Bicep
     to compile here.
 
-    The agent this script creates is the thing that deploys the lab. It clones
-    your fork through Code Access and runs the Bicep templates itself.
+    The script creates the final onboarding agent with temporary Owner access on
+    the lab resource group. The agent clones your fork through Code Access and
+    deploys the workload and its durable configuration through Bicep.
 
     Steps:
       0. Preflight: check az, resolve the subscription, resolve the lab RG name.
       1. Register the Microsoft.App resource provider.
-      2. Create the lab-creator and lab resource groups.
-      3. Create Log Analytics, Application Insights, a managed identity and the agent.
+      2. Create the lab resource group.
+      3. Create Log Analytics, Application Insights, a managed identity and the final agent.
       4. Append the egress hosts the agent needs to reach while deploying.
-      5. Grant the agent's identity Owner on the lab resource group.
+      5. Grant the agent's identity temporary Owner on the lab resource group.
       6. Pause while you connect your fork as a code repository.
       7. Start a thread asking the agent to deploy the lab.
 
     The script is re-entrant, because a portal session can die at any point. Run it
-    again and it picks up where it stopped. Use -Reset to start over.
+    again and it picks up where it stopped. Use -Reset to start over. After the
+    deployment thread completes, run with -Finalize to remove temporary Owner
+    and set the agent to Low access.
 
     Re-entrancy is mostly not based on the state file: each step asks Azure what
     already exists and skips accordingly, so it behaves correctly even if the state
@@ -51,8 +54,15 @@
     Region for the agent and the lab. Must support both Azure SRE Agent and, on
     your subscription, PostgreSQL Flexible Server 16 / Standard_B1ms.
 
+.PARAMETER AgentName
+    Name of the final SRE Agent.
+
 .PARAMETER StateFile
     Where progress is recorded so the script can resume.
+
+.PARAMETER Finalize
+    Remove the agent identity's temporary Owner assignment and set the agent to
+    Low access after the deployment thread has completed successfully.
 
 .PARAMETER Reset
     Discard saved progress and start from the beginning.
@@ -61,10 +71,13 @@
     Start another deployment thread even if one was started already.
 
 .EXAMPLE
-    ./bootstrap-labcreator.ps1
+    ./bootstrap-agent.ps1
 
 .EXAMPLE
-    ./bootstrap-labcreator.ps1 -LabResourceGroup MyLabRG -Location swedencentral
+    ./bootstrap-agent.ps1 -LabResourceGroup MyLabRG -Location swedencentral
+
+.EXAMPLE
+    ./bootstrap-agent.ps1 -LabResourceGroup MyLabRG -Finalize
 #>
 
 [CmdletBinding()]
@@ -75,17 +88,17 @@ param(
 
     [string] $Location = 'swedencentral',
 
-    [string] $LabCreatorResourceGroup = 'SreAgentLabCreatorRG',
-
-    [string] $LabCreatorAgentName = 'labcreator-sreagent',
+    [string] $AgentName = 'onboardinglab-agent',
 
     # Progress is recorded here so the script can resume after a dropped session.
     # In Azure Cloud Shell this persists only when a storage account is mounted; an
     # ephemeral session loses it. Losing it is safe: every step re-checks Azure itself
     # rather than trusting this file, and the thread start asks before running twice.
-    [string] $StateFile = (Join-Path $HOME '.onboardinglab-bootstrap.json'),
+    [string] $StateFile = (Join-Path $HOME '.onboardinglab-agent-bootstrap.json'),
 
     [switch] $Reset,
+
+    [switch] $Finalize,
 
     # Start another deployment thread even if one was started already.
     [switch] $NewThread
@@ -100,10 +113,10 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $PSVersionTable.PSVersion.Minor -
 
 $AgentApiVersion = '2025-05-01-preview'
 
-# Hosts the lab-creator agent must reach to deploy the lab.
+# Hosts the onboarding agent must reach while it deploys the lab.
 #   *.bicep.azure.com     - download the Bicep compiler for --template-file *.bicep
 #   *.azurewebsites.net   - smoke-test the deployed checkout app
-#   *.azuresre.ai         - push skills/knowledge to the new lab agent's data plane
+#   *.azuresre.ai         - push skills/knowledge to the agent's data plane
 $RequiredEgressHosts = @(
     '*.bicep.azure.com'
     '*.azurewebsites.net'
@@ -117,6 +130,21 @@ $RunbookPath = 'labs/onboardinglab/agent-deploy-runbook.md'
 function Write-Step { param([string] $Message) Write-Host "`n== $Message ==" -ForegroundColor Cyan }
 function Write-Ok { param([string] $Message) Write-Host "   $Message" -ForegroundColor Green }
 function Write-Note { param([string] $Message) Write-Host "   $Message" }
+
+function Get-StableGuid {
+    param([Parameter(Mandatory)][string] $Value)
+
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Value))
+        $bytes = [byte[]]::new(16)
+        [Array]::Copy($hash, $bytes, 16)
+        return [guid]::new($bytes).ToString()
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
 
 # ── State (re-entrancy) ─────────────────────────────────────────────────────
 
@@ -255,6 +283,9 @@ Write-Host "State file: $StateFile"
 if ($Reset) { Write-Warning 'Reset requested - previous progress is being discarded.' }
 
 $state = Get-State
+if (-not $Finalize -and -not $Reset -and $state.Contains('finalized') -and $state['finalized'] -eq $true) {
+    throw 'This environment is finalized. Use -Reset only when you intentionally want to start a new deployment lifecycle.'
+}
 
 # ── Step 0: preflight ───────────────────────────────────────────────────────
 
@@ -298,12 +329,156 @@ if (-not $LabResourceGroup) {
         $LabResourceGroup = if ([string]::IsNullOrWhiteSpace($answer)) { 'SreAgentOnboardingLabRG' } else { $answer.Trim() }
     }
 }
+if (-not $PSBoundParameters.ContainsKey('Location') -and $state.Contains('location')) {
+    $Location = $state['location']
+}
+if (-not $PSBoundParameters.ContainsKey('AgentName') -and $state.Contains('agentName')) {
+    $AgentName = $state['agentName']
+}
 $state['labResourceGroup'] = $LabResourceGroup
 $state['location'] = $Location
+$state['agentName'] = $AgentName
 Save-State -State $state
 
 Write-Ok "Lab resource group: $LabResourceGroup"
 Write-Ok "Location: $Location"
+Write-Ok "Agent: $AgentName"
+
+if ($Finalize) {
+    Write-Step 'Finalize - Remove temporary deployment access'
+
+    $agent = Get-AgentResource -ResourceGroup $LabResourceGroup -Name $AgentName
+    if (-not $agent) {
+        throw "Agent $AgentName was not found in $LabResourceGroup."
+    }
+
+    $identityId = @($agent.identity.userAssignedIdentities.PSObject.Properties.Name)[0]
+    $identityPrincipalId = @($agent.identity.userAssignedIdentities.PSObject.Properties.Value.principalId)[0]
+    $systemPrincipalId = $agent.identity.principalId
+    if ([string]::IsNullOrWhiteSpace($identityId) -or
+        [string]::IsNullOrWhiteSpace($identityPrincipalId) -or
+        [string]::IsNullOrWhiteSpace($systemPrincipalId)) {
+        throw "Agent $AgentName does not have the expected managed identities."
+    }
+
+    $labScope = "/subscriptions/$subId/resourceGroups/$LabResourceGroup"
+    $ownerAssignmentName = Get-StableGuid "$labScope|$identityPrincipalId|onboardinglab-temporary-owner"
+    $ownerAssignmentId = "$labScope/providers/Microsoft.Authorization/roleAssignments/$ownerAssignmentName"
+    $requiredRoles = @('Reader', 'Monitoring Reader', 'Log Analytics Reader')
+    $assignments = @(Invoke-Az @(
+        'role', 'assignment', 'list',
+        '--assignee', $identityPrincipalId,
+        '--scope', $labScope,
+        '--query', '[].{id:id,role:roleDefinitionName,scope:scope}',
+        '-o', 'json'
+    ) -AllowEmpty)
+
+    $missingRoles = @($requiredRoles | Where-Object { $role = $_; -not ($assignments | Where-Object { $_.role -eq $role -and $_.scope -eq $labScope }) })
+    if ($missingRoles.Count -gt 0) {
+        throw "Cannot finalize because permanent role assignments are missing: $($missingRoles -join ', '). Complete the deployment thread first."
+    }
+
+    $systemAssignments = @(Invoke-Az @(
+        'role', 'assignment', 'list',
+        '--assignee', $systemPrincipalId,
+        '--scope', $labScope,
+        '--query', '[].{role:roleDefinitionName,scope:scope}',
+        '-o', 'json'
+    ) -AllowEmpty)
+    $missingSystemRoles = @(@('Reader', 'Log Analytics Reader') | Where-Object {
+        $role = $_
+        -not ($systemAssignments | Where-Object { $_.role -eq $role -and $_.scope -eq $labScope })
+    })
+    if ($missingSystemRoles.Count -gt 0) {
+        throw "Cannot finalize because system identity roles are missing: $($missingSystemRoles -join ', '). Complete the deployment thread first."
+    }
+
+    $connectorUrl = "https://management.azure.com/subscriptions/$subId/resourceGroups/$LabResourceGroup/providers/Microsoft.App/agents/$AgentName/connectors/app-insights?api-version=$AgentApiVersion"
+    $connector = Invoke-Az @('rest', '--method', 'get', '--url', $connectorUrl, '-o', 'json')
+    if ($connector.properties.provisioningState -notin @('Succeeded', 'Running')) {
+        throw "Cannot finalize because the app-insights connector is not ready (state: $($connector.properties.provisioningState))."
+    }
+
+    if ($agent.properties.incidentManagementConfiguration.type -ne 'AzMonitor') {
+        throw 'Cannot finalize because the Azure Monitor incident platform is not configured.'
+    }
+
+    $endpoint = $agent.properties.agentEndpoint.TrimEnd('/')
+    $requiredDataPlaneObjects = @(
+        @{ Kind = 'skills'; Name = 'sre-agent-self-configure' }
+        @{ Kind = 'skills'; Name = 'onboarding-lab-guide' }
+        @{ Kind = 'skills'; Name = 'onboarding-health-check' }
+        @{ Kind = 'hooks'; Name = 'evidence-checklist' }
+        @{ Kind = 'commonprompts'; Name = 'onboardinglab-safety' }
+        @{ Kind = 'connectors'; Name = 'onboardinglab-architecture-md' }
+        @{ Kind = 'connectors'; Name = 'onboardinglab-incident-r-2bcbfae' }
+    )
+    foreach ($item in $requiredDataPlaneObjects) {
+        $encodedName = [uri]::EscapeDataString($item.Name)
+        $installed = Invoke-Az @(
+            'rest', '--method', 'get',
+            '--url', "$endpoint/api/v2/extendedAgent/$($item.Kind)/$encodedName",
+            '--resource', 'https://azuresre.dev',
+            '-o', 'json'
+        )
+        if ($installed.name -ne $item.Name) {
+            throw "Cannot finalize because $($item.Kind)/$($item.Name) could not be verified."
+        }
+    }
+
+    $globalSettings = Invoke-Az @(
+        'rest', '--method', 'get',
+        '--url', "$endpoint/api/v2/agent/settings/global",
+        '--resource', 'https://azuresre.dev',
+        '-o', 'json'
+    )
+    if ('RunAzCliWriteCommands' -notin @($globalSettings.permissions.ask) -or
+        'RunInTerminal' -notin @($globalSettings.permissions.deny) -or
+        'Terminal' -notin @($globalSettings.permissions.deny)) {
+        throw 'Cannot finalize because the expected Review-mode tool policy is not installed.'
+    }
+
+    $temporaryOwner = @($assignments | Where-Object {
+        $_.role -eq 'Owner' -and $_.scope -eq $labScope -and $_.id -eq $ownerAssignmentId
+    })
+    if ($temporaryOwner.Count -ne 1) {
+        throw 'Cannot finalize because the temporary Owner assignment created by this script was not found.'
+    }
+    $null = Invoke-Az @('role', 'assignment', 'delete', '--ids', $ownerAssignmentId) -AllowEmpty
+
+    $agentUrl = "https://management.azure.com/subscriptions/$subId/resourceGroups/$LabResourceGroup/providers/Microsoft.App/agents/$AgentName`?api-version=$AgentApiVersion"
+    $null = Invoke-ArmRequest -Method 'patch' -Url $agentUrl -Body @{
+        properties = @{
+            actionConfiguration = @{
+                accessLevel = 'Low'
+                identity = $identityId
+                mode = 'Review'
+            }
+        }
+    }
+    $agent = Wait-ForAgent -ResourceGroup $LabResourceGroup -Name $AgentName
+
+    $remainingOwner = @(Invoke-Az @(
+        'role', 'assignment', 'list',
+        '--scope', $labScope,
+        '--query', "[?name=='$ownerAssignmentName']",
+        '-o', 'json'
+    ) -AllowEmpty)
+    if ($remainingOwner.Count -gt 0) {
+        throw "Temporary Owner could not be removed from $LabResourceGroup."
+    }
+    if ($agent.properties.actionConfiguration.accessLevel -ne 'Low' -or
+        $agent.properties.actionConfiguration.mode -ne 'Review') {
+        throw 'Agent access did not converge to Low/Review.'
+    }
+
+    $state['finalized'] = $true
+    Save-State -State $state
+    Write-Ok 'Temporary Owner removed.'
+    Write-Ok 'Permanent read-only roles verified.'
+    Write-Ok 'Agent access is Low/Review.'
+    return
+}
 
 # ── Step 1: register the resource provider ──────────────────────────────────
 
@@ -337,57 +512,56 @@ else {
 
 Write-Step 'Step 2 - Resource groups'
 
-foreach ($rg in @($LabCreatorResourceGroup, $LabResourceGroup)) {
-    $existing = $null
-    try { $existing = Invoke-Az @('group', 'show', '-n', $rg, '-o', 'json') } catch { $existing = $null }
+$existing = $null
+try { $existing = Invoke-Az @('group', 'show', '-n', $LabResourceGroup, '-o', 'json') } catch { $existing = $null }
 
-    if ($existing) {
-        Write-Ok "$rg already exists in $($existing.location)."
-    }
-    else {
-        $created = Invoke-Az @('group', 'create', '-n', $rg, '-l', $Location, '-o', 'json')
-        Write-Ok "Created $rg in $($created.location)."
-    }
+if ($existing) {
+    Write-Ok "$LabResourceGroup already exists in $($existing.location)."
+}
+else {
+    $created = Invoke-Az @('group', 'create', '-n', $LabResourceGroup, '-l', $Location, '-o', 'json')
+    Write-Ok "Created $LabResourceGroup in $($created.location)."
 }
 
-# ── Step 3: create the lab-creator agent ────────────────────────────────────
+# ── Step 3: create the final onboarding agent ───────────────────────────────
 
-Write-Step 'Step 3 - Create the lab-creator agent'
+Write-Step 'Step 3 - Create the final onboarding agent'
 
-$agent = Get-AgentResource -ResourceGroup $LabCreatorResourceGroup -Name $LabCreatorAgentName
+$sha = [System.Security.Cryptography.SHA256]::Create()
+try {
+    $bytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes("$subId|$LabResourceGroup|$AgentName"))
+    $suffix = (([System.BitConverter]::ToString($bytes)) -replace '-', '').ToLowerInvariant().Substring(0, 10)
+}
+finally { $sha.Dispose() }
+
+$lawName = "law-$suffix"
+$aiName = "ai-$suffix"
+$identityName = "$AgentName-id-$suffix"
+$rgBase = "https://management.azure.com/subscriptions/$subId/resourceGroups/$LabResourceGroup/providers"
+
+$agent = Get-AgentResource -ResourceGroup $LabResourceGroup -Name $AgentName
 $agentState = if ($agent) { $agent.properties.provisioningState } else { $null }
 
 if ($agentState -eq 'Succeeded') {
     # Tracked so Step 7 can distinguish "first run" from "state file was lost".
     $agentAlreadyExisted = $true
-    Write-Ok "Agent $LabCreatorAgentName already exists."
+    Write-Ok "Agent $AgentName already exists."
 }
 elseif ($agent -and $agentState -notin @('Failed', 'Canceled')) {
     # A previous run created it and the session died while it was still provisioning.
     # Wait for it rather than PUTting over a resource that is mid-creation.
     $agentAlreadyExisted = $true
-    Write-Note "Agent $LabCreatorAgentName is still provisioning ($agentState). Waiting..."
-    $agent = Wait-ForAgent -ResourceGroup $LabCreatorResourceGroup -Name $LabCreatorAgentName
-    Write-Ok "Agent $LabCreatorAgentName is ready."
+    Write-Note "Agent $AgentName is still provisioning ($agentState). Waiting..."
+    $agent = Wait-ForAgent -ResourceGroup $LabResourceGroup -Name $AgentName
+    Write-Ok "Agent $AgentName is ready."
 }
 else {
     if ($agentState -in @('Failed', 'Canceled')) {
-        Write-Note "Agent $LabCreatorAgentName is in state $agentState. Recreating it."
+        Write-Note "Agent $AgentName is in state $agentState. Recreating it."
     }
     $agentAlreadyExisted = $false
 
-    # Deterministic suffix so re-runs address the same Log Analytics / App Insights resources.
-    $sha = [System.Security.Cryptography.SHA256]::Create()
-    try {
-        $bytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes("$subId|$LabCreatorResourceGroup|$LabCreatorAgentName"))
-        $suffix = (([System.BitConverter]::ToString($bytes)) -replace '-', '').ToLowerInvariant().Substring(0, 10)
-    }
-    finally { $sha.Dispose() }
-
-    $rgBase = "https://management.azure.com/subscriptions/$subId/resourceGroups/$LabCreatorResourceGroup/providers"
-
     # Log Analytics workspace — backs Application Insights.
-    $lawName = "law-$suffix"
     Write-Note "Creating Log Analytics workspace $lawName..."
     $law = Invoke-ArmRequest -Method 'put' `
         -Url "$rgBase/Microsoft.OperationalInsights/workspaces/$lawName`?api-version=2023-09-01" `
@@ -402,7 +576,6 @@ else {
     Write-Ok "Workspace $lawName ready."
 
     # Application Insights — the agent's own telemetry.
-    $aiName = "ai-$suffix"
     Write-Note "Creating Application Insights $aiName..."
     $null = Invoke-ArmRequest -Method 'put' `
         -Url "$rgBase/Microsoft.Insights/components/$aiName`?api-version=2020-02-02" `
@@ -418,7 +591,7 @@ else {
 
     # Read it back: AppId and ConnectionString are assigned by the service.
     $appInsights = Invoke-Az @(
-        'resource', 'show', '-g', $LabCreatorResourceGroup, '-n', $aiName,
+        'resource', 'show', '-g', $LabResourceGroup, '-n', $aiName,
         '--resource-type', 'Microsoft.Insights/components', '--api-version', '2020-02-02', '-o', 'json'
     )
     $aiAppId = $appInsights.properties.AppId
@@ -429,37 +602,21 @@ else {
     Write-Ok "Application Insights $aiName ready."
 
     # Managed identity the agent acts as.
-    $identityName = "$LabCreatorAgentName-id-$suffix"
     Write-Note "Creating managed identity $identityName..."
     $identity = Invoke-Az @(
-        'identity', 'create', '-g', $LabCreatorResourceGroup, '-n', $identityName, '-l', $Location, '-o', 'json'
+        'identity', 'create', '-g', $LabResourceGroup, '-n', $identityName, '-l', $Location, '-o', 'json'
     )
     if (-not $identity.principalId) { throw "Could not create managed identity $identityName." }
     Write-Ok "Identity $identityName ready."
 
-    # Monitoring Reader for the identity on the lab-creator group, so the agent can read
-    # its own telemetry. Access on the lab group is granted in Step 5.
-    $creatorScope = "/subscriptions/$subId/resourceGroups/$LabCreatorResourceGroup"
-    $existingMonReader = Invoke-Az @(
-        'role', 'assignment', 'list', '--assignee', $identity.principalId,
-        '--scope', $creatorScope, '--query', "[?roleDefinitionName=='Monitoring Reader']", '-o', 'json'
-    ) -AllowEmpty
-    if (-not ($existingMonReader -and @($existingMonReader).Count -gt 0)) {
-        $null = Invoke-Az @(
-            'role', 'assignment', 'create',
-            '--assignee-object-id', $identity.principalId,
-            '--assignee-principal-type', 'ServicePrincipal',
-            '--role', 'Monitoring Reader',
-            '--scope', $creatorScope, '-o', 'json'
-        ) -AllowEmpty
-    }
+    $labScope = "/subscriptions/$subId/resourceGroups/$LabResourceGroup"
 
     # The agent itself.
     #   accessLevel High  - it needs to create resources to deploy the lab
     #   actionMode Review - you approve every write it proposes
     $agentBody = [ordered]@{
         location   = $Location
-        tags       = @{ workload = 'onboardinglab-labcreator' }
+        tags       = @{ workload = 'onboardinglab' }
         identity   = [ordered]@{
             type                   = 'SystemAssigned, UserAssigned'
             userAssignedIdentities = @{ "$($identity.id)" = @{} }
@@ -467,10 +624,7 @@ else {
         properties = [ordered]@{
             knowledgeGraphConfiguration = [ordered]@{
                 identity         = $identity.id
-                managedResources = @(
-                    "/subscriptions/$subId/resourceGroups/$LabCreatorResourceGroup"
-                    "/subscriptions/$subId/resourceGroups/$LabResourceGroup"
-                )
+                managedResources = @($labScope)
             }
             actionConfiguration         = [ordered]@{
                 accessLevel = 'High'
@@ -497,19 +651,19 @@ else {
         }
     }
 
-    Write-Note "Creating agent $LabCreatorAgentName (this takes a few minutes)..."
+    Write-Note "Creating agent $AgentName (this takes a few minutes)..."
     $null = Invoke-ArmRequest -Method 'put' `
-        -Url "$rgBase/Microsoft.App/agents/$LabCreatorAgentName`?api-version=$AgentApiVersion" `
+        -Url "$rgBase/Microsoft.App/agents/$AgentName`?api-version=$AgentApiVersion" `
         -Body $agentBody
 
-    $agent = Wait-ForAgent -ResourceGroup $LabCreatorResourceGroup -Name $LabCreatorAgentName
-    Write-Ok "Agent $LabCreatorAgentName created."
+    $agent = Wait-ForAgent -ResourceGroup $LabResourceGroup -Name $AgentName
+    Write-Ok "Agent $AgentName created."
 }
 
 # Always read the agent back: the data-plane hostname contains service-assigned segments and
 # cannot be composed from the agent name and region.
-$agent = Get-AgentResource -ResourceGroup $LabCreatorResourceGroup -Name $LabCreatorAgentName
-if (-not $agent) { throw "Agent $LabCreatorAgentName could not be read back." }
+$agent = Get-AgentResource -ResourceGroup $LabResourceGroup -Name $AgentName
+if (-not $agent) { throw "Agent $AgentName could not be read back." }
 
 $agentEndpoint = $agent.properties.agentEndpoint
 if ([string]::IsNullOrWhiteSpace($agentEndpoint)) {
@@ -527,6 +681,7 @@ if (-not $agentUamiPrincipalId) {
 
 $state['agentEndpoint'] = $agentEndpoint
 $state['agentUamiPrincipalId'] = $agentUamiPrincipalId
+$state['agentIdentityName'] = (($agent.identity.userAssignedIdentities.PSObject.Properties.Name | Select-Object -First 1) -split '/')[-1]
 Save-State -State $state
 
 Write-Ok "Endpoint: $agentEndpoint"
@@ -567,7 +722,7 @@ else {
         if ($null -ne $egress.allowedCodeRepositories) { $egressBody['allowedCodeRepositories'] = @($egress.allowedCodeRepositories) }
         if ($null -ne $egress.allowHttpMcpServerNetworkAccess) { $egressBody['allowHttpMcpServerNetworkAccess'] = $egress.allowHttpMcpServerNetworkAccess }
 
-        $armUrl = "https://management.azure.com/subscriptions/$subId/resourceGroups/$LabCreatorResourceGroup/providers/Microsoft.App/agents/$LabCreatorAgentName" + "?api-version=$AgentApiVersion"
+        $armUrl = "https://management.azure.com/subscriptions/$subId/resourceGroups/$LabResourceGroup/providers/Microsoft.App/agents/$AgentName" + "?api-version=$AgentApiVersion"
         $null = Invoke-ArmRequest -Method 'patch' -Url $armUrl `
             -Body @{ properties = @{ sandboxConfiguration = @{ egress = $egressBody } } }
 
@@ -576,7 +731,7 @@ else {
         do {
             Start-Sleep -Seconds 10
             $check = Invoke-Az @(
-                'resource', 'show', '-g', $LabCreatorResourceGroup, '-n', $LabCreatorAgentName,
+                'resource', 'show', '-g', $LabResourceGroup, '-n', $AgentName,
                 '--resource-type', 'Microsoft.App/agents', '--api-version', $AgentApiVersion,
                 '--query', '{state:properties.provisioningState,hosts:properties.sandboxConfiguration.egress.allowedHosts}', '-o', 'json'
             )
@@ -590,36 +745,60 @@ else {
     }
 }
 
-# ── Step 5: grant Owner on the lab resource group ───────────────────────────
+# ── Step 5: grant temporary deployment access ───────────────────────────────
 
-Write-Step 'Step 5 - Grant the agent Owner on the lab resource group'
+Write-Step 'Step 5 - Grant temporary Owner on the lab resource group'
 
 $labScope = "/subscriptions/$subId/resourceGroups/$LabResourceGroup"
+$ownerAssignmentName = Get-StableGuid "$labScope|$agentUamiPrincipalId|onboardinglab-temporary-owner"
 
-# Owner is required because deploying the lab agent creates role assignments
-# (Reader, Monitoring Reader, Log Analytics Reader), which Contributor cannot do.
+# Owner is temporary. The Bicep deployment creates the permanent read-only roles,
+# which Contributor alone cannot do. -Finalize removes Owner after verification.
 $existingAssignments = Invoke-Az @(
     'role', 'assignment', 'list',
     '--assignee', $agentUamiPrincipalId,
     '--scope', $labScope,
-    '--query', "[?roleDefinitionName=='Owner']",
+    '--query', "[?roleDefinitionName=='Owner'].{id:id,name:name}",
     '-o', 'json'
 ) -AllowEmpty
 
-if ($existingAssignments -and @($existingAssignments).Count -gt 0) {
-    Write-Ok 'Owner already assigned.'
+if ($existingAssignments -and @($existingAssignments | Where-Object { $_.name -eq $ownerAssignmentName }).Count -gt 0) {
+    Write-Ok 'Temporary Owner already assigned.'
+}
+elseif ($existingAssignments -and @($existingAssignments).Count -gt 0) {
+    throw 'The agent identity already has an Owner assignment that this script did not create. Refusing to adopt or later remove it.'
 }
 else {
     $null = Invoke-Az @(
         'role', 'assignment', 'create',
+        '--name', $ownerAssignmentName,
         '--assignee-object-id', $agentUamiPrincipalId,
         '--assignee-principal-type', 'ServicePrincipal',
         '--role', 'Owner',
         '--scope', $labScope,
         '-o', 'json'
     ) -AllowEmpty
-    Write-Ok "Owner granted on $LabResourceGroup."
+    Write-Ok "Temporary Owner granted on $LabResourceGroup."
 }
+
+$agentAdminAssignments = Invoke-Az @(
+    'role', 'assignment', 'list',
+    '--assignee', $agentUamiPrincipalId,
+    '--scope', $agent.id,
+    '--query', "[?roleDefinitionName=='SRE Agent Administrator']",
+    '-o', 'json'
+) -AllowEmpty
+if (-not ($agentAdminAssignments -and @($agentAdminAssignments).Count -gt 0)) {
+    $null = Invoke-Az @(
+        'role', 'assignment', 'create',
+        '--assignee-object-id', $agentUamiPrincipalId,
+        '--assignee-principal-type', 'ServicePrincipal',
+        '--role', 'SRE Agent Administrator',
+        '--scope', $agent.id,
+        '-o', 'json'
+    ) -AllowEmpty
+}
+Write-Ok 'Agent identity can configure its own agent data plane.'
 
 # ── Step 6: connect the code repository ─────────────────────────────────────
 
@@ -629,11 +808,11 @@ if (Test-StepDone -State $state -Name 'codeAccessConfirmed') {
     Write-Ok 'Already confirmed (from saved state). Use -Reset to redo this step.'
 }
 else {
-    $portalUrl = "https://sre.azure.com/#/agent/$subId/$LabCreatorResourceGroup/$LabCreatorAgentName"
+    $portalUrl = "https://sre.azure.com/#/agent/$subId/$LabResourceGroup/$AgentName"
 
     Write-Host ''
-    Write-Host '   The agent clones your fork of the sre-agent repository and deploys the lab' -ForegroundColor Yellow
-    Write-Host "   from it, so it needs read access to $RunbookPath and the lab templates." -ForegroundColor Yellow
+    Write-Host '   The final onboarding agent clones your fork and deploys its workload' -ForegroundColor Yellow
+    Write-Host "   and durable configuration from $RunbookPath and the lab templates." -ForegroundColor Yellow
     Write-Host ''
     Write-Host '   1. Open the agent in the portal:'
     Write-Host "      $portalUrl"
@@ -675,7 +854,7 @@ elseif ($agentAlreadyExisted -and -not $NewThread) {
     Write-Warning 'The agent already existed, but this run has no record of a deployment thread.'
     Write-Host '   The state file was probably lost with a previous session.' -ForegroundColor DarkGray
     Write-Host '   Check whether a deployment is already running before starting another:' -ForegroundColor DarkGray
-    Write-Host "   https://sre.azure.com/#/agent/$subId/$LabCreatorResourceGroup/$LabCreatorAgentName"
+    Write-Host "   https://sre.azure.com/#/agent/$subId/$LabResourceGroup/$AgentName"
     Write-Host ''
     $reply = Read-Host '   Start a new deployment thread? [y/N]'
     if ($reply -notmatch '^\s*[Yy]') {
@@ -696,10 +875,13 @@ Inputs:
 - LAB_RG: $LabResourceGroup
 - LOCATION: $Location
 - NAME_PREFIX: flu-lab01
-- AGENT_NAME: onboardinglab-agent
+- AGENT_NAME: $AgentName
+- AGENT_IDENTITY_NAME: $($state['agentIdentityName'])
 
-The resource group already exists and you have Owner on it. Leave the database fault off.
-Do not modify anything outside $LabResourceGroup. Report what you created when you are done.
+You are the final lab agent. The resource group already exists and your action identity has
+temporary Owner on it. Deploy the workload and converge your durable configuration through
+Bicep. Do not create another SRE Agent or managed identity. Leave the database fault off.
+Do not modify anything outside $LabResourceGroup. Report when external finalization is safe.
 "@
 
 if ($startThread) {
@@ -738,14 +920,15 @@ if ($startThread) {
 Write-Host ''
 Write-Host 'Bootstrap complete.' -ForegroundColor Green
 Write-Host ''
-Write-Host "  Lab-creator agent : $LabCreatorAgentName (in $LabCreatorResourceGroup)"
+Write-Host "  Onboarding agent  : $AgentName"
 Write-Host "  Lab resource group: $LabResourceGroup"
 Write-Host "  Region            : $Location"
 if ($threadId) { Write-Host "  Thread            : $threadId" }
 Write-Host ''
 Write-Host '  Watch progress at:'
-Write-Host "  https://sre.azure.com/#/agent/$subId/$LabCreatorResourceGroup/$LabCreatorAgentName"
+Write-Host "  https://sre.azure.com/#/agent/$subId/$LabResourceGroup/$AgentName"
 Write-Host ''
 Write-Host '  The agent runs in Review mode, so approve each action as it is proposed.' -ForegroundColor Yellow
 Write-Host '  Read commands run without prompting; only writes need your approval.' -ForegroundColor DarkGray
+Write-Host "  After successful verification, run: ./bootstrap-agent.ps1 -LabResourceGroup '$LabResourceGroup' -AgentName '$AgentName' -Finalize" -ForegroundColor Yellow
 Write-Host ''

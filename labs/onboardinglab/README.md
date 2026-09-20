@@ -249,9 +249,9 @@ locally and is the quickest path. **Manual setup** gives you direct control and 
 
 ### Agent-driven setup
 
-A bootstrap script creates a small "lab creator" agent, then asks that agent to deploy the
-lab for you by following [agent-deploy-runbook.md](agent-deploy-runbook.md). You approve each
-action as it is proposed.
+A bootstrap script creates the final onboarding agent with temporary Owner access, then asks
+that same agent to deploy its workload and durable configuration by following
+[agent-deploy-runbook.md](agent-deploy-runbook.md). You approve each action as it is proposed.
 
 You need:
 
@@ -262,7 +262,7 @@ You need:
 
 #### Fork this repository
 
-The lab creator agent clones a repository through Code Access and deploys the lab from it,
+The onboarding agent clones a repository through Code Access and deploys the lab from it,
 reading [agent-deploy-runbook.md](agent-deploy-runbook.md) and the Bicep templates. You
 connect that repository in step 6.
 
@@ -286,10 +286,10 @@ Download the script from your fork in a browser, then upload it to Cloud Shell. 
 it from inside Cloud Shell.
 
 1. On github.com, open your fork and navigate to
-   `labs/onboardinglab/scripts/bootstrap-labcreator.ps1`.
+   `labs/onboardinglab/scripts/bootstrap-agent.ps1`.
 2. Choose **Raw**, then save the file (right-click the Raw view and pick **Save link as**,
    or press Ctrl+S).
-3. Check the saved name is exactly `bootstrap-labcreator.ps1`. Some browsers append `.txt`.
+3. Check the saved name is exactly `bootstrap-agent.ps1`. Some browsers append `.txt`.
 
 Take it from your fork rather than from `microsoft/sre-agent`, so the script matches the
 runbook revision the agent will follow.
@@ -302,7 +302,7 @@ runbook revision the agent will follow.
 3. Run it:
 
 ```powershell
-./bootstrap-labcreator.ps1
+./bootstrap-agent.ps1
 ```
 
 The script is self-contained: it uses only the Azure CLI, needs no repository clone and
@@ -315,16 +315,20 @@ already create issues in is fine.
 The script:
 
 1. Registers the `Microsoft.App` resource provider.
-2. Creates `SreAgentLabCreatorRG` and the lab resource group (default
-   `SreAgentOnboardingLabRG`, prompted).
+2. Creates the lab resource group (default `SreAgentOnboardingLabRG`, prompted).
 3. Creates Log Analytics, Application Insights, a managed identity, and the
-   `labcreator-sreagent` agent in High access, Review mode.
+   final `onboardinglab-agent` in High access, Review mode.
 4. Adds `*.bicep.azure.com`, `*.azurewebsites.net` and `*.azuresre.ai` to that agent's
    egress allowlist, preserving the existing entries.
-5. Grants the agent's managed identity Owner on the lab resource group.
+5. Grants the agent's managed identity temporary Owner on the lab resource group.
 6. Pauses while you connect your fork as a code repository. This step needs an interactive
    OAuth consent and cannot be scripted.
 7. Starts an agent thread pointing at the runbook.
+
+The agent uses Bicep to deploy the workload and converge its permanent read-only RBAC and
+Application Insights connector. Skills, knowledge, hooks, prompts, and the incident platform use
+the SRE Agent data-plane APIs because those resources are not all available through the ARM
+resource provider.
 
 The script is **re-entrant**. Run it again after any interruption and it resumes at the
 first incomplete step. Use `-Reset` to start over.
@@ -346,7 +350,20 @@ checks this and stops rather than silently choosing another region.
 The resource group's own region does not matter. A group in one region can hold resources in
 another, so an existing group is never a reason to change `-Location`.
 
-When the agent finishes, skip to [Verify before the exercises](#verify-before-the-exercises).
+When the agent reports successful end-to-end verification, remove its temporary deployment
+access:
+
+```powershell
+./bootstrap-agent.ps1 -LabResourceGroup SreAgentOnboardingLabRG -Finalize
+```
+
+Finalization refuses to continue unless the permanent read-only roles, workload Application
+Insights connector, incident platform, base skills, knowledge, hook, prompt, and tool policy can
+be read back. It then removes Owner, changes the agent to Low/Review, and verifies both changes.
+Pass `-AgentName` too if you changed the default. After finalization, continue to
+[Verify before the exercises](#verify-before-the-exercises).
+If the Cloud Shell session or uploaded file is gone, upload the same script again and run the
+finalization command with the explicit resource group and agent name; saved state is not required.
 
 ### Manual setup
 
@@ -440,8 +457,9 @@ resource group directly instead, after confirming it contains only lab resources
 az group delete --name YOUR-LAB-RESOURCE-GROUP --subscription YOUR-SUBSCRIPTION
 ```
 
-Remember the lab-creator agent and `SreAgentLabCreatorRG` are separate and survive this; remove
-them too once you are finished with the lab.
+The onboarding agent is in the same resource group, so this deletion removes the complete
+agent-driven environment. Its temporary Owner assignment must already have been removed by
+the finalization step.
 
 Confirm that the intended resource group was removed. GitHub issues and sent
 email are external artifacts and are not removed by azd. If the lab stays

@@ -1,8 +1,8 @@
 # Onboarding Lab — agent deployment runbook
 
 This runbook is written **for an Azure SRE Agent to execute**, not for a human shell.
-The lab bootstrap script (`scripts/bootstrap-labcreator.ps1`) creates a lab-creator agent and
-starts a thread pointing at this file.
+The bootstrap script (`scripts/bootstrap-agent.ps1`) creates the final onboarding agent with
+temporary deployment access, then starts a thread pointing at this file.
 
 Work through the steps in order. Each step states what to run and how to confirm it worked.
 Stop and report if a verification fails — do not continue past a failed step.
@@ -24,7 +24,7 @@ Two consequences:
   to `az` / `azd` and will fail here. This runbook replaces them.
 - `azd` is not installed. Every step below avoids it.
 
-`--template-file <file>.bicep` works directly: the lab-creator agent allowlists
+`--template-file <file>.bicep` works directly: the onboarding agent allowlists
 `*.bicep.azure.com`, so the CLI can fetch the Bicep compiler on first use.
 
 ### Re-entrancy
@@ -45,9 +45,11 @@ Take these from the thread message that started this run. Do not invent values.
 | `LAB_RG` | Pre-created lab resource group | `SreAgentOnboardingLabRG` |
 | `LOCATION` | Region for all lab resources | `swedencentral` |
 | `NAME_PREFIX` | Prefix for workload resources, 3–20 chars, lowercase/digits/hyphen | `flu-lab01` |
-| `AGENT_NAME` | Lab agent to create | `onboardinglab-agent` |
+| `AGENT_NAME` | Existing final lab agent | `onboardinglab-agent` |
+| `AGENT_IDENTITY_NAME` | Existing action identity created by the bootstrap | from the thread |
 
-`LAB_RG` already exists and your identity has Owner on it. **Its region is irrelevant** — a
+`LAB_RG` and `AGENT_NAME` already exist. Your action identity has temporary Owner on the group.
+Do not create another agent or managed identity. **The resource group's region is irrelevant** — a
 resource group's location is only metadata, so an `eastus` group can hold `swedencentral`
 resources. Deploy resources to `LOCATION`, not to the group's own region.
 
@@ -86,24 +88,26 @@ silently pick another region.
 
 ---
 
-## Step 2 — Deploy the workload
+## Step 2 — Deploy the lab infrastructure through Bicep
 
-Deploy the resource-group-scoped module directly. Do **not** use
-`ticketingapp-source/main.bicep` here: it is subscription-scoped, and `az deployment sub create`
-needs subscription-level deployment rights that you do not have.
+Deploy the lab's resource-group-scoped entry point. It composes the workload module with the
+existing agent's permanent read-only RBAC and Application Insights connector. Do **not** use
+`ticketingapp-source/main.bicep`: it is subscription-scoped and creates its own resource group.
 
 ```bash
 az deployment group create \
-  --subscription <SUBSCRIPTION> -g <LAB_RG> --name onboardinglab-workload \
-  --template-file labs/onboardinglab/ticketingapp-source/modules/workload.bicep \
+  --subscription <SUBSCRIPTION> -g <LAB_RG> --name onboardinglab \
+  --template-file labs/onboardinglab/infra/main.bicep \
   --parameters location=<LOCATION> namePrefix=<NAME_PREFIX> \
-               tags='{"workload":"onboardinglab"}' \
+               agentName=<AGENT_NAME> agentIdentityName=<AGENT_IDENTITY_NAME> \
   --query "{state:properties.provisioningState,outputs:properties.outputs}" -o json
 ```
 
 This creates the VNet and NSG, Log Analytics, Application Insights, the App Service plan and
 Linux web app, the PostgreSQL flexible server with its private DNS zone, and the
-`<NAME_PREFIX>-checkout-failures` alert rule. The database fault starts **off**.
+`<NAME_PREFIX>-checkout-failures` alert rule. It also declares the final agent's permanent
+Reader, Monitoring Reader, and Log Analytics Reader roles and connects the workload Application
+Insights resource. The database fault starts **off**.
 
 Capture these outputs — later steps need them:
 
@@ -112,6 +116,8 @@ Capture these outputs — later steps need them:
 - `applicationInsightsAppId`
 - `networkSecurityGroupName`
 - `logAnalyticsWorkspaceId`
+- `agentId`
+- `agentEndpoint`
 
 **Verify:** `state` is `Succeeded` and all outputs above are non-empty.
 
@@ -184,56 +190,7 @@ is not used.
 
 ---
 
-## Step 5 — Create the agent
-
-The lab owns its agent template at `labs/onboardinglab/infra/modules/sre-agent.bicep`, following
-the same pattern as the other labs in this repo. It is resource-group scoped and creates the
-managed identity, the RBAC, the agent and the Application Insights connector in a single
-deployment. This needs only Owner on `LAB_RG`.
-
-Do **not** deploy `sreagent-templates/bicep/agent-core.bicep` here. Those templates are shared by
-every lab, and this lab has a requirement they do not carry: the deployer is a service principal
-(you), not a human. The lab template detects the deployer's principal type; the shared one assumes
-`User` and fails a managed-identity deployment with `UnmatchedPrincipalType`.
-
-```bash
-az deployment group create \
-  --subscription <SUBSCRIPTION> -g <LAB_RG> --name onboardinglab-agent \
-  --template-file labs/onboardinglab/infra/modules/sre-agent.bicep \
-  --parameters agentName=<AGENT_NAME> location=<LOCATION> \
-               appInsightsId=<applicationInsightsId> \
-               accessLevel=Low actionMode=Review \
-               defaultModelProvider=MicrosoftFoundry \
-  --query "{state:properties.provisioningState,agentId:properties.outputs.agentId.value,endpoint:properties.outputs.agentEndpoint.value}" -o json
-```
-
-This grants the agent's managed identity Reader, Monitoring Reader and Log Analytics Reader on
-`LAB_RG`, grants its system-assigned identity the read access the connector needs, and grants you
-SRE Agent Administrator on the new agent.
-
-**Verify it is `Succeeded`**, then read the agent back:
-
-```bash
-az resource show --subscription <SUBSCRIPTION> -g <LAB_RG> -n <AGENT_NAME> \
-  --resource-type Microsoft.App/agents --api-version 2025-05-01-preview \
-  --query "{state:properties.provisioningState,running:properties.runningState,endpoint:properties.agentEndpoint}" -o json
-```
-
-Record `properties.agentEndpoint` as `AGENT_ENDPOINT`. **Always read the endpoint from the
-resource.** It contains service-assigned segments, for example
-`onboardinglab-agent--ab12cd34.ef56gh78.swedencentral.azuresre.ai`, and cannot be composed from
-the agent name and region.
-
-> The agent resource is created *before* the role assignments, so a failed deployment can still
-> leave a healthy agent behind. Check what exists before assuming a clean slate and redeploying.
-
-> `az resource list --resource-type Microsoft.App/agents/connectors` returns `[]` even when the
-> connector exists; nested types do not enumerate that way. Verify via the deployment operations
-> instead: `az deployment operation group list -g <LAB_RG> --name onboardinglab-agent`.
-
----
-
-## Step 6 — Apply the data-plane extras
+## Step 5 — Apply the data-plane extras
 
 Bicep does not carry skills, hooks, prompts or knowledge files. Push them from `extras.json` to
 the agent data plane using `az rest` with `--resource https://azuresre.dev`.
@@ -289,7 +246,7 @@ empty even when items exist, so do not rely on it.
 
 ---
 
-## Step 7 — Verify the lab end to end
+## Step 6 — Verify the lab end to end
 
 1. **Agent** — `provisioningState: Succeeded`, `runningState: Running`,
    `incidentManagementConfiguration.type: AzMonitor`.
@@ -307,7 +264,7 @@ empty even when items exist, so do not rely on it.
      --query "{enabled:enabled,severity:severity,freq:evaluationFrequency,window:windowSize}" -o json
    ```
 4. **App and telemetry** — drive a little traffic from the workspace terminal, then confirm it
-   lands. The lab-creator agent allowlists `*.azurewebsites.net`, so this works:
+   lands. The onboarding agent allowlists `*.azurewebsites.net`, so this works:
    ```bash
    B=https://<checkoutAppName>.azurewebsites.net
    curl -sS -o /dev/null -w "GET / %{http_code}\n" $B/
@@ -332,7 +289,7 @@ empty even when items exist, so do not rely on it.
 
 ---
 
-## Step 8 — Report
+## Step 7 — Report
 
 Report back with:
 
@@ -341,6 +298,7 @@ Report back with:
   (`https://sre.azure.com/#/agent/<SUBSCRIPTION>/<LAB_RG>/<AGENT_NAME>`)
 - confirmation that the alert rule is armed and telemetry is flowing
 - anything that failed or was skipped, and why
+- confirmation that the operator can now run `bootstrap-agent.ps1 -Finalize`
 
 Leave the database fault **off**. The learner injects it later with:
 
@@ -351,3 +309,5 @@ pwsh labs/onboardinglab/scripts/fault.ps1 -Action inject \
 ```
 
 Do not create scheduled tasks, send notifications, or modify anything outside `LAB_RG`.
+Do not remove Owner or lower your own access. The operator performs and verifies that boundary
+through the bootstrap script after this run completes.
