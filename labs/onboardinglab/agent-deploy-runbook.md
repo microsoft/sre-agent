@@ -2,8 +2,11 @@
 
 This runbook is written **for an Azure SRE Agent to execute**, not for a human shell.
 The bootstrap script (`scripts/bootstrap-agent.ps1`) creates the final onboarding agent with
-temporary deployment access, then starts a thread pointing at this file.
-It starts the thread only after the live Code Access API reports at least one connected repository.
+temporary deployment access and grants the operator SRE Agent Administrator on that agent.
+When the Azure CLI can acquire an SRE Agent data-plane token, the script verifies Code Access
+and starts a thread pointing at this file. In Azure Cloud Shell environments where that token
+audience is unavailable, the operator connects the repository and starts or reuses the thread
+in the agent portal with the exact deployment request printed by the script.
 
 Work through the steps in order. Each step states what to run and how to confirm it worked.
 Stop and report if a verification fails — do not continue past a failed step.

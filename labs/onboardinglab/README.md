@@ -347,7 +347,9 @@ that already exists, so they behave correctly even on a completely fresh session
 is also written to `~/.onboardinglab-agent-bootstrap.json`. In Cloud Shell that file persists
 only when a storage account is mounted, so an **ephemeral session loses it** — which is
 safe. If the browser closes during Code Access, reconnect, rerun the script, and complete the
-same step. The script reads the live repository connection instead of trusting the state file.
+same step. When a data-plane token is available, the script reads the live repository connection
+instead of trusting the state file. In portal-only mode, confirm the repository in the portal
+and reuse the existing chat rather than creating another deployment.
 When automatic thread creation is available, the last step cannot simply be repeated.
 Starting a second deployment thread would put two agents in the same resource group at once,
 so the script skips that step when a thread is already recorded and asks first if the record
