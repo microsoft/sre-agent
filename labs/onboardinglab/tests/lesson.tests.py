@@ -105,6 +105,17 @@ class LessonTests(unittest.TestCase):
         self.assertIn("'--role', 'SRE Agent Administrator'", bootstrap)
         self.assertIn("https://azuresre.dev/.default", bootstrap)
         self.assertIn("--use-device-code", bootstrap)
+
+        finalize = bootstrap[
+            bootstrap.index("if ($Finalize) {"):
+            bootstrap.index("# ── Step 1: register the resource provider")
+        ]
+        self.assertIn(
+            "Invoke-Az @('role', 'assignment', 'delete', '--ids', $ownerAssignmentId)",
+            finalize,
+        )
+        self.assertNotIn("$signedInUserObjectId", finalize)
+
         self.assertIn("Do not create another agent", runbook)
         self.assertIn("--template-file labs/onboardinglab/infra/main.bicep", runbook)
         self.assertIn("module workload", infrastructure)
