@@ -84,10 +84,22 @@ send an approved Outlook summary. Use a short, redacted report and verify the
 issue link and email receipt. Coordinate shared destinations to avoid duplicate
 issues or sending many copies to the same recipient.
 
-Use `scripts/fault.ps1 reset` on Windows or `scripts/fault.sh reset` on macOS to
+Use `scripts/fault.ps1 -Action reset` on Windows or `scripts/fault.sh reset` on macOS to
 recover. These helpers preserve the fault rule and set it to Allow. Verify fresh
 successful reservations and PostgreSQL dependencies afterward. Wait for the
 Azure alert's monitor condition to become Resolved before another rehearsal.
+
+`fault.ps1` reads the workload details from the azd environment by default. If the lab was
+deployed without azd (for example by the agent-driven setup), pass them explicitly instead:
+
+```powershell
+./scripts/fault.ps1 -Action inject `
+  -Subscription YOUR-SUBSCRIPTION -ResourceGroup YOUR-LAB-RESOURCE-GROUP `
+  -NetworkSecurityGroupName YOUR-NSG-NAME -NamePrefix YOUR-NAME-PREFIX
+```
+
+The NSG name and name prefix are outputs of the workload deployment
+(`networkSecurityGroupName` and the `namePrefix` you deployed with).
 
 Do not rely on the model making an error for the teaching exercise. Ask each
 learner to add an operational requirement, such as including the evidence
