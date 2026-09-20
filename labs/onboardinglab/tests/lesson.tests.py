@@ -108,6 +108,13 @@ class LessonTests(unittest.TestCase):
         self.assertIn("Automatic thread creation is unavailable", bootstrap)
         self.assertIn("onboardingLabDeploymentStatus", bootstrap)
         self.assertIn("onboardingLabDeploymentStatus=verified", runbook)
+        self.assertIn(
+            "https://sre.azure.com/agents/subscriptions/$subId/resourceGroups/"
+            "$LabResourceGroup/providers/Microsoft.App/agents/$AgentName",
+            bootstrap,
+        )
+        self.assertNotIn("https://sre.azure.com/#/agent/", bootstrap)
+        self.assertNotIn("https://sre.azure.com/#/agent/", runbook)
 
         finalize = bootstrap[
             bootstrap.index("if ($Finalize) {"):

@@ -954,7 +954,7 @@ Write-Ok 'Signed-in user can administer the agent and configure Code Access.'
 Write-Step 'Step 6 - Connect your fork as a code repository'
 
 $dataPlaneToken = Get-DataPlaneToken
-$portalUrl = "https://sre.azure.com/#/agent/$subId/$LabResourceGroup/$AgentName"
+$portalUrl = "https://sre.azure.com/agents/subscriptions/$subId/resourceGroups/$LabResourceGroup/providers/Microsoft.App/agents/$AgentName"
 
 if (-not [string]::IsNullOrWhiteSpace($dataPlaneToken)) {
     $connectedRepositories = @(Get-ConnectedRepositories -Endpoint $agentEndpoint)
@@ -1035,7 +1035,7 @@ elseif ($agentAlreadyExisted -and -not $NewThread) {
     Write-Warning 'The agent already existed, but this run has no record of a deployment thread.'
     Write-Host '   The state file was probably lost with a previous session.' -ForegroundColor DarkGray
     Write-Host '   Check whether a deployment is already running before starting another:' -ForegroundColor DarkGray
-    Write-Host "   https://sre.azure.com/#/agent/$subId/$LabResourceGroup/$AgentName"
+    Write-Host "   $portalUrl"
     Write-Host ''
     $reply = Read-Host '   Start a new deployment thread? [y/N]'
     if ($reply -notmatch '^\s*[Yy]') {
@@ -1120,7 +1120,7 @@ Write-Host "  Region            : $Location"
 if ($threadId) { Write-Host "  Thread            : $threadId" }
 Write-Host ''
 Write-Host '  Watch progress at:'
-Write-Host "  https://sre.azure.com/#/agent/$subId/$LabResourceGroup/$AgentName"
+Write-Host "  $portalUrl"
 Write-Host ''
 Write-Host '  The agent runs in Review mode, so approve each action as it is proposed.' -ForegroundColor Yellow
 Write-Host '  Read commands run without prompting; only writes need your approval.' -ForegroundColor DarkGray

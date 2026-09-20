@@ -315,7 +315,7 @@ Report back with:
 
 - resource group, region, and the resource names created
 - the checkout URL and the agent portal link
-  (`https://sre.azure.com/#/agent/<SUBSCRIPTION>/<LAB_RG>/<AGENT_NAME>`)
+  (`https://sre.azure.com/agents/subscriptions/<SUBSCRIPTION>/resourceGroups/<LAB_RG>/providers/Microsoft.App/agents/<AGENT_NAME>`)
 - confirmation that the alert rule is armed and telemetry is flowing
 - anything that failed or was skipped, and why
 - confirmation that the operator can now run `bootstrap-agent.ps1 -Finalize`
