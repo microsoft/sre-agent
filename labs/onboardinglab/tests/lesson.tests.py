@@ -1,5 +1,6 @@
 """Offline contracts for the learner guide, separate from live agent validation."""
 
+import json
 import unittest
 import re
 from pathlib import Path
@@ -91,6 +92,7 @@ class LessonTests(unittest.TestCase):
         bootstrap = (LAB / "scripts/bootstrap-agent.ps1").read_text(encoding="utf-8")
         runbook = (LAB / "agent-deploy-runbook.md").read_text(encoding="utf-8")
         infrastructure = (LAB / "infra/main.bicep").read_text(encoding="utf-8")
+        compiled_infrastructure = LAB / "infra/main.arm.json"
 
         self.assertFalse((LAB / "scripts/bootstrap-labcreator.ps1").exists())
         self.assertIn("[switch] $Finalize", bootstrap)
@@ -108,10 +110,40 @@ class LessonTests(unittest.TestCase):
         self.assertIn("Automatic thread creation is unavailable", bootstrap)
         self.assertIn("onboardingLabDeploymentStatus", bootstrap)
         self.assertIn("onboardingLabDeploymentStatus=verified", runbook)
+        for provider in (
+            "Microsoft.App",
+            "Microsoft.Authorization",
+            "Microsoft.DBforPostgreSQL",
+            "Microsoft.Insights",
+            "Microsoft.ManagedIdentity",
+            "Microsoft.Network",
+            "Microsoft.OperationalInsights",
+            "Microsoft.Web",
+        ):
+            self.assertIn(f"'{provider}'", bootstrap)
+        self.assertIn('AVAILABLE_KB=$(df -Pk /tmp', runbook)
+        self.assertIn(
+            "supportedServerEditions[].supportedServerSkus[].name",
+            runbook,
+        )
+        self.assertNotIn("[?name=='Standard_B1ms']", runbook)
+        self.assertIn(
+            "Follow the runbook at $RunbookPath under the sre-agent repository.",
+            bootstrap,
+        )
+        self.assertIn("* Report when external finalization is safe.", bootstrap)
+        self.assertNotIn("*.bicep.azure.com", bootstrap)
+        self.assertIn(
+            "https://sre.azure.com/agents/subscriptions/$subId/resourceGroups/"
+            "$LabResourceGroup/providers/Microsoft.App/agents/$AgentName",
+            bootstrap,
+        )
+        self.assertNotIn("https://sre.azure.com/#/agent/", bootstrap)
+        self.assertNotIn("https://sre.azure.com/#/agent/", runbook)
 
         finalize = bootstrap[
             bootstrap.index("if ($Finalize) {"):
-            bootstrap.index("# ── Step 1: register the resource provider")
+            bootstrap.index("# ── Step 1: register resource providers")
         ]
         self.assertIn(
             "Invoke-Az @('role', 'assignment', 'delete', '--ids', $ownerAssignmentId)",
@@ -124,9 +156,13 @@ class LessonTests(unittest.TestCase):
         )
 
         self.assertIn("Do not create another agent", runbook)
-        self.assertIn("--template-file labs/onboardinglab/infra/main.bicep", runbook)
+        self.assertIn("--template-file labs/onboardinglab/infra/main.arm.json", runbook)
+        self.assertNotIn("--template-file labs/onboardinglab/infra/main.bicep", runbook)
         self.assertIn("module workload", infrastructure)
         self.assertIn("module agentConfiguration", infrastructure)
+        compiled = json.loads(compiled_infrastructure.read_text(encoding="utf-8"))
+        self.assertEqual(compiled["$schema"].split("/")[-1], "deploymentTemplate.json#")
+        self.assertTrue(compiled["resources"])
 
     def test_local_document_links_resolve(self):
         documents = [

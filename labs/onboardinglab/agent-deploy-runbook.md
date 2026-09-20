@@ -28,8 +28,9 @@ Two consequences:
   to `az` / `azd` and will fail here. This runbook replaces them.
 - `azd` is not installed. Every step below avoids it.
 
-`--template-file <file>.bicep` works directly: the onboarding agent allowlists
-`*.bicep.azure.com`, so the CLI can fetch the Bicep compiler on first use.
+The Bicep files are the IaC source of truth. Deploy the committed
+`infra/main.arm.json` artifact generated from `infra/main.bicep`; do not compile Bicep in the
+agent sandbox. Downloading the Bicep CLI can exhaust the sandbox filesystem before deployment.
 
 ### Re-entrancy
 
@@ -67,6 +68,21 @@ branches during deployment.
 
 Confirm the group exists and the region can host the lab.
 
+First verify the non-Azure workspace tools and leave at least 50 MiB free for the application
+archive and generated agent configuration:
+
+```bash
+for tool in git zip jq python3 pwsh; do
+  command -v "$tool" >/dev/null || { echo "Missing required tool: $tool"; exit 1; }
+done
+python3 -c "import yaml" || { echo "Missing Python module: PyYAML"; exit 1; }
+AVAILABLE_KB=$(df -Pk /tmp | awk 'NR==2 {print $4}')
+[ "$AVAILABLE_KB" -ge 51200 ] || { echo "Less than 50 MiB free in /tmp"; exit 1; }
+```
+
+Do not install missing tools or dependencies in the sandbox. Stop and report the missing
+prerequisite so the lab image or workflow can be corrected.
+
 ```bash
 az group show --subscription <SUBSCRIPTION> -n <LAB_RG> --query "{name:name,location:location,state:properties.provisioningState}" -o json
 ```
@@ -75,12 +91,18 @@ Then confirm PostgreSQL Flexible Server is actually provisionable — **this is 
 region-specific and is the most common hard blocker**:
 
 ```bash
-az postgres flexible-server list-skus --subscription <SUBSCRIPTION> --location <LOCATION> --query "[?name=='Standard_B1ms']" -o json
+az postgres flexible-server list-skus \
+  --subscription <SUBSCRIPTION> \
+  --location <LOCATION> \
+  --query "[].{reason:reason,versions:supportedServerVersions[].name,skus:supportedServerEditions[].supportedServerSkus[].name}" \
+  -o json
 ```
 
-An empty result, or a `restrictions` entry with a `reason`, means the region is unusable. Known
-restricted regions on some subscriptions: `eastus` ("Provisioning is restricted in this region")
-and `eastus2` ("Subscriptions are restricted from provisioning in this region").
+The SKU names are nested under `supportedServerEditions[].supportedServerSkus`; do not filter
+the top-level objects by `name`. Confirm that version `16` and SKU `Standard_B1ms` appear in
+the projected response. If either is absent, report any returned `reason` values. Known
+restricted regions on some subscriptions include `eastus` ("Provisioning is restricted in this
+region") and `eastus2` ("Subscriptions are restricted from provisioning in this region").
 
 Also confirm the region supports the agent resource type:
 
@@ -96,14 +118,16 @@ silently pick another region.
 
 ## Step 2 — Deploy the lab infrastructure through Bicep
 
-Deploy the lab's resource-group-scoped entry point. It composes the workload module with the
-existing agent's permanent read-only RBAC and Application Insights connector. Do **not** use
-`ticketingapp-source/main.bicep`: it is subscription-scoped and creates its own resource group.
+Deploy the compiled form of the lab's resource-group-scoped Bicep entry point. It composes the
+workload module with the existing agent's permanent read-only RBAC and Application Insights
+connector. `infra/main.bicep` remains the source of truth; `infra/main.arm.json` is its committed
+deployment artifact. Do **not** use `ticketingapp-source/main.bicep`: it is subscription-scoped
+and creates its own resource group.
 
 ```bash
 az deployment group create \
   --subscription <SUBSCRIPTION> -g <LAB_RG> --name onboardinglab \
-  --template-file labs/onboardinglab/infra/main.bicep \
+  --template-file labs/onboardinglab/infra/main.arm.json \
   --parameters location=<LOCATION> namePrefix=<NAME_PREFIX> \
                agentName=<AGENT_NAME> agentIdentityName=<AGENT_IDENTITY_NAME> \
   --query "{state:properties.provisioningState,outputs:properties.outputs}" -o json
@@ -315,7 +339,7 @@ Report back with:
 
 - resource group, region, and the resource names created
 - the checkout URL and the agent portal link
-  (`https://sre.azure.com/#/agent/<SUBSCRIPTION>/<LAB_RG>/<AGENT_NAME>`)
+  (`https://sre.azure.com/agents/subscriptions/<SUBSCRIPTION>/resourceGroups/<LAB_RG>/providers/Microsoft.App/agents/<AGENT_NAME>`)
 - confirmation that the alert rule is armed and telemetry is flowing
 - anything that failed or was skipped, and why
 - confirmation that the operator can now run `bootstrap-agent.ps1 -Finalize`
