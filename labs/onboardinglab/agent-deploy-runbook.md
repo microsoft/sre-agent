@@ -198,7 +198,9 @@ az webapp log deployment list \
 
 Keep polling until the latest deployment reaches a terminal state. If the initial command or
 agent action times out, check this deployment history before doing anything else. Do not submit
-the zip again while OneDeploy is still processing the previous upload.
+the zip again while OneDeploy is still processing the previous upload. Keep the operator informed
+with concise progress updates while polling, including the latest status, elapsed time, and any
+meaningful change in the deployment log.
 
 **Verify:**
 

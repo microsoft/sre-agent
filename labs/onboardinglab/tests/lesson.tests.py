@@ -129,6 +129,7 @@ class LessonTests(unittest.TestCase):
         self.assertIn("az webapp log deployment list", runbook)
         self.assertIn("Do not submit", runbook)
         self.assertIn("while OneDeploy is still processing the previous upload", runbook)
+        self.assertIn("Keep the operator informed", runbook)
         self.assertIn(
             "supportedServerEditions[].supportedServerSkus[].name",
             runbook,
