@@ -20,9 +20,9 @@
       4. Append the egress hosts the agent needs to reach while deploying.
       5. Grant the agent identity temporary Owner and grant agent-scoped
          SRE Agent Administrator to the identity and signed-in user.
-      6. Acquire an interactive data-plane token when Cloud Shell requires one,
-         then pause while you connect your fork as a code repository.
-      7. Start a thread asking the agent to deploy the lab.
+      6. Pause while you connect your fork as a code repository.
+      7. Start the deployment thread automatically when a data-plane token is
+         available, or print the exact portal prompt when Cloud Shell cannot get one.
 
     The script is re-entrant, because a portal session can die at any point. Run it
     again and it picks up where it stopped. Use -Reset to start over. After the
@@ -264,8 +264,6 @@ function Get-SignedInUserObjectId {
 }
 
 $script:DataPlaneToken = $null
-$script:SelectedSubscriptionId = $null
-$script:SignedInUserObjectId = $null
 
 function Get-DataPlaneToken {
     if (-not [string]::IsNullOrWhiteSpace($script:DataPlaneToken)) {
@@ -275,32 +273,7 @@ function Get-DataPlaneToken {
     $token = (& az account get-access-token --scope 'https://azuresre.dev/.default' `
         --query accessToken --only-show-errors -o tsv 2>$null)
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($token -join ''))) {
-        Write-Warning 'Cloud Shell could not issue an SRE Agent data-plane token with its built-in credential.'
-        Write-Host '   An interactive Azure CLI sign-in is required for Code Access and agent data-plane calls.' -ForegroundColor Yellow
-        $reply = Read-Host '   Start device-code sign-in now? [Y/n]'
-        if ($reply -match '^\s*[Nn]') {
-            throw 'SRE Agent sign-in is required. Run az login --use-device-code --scope "https://azuresre.dev/.default", then rerun this script.'
-        }
-
-        & az login --use-device-code --scope 'https://azuresre.dev/.default' --output none
-        if ($LASTEXITCODE -ne 0) {
-            throw 'Interactive Azure CLI sign-in failed. Rerun the script to try again.'
-        }
-        if (-not [string]::IsNullOrWhiteSpace($script:SelectedSubscriptionId)) {
-            $null = Invoke-Az @('account', 'set', '--subscription', $script:SelectedSubscriptionId) -AllowEmpty
-        }
-        $interactiveUserObjectId = Get-SignedInUserObjectId
-        if (-not [string]::IsNullOrWhiteSpace($script:SignedInUserObjectId) -and
-            $interactiveUserObjectId -ne $script:SignedInUserObjectId) {
-            throw 'Interactive sign-in used a different account. Sign in with the same user that started the bootstrap script.'
-        }
-
-        $token = (& az account get-access-token --scope 'https://azuresre.dev/.default' `
-            --query accessToken --only-show-errors -o tsv 2>$null)
-    }
-
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($token -join ''))) {
-        throw 'Could not get an SRE Agent data-plane token after interactive sign-in.'
+        return $null
     }
 
     $script:DataPlaneToken = ($token -join '').Trim()
@@ -311,6 +284,9 @@ function Invoke-DataPlaneGet {
     param([Parameter(Mandatory)][string] $Url)
 
     $token = Get-DataPlaneToken
+    if ([string]::IsNullOrWhiteSpace($token)) {
+        throw 'An SRE Agent data-plane token is not available in this Azure CLI session.'
+    }
     try {
         for ($attempt = 1; $attempt -le 7; $attempt++) {
             try {
@@ -450,7 +426,6 @@ elseif ($state.Contains('subscriptionId') -and $account.id -ne $state['subscript
 }
 
 $subId = $account.id
-$script:SelectedSubscriptionId = $subId
 $state['subscriptionId'] = $subId
 Save-State -State $state
 
@@ -461,7 +436,6 @@ if ($account.user.type -ne 'user') {
     throw 'This bootstrap flow requires an interactive human Azure CLI sign-in so it can grant agent data-plane access for Code Access.'
 }
 $signedInUserObjectId = Get-SignedInUserObjectId
-$script:SignedInUserObjectId = $signedInUserObjectId
 
 # Resolve the lab resource group name up front. The agent is created with both resource
 # groups in scope, so the name has to be known before the agent is created.
@@ -549,33 +523,49 @@ if ($Finalize) {
         throw 'Cannot finalize because the Azure Monitor incident platform is not configured.'
     }
 
-    $endpoint = $agent.properties.agentEndpoint.TrimEnd('/')
-    $requiredDataPlaneObjects = @(
-        @{ Kind = 'skills'; Name = 'sre-agent-self-configure' }
-        @{ Kind = 'skills'; Name = 'onboarding-lab-guide' }
-        @{ Kind = 'skills'; Name = 'onboarding-health-check' }
-        @{ Kind = 'hooks'; Name = 'evidence-checklist' }
-        @{ Kind = 'commonprompts'; Name = 'onboardinglab-safety' }
-    )
-    foreach ($fileName in @('onboardinglab-architecture.md', 'onboardinglab-incident-runbook.md')) {
-        $requiredDataPlaneObjects += @{
-            Kind = 'connectors'
-            Name = (Get-KnowledgeResourceName -FileName $fileName)
-        }
-    }
-    foreach ($item in $requiredDataPlaneObjects) {
-        $encodedName = [uri]::EscapeDataString($item.Name)
-        $installed = Invoke-DataPlaneGet -Url "$endpoint/api/v2/extendedAgent/$($item.Kind)/$encodedName"
-        if ($installed.name -ne $item.Name) {
-            throw "Cannot finalize because $($item.Kind)/$($item.Name) could not be verified."
-        }
+    $completionStatus = Invoke-Az @(
+        'group', 'show',
+        '--name', $LabResourceGroup,
+        '--query', 'tags.onboardingLabDeploymentStatus',
+        '-o', 'json'
+    ) -AllowEmpty
+    if ($completionStatus -ne 'verified') {
+        throw 'Cannot finalize because the agent has not written the verified deployment marker. Complete the deployment thread and its end-to-end checks first.'
     }
 
-    $globalSettings = Invoke-DataPlaneGet -Url "$endpoint/api/v2/agent/settings/global"
-    if ('RunAzCliWriteCommands' -notin @($globalSettings.permissions.ask) -or
-        'RunInTerminal' -notin @($globalSettings.permissions.deny) -or
-        'Terminal' -notin @($globalSettings.permissions.deny)) {
-        throw 'Cannot finalize because the expected Review-mode tool policy is not installed.'
+    $dataPlaneToken = Get-DataPlaneToken
+    if (-not [string]::IsNullOrWhiteSpace($dataPlaneToken)) {
+        $endpoint = $agent.properties.agentEndpoint.TrimEnd('/')
+        $requiredDataPlaneObjects = @(
+            @{ Kind = 'skills'; Name = 'sre-agent-self-configure' }
+            @{ Kind = 'skills'; Name = 'onboarding-lab-guide' }
+            @{ Kind = 'skills'; Name = 'onboarding-health-check' }
+            @{ Kind = 'hooks'; Name = 'evidence-checklist' }
+            @{ Kind = 'commonprompts'; Name = 'onboardinglab-safety' }
+        )
+        foreach ($fileName in @('onboardinglab-architecture.md', 'onboardinglab-incident-runbook.md')) {
+            $requiredDataPlaneObjects += @{
+                Kind = 'connectors'
+                Name = (Get-KnowledgeResourceName -FileName $fileName)
+            }
+        }
+        foreach ($item in $requiredDataPlaneObjects) {
+            $encodedName = [uri]::EscapeDataString($item.Name)
+            $installed = Invoke-DataPlaneGet -Url "$endpoint/api/v2/extendedAgent/$($item.Kind)/$encodedName"
+            if ($installed.name -ne $item.Name) {
+                throw "Cannot finalize because $($item.Kind)/$($item.Name) could not be verified."
+            }
+        }
+
+        $globalSettings = Invoke-DataPlaneGet -Url "$endpoint/api/v2/agent/settings/global"
+        if ('RunAzCliWriteCommands' -notin @($globalSettings.permissions.ask) -or
+            'RunInTerminal' -notin @($globalSettings.permissions.deny) -or
+            'Terminal' -notin @($globalSettings.permissions.deny)) {
+            throw 'Cannot finalize because the expected Review-mode tool policy is not installed.'
+        }
+    }
+    else {
+        Write-Note 'Cloud Shell has no SRE Agent data-plane token. Using the agent-written verified deployment marker.'
     }
 
     $temporaryOwner = @($assignments | Where-Object {
@@ -963,14 +953,46 @@ Write-Ok 'Signed-in user can administer the agent and configure Code Access.'
 
 Write-Step 'Step 6 - Connect your fork as a code repository'
 
-$connectedRepositories = @(Get-ConnectedRepositories -Endpoint $agentEndpoint)
-if ($connectedRepositories.Count -gt 0) {
-    $repositoryNames = @($connectedRepositories | ForEach-Object { $_.name } | Where-Object { $_ })
-    Set-StepDone -State $state -Name 'codeAccessConfirmed'
-    Write-Ok "Code access verified: $($repositoryNames -join ', ')"
+$dataPlaneToken = Get-DataPlaneToken
+$portalUrl = "https://sre.azure.com/#/agent/$subId/$LabResourceGroup/$AgentName"
+
+if (-not [string]::IsNullOrWhiteSpace($dataPlaneToken)) {
+    $connectedRepositories = @(Get-ConnectedRepositories -Endpoint $agentEndpoint)
+    if ($connectedRepositories.Count -gt 0) {
+        $repositoryNames = @($connectedRepositories | ForEach-Object { $_.name } | Where-Object { $_ })
+        Set-StepDone -State $state -Name 'codeAccessConfirmed'
+        Write-Ok "Code access verified: $($repositoryNames -join ', ')"
+    }
+    else {
+        Write-Host ''
+        Write-Host '   The final onboarding agent clones your fork and deploys its workload' -ForegroundColor Yellow
+        Write-Host "   and durable configuration from $RunbookPath and the lab templates." -ForegroundColor Yellow
+        Write-Host ''
+        Write-Host '   1. Open the agent in the portal:'
+        Write-Host "      $portalUrl"
+        Write-Host '   2. Go to Manage - Sources (code repositories).'
+        Write-Host '   3. Choose Add / Connect, pick GitHub, and complete the sign-in and consent.'
+        Write-Host '   4. Select your fork of sre-agent and grant read access.'
+        Write-Host '   5. Wait until the repository shows as connected.'
+        Write-Host ''
+        Write-Host '   This step is manual: it needs an interactive OAuth consent that cannot be' -ForegroundColor DarkGray
+        Write-Host '   scripted. If this session dies, re-run the script and it resumes here.' -ForegroundColor DarkGray
+        Write-Host ''
+
+        $null = Read-Host '   Press Enter once the repository is connected'
+        $connectedRepositories = @(Get-ConnectedRepositories -Endpoint $agentEndpoint)
+        if ($connectedRepositories.Count -eq 0) {
+            $state['codeAccessConfirmed'] = $false
+            Save-State -State $state
+            throw 'No connected repository was found. Complete Code Access and rerun this script; no deployment thread was started.'
+        }
+        Set-StepDone -State $state -Name 'codeAccessConfirmed'
+        $repositoryNames = @($connectedRepositories | ForEach-Object { $_.name } | Where-Object { $_ })
+        Write-Ok "Code access verified: $($repositoryNames -join ', ')"
+    }
 }
 else {
-    $portalUrl = "https://sre.azure.com/#/agent/$subId/$LabResourceGroup/$AgentName"
+    Write-Warning 'Cloud Shell cannot acquire an SRE Agent data-plane token. Continuing through the portal.'
 
     Write-Host ''
     Write-Host '   The final onboarding agent clones your fork and deploys its workload' -ForegroundColor Yellow
@@ -983,20 +1005,7 @@ else {
     Write-Host '   4. Select your fork of sre-agent and grant read access.'
     Write-Host '   5. Wait until the repository shows as connected.'
     Write-Host ''
-    Write-Host '   This step is manual: it needs an interactive OAuth consent that cannot be' -ForegroundColor DarkGray
-    Write-Host '   scripted. If this session dies, re-run the script and it resumes here.' -ForegroundColor DarkGray
-    Write-Host ''
-
-    $null = Read-Host '   Press Enter once the repository is connected'
-    $connectedRepositories = @(Get-ConnectedRepositories -Endpoint $agentEndpoint)
-    if ($connectedRepositories.Count -eq 0) {
-        $state['codeAccessConfirmed'] = $false
-        Save-State -State $state
-        throw 'No connected repository was found. Complete Code Access and rerun this script; no deployment thread was started.'
-    }
-    Set-StepDone -State $state -Name 'codeAccessConfirmed'
-    $repositoryNames = @($connectedRepositories | ForEach-Object { $_.name } | Where-Object { $_ })
-    Write-Ok "Code access verified: $($repositoryNames -join ', ')"
+    Write-Note 'Confirm that the repository shows as connected in the portal. The script cannot verify it from this Cloud Shell session.'
 }
 
 # ── Step 7: start the deployment thread ─────────────────────────────────────
@@ -1008,9 +1017,12 @@ Write-Step 'Step 7 - Ask the agent to deploy the lab'
 # resource group at once, each asking for conflicting approvals.
 $existingThreadId = if ($state.Contains('threadId')) { $state['threadId'] } else { $null }
 $threadId = $existingThreadId
-$startThread = $true
+$startThread = -not [string]::IsNullOrWhiteSpace($dataPlaneToken)
 
-if ($existingThreadId -and -not $NewThread) {
+if (-not $startThread) {
+    Write-Warning 'Automatic thread creation is unavailable in this Cloud Shell session.'
+}
+elseif ($existingThreadId -and -not $NewThread) {
     Write-Ok "A deployment thread was already started: $existingThreadId"
     Write-Note 'Re-running does not start another one. Use -NewThread to force a fresh thread.'
     $startThread = $false
@@ -1054,7 +1066,7 @@ Do not modify anything outside $LabResourceGroup. Report when external finalizat
 "@
 
 if ($startThread) {
-    $dpToken = Get-DataPlaneToken
+    $dpToken = $dataPlaneToken
 
     $body = @{ StartMessage = $startMessage } | ConvertTo-Json -Depth 5
 
@@ -1079,11 +1091,28 @@ if ($startThread) {
 
     Write-Ok 'Thread started.'
 }
+else {
+    Write-Host ''
+    Write-Host '   Open this agent in the portal and start or reuse a chat:' -ForegroundColor Yellow
+    Write-Host "   $portalUrl"
+    Write-Host ''
+    Write-Host '   Paste this deployment request:' -ForegroundColor Yellow
+    Write-Host '---'
+    Write-Host $startMessage
+    Write-Host '---'
+    Write-Host ''
+    Write-Note 'No deployment thread was created by this script.'
+}
 
 # ── Done ────────────────────────────────────────────────────────────────────
 
 Write-Host ''
-Write-Host 'Bootstrap complete.' -ForegroundColor Green
+if ([string]::IsNullOrWhiteSpace($dataPlaneToken)) {
+    Write-Host 'Bootstrap preparation complete. Finish the deployment in the agent portal.' -ForegroundColor Green
+}
+else {
+    Write-Host 'Bootstrap complete.' -ForegroundColor Green
+}
 Write-Host ''
 Write-Host "  Onboarding agent  : $AgentName"
 Write-Host "  Lab resource group: $LabResourceGroup"

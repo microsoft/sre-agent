@@ -290,6 +290,20 @@ empty even when items exist, so do not rely on it.
    An empty result immediately after sending traffic is normal — wait and retry before concluding
    anything is broken. Only `POST /checkout` is tracked as a request; `GET /` is not.
 
+5. **Completion marker** — only after every check above and every Step 5 data-plane read-back
+   succeeds, record completion through ARM:
+   ```bash
+   az tag update \
+     --resource-id /subscriptions/<SUBSCRIPTION>/resourceGroups/<LAB_RG> \
+     --operation Merge \
+     --tags onboardingLabDeploymentStatus=verified
+   az group show --subscription <SUBSCRIPTION> -n <LAB_RG> \
+     --query tags.onboardingLabDeploymentStatus -o tsv
+   ```
+   The result must be `verified`. Do not write this marker if any deployment or verification
+   step failed or was skipped. The external finalizer uses it when the operator's Cloud Shell
+   cannot acquire an SRE Agent data-plane token.
+
 ---
 
 ## Step 7 — Report
