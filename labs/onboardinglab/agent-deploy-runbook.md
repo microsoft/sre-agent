@@ -72,7 +72,7 @@ First verify the non-Azure workspace tools and leave at least 50 MiB free for th
 archive and generated agent configuration:
 
 ```bash
-for tool in git zip jq python3 pwsh; do
+for tool in git jq python3 pwsh; do
   command -v "$tool" >/dev/null || { echo "Missing required tool: $tool"; exit 1; }
 done
 python3 -c "import yaml" || { echo "Missing Python module: PyYAML"; exit 1; }
@@ -133,6 +133,8 @@ az deployment group create \
   --query "{state:properties.provisioningState,outputs:properties.outputs}" -o json
 ```
 
+After the deployment starts, keep monitoring its status and provisioned resources periodically until it reaches a terminal state; do not report failure only because the initial command or tool call timed out while Azure is still provisioning.
+
 This creates the VNet and NSG, Log Analytics, Application Insights, the App Service plan and
 Linux web app, the PostgreSQL flexible server with its private DNS zone, and the
 `<NAME_PREFIX>-checkout-failures` alert rule. It also declares the final agent's permanent
@@ -161,21 +163,53 @@ server-side.
 
 ```bash
 cd labs/onboardinglab/ticketingapp-source/app
-zip -r /tmp/checkout-app.zip . -x 'node_modules/*' -x 'test/*' -x '.git/*'
+python3 - <<'PY'
+from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
+
+root = Path(".")
+excluded = {"node_modules", "test", ".git"}
+with ZipFile("/tmp/checkout-app.zip", "w", ZIP_DEFLATED) as archive:
+    for path in root.rglob("*"):
+        if path.is_file() and not excluded.intersection(path.parts):
+            archive.write(path, path.relative_to(root))
+PY
 ```
 
 Publish it with your CLI tool. The template disables SCM basic auth, so publish profiles do not
-work — `az webapp deploy` uses an Entra token and is the supported path:
+work — `az webapp deploy` uses an Entra token and is the supported path. Start OneDeploy
+asynchronously so the command returns within the agent's two-minute CLI budget:
 
 ```bash
 az webapp deploy --subscription <SUBSCRIPTION> -g <LAB_RG> -n <checkoutAppName> \
-  --type zip --src-path /tmp/checkout-app.zip
+  --type zip --src-path /tmp/checkout-app.zip --async true
 ```
+
+Poll the existing deployment separately:
+
+```bash
+az webapp log deployment list \
+  --subscription <SUBSCRIPTION> \
+  --resource-group <LAB_RG> \
+  --name <checkoutAppName> \
+  --query "[0].{id:id,status:status,start:start_time,end:end_time}" \
+  --output json
+```
+
+Keep polling until the latest deployment reaches a terminal state. If the initial command or
+agent action times out, check this deployment history before doing anything else. Do not submit
+the zip again while OneDeploy is still processing the previous upload. Keep the operator informed
+with concise progress updates while polling, including the latest status, elapsed time, and any
+meaningful change in the deployment log.
 
 **Verify:**
 
 ```bash
-az webapp log deployment show --subscription <SUBSCRIPTION> -g <LAB_RG> -n <checkoutAppName> -o json
+az webapp log deployment show \
+  --subscription <SUBSCRIPTION> \
+  --resource-group <LAB_RG> \
+  --name <checkoutAppName> \
+  --output json
 ```
 
 Look for `"Deployment successful"` and an Oryx build reporting `Errors (0)`.
