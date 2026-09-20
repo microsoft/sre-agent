@@ -57,6 +57,7 @@ resource uamiMonitoringReader 'Microsoft.Authorization/roleAssignments@2022-04-0
   }
 }
 
+#disable-next-line BCP081
 resource sreAgent 'Microsoft.App/agents@2025-05-01-preview' existing = {
   name: agentName
 }
