@@ -16,7 +16,8 @@ Change to the discovered `sre-agent` repository root before continuing.
 
 ## Run the deployment
 
-Use the workspace terminal to launch the repository-owned deployment script once:
+Use the workspace terminal to launch the repository-owned deployment script. Never run two copies
+concurrently:
 
 ```bash
 bash labs/onboardinglab/scripts/deploy-agent.sh \
@@ -53,7 +54,8 @@ The script then owns the full workflow:
 
 Keep the operator informed with the status lines emitted by the script. Do not duplicate its
 individual commands in separate Azure CLI tool calls. If the terminal or thread is interrupted,
-run the same script command again; it detects active or completed deployments and resumes safely.
+or the script exits nonzero and a confirmed repository fix is applied, run the same script command
+again; it detects active or completed deployments and resumes safely.
 
 Do not install dependencies, create another SRE Agent or managed identity, enable the database
 fault, modify resources outside `LAB_RG`, remove temporary Owner, or lower the agent's access.

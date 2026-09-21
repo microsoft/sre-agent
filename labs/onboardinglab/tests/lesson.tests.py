@@ -150,6 +150,8 @@ class LessonTests(unittest.TestCase):
         self.assertIn("https://azuresre.dev/.default", bootstrap)
         self.assertNotIn("--use-device-code", bootstrap)
         self.assertIn("Automatic thread creation is unavailable", bootstrap)
+        self.assertIn("confirmed repository fix", bootstrap)
+        self.assertIn("Never run two copies", runbook)
         self.assertIn("onboardingLabDeploymentStatus", bootstrap)
         for provider in (
             "Microsoft.App",
@@ -169,7 +171,7 @@ class LessonTests(unittest.TestCase):
         )
         self.assertNotIn("[?name=='Standard_B1ms']", deployment_script)
         self.assertIn(
-            "deployment script once",
+            "deployment script with the exact inputs",
             bootstrap,
         )
         self.assertIn("First find the local workspace directory", bootstrap)
