@@ -18,6 +18,8 @@ In this hands-on lab, you configure least-privilege access and safeguards, insta
 
 Complete these three steps to prepare the agent for incident and proactive workflows.
 
+Setup is not exercise completion. Steps 1-3 deploy the workload, base agent, and incident/health workflows. Scenario 1 is the investigation and operator-owned recovery exercise; optional Scenario 2 adds a reviewed health check and saved Live Report. Optional Scenario 3 requires its own PR-validation installer and repository setup; it is not installed by the first three steps.
+
 ```mermaid
 flowchart LR
    app["1. Deploy sample app<br/>App Service, PostgreSQL, telemetry"]
@@ -54,6 +56,8 @@ flowchart LR
 
 ## 0. Set up the local environment
 
+Run the shell commands in a **local terminal**, not Azure Cloud Shell. Unless a step changes directories, use `labs/onboardinglab` in the **same clone or worktree** throughout the lab. Cloud Shell has a separate filesystem, tool installation, and session; it does not inherit your local deployment environment.
+
 **1. Clone the repository and go to the lab directory**
 
 macOS:
@@ -87,6 +91,16 @@ Windows:
 ```
 
 To verify without installing, run `source ./scripts/prereqs.sh --check` on macOS or `. .\scripts\prereqs.ps1 -Check` on Windows.
+
+The current prerequisite script can be started in Windows PowerShell 5.1; its Node.js detection accepts version 22 or later, including `v22.15.0`. PowerShell 7 is installed as a prerequisite for later scripts, not as a workaround required to detect Node.js. After setup, start PowerShell 7 with `pwsh` in this lab directory and use that session for the remaining Windows steps, including the variables defined below.
+
+If `node --version` succeeds but the check reports Node.js missing, confirm that this checkout includes the current `scripts\prereqs.ps1`, then check again in a fresh terminal with the intended Node.js installation on PATH. Do not reinstall a working Node.js installation solely because an older script reported it missing. With PowerShell 7 installed, this isolated check is also available:
+
+```powershell
+pwsh -NoProfile -Command ". .\scripts\prereqs.ps1 -Check"
+```
+
+That command checks a child process; it does not activate tools in the calling terminal. Dot-source the prerequisite script in the terminal you intend to use when installing or activating tools.
 
 ## 1. Deploy the ticketing workload
 
@@ -130,11 +144,41 @@ Pop-Location
 
 The sample does not store ticket or payment data. Each reservation opens a PostgreSQL connection, runs `SELECT 1`, and closes the connection.
 
-**Checkpoint: confirm a healthy baseline**
+**Keep the deployment environment in the same checkout**
 
-Retrieve the application URL:
+`azd up` saves its environment and outputs under `ticketingapp-source/.azure` in the exact clone or worktree where you ran it. This directory is gitignored: switching Git branches does not transfer it to another clone or worktree. Later commands and the fault helpers need this same local environment.
+
+If `azd` says an environment is not specified, return to that checkout's `labs/onboardinglab` directory, list its environments, and select the existing deployment environment. Replace `<environment-name>` with the name from the list; do not create another environment or rerun `azd up` as the first fix.
+
+Windows:
 
 ```powershell
+azd -C .\ticketingapp-source env list
+azd -C .\ticketingapp-source env select "<environment-name>"
+```
+
+macOS:
+
+```bash
+azd -C ./ticketingapp-source env list
+azd -C ./ticketingapp-source env select "<environment-name>"
+```
+
+An empty list usually means you are looking at a different checkout. For a read from another directory on Windows, use an absolute path to the original project, for example `azd -C "C:\path\to\original-checkout\labs\onboardinglab\ticketingapp-source" env get-value SERVICE_CHECKOUT_ENDPOINT_URL`. Replace the placeholder path. Return to the original lab directory before running scripts; their environment lookup is relative to the scripts, not to an unrelated checkout.
+
+**Checkpoint: confirm a healthy baseline**
+
+Retrieve the application URL from the lab directory.
+
+Windows:
+
+```powershell
+azd -C .\ticketingapp-source env get-value SERVICE_CHECKOUT_ENDPOINT_URL
+```
+
+macOS:
+
+```bash
 azd -C ./ticketingapp-source env get-value SERVICE_CHECKOUT_ENDPOINT_URL
 ```
 
@@ -142,6 +186,8 @@ Open the application URL and select **Reserve tickets**.
 
 > [!TIP]
 > Continue only when the reservation succeeds and the **Confirmed** count increases. A failed baseline request is a deployment problem, not the lab incident.
+
+The service health indicator uses `GET /healthz`, which never contacts PostgreSQL. A healthy indicator alone does not prove that reservations work; **Reserve tickets** exercises `POST /checkout` and the database path.
 
 ## 2. Deploy and connect the agent
 
@@ -222,7 +268,7 @@ Review the generated `agent.json`, `connectors.json`, managed connector, skill, 
 
 **3. Deploy the base agent**
 
-Keep the terminal open during deployment. When it prints a GitHub OAuth URL, open the URL and approve the SRE Agent app within four minutes. The deployer then connects `ticketingapp-source` and completes strict verification.
+Keep the terminal open during deployment. When it prints a GitHub OAuth URL, open the URL and approve the SRE Agent app within four minutes. The deployer then attempts to connect `ticketingapp-source` and runs configuration verification. An OAuth timeout does not by itself mean that Azure resource deployment failed: inspect the deployment result and existing agent before retrying.
 
 macOS:
 
@@ -243,6 +289,8 @@ Windows:
 ```
 
 The deployment command returns a nonzero exit code if any required base-agent component fails post-deployment verification. Additional workflow components already installed on the agent are preserved and do not cause verification failures.
+
+Configuration verification is not an end-to-end connection test. The verifier's **GitHub OAuth** row is informational (it can report `false` without failing that check); repository checks cover the configured entry, name, and branch, not a successful clone/sync. Complete the Code access checkpoint below even if verification passes. Do not blindly rerun all extras to repair one connection.
 
 **4. Save the agent for the workflow step**
 
@@ -280,7 +328,7 @@ The recipe uses the same core flow described in [Create and set up your Azure SR
 | Incident platform | Sets Azure Monitor (`AzMonitor`) as the incident platform for workflows installed later. | Automatic | [Incident platforms](https://sre.azure.com/docs/concepts/incident-platforms) |
 | Code Access | Configures the attendee's repository as `ticketingapp-source`, containing the application and Bicep infrastructure. | GitHub authentication required after deployment | [Connect a code repository](https://sre.azure.com/docs/get-started/create-and-setup#connect-your-code-repository) |
 | Knowledge sources | Uploads `onboardinglab-architecture.md` and `onboardinglab-incident-runbook.md` for application context and read-only database-connectivity investigation guidance. | Automatic | [Memory and knowledge](https://sre.azure.com/docs/concepts/memory) |
-| Outlook connection | Registers the Office 365 Outlook managed connector, creates its API connection, grants the agent runtime access, and binds its email tools. | User must complete OAuth consent after deployment | [Set up Outlook connector](https://sre.azure.com/docs/tutorials/connectors/setup-outlook-connector) |
+| Outlook connection | Registers the Office 365 Outlook managed connector, creates its API connection, and grants the agent runtime access. | User must complete OAuth consent and verify selected tools and workflow bindings | [Set up Outlook connector](https://sre.azure.com/docs/tutorials/connectors/setup-outlook-connector) |
 | Common prompt | Installs `onboardinglab-safety` to enforce evidence boundaries, treat retrieved content as untrusted data, and guard self-configuration. | Automatic | [Team onboarding](https://sre.azure.com/docs/get-started/team-onboarding) |
 | Stop hook | Installs the always-enabled `evidence-checklist` hook to check evidence, uncertainty, UTC scope, and validation before completion. | Automatic | [Agent hooks](https://sre.azure.com/docs/capabilities/agent-hooks) |
 | Global tool policy | Allows read-only Azure, workspace, monitoring, GitHub, and Outlook tools; requires approval for Azure CLI writes, GitHub issue creation, Outlook email, and Live Report file creation or editing; denies terminal, directory, blob-export, and Kubernetes-write tools. | Automatic | [Tool access policies](https://sre.azure.com/docs/concepts/tool-access-policies) |
@@ -290,29 +338,51 @@ The recipe uses the same core flow described in [Create and set up your Azure SR
 
 Retrieve and open the SRE Agent URL:
 
+Windows:
+
 ```powershell
+azd -C .\ticketingapp-source env get-value SRE_AGENT_URL
+```
+
+macOS:
+
+```bash
 azd -C ./ticketingapp-source env get-value SRE_AGENT_URL
 ```
 
-Go to **Build + setup** > **Extensions** > **Connectors**, open **Office 365 Outlook**, and complete OAuth sign-in if the connector requires attention. GitHub OAuth was completed during deployment.
+Go to **Build + setup** > **Extensions** > **Connectors**, open **Office 365 Outlook**, and complete OAuth sign-in if the connector requires attention. Check the underlying connection's authentication status, not just whether a connector entry exists; a recipe-created connection can still show **Error**.
+
+In **Configure tools**, select **Get emails** (the plural/list operation, observed as `GetEmailsV3`), not **Get email** (single-message lookup by ID, `GetEmailV2`). If using optional email follow-ups, also select **Send an email** (`SendEmailV2`) and require **Ask** permission for sending. Do not select all operations. Keep the recipient explicitly supplied to the workflow installer, with no CC/BCC and human review before sending. A **Connected** status alone does not verify operation selection or binding to either workflow; check those in step 3.
 
 > [!CAUTION]
 > Authenticate only through the trusted connection UI. Never place credentials in agent chat or script arguments.
 
+If sign-in is missing, inspect the affected connection's error and available reconnect/sign-in controls first. Recreating only that Outlook connection is a last resort: deleting it removes its authentication and can break existing workflow tool bindings. Record the selected operations and affected bindings before a deliberate replacement, then sign in and recheck them. Do not delete a healthy connection or rerun the whole deployment just to fix one failed sign-in.
+
 **Checkpoint: verify the base agent**
 
-Use these read-only UI checks. Do not create a GitHub issue or send a test email.
+Use these read-only UI checks. Do not create a GitHub issue or send a test email. The labels below reflect the current preview portal and may change; use **View JSON** in Agent settings to compare raw fields rather than looking for literal API values as UI labels.
 
-1. Go to **Settings** > **General** and confirm Low access, Review mode, Preview upgrade channel, the configured model, managed identity, region, and agent Application Insights.
-2. Go to **Settings** > **Managed resources** and confirm the ticketing workload resource group is listed.
+| Under **Settings** > **General** | Expected UI value | Configuration meaning |
+| --- | --- | --- |
+| **Agent settings** > **Agent permissions level** | **Reader** | ARM `properties.actionConfiguration.accessLevel` is `Low`; do not look for a dropdown option named Low. |
+| **Agent settings** > **Agent mode** | **Review** | Actions that require approval remain subject to human review. |
+| **Agent settings** > **Early access to features** | On | ARM `properties.upgradeChannel` is `Preview`. |
+| **Agent settings** > **Model provider** | **Anthropic** (unless you chose another provider) | The raw `defaultModel` name can be `Automatic`; this is not a conflicting provider choice. |
+| **Azure settings** | Expected region, managed identity, and Application Insights | This Application Insights resource monitors agent operations, not the ticketing workload connector. |
+
+1. Go to **Settings** > **General** and check the settings above.
+2. Go to **Build + setup** > **Context** > **Managed resources** and confirm the ticketing workload resource group is listed. The **Resource group** shown in **Settings** > **General** is the agent's hosting group, not proof of its managed-resource scope.
 3. Go to **Build + setup** > **Monitor** > **Logs** and confirm `app-insights` is healthy.
-4. Go to **Build + setup** > **Context** > **Code access** and confirm `ticketingapp-source` points to the attendee's fork on branch `main`.
+4. Go to **Build + setup** > **Context** > **Code access** and confirm the repository URL is the attendee's fork, the intended branch is `main`, authentication is healthy, and cloning/sync has succeeded. If OAuth timed out, complete sign-in or reauthorization here through the trusted UI; never paste tokens into chat.
 5. Go to **Build + setup** > **Context** > **Knowledge sources** and confirm `onboardinglab-architecture.md` and `onboardinglab-incident-runbook.md` are present.
 6. Go to **Build + setup** > **Extensions** > **Connectors** and confirm the Outlook and GitHub connections show a healthy state.
 7. Go to **Build + setup** > **Extensions** > **Global Hooks** and confirm `evidence-checklist` is enabled for the Stop event.
 8. Go to **Build + setup** > **Extensions** > **Tools** > **Advanced Permissions** and confirm the configured allow, ask, and deny patterns.
 9. Go to **Build + setup** > **Extensions** > **Skill Builder** and confirm `sre-agent-self-configure` is present with its three Azure CLI tools.
 10. Go to **Incidents** and confirm Azure Monitor is connected. Common prompts do not have a current portal page; the post-deployment verifier checks `onboardinglab-safety` through the agent API.
+
+A portal-created repository may display its actual repository name instead of the recipe name `ticketingapp-source`. **Do not delete a healthy, cloned connection just to rename it**: that can remove working OAuth credentials. The recipe's `expected-config.json` expects `ticketingapp-source` on `main`. If names differ, reconcile the intended connection with the generated repository configuration and verification expectations before rerunning an installer; neither a name mismatch nor a passing existence check alone establishes runtime readiness.
 
 ## 3. Install the incident and health workflows
 
@@ -354,9 +424,23 @@ Windows:
 **Checkpoint: verify the workflow**
 
 1. Go to **Build + setup** > **Extensions** > **Skill Builder** and confirm the four workflow skills are present.
-2. Go to **Build + setup** > **Workflows** and confirm the `alert-investigator` and `health-report-investigator` subagents are present. Both must include the discovered telemetry query tool, `PlotAreaChartWithCorrelation`, and `PlotBarChart`.
+2. Go to **Build + setup** > **Workflows** and confirm the `alert-investigator` and `health-report-investigator` subagents are present. Open each workflow editor and check the selected tools against the actual catalog, including a supported workload telemetry query tool, `PlotAreaChartWithCorrelation`, and `PlotBarChart`. Use the compatibility checks below before running either workflow.
 3. In **Workflows**, confirm the `alert-investigation` response plan routes Azure Monitor Sev1 and Sev2 incidents to the `alert-investigator` subagent in Review mode.
-4. Go to **Build + setup** > **Scheduled tasks** and confirm `reservation-daily-health-report` is active and its handling agent is `health-report-investigator`.
+4. Open **Automation** in the current preview navigation and find the scheduled task `reservation-daily-health-report` (older navigation labels it **Scheduled tasks**). Confirm it is active and its handling agent is `health-report-investigator`.
+
+**Check runtime tool bindings**
+
+The current scripts verify stored tool names, but do not prove that every name is supported by the live catalog. These differences were observed in a guided run; inspect your agent's catalog instead of blindly copying an alias.
+
+| Capability | Template/installer name | Observed current catalog | What to verify in each workflow editor |
+| --- | --- | --- | --- |
+| Workload Application Insights query | `QueryAppInsightsUsingAppId` | `QueryAppInsightsByAppId` | Select the supported read-only tool for the workload Application Insights connector; an agent-monitoring resource is not a substitute. |
+| List Outlook messages | `ListOutlookEmails` | `office365_office365_GetEmailsV3` | Select the authenticated connector's **Get emails** tool, not the single-message operation. |
+| Send Outlook summary | `SendOutlookEmail` | `office365_office365_SendEmailV2` | Select **Send an email** only for the optional follow-up and require **Ask** for the actual selected tool. |
+
+For both subagents, replace unavailable aliases through the workflow editor with the actual selected tools. Portal-created connector tools can be stored under `mcpTools`, rather than the template's `tools` list. Preserve Review mode, read-only Azure access, existing deny rules, and approval policies for the actual tool IDs; an Ask rule for an old alias is not sufficient. Save and reopen the workflow to confirm the bindings. The scripts do not automatically repair these catalog differences, and rerunning the installer can reapply the older names. If an optional email tool is unavailable, report that limitation and continue the read-only investigation without sending.
+
+**Ready to exercise:** the baseline reservation succeeds, the base-agent checkpoints pass, and the incident/health workflows have working telemetry bindings and the expected routing. Optional source/email capabilities must be checked or explicitly identified as unavailable. This does not mean that an incident has been investigated, a health task has run, a Live Report has been saved, or Scenario 3 has been installed.
 
 ## Architecture and responsibilities
 
@@ -377,7 +461,13 @@ The diagram shows how the deployed app, Azure Monitor incident, response plan, s
 
 [Open the architecture diagram full size](assets/architecture.svg).
 
+**Before injecting: know who resets the fault**
+
+The investigator is **read-only**. It should gather evidence, diagnose the TCP 5432 deny rule, and recommend recovery; it does not reset the NSG when the investigation ends. You, the operator, must run `.\scripts\fault.ps1 reset` on Windows or `./scripts/fault.sh reset` on macOS from the original lab checkout. Keep that terminal and its deployment environment available before injecting.
+
 **Trigger the incident**
+
+The `inject` helper first checks prior reservation alerts. It can close a previously resolved alert to prepare a new rehearsal, but aborts if a prior non-closed alert is still fired. In that case, reset, generate successful reservations, and wait for alert resolution before injecting again.
 
 1. Inject the database network fault:
 
@@ -390,11 +480,11 @@ The diagram shows how the deployed app, Azure Monitor incident, response plan, s
    Windows:
 
    ```powershell
-   ./scripts/fault.ps1 inject
+   .\scripts\fault.ps1 inject
    ```
 
 2. In the ticketing application, select **Launch on-sale simulation**.
-3. Confirm that reservations fail while the service health check remains available.
+3. Confirm that reservations fail while the service health check remains available. `/healthz` does not touch the database, so this combination is expected.
 
 **Observe the incident workflow**
 
@@ -409,7 +499,7 @@ The `alert-investigation` response plan routes the alert to the `alert-investiga
 
 **Recover and verify**
 
-1. Restore connectivity:
+1. **Operator action:** restore connectivity even if the investigation is complete or an alert already shows **Resolved**:
 
    macOS:
 
@@ -420,17 +510,19 @@ The `alert-investigation` response plan routes the alert to the `alert-investiga
    Windows:
 
    ```powershell
-   ./scripts/fault.ps1 reset
+   .\scripts\fault.ps1 reset
    ```
 
-2. Return to the application and confirm that new reservations succeed.
+2. In the workload NSG, confirm the `PostgreSqlFaultInjection` outbound TCP 5432 rule is **Allow**, not **Deny**.
+3. Return to the application, select **Reserve tickets**, and confirm that fresh reservations succeed and the **Confirmed** count increases. Old successful requests and a healthy `/healthz` are not recovery evidence.
+4. Allow for telemetry ingestion and alert evaluation to catch up. An alert marked **Resolved** is not sufficient proof of recovery: the rule must be **Allow** and new reservations must succeed.
 
 **Expected result**
 
 - The incident thread identifies the blocked app-to-database path
 - The thread contains timestamped app telemetry, Azure state, and source evidence
 - Optional GitHub and Outlook writes remain subject to approval
-- After your reset, ticket reservations succeed again
+- After your reset, the fault rule is **Allow** and new ticket reservations succeed again
 
 ## Scenario 2: Scheduled health check and Live Report
 
@@ -438,12 +530,14 @@ This optional scenario assesses the same service without introducing a fault, th
 
 **Run the scheduled task**
 
-1. Go to **Build + setup** > **Scheduled tasks**.
+1. Open **Automation** in the current preview navigation and locate the scheduled tasks (older navigation labels this **Scheduled tasks**).
 2. Open `reservation-daily-health-report`.
 3. Select **Run task now**. Leave the recurring schedule active.
 4. Review the result in the task thread.
 
 The task uses `proactive-health-check` to review ticket reservation availability, failures, latency, dependency health, and Azure resource health over the last 24 hours. It compares with prior data only when enough history exists and reports missing history explicitly. It then proposes the same summary to the configured Outlook recipient for Review-mode approval.
+
+Earlier injected failures can remain in the 24-hour report after recovery. Separate that historical impact from current status using timestamps, the current NSG rule, and fresh reservation results. A new lab may have too little history for the prior seven-day baseline; missing or sparse baseline data is a limitation, not evidence of a new outage. Email approval is optional: declining or lacking email does not invalidate the findings in the task thread.
 
 **Create the Live Report**
 
@@ -462,7 +556,7 @@ The task uses `proactive-health-check` to review ticket reservation availability
 4. Review the tools the report will use and approve only the read-only behavior you expect.
 5. Wait for the report to save, then open it from **Live Reports**.
 
-The scheduled task and Live Report are separate operations. The task records evidence in its own thread; creating the report does not automatically copy task output or enable the recurring schedule.
+The scheduled task and Live Report are separate operations. **Run task now does not create a Live Report.** The task records evidence in its own thread; use the request above to create and save the report separately. Creating the report does not automatically copy task output or enable the recurring schedule.
 
 **Expected result**
 
@@ -574,9 +668,14 @@ The validator treats the event, patches, and repository content as untrusted. Th
 | Problem | What to do |
 | --- | --- |
 | `azd` login has expired | Run `azd auth logout`, then `azd auth login` and retry. |
+| `azd` reports no selected environment | Use the original deployment checkout and the environment list/select commands in step 1. Do not rerun `azd up` or create a duplicate environment just to retrieve outputs. |
+| GitHub OAuth times out or the repository is not cloned | Check the existing Azure deployment separately. Reauthorize in **Context** > **Code access**, then confirm the URL, branch, and successful clone/sync. Preserve healthy connections; reconcile recipe-name differences before rerunning installers. |
+| Outlook exists but authentication is **Error**, or email tools are missing | Complete trusted UI sign-in, select **Get emails** and optionally **Send an email** with Ask, then verify the actual tools on both subagents. Do not treat **Connected** alone as a tool-binding check. |
+| A workflow reports an unsupported telemetry or Outlook tool | Compare its selected tools with the current catalog using the step 3 compatibility table. Preserve read-only and approval policies; do not blindly reinstall all extras. |
 | Deployment reports unavailable quota, capacity, SKU, or PostgreSQL version | Review the deployment error and subscription quota. Request quota or choose another [SRE Agent supported region](https://learn.microsoft.com/azure/sre-agent/supported-regions) that supports all resources in the template, then remove the partial resource group before retrying. |
 | App reservation fails before fault injection | Stop and fix the baseline deployment first. |
 | Fault injection says an alert is still firing | Reset the fault, generate successful reservations, and wait for the alert to resolve. |
+| Investigation ends or alert resolves, but reservations still fail | Recovery is operator-owned. Run the documented reset, confirm the fault rule is **Allow**, and test fresh reservations. Neither `/healthz` nor alert resolution alone proves recovery. |
 | Alert fires but no incident appears | Check that its state is **New** and condition is **Fired**, then allow for the next agent scan. |
 | GitHub issue or email is missing | Verify the connection supports the required write and inspect the incident thread for its receipt or error. Do not blindly retry an unknown write outcome. |
 
