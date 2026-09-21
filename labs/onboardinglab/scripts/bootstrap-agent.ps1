@@ -448,9 +448,11 @@ function Wait-ForAgent {
 function Wait-ForVerifiedDeployment {
     param(
         [Parameter(Mandatory)][string] $ResourceGroup,
+        [Parameter(Mandatory)][string] $ThreadId,
         [int] $TimeoutMinutes = 90
     )
 
+    $startedAt = Get-Date
     $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
     Write-Step 'Waiting for deployment verification before automatic finalization'
     do {
@@ -462,8 +464,9 @@ function Wait-ForVerifiedDeployment {
             Write-Ok 'Verified deployment marker found.'
             return $true
         }
-        Write-Note 'The deployment is still running. Review pending agent writes in the portal.'
-        Start-Sleep -Seconds 30
+        $elapsedMinutes = [math]::Floor(((Get-Date) - $startedAt).TotalMinutes)
+        Write-Note "Waiting for thread $ThreadId ($elapsedMinutes/$TimeoutMinutes minutes). Open the agent portal and approve any pending writes."
+        Start-Sleep -Seconds 60
     } while ((Get-Date) -lt $deadline)
 
     return $false
@@ -1293,6 +1296,9 @@ if ($startThread) {
     }
 
     $threadId = if ($thread.id) { $thread.id } elseif ($thread.threadId) { $thread.threadId } else { $null }
+    if ([string]::IsNullOrWhiteSpace($threadId)) {
+        throw 'The agent accepted the deployment request but did not return a thread ID. No verification wait was started.'
+    }
 
     # Recorded immediately so a session that dies right after this does not start a second
     # thread on the next run.
@@ -1336,7 +1342,13 @@ Write-Host '  The agent runs in Review mode, so approve each action as it is pro
 Write-Host '  Read commands run without prompting; only writes need your approval.' -ForegroundColor DarkGray
 Write-Host ''
 
-if (Wait-ForVerifiedDeployment -ResourceGroup $LabResourceGroup) {
+if ([string]::IsNullOrWhiteSpace($threadId)) {
+    Write-Warning 'No deployment thread exists, so automatic verification and finalization were not started.'
+    Write-Host '  Follow the deployment request printed above, then rerun this script after the agent writes the verified marker.' -ForegroundColor Yellow
+    return
+}
+
+if (Wait-ForVerifiedDeployment -ResourceGroup $LabResourceGroup -ThreadId $threadId) {
     Write-Step 'Automatically finalizing deployment access'
     & $PSCommandPath -Subscription $subId -LabResourceGroup $LabResourceGroup `
         -Location $Location -AgentName $AgentName -StateFile $StateFile -Finalize
