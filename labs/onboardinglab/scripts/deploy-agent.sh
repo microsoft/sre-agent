@@ -30,17 +30,35 @@ FILTERED_EXTRAS_FILE="${CONFIG_ROOT}.runtime.extras.json"
 APP_ARCHIVE="/tmp/checkout-app.zip"
 DEPLOYMENT_NAME="onboardinglab"
 AGENT_API_VERSION="2025-05-01-preview"
+LOG_FILE="/tmp/onboardinglab-deploy.log"
+CURRENT_STAGE="initialization"
 
 status() {
   printf '[%s] %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$*"
 }
 
 fail() {
-  status "FAILED: $*"
+  status "FAILED during $CURRENT_STAGE: $*"
+  status "Full execution log: $LOG_FILE"
   exit 1
 }
 
-trap 'fail "line $LINENO: $BASH_COMMAND"' ERR
+on_error() {
+  local exit_code="$1"
+  local line_number="$2"
+  local command="$3"
+
+  trap - ERR
+  status "FAILED during $CURRENT_STAGE."
+  status "Exit code: $exit_code"
+  status "Script line: $line_number"
+  status "Command: $command"
+  status "Full execution log: $LOG_FILE"
+  exit "$exit_code"
+}
+
+exec > >(tee -a "$LOG_FILE") 2>&1
+trap 'on_error $? $LINENO "$BASH_COMMAND"' ERR
 
 require_command() {
   command -v "$1" >/dev/null || fail "Missing required command: $1"
@@ -72,7 +90,16 @@ poll_infrastructure_deployment() {
 
     case "$state" in
       Succeeded) return 0 ;;
-      Failed|Canceled) return 1 ;;
+      Failed|Canceled)
+        status "Failed infrastructure deployment operations:"
+        az deployment operation group list \
+          --subscription "$SUBSCRIPTION" \
+          --resource-group "$LAB_RG" \
+          --name "$DEPLOYMENT_NAME" \
+          --query "[?properties.provisioningState=='Failed'].{resource:properties.targetResource.resourceName,type:properties.targetResource.resourceType,status:properties.statusMessage}" \
+          --output json || true
+        return 1
+        ;;
     esac
     sleep 20
   done
@@ -186,6 +213,13 @@ poll_web_deployment() {
       return 0
     fi
     if web_deployment_is_failed "$deployment_status"; then
+      status "Failed OneDeploy record:"
+      jq '.[0]' <<<"$latest" || true
+      az webapp log deployment show \
+        --subscription "$SUBSCRIPTION" \
+        --resource-group "$LAB_RG" \
+        --name "$CHECKOUT_APP_NAME" \
+        --output json || true
       return 1
     fi
     sleep 20
@@ -195,6 +229,7 @@ poll_web_deployment() {
 }
 
 status "Managed-identity login succeeded for client ID $UAMI_CLIENT_ID."
+status "Writing the full execution log to $LOG_FILE."
 
 for command_name in az git jq python3 pwsh curl tar; do
   require_command "$command_name"
@@ -210,6 +245,7 @@ active_subscription="$(az account show --query id -o tsv)"
 [[ "$active_subscription" == "$SUBSCRIPTION" ]] || fail "Azure CLI selected subscription $active_subscription instead of $SUBSCRIPTION."
 status "Using subscription $SUBSCRIPTION."
 
+CURRENT_STAGE="identity and token validation"
 identity_client_id="$(az identity show \
   --subscription "$SUBSCRIPTION" \
   --resource-group "$LAB_RG" \
@@ -221,8 +257,10 @@ az account get-access-token --resource https://azuresre.dev --query accessToken 
   || fail "The action identity could not acquire an SRE Agent data-plane token."
 status "ARM and SRE Agent data-plane authentication succeeded."
 
+CURRENT_STAGE="incident-platform configuration"
 ensure_incident_platform
 
+CURRENT_STAGE="regional preflight"
 az group show \
   --subscription "$SUBSCRIPTION" \
   --name "$LAB_RG" \
@@ -247,6 +285,7 @@ status "Preflight passed for Azure SRE Agent and PostgreSQL 16 / Standard_B1ms i
 
 [[ -f "$TEMPLATE" ]] || fail "Compiled deployment template not found: $TEMPLATE"
 
+CURRENT_STAGE="infrastructure deployment"
 existing_deployment_state="$(az deployment group show \
   --subscription "$SUBSCRIPTION" \
   --resource-group "$LAB_RG" \
@@ -294,6 +333,7 @@ for required_value in CHECKOUT_APP_NAME CHECKOUT_URL APP_INSIGHTS_ID APP_INSIGHT
 done
 status "Infrastructure ready: app=$CHECKOUT_APP_NAME endpoint=$CHECKOUT_URL."
 
+CURRENT_STAGE="application packaging"
 status "Building the checkout application archive."
 rm -f "$APP_ARCHIVE"
 APP_ROOT="$APP_ROOT" APP_ARCHIVE="$APP_ARCHIVE" python3 - <<'PY'
@@ -311,6 +351,7 @@ with ZipFile(archive_path, "w", ZIP_DEFLATED) as archive:
             archive.write(path, relative)
 PY
 
+CURRENT_STAGE="application deployment"
 latest_before="$(get_latest_web_deployment)"
 prior_deployment_id="$(jq -r '.[0].id // empty' <<<"$latest_before")"
 prior_deployment_status="$(jq -r '.[0].status // empty | tostring' <<<"$latest_before")"
@@ -340,6 +381,7 @@ az webapp log deployment show \
   --name "$CHECKOUT_APP_NAME" \
   --output json
 
+CURRENT_STAGE="agent configuration generation"
 status "Generating the onboarding agent configuration."
 rm -rf "$CONFIG_ROOT"
 rm -f "$EXTRAS_FILE" "$FILTERED_EXTRAS_FILE"
@@ -359,6 +401,7 @@ pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bicep/Assemble-Agent.ps1" \
 [[ -f "$EXTRAS_FILE" ]] || fail "Agent extras were not generated."
 jq 'del(.incidentPlatforms)' "$EXTRAS_FILE" > "$FILTERED_EXTRAS_FILE"
 
+CURRENT_STAGE="agent configuration apply"
 status "Applying skills, knowledge, hooks, prompts, and tool policy."
 pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bicep/Apply-Extras.ps1" \
   -Subscription "$SUBSCRIPTION" \
@@ -367,6 +410,7 @@ pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bicep/Apply-Extras.ps1" \
   -ExtrasFile "$FILTERED_EXTRAS_FILE" \
   -Force
 
+CURRENT_STAGE="agent configuration verification"
 status "Verifying the configured SRE Agent."
 pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bin/ps/Verify-Agent.ps1" \
   -Subscription "$SUBSCRIPTION" \
@@ -399,6 +443,7 @@ alert_state="$(az monitor scheduled-query show \
 jq -e '.enabled == true and .severity == 2' <<<"$alert_state" >/dev/null \
   || fail "The checkout failure alert is not enabled at severity 2."
 
+CURRENT_STAGE="application health verification"
 status "Warming the application and verifying checkout."
 for attempt in {1..10}; do
   http_code="$(curl -sS -m 90 -o /tmp/onboardinglab-checkout-response.json -w '%{http_code}' \
@@ -431,6 +476,7 @@ for attempt in {1..8}; do
 done
 [[ "$telemetry_found" == "true" ]] || fail "Application Insights returned no request telemetry after four minutes."
 
+CURRENT_STAGE="completion marker update"
 status "Recording verified deployment completion."
 az tag update \
   --resource-id "/subscriptions/$SUBSCRIPTION/resourceGroups/$LAB_RG" \
