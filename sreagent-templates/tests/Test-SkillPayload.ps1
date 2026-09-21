@@ -39,4 +39,10 @@ if ($source -notmatch [regex]::Escape("`$etag = '*'")) {
 if ($source -match 'A single strong ETag is required') {
     throw 'Tool-permission updates must not require an ETag that the bootstrap endpoint can omit.'
 }
+if ($source -match '\.Headers\.Contains\(' -or $source -match '\.Headers\.GetValues\(') {
+    throw 'Tool-permission updates must not depend on header methods missing from some PowerShell response objects.'
+}
+if ($source -notmatch [regex]::Escape("'400', '405'")) {
+    throw 'Knowledge retries must confirm existing sources after HTTP 400 or 405.'
+}
 Write-Host 'PASS: skill arrays are preserved and tool permissions support settings without an ETag.'

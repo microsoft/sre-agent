@@ -736,11 +736,11 @@ if ($kiCount -gt 0) {
                 $httpCode = $lines[-1]
                 if ($httpCode -match '^2') {
                     Write-Host "  ok knowledgeItems/$sanitized"
-                } elseif ($httpCode -eq '400') {
+                } elseif ($httpCode -in @('400', '405')) {
                     $existingCode = curl -sS -o /dev/null -w "%{http_code}" $url `
                         -H "Authorization: Bearer $token" 2>$null
                     if ($existingCode -match '^2') {
-                        Write-Host "  ok knowledgeItems/$sanitized (already exists)"
+                        Write-Host "  ok knowledgeItems/$sanitized (already exists; PUT returned HTTP $httpCode)"
                     } else {
                         $script:ExtendedItemFailures.Add("knowledgeItems/$sanitized (HTTP $httpCode)")
                         Write-Host "  FAILED - PUT knowledgeItems/$sanitized (HTTP $httpCode)"
@@ -898,10 +898,7 @@ if ($toolPermissions) {
             $currentSettings = Invoke-WebRequest -TimeoutSec 30 -Uri $settingsUrl `
                 -Headers @{ Authorization = "Bearer $token" } -ErrorAction Stop
             $etag = '*'
-            $etagValues = @()
-            if ($currentSettings.Headers -and $currentSettings.Headers.Contains('ETag')) {
-                $etagValues = @($currentSettings.Headers.GetValues('ETag'))
-            }
+            $etagValues = @($currentSettings.Headers.ETag)
             if ($etagValues.Count -eq 1 -and [string]$etagValues[0] -notmatch '[\r\n]') {
                 $etag = [string]$etagValues[0]
             }
