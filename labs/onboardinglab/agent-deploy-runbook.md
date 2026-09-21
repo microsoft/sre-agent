@@ -46,7 +46,8 @@ The script then owns the full workflow:
 - packages and publishes the checkout application through asynchronous OneDeploy
 - monitors the existing OneDeploy operation without submitting duplicate uploads
 - generates and applies skills, knowledge, hooks, prompts, and tool policy
-- verifies the agent, alert, application, checkout path, and telemetry
+- verifies the agent, permanent RBAC, alert, database-fault state, application, checkout path,
+  and telemetry
 - writes the verified ARM completion marker used by external finalization
 
 Keep the operator informed with the status lines emitted by the script. Do not duplicate its

@@ -182,6 +182,41 @@ ensure_incident_platform() {
   fail "Agent incident-platform update did not complete within 20 minutes."
 }
 
+wait_for_agent_endpoint() {
+  local deadline=$((SECONDS + 600))
+  local endpoint=""
+  local state=""
+
+  while (( SECONDS < deadline )); do
+    endpoint="$(az resource show \
+      --subscription "$SUBSCRIPTION" \
+      --resource-group "$LAB_RG" \
+      --name "$AGENT_NAME" \
+      --resource-type Microsoft.App/agents \
+      --api-version "$AGENT_API_VERSION" \
+      --query properties.agentEndpoint -o tsv)"
+    state="$(az resource show \
+      --subscription "$SUBSCRIPTION" \
+      --resource-group "$LAB_RG" \
+      --name "$AGENT_NAME" \
+      --resource-type Microsoft.App/agents \
+      --api-version "$AGENT_API_VERSION" \
+      --query properties.provisioningState -o tsv)"
+    if [[ -n "$endpoint" ]]; then
+      AGENT_ENDPOINT="$endpoint"
+      status "SRE Agent data-plane endpoint is available."
+      return 0
+    fi
+    case "$state" in
+      Failed|Canceled) fail "The SRE Agent reached $state before its data-plane endpoint became available." ;;
+    esac
+    status "Waiting for the SRE Agent data-plane endpoint; provisioning state: $state"
+    sleep 15
+  done
+
+  fail "The SRE Agent data-plane endpoint was not available within 10 minutes."
+}
+
 get_latest_web_deployment() {
   az webapp log deployment list \
     --subscription "$SUBSCRIPTION" \
@@ -375,9 +410,11 @@ NETWORK_SECURITY_GROUP_NAME="$(jq -r '.networkSecurityGroupName.value // empty' 
 LOG_ANALYTICS_WORKSPACE_ID="$(jq -r '.logAnalyticsWorkspaceId.value // empty' <<<"$deployment_outputs")"
 AGENT_ENDPOINT="$(jq -r '.agentEndpoint.value // empty' <<<"$deployment_outputs")"
 
-for required_value in CHECKOUT_APP_NAME CHECKOUT_URL APP_INSIGHTS_ID APP_INSIGHTS_APP_ID NETWORK_SECURITY_GROUP_NAME LOG_ANALYTICS_WORKSPACE_ID AGENT_ENDPOINT; do
+for required_value in CHECKOUT_APP_NAME CHECKOUT_URL APP_INSIGHTS_ID APP_INSIGHTS_APP_ID NETWORK_SECURITY_GROUP_NAME LOG_ANALYTICS_WORKSPACE_ID; do
   [[ -n "${!required_value}" ]] || fail "Infrastructure output $required_value is empty."
 done
+CURRENT_STAGE="agent endpoint propagation"
+wait_for_agent_endpoint
 status "Infrastructure ready: app=$CHECKOUT_APP_NAME endpoint=$CHECKOUT_URL."
 
 CURRENT_STAGE="application packaging"
@@ -405,6 +442,9 @@ prior_deployment_status="$(jq -r '.[0].status // empty | tostring' <<<"$latest_b
 
 if [[ -n "$prior_deployment_id" ]] && web_deployment_is_active "$prior_deployment_status"; then
   status "OneDeploy $prior_deployment_id is already active; monitoring it instead of uploading again."
+  expect_new_web_deployment=false
+elif [[ -n "$prior_deployment_id" ]] && web_deployment_is_successful "$prior_deployment_status"; then
+  status "OneDeploy $prior_deployment_id already succeeded; reusing the completed application deployment."
   expect_new_web_deployment=false
 else
   status "Submitting the checkout application to OneDeploy asynchronously."
@@ -511,6 +551,16 @@ alert_state="$(az monitor scheduled-query show \
   --query '{enabled:enabled,severity:severity}' -o json)"
 jq -e '.enabled == true and .severity == 2' <<<"$alert_state" >/dev/null \
   || fail "The checkout failure alert is not enabled at severity 2."
+
+fault_rule_access="$(az network nsg rule show \
+  --subscription "$SUBSCRIPTION" \
+  --resource-group "$LAB_RG" \
+  --nsg-name "$NETWORK_SECURITY_GROUP_NAME" \
+  --name PostgreSqlFaultInjection \
+  --query access -o tsv)"
+[[ "$fault_rule_access" == "Allow" ]] \
+  || fail "The PostgreSqlFaultInjection rule is $fault_rule_access instead of Allow."
+status "Database fault rule is Allow."
 
 CURRENT_STAGE="application health verification"
 status "Warming the application and verifying checkout."
