@@ -27,6 +27,8 @@ RECIPE_ROOT="$LAB_ROOT/agent-recipe"
 CONFIG_ROOT="/tmp/onboardinglab-agent"
 EXTRAS_FILE="${CONFIG_ROOT}.extras.json"
 FILTERED_EXTRAS_FILE="${CONFIG_ROOT}.runtime.extras.json"
+POLICY_EXTRAS_FILE="${CONFIG_ROOT}.policy.extras.json"
+PRE_POLICY_EXPECTED_ROOT="/tmp/onboardinglab-agent-pre-policy"
 APP_ARCHIVE="/tmp/checkout-app.zip"
 DEPLOYMENT_NAME="onboardinglab"
 AGENT_API_VERSION="2025-05-01-preview"
@@ -383,8 +385,8 @@ az webapp log deployment show \
 
 CURRENT_STAGE="agent configuration generation"
 status "Generating the onboarding agent configuration."
-rm -rf "$CONFIG_ROOT"
-rm -f "$EXTRAS_FILE" "$FILTERED_EXTRAS_FILE"
+rm -rf "$CONFIG_ROOT" "$PRE_POLICY_EXPECTED_ROOT"
+rm -f "$EXTRAS_FILE" "$FILTERED_EXTRAS_FILE" "$POLICY_EXTRAS_FILE"
 
 pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bin/ps/New-Agent.ps1" \
   -RecipePath "$RECIPE_ROOT" \
@@ -399,10 +401,14 @@ pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bicep/Assemble-Agent.ps1" \
   -Output "$CONFIG_ROOT"
 
 [[ -f "$EXTRAS_FILE" ]] || fail "Agent extras were not generated."
-jq 'del(.incidentPlatforms)' "$EXTRAS_FILE" > "$FILTERED_EXTRAS_FILE"
+jq 'del(.incidentPlatforms, .toolPermissions)' "$EXTRAS_FILE" > "$FILTERED_EXTRAS_FILE"
+jq '{toolPermissions}' "$EXTRAS_FILE" > "$POLICY_EXTRAS_FILE"
+mkdir -p "$PRE_POLICY_EXPECTED_ROOT"
+jq 'del(.toolPermissions)' "$CONFIG_ROOT/expected-config.json" \
+  > "$PRE_POLICY_EXPECTED_ROOT/expected-config.json"
 
 CURRENT_STAGE="agent configuration apply"
-status "Applying skills, knowledge, hooks, prompts, and tool policy."
+status "Applying skills, knowledge, hooks, and prompts before the restrictive tool policy."
 pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bicep/Apply-Extras.ps1" \
   -Subscription "$SUBSCRIPTION" \
   -ResourceGroup "$LAB_RG" \
@@ -411,12 +417,12 @@ pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bicep/Apply-Extras.ps1" \
   -Force
 
 CURRENT_STAGE="agent configuration verification"
-status "Verifying the configured SRE Agent."
+status "Verifying the configured SRE Agent before applying the restrictive tool policy."
 pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bin/ps/Verify-Agent.ps1" \
   -Subscription "$SUBSCRIPTION" \
   -ResourceGroup "$LAB_RG" \
   -AgentName "$AGENT_NAME" \
-  -Expected "$CONFIG_ROOT"
+  -Expected "$PRE_POLICY_EXPECTED_ROOT"
 
 agent_state="$(az resource show \
   --subscription "$SUBSCRIPTION" \
@@ -475,6 +481,23 @@ for attempt in {1..8}; do
   sleep 30
 done
 [[ "$telemetry_found" == "true" ]] || fail "Application Insights returned no request telemetry after four minutes."
+
+CURRENT_STAGE="durable tool-policy apply"
+status "Applying the durable tool policy after workload and telemetry verification."
+pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bicep/Apply-Extras.ps1" \
+  -Subscription "$SUBSCRIPTION" \
+  -ResourceGroup "$LAB_RG" \
+  -AgentName "$AGENT_NAME" \
+  -ExtrasFile "$POLICY_EXTRAS_FILE" \
+  -Force
+
+CURRENT_STAGE="final agent configuration verification"
+status "Verifying the final SRE Agent configuration, including tool policy."
+pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bin/ps/Verify-Agent.ps1" \
+  -Subscription "$SUBSCRIPTION" \
+  -ResourceGroup "$LAB_RG" \
+  -AgentName "$AGENT_NAME" \
+  -Expected "$CONFIG_ROOT"
 
 CURRENT_STAGE="completion marker update"
 status "Recording verified deployment completion."

@@ -171,6 +171,12 @@ class LessonTests(unittest.TestCase):
         self.assertIn("/tmp/onboardinglab-deploy.log", deployment_script)
         self.assertIn("Apply-Extras.ps1", deployment_script)
         self.assertIn("Verify-Agent.ps1", deployment_script)
+        self.assertIn("del(.incidentPlatforms, .toolPermissions)", deployment_script)
+        self.assertIn("Applying the durable tool policy after workload and telemetry verification.", deployment_script)
+        self.assertLess(
+            deployment_script.index("Waiting for Application Insights telemetry."),
+            deployment_script.index("Applying the durable tool policy after workload and telemetry verification."),
+        )
         self.assertIn("onboardingLabDeploymentStatus=verified", deployment_script)
         self.assertIn("External finalization is safe", deployment_script)
         self.assertIn("module workload", infrastructure)
