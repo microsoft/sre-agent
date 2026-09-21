@@ -1089,9 +1089,12 @@ elseif ($agentAlreadyExisted -and -not $NewThread) {
 $startMessage = @"
 Deploy the Azure SRE Agent Onboarding Lab.
 
-Follow the runbook at $RunbookPath under the sre-agent repository. Launch its deployment
-script once with the exact inputs below, keep the operator informed with the script's status
-messages, and wait for the script to finish.
+First find the local workspace directory for the Code Access clone of the sre-agent repository.
+Confirm that it contains $RunbookPath. Repository setup can still be in progress when this chat
+starts, so if the path is not available yet, wait and retry periodically instead of failing or
+cloning another copy. Change to that repository root, then follow $RunbookPath. Launch its
+deployment script once with the exact inputs below, keep the operator informed with the script's
+status messages, and wait for the script to finish.
 
 Inputs:
 - SUBSCRIPTION: $subId
@@ -1104,7 +1107,8 @@ Inputs:
 
 You are the final lab agent. The resource group already exists and your action identity has
 temporary Owner on it.
-* Follow $RunbookPath and launch its deployment script with the exact inputs above.
+* Find the local sre-agent repository root, then follow $RunbookPath and launch its deployment
+  script with the exact inputs above.
 * Let that script deploy the workload and converge your durable configuration. Do not create
   another SRE Agent or managed identity, and do not duplicate the script's commands separately.
 * Leave the database fault off.
