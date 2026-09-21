@@ -115,6 +115,8 @@ class LessonTests(unittest.TestCase):
         self.assertIn("accessLevel = 'Low'", bootstrap)
         self.assertIn("function Wait-ForVerifiedDeployment", bootstrap)
         self.assertIn("Automatically finalizing deployment access", bootstrap)
+        self.assertIn("Using default lab resource group", bootstrap)
+        self.assertNotIn("Resource group for the lab [SreAgentOnboardingLabRG]", bootstrap)
         self.assertIn("optional/connectorv2/outlook.yaml", deployment_script)
         self.assertIn('"ListOutlookEmails"', deployment_script)
         self.assertIn('"SendOutlookEmail"', deployment_script)

@@ -51,7 +51,8 @@
     Subscription to deploy into. Defaults to the current az subscription.
 
 .PARAMETER LabResourceGroup
-    Resource group the lab workload is deployed into. Prompted for if not supplied.
+    Resource group the lab workload is deployed into. Defaults to
+    SreAgentOnboardingLabRG when not supplied.
 
 .PARAMETER Location
     Region for the agent and the lab. Must support both Azure SRE Agent and, on
@@ -487,8 +488,8 @@ if (-not $LabResourceGroup) {
         Write-Note "Using saved lab resource group: $LabResourceGroup"
     }
     else {
-        $answer = Read-Host 'Resource group for the lab [SreAgentOnboardingLabRG]'
-        $LabResourceGroup = if ([string]::IsNullOrWhiteSpace($answer)) { 'SreAgentOnboardingLabRG' } else { $answer.Trim() }
+        $LabResourceGroup = 'SreAgentOnboardingLabRG'
+        Write-Note "Using default lab resource group: $LabResourceGroup"
     }
 }
 if (-not $PSBoundParameters.ContainsKey('Location') -and $state.Contains('location')) {
