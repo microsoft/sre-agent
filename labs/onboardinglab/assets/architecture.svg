@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1125" viewBox="0 0 1200 1125" role="img" aria-labelledby="title description">
-  <title id="title">Azure SRE Agent Onboarding Lab architecture and incident flow</title>
-  <desc id="description">Three-stage flowchart showing ticket requests, telemetry and alerting, Review-mode SRE Agent investigation, operator-owned fault control, and optional GitHub and email follow-up proposals.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1400" viewBox="0 0 1200 1400" role="img" aria-labelledby="title description">
+  <title id="title">Azure SRE Agent Onboarding Lab architecture and scenarios</title>
+  <desc id="description">Architecture showing the App Service and optional PostgreSQL path, Azure Monitor and SRE Agent, plus incident response, scheduled health reporting, and pull-request validation scenarios.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
@@ -24,15 +24,15 @@
     </style>
   </defs>
 
-  <rect width="1200" height="1125" fill="#f8fafc"/>
-  <text x="40" y="48" class="title">Azure SRE Agent Onboarding Lab: from ticket request to incident response</text>
-  <text x="40" y="72" class="subtitle">Solid arrows are automated. The dashed amber arrow is controlled by the lab participant.</text>
+  <rect width="1200" height="1400" fill="#f8fafc"/>
+  <text x="40" y="48" class="title">Azure SRE Agent Onboarding Lab: architecture and scenarios</text>
+  <text x="40" y="72" class="subtitle">Shared services support both workload choices and all three participant-driven scenarios.</text>
 
   <!-- Stage 1: ticket request -->
   <rect x="30" y="100" width="1140" height="245" rx="18" fill="#eff6ff" stroke="#93c5fd" stroke-width="2"/>
   <circle cx="65" cy="136" r="18" fill="#2563eb"/>
   <text x="65" y="142" text-anchor="middle" class="stage-number">1</text>
-  <text x="94" y="142" class="stage-title" fill="#1d4ed8">Ticket request and database path</text>
+  <text x="94" y="142" class="stage-title" fill="#1d4ed8">Ticket request and selected workload path</text>
 
   <rect x="70" y="178" width="200" height="82" class="node" stroke="#60a5fa"/>
   <text x="170" y="211" text-anchor="middle" class="node-title">Concertgoer</text>
@@ -43,22 +43,22 @@
   <text x="460" y="235" text-anchor="middle" class="node-detail">Node.js on App Service</text>
 
   <rect x="650" y="178" width="200" height="82" class="node" stroke="#60a5fa"/>
-  <text x="750" y="211" text-anchor="middle" class="node-title">App subnet NSG</text>
-  <text x="750" y="235" text-anchor="middle" class="node-detail">Allows TCP 5432</text>
+  <text x="750" y="211" text-anchor="middle" class="node-title">Private network</text>
+  <text x="750" y="235" text-anchor="middle" class="node-detail">PostgreSQL option only</text>
 
   <rect x="930" y="178" width="200" height="82" class="node" stroke="#60a5fa"/>
   <text x="1030" y="211" text-anchor="middle" class="node-title">PostgreSQL</text>
-  <text x="1030" y="235" text-anchor="middle" class="node-detail">Delegated private subnet</text>
+  <text x="1030" y="235" text-anchor="middle" class="node-detail">Optional dependency</text>
 
   <path d="M270 219 H350" class="arrow"/>
   <path d="M570 219 H650" class="arrow"/>
   <path d="M850 219 H930" class="arrow"/>
   <text x="310" y="207" text-anchor="middle" class="edge-label">Reserve</text>
-  <text x="610" y="207" text-anchor="middle" class="edge-label">Connect</text>
+  <text x="610" y="207" text-anchor="middle" class="edge-label">If selected</text>
   <text x="890" y="207" text-anchor="middle" class="edge-label">TCP 5432</text>
 
   <rect x="610" y="281" width="280" height="42" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
-  <text x="750" y="307" text-anchor="middle" class="node-title" fill="#92400e">Operator: fault.ps1 inject / reset</text>
+  <text x="750" y="307" text-anchor="middle" class="node-title" fill="#92400e">Operator: app setting or NSG fault</text>
   <path d="M750 281 V263" class="human-arrow"/>
 
   <!-- Stage 2: detection -->
@@ -136,5 +136,35 @@
   <text x="795" y="1065" text-anchor="middle" class="node-title">Email summary proposal</text>
   <path d="M600 1002 V1017 H405 V1032" class="arrow"/>
   <path d="M600 1017 H795 V1032" class="arrow"/>
+
+  <!-- All participant scenarios -->
+  <text x="600" y="1150" text-anchor="middle" class="stage-title">Participant scenarios</text>
+
+  <rect x="30" y="1175" width="350" height="185" rx="12" fill="#eff6ff" stroke="#2563eb" stroke-width="2" filter="url(#shadow)"/>
+  <text x="205" y="1207" text-anchor="middle" class="node-title" fill="#1d4ed8">Scenario 1: Incident workflow</text>
+  <text x="55" y="1238" class="node-detail">1. Inject the option-specific fault</text>
+  <text x="55" y="1264" class="node-detail">2. Azure Monitor opens an incident</text>
+  <text x="55" y="1290" class="node-detail">3. Agent correlates telemetry and source</text>
+  <text x="55" y="1316" class="node-detail">4. Operator resets and verifies recovery</text>
+  <rect x="55" y="1332" width="300" height="20" rx="4" fill="#dbeafe"/>
+  <text x="205" y="1346" text-anchor="middle" class="edge-label">App Service or PostgreSQL evidence</text>
+
+  <rect x="425" y="1175" width="350" height="185" rx="12" fill="#ecfdf5" stroke="#059669" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="1207" text-anchor="middle" class="node-title" fill="#047857">Scenario 2: Health and Live Report</text>
+  <text x="450" y="1238" class="node-detail">1. Run the scheduled health task</text>
+  <text x="450" y="1264" class="node-detail">2. Review availability and latency</text>
+  <text x="450" y="1290" class="node-detail">3. Include dependencies when applicable</text>
+  <text x="450" y="1316" class="node-detail">4. Create a read-only Live Report</text>
+  <rect x="450" y="1332" width="300" height="20" rx="4" fill="#d1fae5"/>
+  <text x="600" y="1346" text-anchor="middle" class="edge-label">Same workflow for both options</text>
+
+  <rect x="820" y="1175" width="350" height="185" rx="12" fill="#fff7ed" stroke="#ea580c" stroke-width="2" filter="url(#shadow)"/>
+  <text x="995" y="1207" text-anchor="middle" class="node-title" fill="#c2410c">Scenario 3: PR validation</text>
+  <text x="845" y="1238" class="node-detail">1. GitHub sends a verified PR event</text>
+  <text x="845" y="1264" class="node-detail">2. Managed-identity bridge invokes agent</text>
+  <text x="845" y="1290" class="node-detail">3. Validator reviews option-specific code</text>
+  <text x="845" y="1316" class="node-detail">4. Thread returns PASS, WARN, or BLOCK</text>
+  <rect x="845" y="1332" width="300" height="20" rx="4" fill="#ffedd5"/>
+  <text x="995" y="1346" text-anchor="middle" class="edge-label">No merge or deployment</text>
 
 </svg>

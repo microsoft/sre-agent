@@ -46,8 +46,9 @@ class LessonTests(unittest.TestCase):
         readme = (LAB / "README.md").read_text(encoding="utf-8")
         for heading in (
             "## 1. Deploy the workload and final agent",
-            "## 2. Finalize deployment access",
-            "## 3. Install the incident and health workflows",
+            "### Finalize deployment access",
+            "## 2. Clone the repository and install the workflows",
+            "### Install the incident and health workflows",
             "## Scenario 1: Incident workflow",
             "## Scenario 2: Scheduled health check and Live Report",
             "## Scenario 3: Pull-request validation",
@@ -55,6 +56,7 @@ class LessonTests(unittest.TestCase):
             with self.subTest(heading=heading):
                 self.assertIn(heading, readme)
         self.assertIn("participant-driven", readme)
+        self.assertIn("git clone https://github.com/microsoft/sre-agent.git", readme)
         self.assertIn("install-workflow-template", readme)
         self.assertIn("install-pr-validation", readme)
 
@@ -75,11 +77,24 @@ class LessonTests(unittest.TestCase):
     def test_readme_presents_equal_workload_options_and_postgresql_limitation(self):
         readme = (LAB / "README.md").read_text(encoding="utf-8")
         self.assertIn("## Choose a workload option", readme)
-        self.assertIn("neither option is preferred", readme)
+        self.assertNotIn("neither option is preferred", readme)
         self.assertIn("**App Service**", readme)
         self.assertIn("**App Service + PostgreSQL**", readme)
         self.assertIn("PostgreSQL 16 with `Standard_B1ms` in Sweden Central", readme)
         self.assertIn("does not silently change the selected option", readme)
+        self.assertIn("| **1. Incident workflow** |", readme)
+        self.assertIn("| **2. Scheduled health check and Live Report** |", readme)
+        self.assertIn("| **3. Pull-request validation** |", readme)
+        self.assertIn("$WorkloadOption", readme)
+        self.assertIn('--workload-option "$workload_option"', readme)
+
+    def test_readme_documents_temporary_access_and_fallback_request(self):
+        readme = (LAB / "README.md").read_text(encoding="utf-8")
+        self.assertIn("**High** access in **Review** mode", readme)
+        self.assertIn("temporary **Owner** access", readme)
+        self.assertIn("- WORKLOAD_OPTION: <app-service OR app-service-postgresql>", readme)
+        self.assertIn("* Report when external finalization is safe.", readme)
+        self.assertNotIn("PR #341", readme)
 
     def test_agent_driven_setup_uses_one_agent_and_external_finalization(self):
         bootstrap = (LAB / "scripts/bootstrap-agent.ps1").read_text(encoding="utf-8")
