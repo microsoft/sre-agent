@@ -6,9 +6,18 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$script_dir/internal/lab-environment.sh"
 
 action="${1:-}"
-[[ $# -eq 1 && ("$action" == 'inject' || "$action" == 'reset') ]] || fail 'Usage: ./scripts/fault.sh inject|reset'
+shift || true
+subscription=''
+resource_group=''
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --subscription) subscription="${2:-}"; shift 2 ;;
+    --resource-group) resource_group="${2:-}"; shift 2 ;;
+    *) fail 'Usage: ./scripts/fault.sh inject|reset [--subscription ID --resource-group NAME]' ;;
+  esac
+done
+[[ "$action" == 'inject' || "$action" == 'reset' ]] || fail 'Usage: ./scripts/fault.sh inject|reset [--subscription ID --resource-group NAME]'
 require_command az
-require_command azd
 require_command jq
 require_command curl
 
@@ -16,9 +25,17 @@ authenticated_curl() {
   printf 'header = "Authorization: Bearer %s"\n' "$arm_token" | curl --config - "$@"
 }
 
-subscription="$(get_lab_value AZURE_SUBSCRIPTION_ID)"
-resource_group="$(get_lab_value AZURE_RESOURCE_GROUP)"
-nsg="$(get_lab_value LAB_NSG_NAME)"
+if [[ -z "$subscription" || -z "$resource_group" ]]; then
+  require_command azd
+  subscription="${subscription:-$(get_lab_value AZURE_SUBSCRIPTION_ID)}"
+  resource_group="${resource_group:-$(get_lab_value AZURE_RESOURCE_GROUP)}"
+fi
+workload_option="$(az group show --subscription "$subscription" --name "$resource_group" --query tags.onboardingLabWorkloadOption -o tsv)"
+if [[ -z "$workload_option" ]] && command -v azd >/dev/null 2>&1; then
+  workload_option="$(get_lab_value LAB_WORKLOAD_OPTION true)"
+fi
+[[ "$workload_option" == 'app-service' || "$workload_option" == 'app-service-postgresql' ]] ||
+  fail "Unsupported LAB_WORKLOAD_OPTION: $workload_option"
 inject_fault=false
 
 if [[ "$action" == 'inject' ]]; then
@@ -54,11 +71,24 @@ if [[ "$action" == 'inject' ]]; then
   arm_token=''
 fi
 
-az deployment group create \
-  --subscription "$subscription" \
-  --resource-group "$resource_group" \
-  --name onboardinglab-fault \
-  --template-file "$LAB_ROOT/fault.bicep" \
-  --parameters "networkSecurityGroupName=$nsg" "injectDatabaseFault=$inject_fault" \
-  --output none || fail 'Fault rule deployment failed.'
+if [[ "$workload_option" == 'app-service' ]]; then
+  app_name="$(az webapp list --subscription "$subscription" --resource-group "$resource_group" --query "[?tags.workloadOption=='app-service'].name | [0]" -o tsv)"
+  [[ -n "$app_name" ]] || fail 'Could not discover the App Service checkout app.'
+  az webapp config appsettings set \
+    --subscription "$subscription" \
+    --resource-group "$resource_group" \
+    --name "$app_name" \
+    --settings "APP_FAULT_ENABLED=$inject_fault" \
+    --output none || fail 'App Service fault update failed.'
+else
+  nsg="$(az network nsg list --subscription "$subscription" --resource-group "$resource_group" --query "[?contains(name, '-app-nsg')].name | [0]" -o tsv)"
+  [[ -n "$nsg" ]] || fail 'Could not discover the PostgreSQL fault NSG.'
+  az deployment group create \
+    --subscription "$subscription" \
+    --resource-group "$resource_group" \
+    --name onboardinglab-fault \
+    --template-file "$LAB_ROOT/fault.bicep" \
+    --parameters "networkSecurityGroupName=$nsg" "injectDatabaseFault=$inject_fault" \
+    --output none || fail 'Database fault rule deployment failed.'
+fi
 printf 'Fault %s completed. Generate new checkout traffic to verify the result.\n' "$action"

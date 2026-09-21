@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.47.16.16243",
-      "templateHash": "17234322723825661397"
+      "version": "0.41.2.15936",
+      "templateHash": "12514175363404020622"
     }
   },
   "parameters": {
@@ -35,6 +35,16 @@
         "description": "Name of the existing user-assigned identity used by the agent."
       }
     },
+    "workloadOption": {
+      "type": "string",
+      "allowedValues": [
+        "app-service",
+        "app-service-postgresql"
+      ],
+      "metadata": {
+        "description": "Selects the App Service or App Service plus PostgreSQL lab scenarios."
+      }
+    },
     "tags": {
       "type": "object",
       "defaultValue": {
@@ -59,6 +69,9 @@
           "namePrefix": {
             "value": "[parameters('namePrefix')]"
           },
+          "workloadOption": {
+            "value": "[parameters('workloadOption')]"
+          },
           "tags": {
             "value": "[parameters('tags')]"
           }
@@ -70,8 +83,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.47.16.16243",
-              "templateHash": "17353329765692535690"
+              "version": "0.41.2.15936",
+              "templateHash": "8188693890910218636"
             }
           },
           "parameters": {
@@ -87,6 +100,17 @@
               "maxLength": 20,
               "metadata": {
                 "description": "Short lowercase prefix used for globally scoped resource names."
+              }
+            },
+            "workloadOption": {
+              "type": "string",
+              "defaultValue": "app-service-postgresql",
+              "allowedValues": [
+                "app-service",
+                "app-service-postgresql"
+              ],
+              "metadata": {
+                "description": "Selects the App Service or App Service plus PostgreSQL lab scenarios."
               }
             },
             "injectDatabaseFault": {
@@ -116,7 +140,8 @@
             "webAppName": "[format('{0}-checkout-{1}', parameters('namePrefix'), variables('uniqueSuffix'))]",
             "postgresServerName": "[take(format('{0}-pg-{1}', parameters('namePrefix'), variables('uniqueSuffix')), 63)]",
             "privateDnsZoneName": "private.postgres.database.azure.com",
-            "databaseName": "checkout"
+            "databaseName": "checkout",
+            "usePostgresql": "[equals(parameters('workloadOption'), 'app-service-postgresql')]"
           },
           "resources": {
             "checkoutIdentity": {
@@ -127,6 +152,7 @@
               "tags": "[parameters('tags')]"
             },
             "applicationNetworkSecurityGroup": {
+              "condition": "[variables('usePostgresql')]",
               "type": "Microsoft.Network/networkSecurityGroups",
               "apiVersion": "2024-05-01",
               "name": "[variables('networkSecurityGroupName')]",
@@ -152,6 +178,7 @@
               }
             },
             "virtualNetwork": {
+              "condition": "[variables('usePostgresql')]",
               "type": "Microsoft.Network/virtualNetworks",
               "apiVersion": "2024-05-01",
               "name": "[variables('virtualNetworkName')]",
@@ -202,6 +229,7 @@
               ]
             },
             "privateDnsZone": {
+              "condition": "[variables('usePostgresql')]",
               "type": "Microsoft.Network/privateDnsZones",
               "apiVersion": "2024-06-01",
               "name": "[variables('privateDnsZoneName')]",
@@ -209,6 +237,7 @@
               "tags": "[parameters('tags')]"
             },
             "privateDnsLink": {
+              "condition": "[variables('usePostgresql')]",
               "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
               "apiVersion": "2024-06-01",
               "name": "[format('{0}/{1}', variables('privateDnsZoneName'), format('{0}-vnet-link', parameters('namePrefix')))]",
@@ -307,6 +336,7 @@
               }
             },
             "postgresServer": {
+              "condition": "[variables('usePostgresql')]",
               "type": "Microsoft.DBforPostgreSQL/flexibleServers",
               "apiVersion": "2024-08-01",
               "name": "[variables('postgresServerName')]",
@@ -347,6 +377,7 @@
               ]
             },
             "checkoutDatabase": {
+              "condition": "[variables('usePostgresql')]",
               "type": "Microsoft.DBforPostgreSQL/flexibleServers/databases",
               "apiVersion": "2024-08-01",
               "name": "[format('{0}/{1}', variables('postgresServerName'), variables('databaseName'))]",
@@ -361,7 +392,7 @@
               "name": "[variables('webAppName')]",
               "location": "[parameters('location')]",
               "kind": "app,linux",
-              "tags": "[union(parameters('tags'), createObject('azd-service-name', 'checkout'))]",
+              "tags": "[union(parameters('tags'), createObject('azd-service-name', 'checkout', 'workloadOption', parameters('workloadOption')))]",
               "identity": {
                 "type": "UserAssigned",
                 "userAssignedIdentities": {
@@ -371,7 +402,7 @@
               "properties": {
                 "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
                 "httpsOnly": true,
-                "virtualNetworkSubnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('applicationSubnetName'))]",
+                "virtualNetworkSubnetId": "[if(variables('usePostgresql'), resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('applicationSubnetName')), null())]",
                 "siteConfig": {
                   "linuxFxVersion": "NODE|22-lts",
                   "appCommandLine": "cd /home/site/wwwroot && npm start",
@@ -380,40 +411,7 @@
                   "minTlsVersion": "1.2",
                   "scmMinTlsVersion": "1.2",
                   "healthCheckPath": "/healthz",
-                  "appSettings": [
-                    {
-                      "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
-                      "value": "true"
-                    },
-                    {
-                      "name": "ENABLE_ORYX_BUILD",
-                      "value": "true"
-                    },
-                    {
-                      "name": "AZURE_CLIENT_ID",
-                      "value": "[reference('checkoutIdentity').clientId]"
-                    },
-                    {
-                      "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
-                      "value": "[reference('applicationInsights').ConnectionString]"
-                    },
-                    {
-                      "name": "POSTGRES_HOST",
-                      "value": "[reference('postgresServer').fullyQualifiedDomainName]"
-                    },
-                    {
-                      "name": "POSTGRES_PORT",
-                      "value": "5432"
-                    },
-                    {
-                      "name": "POSTGRES_DATABASE",
-                      "value": "[variables('databaseName')]"
-                    },
-                    {
-                      "name": "POSTGRES_USER",
-                      "value": "[format('{0}-checkout-identity', parameters('namePrefix'))]"
-                    }
-                  ]
+                  "appSettings": "[concat(createArray(createObject('name', 'SCM_DO_BUILD_DURING_DEPLOYMENT', 'value', 'true'), createObject('name', 'ENABLE_ORYX_BUILD', 'value', 'true'), createObject('name', 'AZURE_CLIENT_ID', 'value', reference('checkoutIdentity').clientId), createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', reference('applicationInsights').ConnectionString), createObject('name', 'WORKLOAD_OPTION', 'value', parameters('workloadOption')), createObject('name', 'APP_FAULT_ENABLED', 'value', 'false')), if(variables('usePostgresql'), createArray(createObject('name', 'POSTGRES_HOST', 'value', reference('postgresServer').fullyQualifiedDomainName), createObject('name', 'POSTGRES_PORT', 'value', '5432'), createObject('name', 'POSTGRES_DATABASE', 'value', variables('databaseName')), createObject('name', 'POSTGRES_USER', 'value', format('{0}-checkout-identity', parameters('namePrefix')))), createArray()))]"
                 }
               },
               "dependsOn": [
@@ -449,6 +447,7 @@
               ]
             },
             "checkoutDatabaseAdministrator": {
+              "condition": "[variables('usePostgresql')]",
               "type": "Microsoft.Resources/deployments",
               "apiVersion": "2025-04-01",
               "name": "[format('checkoutDatabaseAdministrator-{0}', uniqueString('checkoutDatabaseAdministrator', deployment().name))]",
@@ -474,8 +473,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.47.16.16243",
-                      "templateHash": "11263032400767268200"
+                      "version": "0.41.2.15936",
+                      "templateHash": "18283806189710532584"
                     }
                   },
                   "parameters": {
@@ -522,13 +521,17 @@
               "type": "string",
               "value": "[format('https://{0}', reference('checkoutApp').defaultHostName)]"
             },
+            "workloadOption": {
+              "type": "string",
+              "value": "[parameters('workloadOption')]"
+            },
             "postgresServerId": {
               "type": "string",
-              "value": "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName'))]"
+              "value": "[if(variables('usePostgresql'), resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName')), '')]"
             },
             "postgresHost": {
               "type": "string",
-              "value": "[reference('postgresServer').fullyQualifiedDomainName]"
+              "value": "[if(variables('usePostgresql'), reference('postgresServer').fullyQualifiedDomainName, '')]"
             },
             "applicationInsightsId": {
               "type": "string",
@@ -544,11 +547,11 @@
             },
             "faultInjectionEnabled": {
               "type": "bool",
-              "value": "[parameters('injectDatabaseFault')]"
+              "value": "[and(variables('usePostgresql'), parameters('injectDatabaseFault'))]"
             },
             "networkSecurityGroupName": {
               "type": "string",
-              "value": "[variables('networkSecurityGroupName')]"
+              "value": "[if(variables('usePostgresql'), variables('networkSecurityGroupName'), '')]"
             }
           }
         }
@@ -580,8 +583,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.47.16.16243",
-              "templateHash": "15829288219177522998"
+              "version": "0.41.2.15936",
+              "templateHash": "10275480700238786825"
             }
           },
           "parameters": {
@@ -719,6 +722,10 @@
     "checkoutUrl": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'onboardinglab-workload'), '2025-04-01').outputs.checkoutUrl.value]"
+    },
+    "workloadOption": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'onboardinglab-workload'), '2025-04-01').outputs.workloadOption.value]"
     },
     "applicationInsightsId": {
       "type": "string",

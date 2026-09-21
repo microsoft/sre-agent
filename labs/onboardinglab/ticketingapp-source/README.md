@@ -15,11 +15,22 @@ agent configuration.
 ```bash
 azd auth login
 az login
-az provider register --namespace Microsoft.DBforPostgreSQL --wait
+azd env set LAB_WORKLOAD_OPTION app-service
 azd up
 ```
 
-Choose an Azure SRE Agent supported region that also supports Linux App Service and Azure Database for PostgreSQL Flexible Server for your subscription.
+Choose one of two equal workload options before `azd up`:
+
+- `app-service` deploys Linux App Service and shared telemetry.
+- `app-service-postgresql` adds PostgreSQL Flexible Server and private networking. Register `Microsoft.DBforPostgreSQL` before deployment and use a subscription where PostgreSQL 16 with `Standard_B1ms` is available in Sweden Central.
+
+To select the PostgreSQL option:
+
+```bash
+az provider register --namespace Microsoft.DBforPostgreSQL --wait
+azd env set LAB_WORKLOAD_OPTION app-service-postgresql
+azd up
+```
 
 Retrieve the deployed application URL:
 

@@ -26,7 +26,8 @@ bash labs/onboardinglab/scripts/deploy-agent.sh \
   <LOCATION> \
   <NAME_PREFIX> \
   <AGENT_NAME> \
-  <AGENT_IDENTITY_NAME>
+  <AGENT_IDENTITY_NAME> \
+  <WORKLOAD_OPTION>
 ```
 
 Use the exact values from the deployment request. Do not invent or substitute values.

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-az login --identity --client-id "${1:?Usage: deploy-agent.sh UAMI_CLIENT_ID SUBSCRIPTION LAB_RG LOCATION NAME_PREFIX AGENT_NAME AGENT_IDENTITY_NAME}" --output none || exit $?
+az login --identity --client-id "${1:?Usage: deploy-agent.sh UAMI_CLIENT_ID SUBSCRIPTION LAB_RG LOCATION NAME_PREFIX AGENT_NAME AGENT_IDENTITY_NAME WORKLOAD_OPTION}" --output none || exit $?
 
 set -Eeo pipefail
 
-if [[ $# -ne 7 ]]; then
-  echo "Usage: $0 UAMI_CLIENT_ID SUBSCRIPTION LAB_RG LOCATION NAME_PREFIX AGENT_NAME AGENT_IDENTITY_NAME" >&2
+if [[ $# -ne 8 ]]; then
+  echo "Usage: $0 UAMI_CLIENT_ID SUBSCRIPTION LAB_RG LOCATION NAME_PREFIX AGENT_NAME AGENT_IDENTITY_NAME WORKLOAD_OPTION" >&2
   exit 2
 fi
 
@@ -17,6 +17,9 @@ LOCATION="$4"
 NAME_PREFIX="$5"
 AGENT_NAME="$6"
 AGENT_IDENTITY_NAME="$7"
+WORKLOAD_OPTION="$8"
+[[ "$WORKLOAD_OPTION" == "app-service" || "$WORKLOAD_OPTION" == "app-service-postgresql" ]] \
+  || { echo "WORKLOAD_OPTION must be app-service or app-service-postgresql." >&2; exit 2; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAB_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -147,6 +150,34 @@ poll_infrastructure_deployment() {
   done
 
   fail "Infrastructure deployment did not reach a terminal state within 60 minutes."
+}
+
+infrastructure_failure_is_workspace_propagation() {
+  az deployment operation group list \
+    --subscription "$SUBSCRIPTION" \
+    --resource-group "$LAB_RG" \
+    --name "$DEPLOYMENT_NAME" \
+    --query "[?properties.provisioningState=='Failed'].{type:properties.targetResource.resourceType,message:properties.statusMessage.error.message}" \
+    --output json |
+    jq -e 'length > 0 and all(.[];
+      (.type == "Microsoft.Insights/scheduledQueryRules") and
+      ((.message // "") | ascii_downcase | contains("workspace could not be found")))' >/dev/null
+}
+
+start_infrastructure_deployment() {
+  az deployment group create \
+    --subscription "$SUBSCRIPTION" \
+    --resource-group "$LAB_RG" \
+    --name "$DEPLOYMENT_NAME" \
+    --template-file "$TEMPLATE" \
+    --parameters \
+      location="$LOCATION" \
+      namePrefix="$NAME_PREFIX" \
+      agentName="$AGENT_NAME" \
+      agentIdentityName="$AGENT_IDENTITY_NAME" \
+      workloadOption="$WORKLOAD_OPTION" \
+    --no-wait \
+    --output none
 }
 
 ensure_incident_platform() {
@@ -346,14 +377,19 @@ az group show \
   --name "$LAB_RG" \
   --query '{name:name,location:location,state:properties.provisioningState}' -o json
 
-capabilities="$(az postgres flexible-server list-skus \
-  --subscription "$SUBSCRIPTION" \
-  --location "$LOCATION" \
-  --output json)"
-jq -e '[.[].supportedServerVersions[]?.name] | index("16") != null' <<<"$capabilities" >/dev/null \
-  || fail "PostgreSQL version 16 is not advertised in $LOCATION. Reasons: $(jq -r '[.[].reason // empty] | unique | join("; ")' <<<"$capabilities")"
-jq -e '[.[].supportedServerEditions[]?.supportedServerSkus[]?.name] | index("Standard_B1ms") != null' <<<"$capabilities" >/dev/null \
-  || fail "PostgreSQL Standard_B1ms is not advertised in $LOCATION. Reasons: $(jq -r '[.[].reason // empty] | unique | join("; ")' <<<"$capabilities")"
+if [[ "$WORKLOAD_OPTION" == "app-service-postgresql" ]]; then
+  capabilities="$(az postgres flexible-server list-skus \
+    --subscription "$SUBSCRIPTION" \
+    --location "$LOCATION" \
+    --output json)"
+  jq -e '[.[].supportedServerVersions[]?.name] | index("16") != null' <<<"$capabilities" >/dev/null \
+    || fail "PostgreSQL version 16 is not advertised in $LOCATION. Choose the App Service option or use a subscription with the required Sweden Central capability. Reasons: $(jq -r '[.[].reason // empty] | unique | join("; ")' <<<"$capabilities")"
+  jq -e '[.[].supportedServerEditions[]?.supportedServerSkus[]?.name] | index("Standard_B1ms") != null' <<<"$capabilities" >/dev/null \
+    || fail "PostgreSQL Standard_B1ms is not advertised in $LOCATION. Choose the App Service option or use a subscription with the required Sweden Central capability. Reasons: $(jq -r '[.[].reason // empty] | unique | join("; ")' <<<"$capabilities")"
+  status "Preflight passed for Azure SRE Agent and PostgreSQL 16 / Standard_B1ms in $LOCATION."
+else
+  status "Preflight passed for Azure SRE Agent and the App Service workload in $LOCATION."
+fi
 
 normalized_location="${LOCATION// /}"
 normalized_location="${normalized_location,,}"
@@ -361,8 +397,6 @@ agent_provider="$(az provider show --subscription "$SUBSCRIPTION" --namespace Mi
 jq -e --arg location "$normalized_location" \
   '[.resourceTypes[] | select(.resourceType == "agents") | .locations[]? | ascii_downcase | gsub(" "; "")] | index($location) != null' \
   <<<"$agent_provider" >/dev/null || fail "Azure SRE Agent is not advertised in $LOCATION."
-status "Preflight passed for Azure SRE Agent and PostgreSQL 16 / Standard_B1ms in $LOCATION."
-
 [[ -f "$TEMPLATE" ]] || fail "Compiled deployment template not found: $TEMPLATE"
 
 CURRENT_STAGE="infrastructure deployment"
@@ -380,21 +414,20 @@ else
   else
     status "Starting asynchronous infrastructure deployment."
   fi
-  az deployment group create \
-    --subscription "$SUBSCRIPTION" \
-    --resource-group "$LAB_RG" \
-    --name "$DEPLOYMENT_NAME" \
-    --template-file "$TEMPLATE" \
-    --parameters \
-      location="$LOCATION" \
-      namePrefix="$NAME_PREFIX" \
-      agentName="$AGENT_NAME" \
-      agentIdentityName="$AGENT_IDENTITY_NAME" \
-    --no-wait \
-    --output none
+  start_infrastructure_deployment
 fi
 
-poll_infrastructure_deployment || fail "Infrastructure deployment failed. Inspect deployment operations before retrying."
+infrastructure_attempt=1
+while ! poll_infrastructure_deployment; do
+  if (( infrastructure_attempt >= 3 )) || ! infrastructure_failure_is_workspace_propagation; then
+    fail "Infrastructure deployment failed. Inspect deployment operations before retrying."
+  fi
+  infrastructure_attempt=$((infrastructure_attempt + 1))
+  retry_delay=$((infrastructure_attempt * 30))
+  status "Azure Monitor has not resolved the new Log Analytics workspace. Retrying infrastructure deployment in ${retry_delay}s (attempt ${infrastructure_attempt}/3)."
+  sleep "$retry_delay"
+  start_infrastructure_deployment
+done
 
 deployment_outputs="$(az deployment group show \
   --subscription "$SUBSCRIPTION" \
@@ -410,7 +443,7 @@ NETWORK_SECURITY_GROUP_NAME="$(jq -r '.networkSecurityGroupName.value // empty' 
 LOG_ANALYTICS_WORKSPACE_ID="$(jq -r '.logAnalyticsWorkspaceId.value // empty' <<<"$deployment_outputs")"
 AGENT_ENDPOINT="$(jq -r '.agentEndpoint.value // empty' <<<"$deployment_outputs")"
 
-for required_value in CHECKOUT_APP_NAME CHECKOUT_URL APP_INSIGHTS_ID APP_INSIGHTS_APP_ID NETWORK_SECURITY_GROUP_NAME LOG_ANALYTICS_WORKSPACE_ID; do
+for required_value in CHECKOUT_APP_NAME CHECKOUT_URL APP_INSIGHTS_ID APP_INSIGHTS_APP_ID LOG_ANALYTICS_WORKSPACE_ID; do
   [[ -n "${!required_value}" ]] || fail "Infrastructure output $required_value is empty."
 done
 CURRENT_STAGE="agent endpoint propagation"
@@ -552,15 +585,26 @@ alert_state="$(az monitor scheduled-query show \
 jq -e '.enabled == true and .severity == 2' <<<"$alert_state" >/dev/null \
   || fail "The checkout failure alert is not enabled at severity 2."
 
-fault_rule_access="$(az network nsg rule show \
-  --subscription "$SUBSCRIPTION" \
-  --resource-group "$LAB_RG" \
-  --nsg-name "$NETWORK_SECURITY_GROUP_NAME" \
-  --name PostgreSqlFaultInjection \
-  --query access -o tsv)"
-[[ "$fault_rule_access" == "Allow" ]] \
-  || fail "The PostgreSqlFaultInjection rule is $fault_rule_access instead of Allow."
-status "Database fault rule is Allow."
+if [[ "$WORKLOAD_OPTION" == "app-service-postgresql" ]]; then
+  [[ -n "$NETWORK_SECURITY_GROUP_NAME" ]] || fail "Infrastructure output NETWORK_SECURITY_GROUP_NAME is empty."
+  fault_rule_access="$(az network nsg rule show \
+    --subscription "$SUBSCRIPTION" \
+    --resource-group "$LAB_RG" \
+    --nsg-name "$NETWORK_SECURITY_GROUP_NAME" \
+    --name PostgreSqlFaultInjection \
+    --query access -o tsv)"
+  [[ "$fault_rule_access" == "Allow" ]] \
+    || fail "The PostgreSqlFaultInjection rule is $fault_rule_access instead of Allow."
+  status "Database fault rule is Allow."
+else
+  app_fault="$(az webapp config appsettings list \
+    --subscription "$SUBSCRIPTION" \
+    --resource-group "$LAB_RG" \
+    --name "$CHECKOUT_APP_NAME" \
+    --query "[?name=='APP_FAULT_ENABLED'].value | [0]" -o tsv)"
+  [[ "$app_fault" == "false" ]] || fail "APP_FAULT_ENABLED is $app_fault instead of false."
+  status "App Service fault is off."
+fi
 
 CURRENT_STAGE="application health verification"
 status "Warming the application and verifying checkout."
@@ -617,7 +661,7 @@ status "Recording verified deployment completion."
 az tag update \
   --resource-id "/subscriptions/$SUBSCRIPTION/resourceGroups/$LAB_RG" \
   --operation Merge \
-  --tags onboardingLabDeploymentStatus=verified \
+  --tags onboardingLabDeploymentStatus=verified onboardingLabWorkloadOption="$WORKLOAD_OPTION" \
   --output none
 
 marker="$(az group show \

@@ -8,6 +8,13 @@ param environmentName string
 @description('Region supporting Linux App Service B1 and PostgreSQL B1ms.')
 param location string
 
+@description('Selects the App Service or App Service plus PostgreSQL lab scenarios.')
+@allowed([
+  'app-service'
+  'app-service-postgresql'
+])
+param workloadOption string
+
 @description('Optional. Name of an existing resource group to deploy the lab workload into. Leave empty to create rg-flu-<token>. Use this when the resource group was pre-created (for example by the lab bootstrap script), possibly in a different region than the workload.')
 param resourceGroupName string = ''
 
@@ -32,6 +39,7 @@ module workload 'modules/workload.bicep' = {
   params: {
     location: location
     namePrefix: 'flu-${resourceToken}'
+    workloadOption: workloadOption
     tags: tags
   }
 }
@@ -40,6 +48,7 @@ output AZURE_RESOURCE_GROUP string = labGroupName
 output AZURE_LOCATION string = location
 output SERVICE_CHECKOUT_NAME string = workload.outputs.checkoutAppName
 output SERVICE_CHECKOUT_ENDPOINT_URL string = workload.outputs.checkoutUrl
+output LAB_WORKLOAD_OPTION string = workload.outputs.workloadOption
 output LAB_NSG_NAME string = workload.outputs.networkSecurityGroupName
 output LAB_NAME_PREFIX string = 'flu-${resourceToken}'
 output CHECKOUT_APP_ID string = workload.outputs.checkoutAppId

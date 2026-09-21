@@ -88,7 +88,11 @@ function createHandler({ createClient, getAccessToken, telemetry, env = process.
     const started = performance.now();
     let success = false;
     let outcome = 'busy';
-    if (activeAttempts < MAX_DB_ATTEMPTS) {
+    const workloadOption = env.WORKLOAD_OPTION || 'app-service-postgresql';
+    if (workloadOption === 'app-service') {
+      success = env.APP_FAULT_ENABLED !== 'true';
+      outcome = success ? 'available' : 'application-fault';
+    } else if (workloadOption === 'app-service-postgresql' && activeAttempts < MAX_DB_ATTEMPTS) {
       activeAttempts += 1;
       let client;
       let timer;
@@ -139,6 +143,8 @@ function createHandler({ createClient, getAccessToken, telemetry, env = process.
         resultCode: success ? '0' : '1',
         properties: { simulated: 'true', outcome },
       });
+    } else if (workloadOption !== 'app-service-postgresql') {
+      outcome = 'configuration-unavailable';
     }
 
     const status = success ? 200 : 503;
@@ -154,7 +160,9 @@ function createHandler({ createClient, getAccessToken, telemetry, env = process.
     if (success) {
       return json(response, status, {
         success: true, simulated: true,
-        message: 'Simulated checkout succeeded. Database connectivity verified; no purchase was made.',
+        message: workloadOption === 'app-service'
+          ? 'Simulated checkout succeeded; no purchase was made.'
+          : 'Simulated checkout succeeded. Database connectivity verified; no purchase was made.',
       });
     }
     response.setHeader('Retry-After', '3');

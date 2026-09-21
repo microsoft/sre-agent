@@ -6,6 +6,13 @@ param location string
 @maxLength(20)
 param namePrefix string
 
+@description('Selects the App Service or App Service plus PostgreSQL lab scenarios.')
+@allowed([
+  'app-service'
+  'app-service-postgresql'
+])
+param workloadOption string = 'app-service-postgresql'
+
 @description('When true, deny checkout traffic to PostgreSQL on TCP 5432.')
 param injectDatabaseFault bool = false
 
@@ -24,6 +31,7 @@ var webAppName = '${namePrefix}-checkout-${uniqueSuffix}'
 var postgresServerName = take('${namePrefix}-pg-${uniqueSuffix}', 63)
 var privateDnsZoneName = 'private.postgres.database.azure.com'
 var databaseName = 'checkout'
+var usePostgresql = workloadOption == 'app-service-postgresql'
 
 resource checkoutIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${namePrefix}-checkout-identity'
@@ -31,7 +39,7 @@ resource checkoutIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023
   tags: tags
 }
 
-resource applicationNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
+resource applicationNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2024-05-01' = if (usePostgresql) {
   name: networkSecurityGroupName
   location: location
   tags: tags
@@ -55,7 +63,7 @@ resource applicationNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroup
   }
 }
 
-resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-05-01' = {
+resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-05-01' = if (usePostgresql) {
   name: virtualNetworkName
   location: location
   tags: tags
@@ -101,13 +109,13 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   }
 }
 
-resource privateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = {
+resource privateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = if (usePostgresql) {
   name: privateDnsZoneName
   location: 'global'
   tags: tags
 }
 
-resource privateDnsLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = {
+resource privateDnsLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (usePostgresql) {
   parent: privateDnsZone
   name: '${namePrefix}-vnet-link'
   location: 'global'
@@ -195,7 +203,7 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2024-04-01' = {
   }
 }
 
-resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
+resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = if (usePostgresql) {
   name: postgresServerName
   location: location
   tags: tags
@@ -232,7 +240,7 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' =
   ]
 }
 
-resource checkoutDatabase 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-01' = {
+resource checkoutDatabase 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-01' = if (usePostgresql) {
   parent: postgresServer
   name: databaseName
   properties: {}
@@ -240,7 +248,7 @@ resource checkoutDatabase 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2
 
 // Disposable lab only: ARM can bootstrap an Entra administrator without a SQL
 // migration host. The app exposes only SELECT 1, never user-supplied SQL.
-module checkoutDatabaseAdministrator 'database-identity.bicep' = {
+module checkoutDatabaseAdministrator 'database-identity.bicep' = if (usePostgresql) {
   params: {
     serverName: postgresServer.name
     principalId: checkoutIdentity.properties.principalId
@@ -254,6 +262,7 @@ resource checkoutApp 'Microsoft.Web/sites@2024-04-01' = {
   kind: 'app,linux'
   tags: union(tags, {
     'azd-service-name': 'checkout'
+    workloadOption: workloadOption
   })
   identity: {
     type: 'UserAssigned'
@@ -264,7 +273,7 @@ resource checkoutApp 'Microsoft.Web/sites@2024-04-01' = {
   properties: {
     serverFarmId: appServicePlan.id
     httpsOnly: true
-    virtualNetworkSubnetId: resourceId('Microsoft.Network/virtualNetworks/subnets', virtualNetwork.name, applicationSubnetName)
+    virtualNetworkSubnetId: usePostgresql ? resourceId('Microsoft.Network/virtualNetworks/subnets', virtualNetwork.name, applicationSubnetName) : null
     siteConfig: {
       linuxFxVersion: 'NODE|22-lts'
       appCommandLine: 'cd /home/site/wwwroot && npm start'
@@ -273,7 +282,7 @@ resource checkoutApp 'Microsoft.Web/sites@2024-04-01' = {
       minTlsVersion: '1.2'
       scmMinTlsVersion: '1.2'
       healthCheckPath: '/healthz'
-      appSettings: [
+      appSettings: concat([
         {
           name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
           value: 'true'
@@ -291,8 +300,17 @@ resource checkoutApp 'Microsoft.Web/sites@2024-04-01' = {
           value: applicationInsights.properties.ConnectionString
         }
         {
+          name: 'WORKLOAD_OPTION'
+          value: workloadOption
+        }
+        {
+          name: 'APP_FAULT_ENABLED'
+          value: 'false'
+        }
+      ], usePostgresql ? [
+        {
           name: 'POSTGRES_HOST'
-          value: postgresServer.properties.fullyQualifiedDomainName
+          value: postgresServer!.properties.fullyQualifiedDomainName
         }
         {
           name: 'POSTGRES_PORT'
@@ -306,7 +324,7 @@ resource checkoutApp 'Microsoft.Web/sites@2024-04-01' = {
           name: 'POSTGRES_USER'
           value: checkoutIdentity.name
         }
-      ]
+      ] : [])
     }
   }
   dependsOn: [
@@ -334,10 +352,11 @@ resource disableScmBasicAuth 'Microsoft.Web/sites/basicPublishingCredentialsPoli
 output checkoutAppName string = checkoutApp.name
 output checkoutAppId string = checkoutApp.id
 output checkoutUrl string = 'https://${checkoutApp.properties.defaultHostName}'
-output postgresServerId string = postgresServer.id
-output postgresHost string = postgresServer.properties.fullyQualifiedDomainName
+output workloadOption string = workloadOption
+output postgresServerId string = usePostgresql ? postgresServer!.id : ''
+output postgresHost string = usePostgresql ? postgresServer!.properties.fullyQualifiedDomainName : ''
 output applicationInsightsId string = applicationInsights.id
 output applicationInsightsAppId string = applicationInsights.properties.AppId
 output logAnalyticsWorkspaceId string = logAnalytics.id
-output faultInjectionEnabled bool = injectDatabaseFault
-output networkSecurityGroupName string = applicationNetworkSecurityGroup.name
+output faultInjectionEnabled bool = usePostgresql && injectDatabaseFault
+output networkSecurityGroupName string = usePostgresql ? applicationNetworkSecurityGroup.name : ''

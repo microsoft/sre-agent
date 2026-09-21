@@ -23,7 +23,12 @@ with (root / "calls.jsonl").open("a") as stream:
     stream.write(json.dumps([command, args]) + "\n")
 def output(value):
     print(json.dumps(value))
-if command == "az":
+if command == "merge":
+    state = root / "applied.json"
+    merged = json.loads(state.read_text(encoding="utf-8-sig")) if state.exists() else {}
+    merged.update(json.loads(pathlib.Path(args[0]).read_text(encoding="utf-8-sig")))
+    state.write_text(json.dumps(merged))
+elif command == "az":
     if args[:2] == ["resource", "list"]:
         output([{"id": "/subscriptions/test/resourceGroups/test/providers/Microsoft.App/agents/lab", "resourceGroup": "test"}])
     elif args[:2] == ["account", "get-access-token"]:
@@ -52,14 +57,23 @@ elif command == "curl":
         pathlib.Path(args[args.index("-o")+1]).write_text("{}")
         print("403" if mode == "write-rejected" else "200", end="")
     elif "/extendedAgent/agents/" in url:
-        agent = json.loads((root / "applied.json").read_text(encoding="utf-8-sig"))["subagents"][0]
+        name = url.rsplit("/", 1)[-1].rstrip("\r")
+        agent = next(item for item in json.loads((root / "applied.json").read_text(encoding="utf-8-sig"))["subagents"] if item["metadata"]["name"] == name)
         if mode == "stale-tools":
-            agent["spec"]["tools"].append("SendOutlookEmail")
+            agent["spec"]["tools"].append("RunAzCliWriteCommands")
         output({"name": agent["metadata"]["name"], "properties": agent["spec"]})
     elif "/extendedAgent/skills/" in url:
         output({"name": url.rsplit("/", 1)[-1]})
     elif "/extendedAgent/incidentFilters/" in url:
         output(json.loads((root / "filter.json").read_text(encoding="utf-8-sig")))
+    elif "/extendedAgent/scheduledtasks" in url:
+        tasks = json.loads((root / "applied.json").read_text(encoding="utf-8-sig"))["scheduledTasks"]
+        output({"value": [{"name": task["metadata"]["name"], "properties": {
+            "cronExpression": task["spec"]["schedule"],
+            "agent": task["spec"]["handlingAgent"],
+            "agentMode": task["spec"]["mode"],
+            "isEnabled": task["spec"]["enabled"],
+        }} for task in tasks]})
     else:
         sys.exit("Unexpected HTTP call: " + url)
 else:
@@ -67,7 +81,7 @@ else:
 '''
 
 PS_HARNESS = r'''
-param([string] $Installer, [string] $Template, [string] $Mode, [string] $Capabilities)
+param([string] $Installer, [string] $Template, [string] $Mode)
 $ErrorActionPreference = 'Stop'
 function az {
     & $env:WORKFLOW_TEST_PYTHON $env:WORKFLOW_TEST_MOCK az @args
@@ -86,15 +100,8 @@ function Invoke-WebRequest {
     if ($LASTEXITCODE -ne 0) { throw 'Mock PUT failed' }
     [pscustomobject]@{ StatusCode = [int]$status; Content = '{}' }
 }
-$options = @{}
-if ($Capabilities -match 'source') { $options.EnableSourceCode = $true }
-if ($Capabilities -match 'issues') { $options.EnableGitHubIssues = $true }
-if ($Capabilities -match 'email') {
-    $options.EnableEmail = $true
-    if ($Mode -ne 'missing-destination') { $options.EmailRecipients = 'user@example.com' }
-}
-if ($Capabilities -match 'source|issues') { $options.GitHubRepository = 'https://github.com/example/repo' }
-& $Installer -Subscription '00000000-0000-0000-0000-000000000001' -AgentName lab -Template $Template @options
+& $Installer -Subscription '00000000-0000-0000-0000-000000000001' -AgentName lab `
+    -NotificationEmailRecipient 'user@example.com' -Template $Template
 '''
 
 
@@ -107,7 +114,7 @@ class WorkflowInstallerTests(unittest.TestCase):
         if not cls.pwsh or not cls.bash or not shutil.which("jq"):
             raise unittest.SkipTest("Both PowerShell, Bash, and jq are required for installer parity tests")
 
-    def _run(self, shell, mode="core", capabilities=""):
+    def _run(self, shell, mode="core"):
         with tempfile.TemporaryDirectory(prefix="workflow-install-test-") as directory:
             root = Path(directory)
             lab = root / "labs/onboardinglab"
@@ -121,10 +128,14 @@ class WorkflowInstallerTests(unittest.TestCase):
             shared.mkdir(parents=True)
             (shared / "Apply-Extras.ps1").write_text(
                 "param($Subscription,$ResourceGroup,$AgentName,$ExtrasFile)\n"
-                "Copy-Item -LiteralPath $ExtrasFile -Destination (Join-Path $env:WORKFLOW_TEST_STATE 'applied.json')\n",
+                "& $env:WORKFLOW_TEST_PYTHON $env:WORKFLOW_TEST_MOCK merge $ExtrasFile\n"
+                "if ($LASTEXITCODE -ne 0) { throw 'Mock merge failed' }\n",
                 encoding="utf-8")
             apply_sh = shared / "apply-extras.sh"
-            apply_sh.write_text('#!/usr/bin/env bash\nset -euo pipefail\ncp "$4" "$WORKFLOW_TEST_STATE/applied.json"\n', encoding="utf-8")
+            apply_sh.write_text(
+                '#!/usr/bin/env bash\nset -euo pipefail\n'
+                '"$WORKFLOW_TEST_PYTHON" "$WORKFLOW_TEST_MOCK" merge "$4"\n',
+                encoding="utf-8")
             apply_sh.chmod(0o755)
             mock = root / "mock.py"
             mock.write_text(MOCK, encoding="utf-8")
@@ -137,13 +148,14 @@ class WorkflowInstallerTests(unittest.TestCase):
                 harness.write_text(PS_HARNESS, encoding="utf-8")
                 command = [self.pwsh, "-NoProfile", "-File", str(harness),
                            "-Installer", str(scripts / "install-workflow-template.ps1"),
-                           "-Template", str(template), "-Mode", mode, "-Capabilities", capabilities]
+                           "-Template", str(template), "-Mode", mode]
             else:
                 harness = root / "harness.sh"
                 harness.write_text(
                     '#!/usr/bin/env bash\nset -euo pipefail\n'
                     'az() { "$WORKFLOW_TEST_PYTHON" "$WORKFLOW_TEST_MOCK" az "$@"; }\n'
                     'curl() { "$WORKFLOW_TEST_PYTHON" "$WORKFLOW_TEST_MOCK" curl "$@"; }\n'
+                    'jq() { command jq "$@" | tr -d "\\r"; }\n'
                     'python3() { "$WORKFLOW_TEST_PYTHON" "$@"; }\n'
                     'installer="$1"; shift\nsource "$installer" "$@"\n',
                     encoding="utf-8",
@@ -152,50 +164,35 @@ class WorkflowInstallerTests(unittest.TestCase):
                 env["WORKFLOW_TEST_MOCK"] = mock.as_posix()
                 env["WORKFLOW_TEST_STATE"] = root.as_posix()
                 command = [self.bash, str(harness), str(scripts / "install-workflow-template.sh"), "--subscription", SUBSCRIPTION,
-                           "--agent-name", "lab", "--template", str(template)]
-                for name in ("source", "issues", "email"):
-                    if name in capabilities:
-                        command.append({"source": "--enable-source-code", "issues": "--enable-github-issues",
-                                        "email": "--enable-email"}[name])
-                if "source" in capabilities or "issues" in capabilities:
-                    command += ["--github-repository", "https://github.com/example/repo"]
-                if "email" in capabilities and mode != "missing-destination":
-                    command += ["--email-recipients", "user@example.com"]
+                           "--agent-name", "lab", "--notification-email-recipient", "user@example.com",
+                           "--template", str(template)]
             result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=90)
             applied = root / "applied.json"
             calls = root / "calls.jsonl"
             return result, json.loads(applied.read_text(encoding="utf-8-sig")) if applied.exists() else None, (
                 [json.loads(line) for line in calls.read_text().splitlines()] if calls.exists() else [])
 
-    def test_core_and_opt_in_installer_parity(self):
-        for capabilities in ("", "source", "issues", "email", "source,issues,email"):
-            results = {}
-            for shell in ("ps", "bash"):
-                with self.subTest(shell=shell, capabilities=capabilities):
-                    result, applied, calls = self._run(shell, capabilities=capabilities)
-                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                    self.assertIsNotNone(applied)
-                    results[shell] = applied
-                    urls = json.dumps(calls)
-                    self.assertEqual("/api/v2/repos" in urls, "source" in capabilities or "issues" in capabilities)
-                    self.assertEqual("/github/domains" in urls, "source" in capabilities or "issues" in capabilities)
-                    self.assertEqual("/connectorV2/" in urls, "email" in capabilities)
-            if len(results) == 2:
-                self.assertEqual(results["ps"], results["bash"])
+    def test_incident_and_scheduled_health_installer_parity(self):
+        results = {}
+        for shell in ("ps", "bash"):
+            with self.subTest(shell=shell):
+                result, applied, _ = self._run(shell)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIsNotNone(applied)
+                self.assertEqual(len(applied["subagents"]), 2)
+                self.assertEqual(len(applied["scheduledTasks"]), 1)
+                results[shell] = applied
+        if len(results) == 2:
+            self.assertEqual(results["ps"], results["bash"])
 
     def test_invalid_prerequisites_stop_before_writes_in_both_shells(self):
-        for mode, capabilities in [
-            ("missing-destination", "email"), ("no-telemetry", ""), ("no-repo", "source"),
-            ("github-unhealthy", "issues"), ("email-unconsented", "email"),
-        ]:
+        for mode in ("no-telemetry",):
             for shell in ("ps", "bash"):
                 with self.subTest(shell=shell, mode=mode):
-                    result, applied, calls = self._run(shell, mode, capabilities)
+                    result, applied, calls = self._run(shell, mode)
                     self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
                     self.assertIsNone(applied, "Prerequisite failure must precede skill/subagent writes")
                     self.assertNotIn('"PUT"', json.dumps(calls))
-                    if mode == "missing-destination":
-                        self.assertFalse(calls, "Input validation must precede Azure access")
 
     def test_rejected_response_plan_and_stale_readback_fail(self):
         for mode in ("write-rejected", "stale-tools"):

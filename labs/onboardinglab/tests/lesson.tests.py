@@ -42,23 +42,21 @@ class LessonTests(unittest.TestCase):
         self.assertIn("Namespaces do not", facilitator)
         self.assertIn("actual run", facilitator)
 
-    def test_startup_prompt_and_skill_trigger_match(self):
+    def test_readme_restores_participant_driven_three_scenario_flow(self):
         readme = (LAB / "README.md").read_text(encoding="utf-8")
-        guide = (LAB / "agent-recipe/config/skills/onboarding-lab-guide.md").read_text(
-            encoding="utf-8"
-        )
-        registration = yaml.safe_load(
-            (LAB / "agent-recipe/config/skills/onboarding-lab-guide.yaml").read_text()
-        )
-        prompt_start = "Use onboarding-lab-guide to start the onboarding lab."
-        self.assertIn(prompt_start, readme)
-        self.assertIn(prompt_start, guide)
-        self.assertIn("start the onboarding lab", registration["metadata"]["description"])
-        self.assertIn("No slash command is required.", readme)
-        self.assertIn("No slash command is required.", guide)
-        self.assertIn("**New chat**", readme)
-        self.assertIn("If the guide is unavailable", readme)
-        self.assertIn("one next action", readme)
+        for heading in (
+            "## 1. Deploy the workload and final agent",
+            "## 2. Finalize deployment access",
+            "## 3. Install the incident and health workflows",
+            "## Scenario 1: Incident workflow",
+            "## Scenario 2: Scheduled health check and Live Report",
+            "## Scenario 3: Pull-request validation",
+        ):
+            with self.subTest(heading=heading):
+                self.assertIn(heading, readme)
+        self.assertIn("participant-driven", readme)
+        self.assertIn("install-workflow-template", readme)
+        self.assertIn("install-pr-validation", readme)
 
     def test_coaching_is_explicit_and_excluded_from_incident_skill_selection(self):
         registration = yaml.safe_load(
@@ -72,21 +70,16 @@ class LessonTests(unittest.TestCase):
         selected = [skill["name"] for skill in workflow["custom_agent"]["skills"]]
         self.assertNotIn("onboarding-lab-guide", selected)
         readme = (LAB / "README.md").read_text(encoding="utf-8")
-        self.assertIn("not a blind benchmark", readme)
+        self.assertIn("read-only incident response workflow", readme)
 
-    def test_standard_lesson_includes_authenticated_github_and_outlook_followups(self):
+    def test_readme_presents_equal_workload_options_and_postgresql_limitation(self):
         readme = (LAB / "README.md").read_text(encoding="utf-8")
-        setup = (LAB / "docs/setup.md").read_text(encoding="utf-8")
-        guide = (LAB / "agent-recipe/config/skills/onboarding-lab-guide.md").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("GitHub and Outlook are part of the standard lab", readme)
-        self.assertIn("Turn the investigation into follow-up work", readme)
-        self.assertIn("issue link and email receipt", readme)
-        self.assertIn("-Stage Connect", setup)
-        self.assertIn("-CoreOnly", setup)
-        self.assertIn("## Share the investigation", guide)
-        self.assertIn("obtain separate approval to send", guide)
+        self.assertIn("## Choose a workload option", readme)
+        self.assertIn("neither option is preferred", readme)
+        self.assertIn("**App Service**", readme)
+        self.assertIn("**App Service + PostgreSQL**", readme)
+        self.assertIn("PostgreSQL 16 with `Standard_B1ms` in Sweden Central", readme)
+        self.assertIn("does not silently change the selected option", readme)
 
     def test_agent_driven_setup_uses_one_agent_and_external_finalization(self):
         bootstrap = (LAB / "scripts/bootstrap-agent.ps1").read_text(encoding="utf-8")
@@ -175,6 +168,9 @@ class LessonTests(unittest.TestCase):
         self.assertIn("Database fault rule is Allow.", deployment_script)
         self.assertIn("FAILED during $CURRENT_STAGE", deployment_script)
         self.assertIn("az deployment operation group list", deployment_script)
+        self.assertIn("infrastructure_failure_is_workspace_propagation", deployment_script)
+        self.assertIn('contains("workspace could not be found")', deployment_script)
+        self.assertIn("attempt ${infrastructure_attempt}/3", deployment_script)
         self.assertIn("Failed OneDeploy record", deployment_script)
         self.assertIn("/tmp/onboardinglab-deploy.log", deployment_script)
         self.assertIn("Apply-Extras.ps1", deployment_script)

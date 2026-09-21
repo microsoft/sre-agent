@@ -10,6 +10,11 @@ param(
 
     [string] $NetworkSecurityGroupName,
 
+    [string] $AppName,
+
+    [ValidateSet('app-service', 'app-service-postgresql')]
+    [string] $WorkloadOption,
+
     [string] $NamePrefix
 )
 
@@ -51,7 +56,19 @@ function Get-LabValue {
 
 $subId  = Get-LabValue -Name 'AZURE_SUBSCRIPTION_ID' -ParameterName 'Subscription' -Override $Subscription
 $rgName = Get-LabValue -Name 'AZURE_RESOURCE_GROUP' -ParameterName 'ResourceGroup' -Override $ResourceGroup
-$nsgName = Get-LabValue -Name 'LAB_NSG_NAME' -ParameterName 'NetworkSecurityGroupName' -Override $NetworkSecurityGroupName
+$selectedOption = $WorkloadOption
+if ([string]::IsNullOrWhiteSpace($selectedOption)) {
+    if (Test-AzdAvailable) {
+        $selectedOption = Get-LabValue -Name 'LAB_WORKLOAD_OPTION' -ParameterName 'WorkloadOption'
+    }
+    else {
+        $selectedOption = (& az group show --subscription $subId --name $rgName `
+            --query tags.onboardingLabWorkloadOption --output tsv).Trim()
+    }
+}
+if ($selectedOption -notin @('app-service', 'app-service-postgresql')) {
+    throw "Unsupported LAB_WORKLOAD_OPTION: $selectedOption"
+}
 $fault = ($Action -eq 'inject').ToString().ToLowerInvariant()
 
 if ($Action -eq 'inject') {
@@ -89,9 +106,28 @@ if ($Action -eq 'inject') {
     $armToken = $null
 }
 
-# This deployment owns one rule only, never the app, agent, or task configuration.
-& az deployment group create --subscription $subId --resource-group $rgName `
-    --name onboardinglab-fault --template-file (Join-Path $labRoot 'fault.bicep') `
-    --parameters "networkSecurityGroupName=$nsgName" "injectDatabaseFault=$fault" --output none
-if ($LASTEXITCODE -ne 0) { throw 'Fault rule deployment failed.' }
+if ($selectedOption -eq 'app-service') {
+    $checkoutAppName = $AppName
+    if ([string]::IsNullOrWhiteSpace($checkoutAppName)) {
+        $checkoutAppName = (& az webapp list --subscription $subId --resource-group $rgName `
+            --query "[?tags.workloadOption=='app-service'].name | [0]" --output tsv).Trim()
+    }
+    if ([string]::IsNullOrWhiteSpace($checkoutAppName)) { throw 'Could not discover the App Service checkout app.' }
+    & az webapp config appsettings set --subscription $subId --resource-group $rgName `
+        --name $checkoutAppName --settings "APP_FAULT_ENABLED=$fault" --output none
+    if ($LASTEXITCODE -ne 0) { throw 'App Service fault update failed.' }
+}
+else {
+    $nsgName = $NetworkSecurityGroupName
+    if ([string]::IsNullOrWhiteSpace($nsgName)) {
+        $nsgName = (& az network nsg list --subscription $subId --resource-group $rgName `
+            --query "[?contains(name, '-app-nsg')].name | [0]" --output tsv).Trim()
+    }
+    if ([string]::IsNullOrWhiteSpace($nsgName)) { throw 'Could not discover the PostgreSQL fault NSG.' }
+    # This deployment owns one rule only, never the app, agent, or task configuration.
+    & az deployment group create --subscription $subId --resource-group $rgName `
+        --name onboardinglab-fault --template-file (Join-Path $labRoot 'fault.bicep') `
+        --parameters "networkSecurityGroupName=$nsgName" "injectDatabaseFault=$fault" --output none
+    if ($LASTEXITCODE -ne 0) { throw 'Database fault rule deployment failed.' }
+}
 Write-Host "Fault $Action completed. Generate new checkout traffic to verify the result."

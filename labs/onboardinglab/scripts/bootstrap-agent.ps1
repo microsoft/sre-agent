@@ -59,6 +59,10 @@
 .PARAMETER AgentName
     Name of the final SRE Agent.
 
+.PARAMETER WorkloadOption
+    Lab scenario option: app-service or app-service-postgresql. When omitted on
+    a new deployment, the script asks you to choose without preferring either.
+
 .PARAMETER StateFile
     Where progress is recorded so the script can resume.
 
@@ -91,6 +95,9 @@ param(
     [string] $Location = 'swedencentral',
 
     [string] $AgentName = 'onboardinglab-agent',
+
+    [ValidateSet('app-service', 'app-service-postgresql')]
+    [string] $WorkloadOption,
 
     # Progress is recorded here so the script can resume after a dropped session.
     # In Azure Cloud Shell this persists only when a storage account is mounted; an
@@ -464,6 +471,26 @@ if (-not $PSBoundParameters.ContainsKey('Location') -and $state.Contains('locati
 if (-not $PSBoundParameters.ContainsKey('AgentName') -and $state.Contains('agentName')) {
     $AgentName = $state['agentName']
 }
+if (-not $Finalize) {
+    if (-not $PSBoundParameters.ContainsKey('WorkloadOption') -and $state.Contains('workloadOption')) {
+        $WorkloadOption = $state['workloadOption']
+    }
+    while ([string]::IsNullOrWhiteSpace($WorkloadOption)) {
+        Write-Host '   Choose a workload option:'
+        Write-Host '   1. App Service'
+        Write-Host '   2. App Service + PostgreSQL (requires PostgreSQL 16 / Standard_B1ms capability in Sweden Central)'
+        $selection = Read-Host '   Enter 1 or 2'
+        $WorkloadOption = switch ($selection.Trim()) {
+            '1' { 'app-service' }
+            '2' { 'app-service-postgresql' }
+            default { $null }
+        }
+    }
+    if ($state.Contains('workloadOption') -and $state['workloadOption'] -ne $WorkloadOption -and -not $Reset) {
+        throw "This environment was started with workload option $($state['workloadOption']). Use -Reset and a new resource group to choose $WorkloadOption."
+    }
+    $state['workloadOption'] = $WorkloadOption
+}
 $state['labResourceGroup'] = $LabResourceGroup
 $state['location'] = $Location
 $state['agentName'] = $AgentName
@@ -472,6 +499,7 @@ Save-State -State $state
 Write-Ok "Lab resource group: $LabResourceGroup"
 Write-Ok "Location: $Location"
 Write-Ok "Agent: $AgentName"
+if (-not $Finalize) { Write-Ok "Workload option: $WorkloadOption" }
 
 if ($Finalize) {
     Write-Step 'Finalize - Remove temporary deployment access'
@@ -1104,6 +1132,7 @@ Inputs:
 - AGENT_NAME: $AgentName
 - AGENT_IDENTITY_NAME: $($state['agentIdentityName'])
 - AGENT_IDENTITY_CLIENT_ID: $($state['agentUamiClientId'])
+- WORKLOAD_OPTION: $WorkloadOption
 
 You are the final lab agent. The resource group already exists and your action identity has
 temporary Owner on it.
@@ -1111,7 +1140,7 @@ temporary Owner on it.
   script with the exact inputs above.
 * Let that script deploy the workload and converge your durable configuration. Do not create
   another SRE Agent or managed identity, and do not duplicate the script's commands separately.
-* Leave the database fault off.
+* Leave the selected workload fault off.
 * Do not modify anything outside $LabResourceGroup.
 * Report when external finalization is safe.
 "@
