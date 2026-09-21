@@ -20,8 +20,8 @@ Complete these two steps to prepare the agent and run the participant-driven wor
 
 ```mermaid
 flowchart LR
-   deploy["1. Deploy and finalize<br/>Choose workload, verify, remove temporary access"]
-   workflow["2. Clone and install workflows<br/>Run incident, health, and PR scenarios"]
+   deploy["1. Deploy and finalize<br/>Choose and verify the workload"]
+   workflow["2. Install workflows<br/>Run all three scenarios"]
    deploy --> workflow
 ```
 
@@ -43,7 +43,7 @@ flowchart LR
 
 | Requirement | Required? | Details |
 | --- | --- | --- |
-| Local tools | For Step 2 and scenarios | [Git](https://git-scm.com/downloads), [VS Code](https://code.visualstudio.com/download), and the prerequisites installed in Step 2 |
+| Local tools | For Step 2 and scenarios | [Git](https://git-scm.com/downloads), a terminal and editor such as [VS Code](https://code.visualstudio.com/download), Visual Studio, or an IntelliJ-based IDE, and the prerequisites installed in Step 2 |
 | macOS tools | On macOS | [Bash](https://formulae.brew.sh/formula/bash) and [`curl`](https://formulae.brew.sh/formula/curl) |
 | Windows tools | On Windows | [Windows PowerShell](https://learn.microsoft.com/powershell/scripting/windows-powershell/install/installing-windows-powershell) and [WinGet](https://learn.microsoft.com/windows/package-manager/winget/) |
 | Azure subscription | Yes | Must allow resource creation and role assignments |
@@ -78,11 +78,12 @@ workload that fits the Azure capability available to you.
 Run the bootstrap from Azure Cloud Shell in **PowerShell**; no local deployment tools
 are required.
 
-The bootstrap creates the final agent at **High** access in **Review** mode and grants
-its action identity temporary **Owner** access on the lab resource group. High access
-lets the agent deploy resources, while Review mode requires you to approve each write.
-After successful verification, finalization removes temporary Owner and changes the
-agent to **Low** access in **Review** mode.
+The bootstrap creates the final agent with **Privileged** permissions in **Review**
+mode and grants its action identity temporary **Owner** access on the lab resource
+group. Privileged permissions let the agent deploy resources, while Review mode
+requires you to approve each write. After successful verification, the bootstrap
+automatically removes temporary Owner and changes the agent to **Reader** permissions
+in **Review** mode. The API represents these UI profiles as `High` and `Low` access.
 
 1. Download [`scripts/bootstrap-agent.ps1`](scripts/bootstrap-agent.ps1).
 2. Open [Azure Cloud Shell](https://shell.azure.com), switch to **PowerShell**, and
@@ -95,7 +96,7 @@ agent to **Low** access in **Review** mode.
 
 4. Choose **App Service** or **App Service + PostgreSQL** when prompted.
 5. Follow the printed portal link to connect your fork of `sre-agent` through Code
-   Access. This OAuth consent is intentionally interactive.
+   Access. GitHub OAuth consent is intentionally interactive.
 6. If Cloud Shell cannot create the deployment thread, open the printed agent link,
     start a new chat, and paste the request below after replacing every `<...>` value
     with the value printed by the script:
@@ -134,7 +135,14 @@ agent to **Low** access in **Review** mode.
     * Do not modify anything outside <LAB-RESOURCE-GROUP>.
     * Report when external finalization is safe.
     ```
-7. Wait until the agent reports that deployment and end-to-end verification succeeded.
+7. Keep Cloud Shell open while you review the agent's proposed writes. After the agent
+   records successful end-to-end verification, the bootstrap finalizes access
+   automatically. If the wait times out or Cloud Shell disconnects, rerun the command
+   under [Finalize deployment access](#finalize-deployment-access).
+8. In the agent portal, go to **Build + setup** > **Extensions** > **Connectors**, open
+   **Office 365 Outlook**, and complete OAuth consent. The bootstrap registers and
+   configures the connection, but Outlook authentication remains interactive. Skip
+   this consent only when you do not intend to send the optional email follow-ups.
 
 The final agent deploys the selected workload, publishes the application, configures
 its telemetry connection and durable safeguards, and records the selected option on
@@ -150,8 +158,8 @@ failed baseline request is a deployment problem, not the lab incident.
 
 ### Finalize deployment access
 
-After the agent says external finalization is safe, upload the same script again if
-needed and run:
+The bootstrap normally performs finalization automatically. Use this recovery command
+only if Cloud Shell disconnected or timed out after the agent completed verification:
 
 ```powershell
 ./bootstrap-agent.ps1 -LabResourceGroup SreAgentOnboardingLabRG -Finalize
@@ -159,8 +167,8 @@ needed and run:
 
 Pass `-AgentName` if you changed its default. Finalization verifies the workload,
 permanent read-only roles, telemetry connector, agent configuration, and completion
-marker before removing the temporary access described above. Do not finalize a failed
-or incomplete deployment.
+marker before removing temporary Owner and switching from Privileged to Reader
+permissions. It refuses to finalize a failed or incomplete deployment.
 
 <details>
 <summary><strong>Optional manual deployment alternatives</strong></summary>
@@ -353,9 +361,9 @@ The recipe uses the same core flow described in [Create and set up your Azure SR
 
 | Resource or setup | What the deployment configures | Completion | Learn more |
 | --- | --- | --- | --- |
-| Azure SRE Agent | Creates the configured agent with Low access, Review mode, Preview upgrades, Anthropic as the default model provider, and a 10,000 monthly agent-unit limit. If Azure OpenAI is selected, the generated API value is `MicrosoftFoundry`. | Automatic | [Create and set up an agent](https://sre.azure.com/docs/get-started/create-and-setup) |
+| Azure SRE Agent | Creates the configured agent with Reader permissions, Review mode, Preview upgrades, Anthropic as the default model provider, and a 10,000 monthly agent-unit limit. If Azure OpenAI is selected, the generated API value is `MicrosoftFoundry`. | Automatic | [Create and set up an agent](https://sre.azure.com/docs/get-started/create-and-setup) |
 | Agent identities | Creates one user-assigned managed identity and enables the agent's system-assigned identity. | Automatic | [Agent identity](https://sre.azure.com/docs/concepts/agent-identity) |
-| Azure RBAC | Grants Reader and Log Analytics Reader on the workload resource group to both agent identities, Monitoring Reader on the deployment resource group to the user-assigned identity, and SRE Agent Administrator on the agent to the deployer and user-assigned identity. Low access does not grant Contributor. | Automatic | [Manage permissions and resources](https://sre.azure.com/docs/tutorials/agent-config/manage-permissions) |
+| Azure RBAC | Grants Reader and Log Analytics Reader on the workload resource group to both agent identities, Monitoring Reader on the deployment resource group to the user-assigned identity, and SRE Agent Administrator on the agent to the deployer and user-assigned identity. Reader permissions do not grant Contributor. | Automatic | [Manage permissions and resources](https://sre.azure.com/docs/tutorials/agent-config/manage-permissions) |
 | Agent monitoring | Creates a dedicated Log Analytics workspace with 30-day retention and a workspace-based Application Insights resource for agent operations. These are separate from workload telemetry. | Automatic | [Log Analytics workspaces](https://learn.microsoft.com/azure/azure-monitor/logs/log-analytics-workspace-overview), [Application Insights](https://learn.microsoft.com/azure/azure-monitor/app/app-insights-overview) |
 | App telemetry | Adds the existing ticketing app Application Insights resource as the `app-insights` connector using the agent's system-assigned identity. | Automatic | [Connect logs](https://sre.azure.com/docs/get-started/create-and-setup#connect-your-logs), [Azure observability](https://sre.azure.com/docs/capabilities/diagnose-azure-observability) |
 | Incident platform | Sets Azure Monitor (`AzMonitor`) as the incident platform for workflows installed later. | Automatic | [Incident platforms](https://sre.azure.com/docs/concepts/incident-platforms) |
@@ -384,7 +392,7 @@ Go to **Build + setup** > **Extensions** > **Connectors**, open **Office 365 Out
 
 Use these read-only UI checks. Do not create a GitHub issue or send a test email.
 
-1. Go to **Settings** > **General** and confirm Low access, Review mode, Preview upgrade channel, the configured model, managed identity, region, and agent Application Insights.
+1. Go to **Settings** > **General** and confirm Reader permissions, Review mode, Preview upgrade channel, the configured model, managed identity, region, and agent Application Insights.
 2. Go to **Settings** > **Managed resources** and confirm the ticketing workload resource group is listed.
 3. Go to **Build + setup** > **Monitor** > **Logs** and confirm `app-insights` is healthy.
 4. Go to **Build + setup** > **Context** > **Code access** and confirm `ticketingapp-source` points to the attendee's fork on branch `main`.
@@ -399,15 +407,15 @@ Use these read-only UI checks. Do not create a GitHub issue or send a test email
 
 ## 2. Clone the repository and install the workflows
 
-The workflow installers and scenario helpers run from a local clone. Open VS Code,
-clone this repository, and open the `labs/onboardinglab` directory.
+The workflow installers and scenario helpers run from a local clone. Use your preferred
+terminal and editor, such as VS Code, Visual Studio, an IntelliJ-based IDE, or an
+equivalent tool, to clone this repository and open the `labs/onboardinglab` directory.
 
 macOS:
 
 ```bash
 git clone https://github.com/microsoft/sre-agent.git
 cd sre-agent/labs/onboardinglab
-code .
 source ./scripts/prereqs.sh
 ```
 
@@ -416,7 +424,6 @@ Windows:
 ```powershell
 git clone https://github.com/microsoft/sre-agent.git
 Set-Location .\sre-agent\labs\onboardinglab
-code .
 . .\scripts\prereqs.ps1
 ```
 

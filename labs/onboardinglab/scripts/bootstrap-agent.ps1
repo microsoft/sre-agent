@@ -26,8 +26,9 @@
 
     The script is re-entrant, because a portal session can die at any point. Run it
     again and it picks up where it stopped. Use -Reset to start over. After the
-    deployment thread completes, run with -Finalize to remove temporary Owner
-    and set the agent to Low access.
+    deployment thread completes, the script removes temporary Owner and changes
+    the portal permission profile from Privileged to Reader. Use -Finalize only
+    to recover after a Cloud Shell disconnect or timeout.
 
     Re-entrancy is mostly not based on the state file: each step asks Azure what
     already exists and skips accordingly, so it behaves correctly even if the state
@@ -67,8 +68,9 @@
     Where progress is recorded so the script can resume.
 
 .PARAMETER Finalize
-    Remove the agent identity's temporary Owner assignment and set the agent to
-    Low access after the deployment thread has completed successfully.
+    Recover finalization after a Cloud Shell disconnect or timeout: remove the
+    agent identity's temporary Owner assignment and change the portal permission
+    profile to Reader after successful deployment verification.
 
 .PARAMETER Reset
     Discard saved progress and start from the beginning.
@@ -407,6 +409,30 @@ function Wait-ForAgent {
     return $agent
 }
 
+function Wait-ForVerifiedDeployment {
+    param(
+        [Parameter(Mandatory)][string] $ResourceGroup,
+        [int] $TimeoutMinutes = 90
+    )
+
+    $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
+    Write-Step 'Waiting for deployment verification before automatic finalization'
+    do {
+        $status = Invoke-Az @(
+            'group', 'show', '--name', $ResourceGroup,
+            '--query', 'tags.onboardingLabDeploymentStatus', '-o', 'json'
+        ) -AllowEmpty
+        if ($status -eq 'verified') {
+            Write-Ok 'Verified deployment marker found.'
+            return $true
+        }
+        Write-Note 'The deployment is still running. Review pending agent writes in the portal.'
+        Start-Sleep -Seconds 30
+    } while ((Get-Date) -lt $deadline)
+
+    return $false
+}
+
 # ════════════════════════════════════════════════════════════════════════════
 
 Write-Host 'Azure SRE Agent - Onboarding Lab bootstrap' -ForegroundColor White
@@ -636,14 +662,14 @@ if ($Finalize) {
     }
     if ($agent.properties.actionConfiguration.accessLevel -ne 'Low' -or
         $agent.properties.actionConfiguration.mode -ne 'Review') {
-        throw 'Agent access did not converge to Low/Review.'
+        throw 'Agent access did not converge to Reader permissions in Review mode (API Low/Review).'
     }
 
     $state['finalized'] = $true
     Save-State -State $state
     Write-Ok 'Temporary Owner removed.'
     Write-Ok 'Permanent read-only roles verified.'
-    Write-Ok 'Agent access is Low/Review.'
+    Write-Ok 'Agent now has Reader permissions in Review mode.'
     return
 }
 
@@ -783,9 +809,8 @@ else {
 
     $labScope = "/subscriptions/$subId/resourceGroups/$LabResourceGroup"
 
-    # The agent itself.
-    #   accessLevel High  - it needs to create resources to deploy the lab
-    #   actionMode Review - you approve every write it proposes
+    # The API's High access level is shown as Privileged in the portal. Review mode
+    # still requires the participant to approve every proposed write.
     $agentBody = [ordered]@{
         location   = $Location
         tags       = @{ workload = 'onboardinglab' }
@@ -1204,5 +1229,15 @@ Write-Host "  $portalUrl"
 Write-Host ''
 Write-Host '  The agent runs in Review mode, so approve each action as it is proposed.' -ForegroundColor Yellow
 Write-Host '  Read commands run without prompting; only writes need your approval.' -ForegroundColor DarkGray
-Write-Host "  After successful verification, run: ./bootstrap-agent.ps1 -LabResourceGroup '$LabResourceGroup' -AgentName '$AgentName' -Finalize" -ForegroundColor Yellow
+Write-Host ''
+
+if (Wait-ForVerifiedDeployment -ResourceGroup $LabResourceGroup) {
+    Write-Step 'Automatically finalizing deployment access'
+    & $PSCommandPath -Subscription $subId -LabResourceGroup $LabResourceGroup `
+        -Location $Location -AgentName $AgentName -StateFile $StateFile -Finalize
+    return
+}
+
+Write-Warning 'Automatic finalization did not complete in this session.'
+Write-Host "  Recovery: ./bootstrap-agent.ps1 -LabResourceGroup '$LabResourceGroup' -AgentName '$AgentName' -Finalize" -ForegroundColor Yellow
 Write-Host ''

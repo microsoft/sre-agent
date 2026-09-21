@@ -514,6 +514,17 @@ pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bin/ps/New-Agent.ps1" \
   -NoTelemetry \
   -Set "agentName=$AGENT_NAME,resourceGroup=$LAB_RG,location=$LOCATION,appInsightsId=$APP_INSIGHTS_ID,appInsightsAppId=$APP_INSIGHTS_APP_ID,modelProvider=MicrosoftFoundry"
 
+mkdir -p "$CONFIG_ROOT/config/connectorv2"
+cp "$RECIPE_ROOT/optional/connectorv2/outlook.yaml" "$CONFIG_ROOT/config/connectorv2/outlook.yaml"
+jq '.managedConnectors = ["office365"]' \
+  "$CONFIG_ROOT/expected-config.json" > "$CONFIG_ROOT/expected-config.json.tmp"
+mv "$CONFIG_ROOT/expected-config.json.tmp" "$CONFIG_ROOT/expected-config.json"
+jq '
+  .allow = ((.allow + ["ListOutlookEmails"]) | unique) |
+  .ask = ((.ask + ["SendOutlookEmail"]) | unique)
+' "$CONFIG_ROOT/tool-permissions.json" > "$CONFIG_ROOT/tool-permissions.json.tmp"
+mv "$CONFIG_ROOT/tool-permissions.json.tmp" "$CONFIG_ROOT/tool-permissions.json"
+
 pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bicep/Assemble-Agent.ps1" \
   -ConfigDir "$CONFIG_ROOT" \
   -Output "$CONFIG_ROOT"
