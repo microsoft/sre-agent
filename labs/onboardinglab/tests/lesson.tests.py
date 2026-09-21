@@ -102,6 +102,7 @@ class LessonTests(unittest.TestCase):
         self.assertNotIn("PR #341", readme)
 
     def test_agent_driven_setup_uses_one_agent_and_external_finalization(self):
+        readme = (LAB / "README.md").read_text(encoding="utf-8")
         bootstrap = (LAB / "scripts/bootstrap-agent.ps1").read_text(encoding="utf-8")
         runbook = (LAB / "agent-deploy-runbook.md").read_text(encoding="utf-8")
         infrastructure = (LAB / "infra/main.bicep").read_text(encoding="utf-8")
@@ -117,6 +118,9 @@ class LessonTests(unittest.TestCase):
         self.assertIn("Automatically finalizing deployment access", bootstrap)
         self.assertIn("Using default lab resource group", bootstrap)
         self.assertNotIn("Resource group for the lab [SreAgentOnboardingLabRG]", bootstrap)
+        self.assertIn("Choose the Azure subscription for the lab", bootstrap)
+        self.assertIn("Using the only enabled subscription", bootstrap)
+        self.assertIn("multiple subscriptions", readme)
         self.assertIn("optional/connectorv2/outlook.yaml", deployment_script)
         self.assertIn('"ListOutlookEmails"', deployment_script)
         self.assertIn('"SendOutlookEmail"', deployment_script)

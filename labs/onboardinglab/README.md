@@ -94,6 +94,9 @@ in **Review** mode. The API represents these UI profiles as `High` and `Low` acc
    ./bootstrap-agent.ps1
    ```
 
+   If your account has access to multiple subscriptions, choose the subscription for
+   the lab from the numbered list. With one enabled subscription, setup selects it
+   automatically.
 4. Choose **App Service** or **App Service + PostgreSQL** when prompted.
 5. Follow the printed portal link to connect your fork of `sre-agent` through Code
    Access. GitHub OAuth consent is intentionally interactive.

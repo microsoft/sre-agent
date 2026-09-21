@@ -453,19 +453,58 @@ if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
     throw 'The Azure CLI (az) was not found. Run this from Azure Cloud Shell (PowerShell).'
 }
 
-$account = Invoke-Az @('account', 'show', '-o', 'json')
-
 if ($Subscription) {
+    $account = Invoke-Az @('account', 'show', '-o', 'json')
     if ($account.id -ne $Subscription) {
         Write-Note "Switching to subscription $Subscription"
         $null = Invoke-Az @('account', 'set', '--subscription', $Subscription) -AllowEmpty
         $account = Invoke-Az @('account', 'show', '-o', 'json')
     }
 }
-elseif ($state.Contains('subscriptionId') -and $account.id -ne $state['subscriptionId']) {
-    Write-Note "Restoring subscription $($state['subscriptionId']) from saved state"
-    $null = Invoke-Az @('account', 'set', '--subscription', $state['subscriptionId']) -AllowEmpty
-    $account = Invoke-Az @('account', 'show', '-o', 'json')
+else {
+    $savedSubscriptionHasLab = $false
+    if ($state.Contains('subscriptionId') -and $state.Contains('labResourceGroup')) {
+        $savedSubscriptionHasLab = Invoke-Az @(
+            'group', 'exists', '--name', $state['labResourceGroup'],
+            '--subscription', $state['subscriptionId'], '-o', 'json'
+        )
+    }
+
+    if ($savedSubscriptionHasLab) {
+        Write-Note "Restoring subscription $($state['subscriptionId']) from saved state"
+        $null = Invoke-Az @('account', 'set', '--subscription', $state['subscriptionId']) -AllowEmpty
+        $account = Invoke-Az @('account', 'show', '-o', 'json')
+    }
+    else {
+        $subscriptions = @(Invoke-Az @(
+            'account', 'list', '--all',
+            '--query', "[?state=='Enabled'].{id:id,name:name,isDefault:isDefault}",
+            '-o', 'json'
+        ))
+        if ($subscriptions.Count -eq 0) {
+            throw 'No enabled Azure subscriptions are available to the signed-in account.'
+        }
+        if ($subscriptions.Count -eq 1) {
+            $Subscription = $subscriptions[0].id
+            Write-Note "Using the only enabled subscription: $($subscriptions[0].name)"
+        }
+        else {
+            Write-Host '   Choose the Azure subscription for the lab:'
+            for ($index = 0; $index -lt $subscriptions.Count; $index++) {
+                Write-Host "   $($index + 1). $($subscriptions[$index].name) ($($subscriptions[$index].id))"
+            }
+            do {
+                $selection = Read-Host "   Enter 1-$($subscriptions.Count)"
+                $selectedIndex = 0
+                $validSelection = [int]::TryParse($selection, [ref]$selectedIndex) -and
+                    $selectedIndex -ge 1 -and $selectedIndex -le $subscriptions.Count
+            } while (-not $validSelection)
+            $Subscription = $subscriptions[$selectedIndex - 1].id
+        }
+
+        $null = Invoke-Az @('account', 'set', '--subscription', $Subscription) -AllowEmpty
+        $account = Invoke-Az @('account', 'show', '-o', 'json')
+    }
 }
 
 $subId = $account.id
