@@ -148,13 +148,17 @@ def main():
         required=True,
         choices=("app-service", "app-service-postgresql"),
     )
-    parser.add_argument("--repo", type=Path, default=Path("ticketingapp-source"))
+    parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parents[3])
     args = parser.parse_args()
     repo = args.repo.resolve()
     if not (repo / ".git").exists():
         raise SystemExit(f"Git repository not found: {repo}")
     if run("git", "status", "--porcelain", cwd=repo, capture=True):
-        raise SystemExit("The ticketing application worktree must be clean.")
+        raise SystemExit("The sre-agent worktree must be clean.")
+
+    app_root = repo / "labs" / "onboardinglab" / "ticketingapp-source"
+    if not (app_root / "app" / "handler.js").is_file():
+        raise SystemExit(f"Ticketing application not found: {app_root}")
 
     config = SCENARIOS[(args.workload_option, args.scenario)]
     run("gh", "auth", "status", cwd=repo)
@@ -162,11 +166,16 @@ def main():
     run("git", "pull", "--ff-only", "origin", "main", cwd=repo)
     run("git", "switch", "-c", config["branch"], cwd=repo)
     try:
-        apply_scenario(repo, args.workload_option, args.scenario)
+        apply_scenario(app_root, args.workload_option, args.scenario)
         npm = "npm.cmd" if os.name == "nt" else "npm"
-        run(npm, "test", cwd=repo / "app")
-        run(npm, "run", "check", cwd=repo / "app")
-        run("git", "add", "app/handler.js", "app/test/handler.test.js", cwd=repo)
+        run(npm, "test", cwd=app_root / "app")
+        run(npm, "run", "check", cwd=app_root / "app")
+        run(
+            "git", "add",
+            "labs/onboardinglab/ticketingapp-source/app/handler.js",
+            "labs/onboardinglab/ticketingapp-source/app/test/handler.test.js",
+            cwd=repo,
+        )
         run("git", "commit", "-m", config["title"], cwd=repo)
         run("git", "push", "--set-upstream", "origin", config["branch"], cwd=repo)
         url = run(

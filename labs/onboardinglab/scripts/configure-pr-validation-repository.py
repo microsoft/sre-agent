@@ -39,18 +39,18 @@ def github_slug(remote_url):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Connect a ticketing application fork to SRE Agent PR validation."
+        description="Connect the participant's sre-agent fork to PR validation."
     )
     parser.add_argument("--subscription", required=True)
     parser.add_argument("--agent-name", required=True)
-    parser.add_argument("--repo", type=Path, default=Path("ticketingapp-source"))
+    parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parents[3])
     args = parser.parse_args()
 
     repo = args.repo.resolve()
     if not (repo / ".git").exists():
         raise SystemExit(f"Git repository not found: {repo}")
     if run("git", "status", "--porcelain", cwd=repo, capture=True):
-        raise SystemExit("The ticketing application worktree must be clean.")
+        raise SystemExit("The sre-agent worktree must be clean.")
 
     source = Path(__file__).resolve().parent.parent / (
         "workflow-templates/http-triggers/github-pr-validation.yml"

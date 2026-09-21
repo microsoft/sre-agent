@@ -61,6 +61,13 @@
 .PARAMETER AgentName
     Name of the final SRE Agent.
 
+.PARAMETER GitHubRepositoryUrl
+    HTTPS URL of the participant-owned sre-agent fork used for source access,
+    issue creation, and pull-request validation. Prompted for when not supplied.
+
+.PARAMETER GitHubRepositoryBranch
+    Branch containing the onboarding lab deployment assets. Defaults to main.
+
 .PARAMETER WorkloadOption
     Lab scenario option: app-service or app-service-postgresql. When omitted on
     a new deployment, the script asks you to choose without preferring either.
@@ -98,6 +105,12 @@ param(
     [string] $Location = 'swedencentral',
 
     [string] $AgentName = 'onboardinglab-agent',
+
+    [ValidatePattern('^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?$')]
+    [string] $GitHubRepositoryUrl,
+
+    [ValidatePattern('^[A-Za-z0-9._/-]+$')]
+    [string] $GitHubRepositoryBranch = 'main',
 
     [ValidateSet('app-service', 'app-service-postgresql')]
     [string] $WorkloadOption,
@@ -333,6 +346,28 @@ function Invoke-DataPlaneGet {
     }
 }
 
+function Invoke-DataPlanePut {
+    param(
+        [Parameter(Mandatory)][string] $Url,
+        [Parameter(Mandatory)] $Body
+    )
+
+    $token = Get-DataPlaneToken
+    if ([string]::IsNullOrWhiteSpace($token)) {
+        throw 'An SRE Agent data-plane token is not available in this Azure CLI session.'
+    }
+    try {
+        return Invoke-RestMethod -Uri $Url -Method Put `
+            -Headers @{ Authorization = "Bearer $token" } `
+            -ContentType 'application/json' `
+            -Body ($Body | ConvertTo-Json -Depth 10 -Compress) `
+            -TimeoutSec 60
+    }
+    finally {
+        $token = $null
+    }
+}
+
 function Invoke-ArmRequest {
     <#
         PUT or PATCH an ARM resource through 'az rest'. Used instead of
@@ -521,6 +556,25 @@ if (-not $PSBoundParameters.ContainsKey('AgentName') -and $state.Contains('agent
     $AgentName = $state['agentName']
 }
 if (-not $Finalize) {
+    if (-not $PSBoundParameters.ContainsKey('GitHubRepositoryBranch') -and $state.Contains('githubRepositoryBranch')) {
+        $GitHubRepositoryBranch = $state['githubRepositoryBranch']
+    }
+    if (-not $GitHubRepositoryUrl) {
+        if ($state.Contains('githubRepositoryUrl')) {
+            $GitHubRepositoryUrl = $state['githubRepositoryUrl']
+            Write-Note "Using saved GitHub fork: $GitHubRepositoryUrl"
+        }
+        else {
+            $GitHubRepositoryUrl = (Read-Host 'GitHub URL for your sre-agent fork (https://github.com/YOUR-USER/sre-agent)').Trim()
+        }
+    }
+    $GitHubRepositoryUrl = $GitHubRepositoryUrl.TrimEnd('/') -replace '\.git$', ''
+    if ($GitHubRepositoryUrl -notmatch '^https://github\.com/[A-Za-z0-9_.-]+/sre-agent$') {
+        throw 'GitHubRepositoryUrl must be your GitHub fork URL in the form https://github.com/YOUR-USER/sre-agent.'
+    }
+    if ($GitHubRepositoryUrl -eq 'https://github.com/microsoft/sre-agent') {
+        throw 'Use your participant-owned sre-agent fork, not microsoft/sre-agent, so issue and pull-request exercises remain in your repository.'
+    }
     if (-not $PSBoundParameters.ContainsKey('WorkloadOption') -and $state.Contains('workloadOption')) {
         $WorkloadOption = $state['workloadOption']
     }
@@ -539,6 +593,8 @@ if (-not $Finalize) {
         throw "This environment was started with workload option $($state['workloadOption']). Use -Reset and a new resource group to choose $WorkloadOption."
     }
     $state['workloadOption'] = $WorkloadOption
+    $state['githubRepositoryUrl'] = $GitHubRepositoryUrl
+    $state['githubRepositoryBranch'] = $GitHubRepositoryBranch
 }
 $state['labResourceGroup'] = $LabResourceGroup
 $state['location'] = $Location
@@ -1069,46 +1125,70 @@ if (-not ($userAdminAssignments -and @($userAdminAssignments).Count -gt 0)) {
 }
 Write-Ok 'Signed-in user can administer the agent and configure Code Access.'
 
-# ── Step 6: connect the code repository ─────────────────────────────────────
+# ── Step 6: authorize GitHub and connect the code repository ────────────────
 
-Write-Step 'Step 6 - Connect your fork as a code repository'
+Write-Step 'Step 6 - Authorize GitHub and connect the code repository'
 
 $dataPlaneToken = Get-DataPlaneToken
 $portalUrl = "https://sre.azure.com/agents/subscriptions/$subId/resourceGroups/$LabResourceGroup/providers/Microsoft.App/agents/$AgentName"
+$repositoryUrl = $GitHubRepositoryUrl
+$repositoryName = 'sre-agent'
 
 if (-not [string]::IsNullOrWhiteSpace($dataPlaneToken)) {
     $connectedRepositories = @(Get-ConnectedRepositories -Endpoint $agentEndpoint)
-    if ($connectedRepositories.Count -gt 0) {
-        $repositoryNames = @($connectedRepositories | ForEach-Object { $_.name } | Where-Object { $_ })
+    $targetRepository = @($connectedRepositories | Where-Object { $_.name -eq $repositoryName })
+    if ($targetRepository.Count -eq 1 -and
+        $targetRepository[0].properties.url.TrimEnd('/') -eq $repositoryUrl -and
+        $targetRepository[0].properties.branch -eq $GitHubRepositoryBranch) {
         Set-StepDone -State $state -Name 'codeAccessConfirmed'
-        Write-Ok "Code access verified: $($repositoryNames -join ', ')"
+        Write-Ok "Code access verified: $repositoryUrl ($GitHubRepositoryBranch)"
     }
     else {
-        Write-Host ''
-        Write-Host '   The final onboarding agent clones your fork and deploys its workload' -ForegroundColor Yellow
-        Write-Host "   and durable configuration from $RunbookPath and the lab templates." -ForegroundColor Yellow
-        Write-Host ''
-        Write-Host '   1. Open the agent in the portal:'
-        Write-Host "      $portalUrl"
-        Write-Host '   2. Go to Manage - Sources (code repositories).'
-        Write-Host '   3. Choose Add / Connect, pick GitHub, and complete the sign-in and consent.'
-        Write-Host '   4. Select your fork of sre-agent and grant read access.'
-        Write-Host '   5. Wait until the repository shows as connected.'
-        Write-Host ''
-        Write-Host '   This step is manual: it needs an interactive OAuth consent that cannot be' -ForegroundColor DarkGray
-        Write-Host '   scripted. If this session dies, re-run the script and it resumes here.' -ForegroundColor DarkGray
-        Write-Host ''
+        $githubDomains = Invoke-DataPlaneGet -Url "$($agentEndpoint.TrimEnd('/'))/api/v2/github/domains"
+        $githubAuthorized = @($githubDomains.values).Count -gt 0
+        if (-not $githubAuthorized) {
+            $githubOAuth = Invoke-DataPlaneGet -Url "$($agentEndpoint.TrimEnd('/'))/api/v2/github/oauth/config"
+            $oauthUrl = if ($githubOAuth.oAuthUrl) { $githubOAuth.oAuthUrl } else { $githubOAuth.OAuthUrl }
+            if ([string]::IsNullOrWhiteSpace($oauthUrl)) {
+                throw 'Could not retrieve the GitHub OAuth URL from the agent.'
+            }
+            Write-Host ''
+            Write-Host '   Open this URL and approve GitHub access:' -ForegroundColor Yellow
+            Write-Host "   $oauthUrl"
+            Write-Host ''
+            $null = Read-Host '   Press Enter after GitHub authorization is complete'
+            $githubDomains = Invoke-DataPlaneGet -Url "$($agentEndpoint.TrimEnd('/'))/api/v2/github/domains"
+            $githubAuthorized = @($githubDomains.values).Count -gt 0
+            if (-not $githubAuthorized) {
+                throw 'GitHub authorization was not detected. Complete OAuth and rerun the bootstrap.'
+            }
+        }
 
-        $null = Read-Host '   Press Enter once the repository is connected'
+        $encodedRepositoryName = [uri]::EscapeDataString($repositoryName)
+        $null = Invoke-DataPlanePut `
+            -Url "$($agentEndpoint.TrimEnd('/'))/api/v2/repos/$encodedRepositoryName" `
+            -Body @{
+                name = $repositoryName
+                type = 'CodeRepo'
+                properties = @{
+                    url = $repositoryUrl
+                    type = 'GitHub'
+                    branch = $GitHubRepositoryBranch
+                    description = 'Azure SRE Agent onboarding lab source'
+                }
+            }
+
         $connectedRepositories = @(Get-ConnectedRepositories -Endpoint $agentEndpoint)
-        if ($connectedRepositories.Count -eq 0) {
+        $targetRepository = @($connectedRepositories | Where-Object { $_.name -eq $repositoryName })
+        if ($targetRepository.Count -ne 1 -or
+            $targetRepository[0].properties.url.TrimEnd('/') -ne $repositoryUrl -or
+            $targetRepository[0].properties.branch -ne $GitHubRepositoryBranch) {
             $state['codeAccessConfirmed'] = $false
             Save-State -State $state
-            throw 'No connected repository was found. Complete Code Access and rerun this script; no deployment thread was started.'
+            throw "Repository verification failed for $repositoryUrl ($GitHubRepositoryBranch); no deployment thread was started."
         }
         Set-StepDone -State $state -Name 'codeAccessConfirmed'
-        $repositoryNames = @($connectedRepositories | ForEach-Object { $_.name } | Where-Object { $_ })
-        Write-Ok "Code access verified: $($repositoryNames -join ', ')"
+        Write-Ok "GitHub authorized and repository connected: $repositoryUrl ($GitHubRepositoryBranch)"
     }
 }
 else {
@@ -1121,9 +1201,9 @@ else {
     Write-Host '   1. Open the agent in the portal:'
     Write-Host "      $portalUrl"
     Write-Host '   2. Go to Manage - Sources (code repositories).'
-    Write-Host '   3. Choose Add / Connect, pick GitHub, and complete the sign-in and consent.'
-    Write-Host '   4. Select your fork of sre-agent and grant read access.'
-    Write-Host '   5. Wait until the repository shows as connected.'
+    Write-Host '   3. Complete GitHub OAuth and connect this repository:'
+    Write-Host "      $repositoryUrl ($GitHubRepositoryBranch)"
+    Write-Host '   4. Wait until the repository shows as connected.'
     Write-Host ''
     Write-Note 'Confirm that the repository shows as connected in the portal. The script cannot verify it from this Cloud Shell session.'
 }

@@ -47,7 +47,7 @@ flowchart LR
 | macOS tools | On macOS | [Bash](https://formulae.brew.sh/formula/bash) and [`curl`](https://formulae.brew.sh/formula/curl) |
 | Windows tools | On Windows | [Windows PowerShell](https://learn.microsoft.com/powershell/scripting/windows-powershell/install/installing-windows-powershell) and [WinGet](https://learn.microsoft.com/windows/package-manager/winget/) |
 | Azure subscription | Yes | Must allow resource creation and role assignments |
-| GitHub account | Yes | Fork the [ticketing app source repository](https://github.com/dm-chelupati/onboardinglab-sep15/fork) before deploying the agent |
+| GitHub account | Yes | Fork [`microsoft/sre-agent`](https://github.com/microsoft/sre-agent/fork) before setup and enable Issues on the fork. One interactive OAuth consent lets the agent use that fork for source access, issue creation, and pull-request validation. |
 | Email account | Optional | Required only to send incident summaries to approved recipients |
 | Azure region | Yes | This lab uses Sweden Central. The App Service + PostgreSQL option also depends on PostgreSQL Flexible Server 16 / `Standard_B1ms` capability for the participant's subscription in Sweden Central. |
 
@@ -97,9 +97,12 @@ in **Review** mode. The API represents these UI profiles as `High` and `Low` acc
    If your account has access to multiple subscriptions, choose the subscription for
    the lab from the numbered list. With one enabled subscription, setup selects it
    automatically.
-4. Choose **App Service** or **App Service + PostgreSQL** when prompted.
-5. Follow the printed portal link to connect your fork of `sre-agent` through Code
-   Access. GitHub OAuth consent is intentionally interactive.
+4. Enter the HTTPS URL of your `sre-agent` fork, then choose **App Service** or
+   **App Service + PostgreSQL** when prompted.
+5. Open the GitHub OAuth URL printed by the bootstrap and approve access once. The
+   script then adds your fork on branch `main` through Code Access and verifies it
+   automatically. The same connection is used for source inspection, approved issue
+   creation, and pull-request validation; you do not select repositories manually.
 6. If Cloud Shell cannot create the deployment thread, open the printed agent link,
     start a new chat, and paste the request below after replacing every `<...>` value
     with the value printed by the script:
@@ -237,20 +240,23 @@ Open the application URL and select **Reserve tickets**.
 
 ### Manual agent deployment alternative
 
-**1. Fork the ticketing app repository**
+**1. Fork the sre-agent repository**
 
-The full lab runs from the `microsoft/sre-agent` clone. For the agent's Code Access connection, open [dm-chelupati/onboardinglab-sep15](https://github.com/dm-chelupati/onboardinglab-sep15/fork), select **Fork**, and create the fork under your GitHub account. This separate repository contains the same self-contained ticketing app azd project. In the fork, open **Settings** > **General** > **Features** and enable **Issues** so the workflow can propose incident follow-up issues.
+Open [`microsoft/sre-agent`](https://github.com/microsoft/sre-agent/fork), select
+**Fork**, and create the fork under your GitHub account. In the fork, open
+**Settings** > **General** > **Features** and enable **Issues**. The same fork is used
+for source access, approved incident follow-up issues, and Scenario 3 pull requests.
 
 Set your fork URL before continuing.
 
 ```bash
-github_repository_url='https://github.com/YOUR-USER/onboardinglab-sep15.git'
+github_repository_url='https://github.com/YOUR-USER/sre-agent'
 ```
 
 Windows:
 
 ```powershell
-$GitHubRepositoryUrl = 'https://github.com/YOUR-USER/onboardinglab-sep15.git'
+$GitHubRepositoryUrl = 'https://github.com/YOUR-USER/sre-agent'
 ```
 
 Before continuing, open the fork's **Issues** tab and confirm the **New issue** button is available.
@@ -314,7 +320,7 @@ Review the generated `agent.json`, `connectors.json`, managed connector, skill, 
 
 **3. Deploy the base agent**
 
-Keep the terminal open during deployment. When it prints a GitHub OAuth URL, open the URL and approve the SRE Agent app within four minutes. The deployer then connects `ticketingapp-source` and completes strict verification.
+Keep the terminal open during deployment. When it prints a GitHub OAuth URL, open the URL and approve the SRE Agent app within four minutes. The deployer then connects the fork as `sre-agent` and completes strict verification.
 
 macOS:
 
@@ -370,7 +376,7 @@ The recipe uses the same core flow described in [Create and set up your Azure SR
 | Agent monitoring | Creates a dedicated Log Analytics workspace with 30-day retention and a workspace-based Application Insights resource for agent operations. These are separate from workload telemetry. | Automatic | [Log Analytics workspaces](https://learn.microsoft.com/azure/azure-monitor/logs/log-analytics-workspace-overview), [Application Insights](https://learn.microsoft.com/azure/azure-monitor/app/app-insights-overview) |
 | App telemetry | Adds the existing ticketing app Application Insights resource as the `app-insights` connector using the agent's system-assigned identity. | Automatic | [Connect logs](https://sre.azure.com/docs/get-started/create-and-setup#connect-your-logs), [Azure observability](https://sre.azure.com/docs/capabilities/diagnose-azure-observability) |
 | Incident platform | Sets Azure Monitor (`AzMonitor`) as the incident platform for workflows installed later. | Automatic | [Incident platforms](https://sre.azure.com/docs/concepts/incident-platforms) |
-| Code Access | Configures the attendee's repository as `ticketingapp-source`, containing the application and Bicep infrastructure. | GitHub authentication required after deployment | [Connect a code repository](https://sre.azure.com/docs/get-started/create-and-setup#connect-your-code-repository) |
+| Code Access | Configures the attendee's `sre-agent` fork, containing the lab, ticketing application, and Bicep infrastructure. The same OAuth connection supports approved issue creation and Scenario 3. | One GitHub OAuth consent required | [Connect a code repository](https://sre.azure.com/docs/get-started/create-and-setup#connect-your-code-repository) |
 | Knowledge sources | Uploads `onboardinglab-architecture.md` and `onboardinglab-incident-runbook.md` for application context and read-only database-connectivity investigation guidance. | Automatic | [Memory and knowledge](https://sre.azure.com/docs/concepts/memory) |
 | Outlook connection | Registers the Office 365 Outlook managed connector, creates its API connection, grants the agent runtime access, and binds its email tools. | User must complete OAuth consent after deployment | [Set up Outlook connector](https://sre.azure.com/docs/tutorials/connectors/setup-outlook-connector) |
 | Common prompt | Installs `onboardinglab-safety` to enforce evidence boundaries, treat retrieved content as untrusted data, and guard self-configuration. | Automatic | [Team onboarding](https://sre.azure.com/docs/get-started/team-onboarding) |
@@ -398,7 +404,7 @@ Use these read-only UI checks. Do not create a GitHub issue or send a test email
 1. Go to **Settings** > **General** and confirm Reader permissions, Review mode, Preview upgrade channel, the configured model, managed identity, region, and agent Application Insights.
 2. Go to **Settings** > **Managed resources** and confirm the ticketing workload resource group is listed.
 3. Go to **Build + setup** > **Monitor** > **Logs** and confirm `app-insights` is healthy.
-4. Go to **Build + setup** > **Context** > **Code access** and confirm `ticketingapp-source` points to the attendee's fork on branch `main`.
+4. Go to **Build + setup** > **Context** > **Code access** and confirm `sre-agent` points to the attendee's fork on branch `main`.
 5. Go to **Build + setup** > **Context** > **Knowledge sources** and confirm `onboardinglab-architecture.md` and `onboardinglab-incident-runbook.md` are present.
 6. Go to **Build + setup** > **Extensions** > **Connectors** and confirm the Outlook and GitHub connections show a healthy state.
 7. Go to **Build + setup** > **Extensions** > **Global Hooks** and confirm `evidence-checklist` is enabled for the Stop event.
@@ -417,7 +423,7 @@ equivalent tool, to clone this repository and open the `labs/onboardinglab` dire
 macOS:
 
 ```bash
-git clone https://github.com/microsoft/sre-agent.git
+git clone https://github.com/YOUR-GITHUB-USER/sre-agent.git
 cd sre-agent/labs/onboardinglab
 source ./scripts/prereqs.sh
 ```
@@ -425,7 +431,7 @@ source ./scripts/prereqs.sh
 Windows:
 
 ```powershell
-git clone https://github.com/microsoft/sre-agent.git
+git clone https://github.com/YOUR-GITHUB-USER/sre-agent.git
 Set-Location .\sre-agent\labs\onboardinglab
 . .\scripts\prereqs.ps1
 ```
@@ -645,7 +651,7 @@ The installer verifies the skill, subagent tools and allowed skill, Review-mode 
 
 **Connect the repository workflow**
 
-Run the repository configurator after the Scenario 3 installer. It copies the trusted workflow to the ticketing application fork's `main` branch, commits and pushes it when needed, retrieves the Logic App callback directly from Azure, stores it as the `SRE_AGENT_WEBHOOK_URL` Actions secret, and verifies both resources.
+Run the repository configurator after the Scenario 3 installer. It copies the trusted workflow to the participant's `sre-agent` fork on `main`, commits and pushes it when needed, retrieves the Logic App callback directly from Azure, stores it as the `SRE_AGENT_WEBHOOK_URL` Actions secret, and verifies both resources.
 
 Windows:
 
@@ -663,13 +669,13 @@ python3 ./scripts/configure-pr-validation-repository.py \
    --agent-name "$agent_name"
 ```
 
-Run the command from the `onboardinglab` directory with a clean `ticketingapp-source` worktree and authenticated `az` and `gh` sessions. The configurator never prints the callback URL. The installed `pull_request_target` workflow remains read-only: it uses `contents: read` and `pull-requests: read`, fetches only GitHub API metadata and bounded patches, and never checks out or executes pull-request code.
+Run the command from the `onboardinglab` directory with a clean `sre-agent` worktree and authenticated `az` and `gh` sessions. The configurator never prints the callback URL. The installed `pull_request_target` workflow remains read-only: it uses `contents: read` and `pull-requests: read`, fetches only GitHub API metadata and bounded patches, and never checks out or executes pull-request code.
 
 Treat the callback as a secret because anyone holding it can start a validation thread. The Logic App still uses managed identity for the authenticated hop to SRE Agent.
 
 **Create the validation PRs**
 
-The helper creates branches in the attendee's ticketing application fork, runs its existing tests, pushes each branch, and opens a pull request. It never merges or deploys either change. Run each command once from the `onboardinglab` directory with a clean `ticketingapp-source` worktree and GitHub CLI authentication.
+The helper creates branches in the attendee's `sre-agent` fork, changes only the nested ticketing application, runs its existing tests, pushes each branch, and opens a pull request. It never merges or deploys either change. Run each command once from the `onboardinglab` directory with a clean worktree and GitHub CLI authentication.
 
 Create the expected `PASS` case. Pass the same workload option selected during setup. The App Service sample adds and tests a bounded checkout processing budget; the App Service + PostgreSQL sample lowers the shared database deadline and updates its focused tests:
 

@@ -1,5 +1,5 @@
-name: ticketingapp-source
+name: sre-agent
 spec:
   url: "{{githubRepo}}"
   branch: main
-  description: Attendee-owned repository containing the complete ticketing app azd project
+  description: Participant-owned sre-agent fork containing the onboarding lab
