@@ -172,6 +172,10 @@ class LessonTests(unittest.TestCase):
         self.assertIn("Apply-Extras.ps1", deployment_script)
         self.assertIn("Verify-Agent.ps1", deployment_script)
         self.assertIn("del(.incidentPlatforms, .toolPermissions)", deployment_script)
+        self.assertIn('.agent.accessLevel = "High"', deployment_script)
+        self.assertIn('.agent.actionMode = "Review"', deployment_script)
+        self.assertIn("Permanent action-identity and system-identity roles are present.", deployment_script)
+        self.assertIn('"Reader" "Monitoring Reader" "Log Analytics Reader"', deployment_script)
         self.assertIn("Applying the durable tool policy after workload and telemetry verification.", deployment_script)
         self.assertLess(
             deployment_script.index("Waiting for Application Insights telemetry."),
