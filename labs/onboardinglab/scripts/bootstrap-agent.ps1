@@ -775,6 +775,10 @@ else {
                 identity    = $identity.id
                 mode        = 'Review'
             }
+            incidentManagementConfiguration = [ordered]@{
+                type           = 'AzMonitor'
+                connectionName = 'azmonitor'
+            }
             logConfiguration            = [ordered]@{
                 applicationInsightsConfiguration = [ordered]@{
                     appId            = $aiAppId
@@ -809,6 +813,20 @@ else {
 $agent = Get-AgentResource -ResourceGroup $LabResourceGroup -Name $AgentName
 if (-not $agent) { throw "Agent $AgentName could not be read back." }
 
+if ($agent.properties.incidentManagementConfiguration.type -ne 'AzMonitor') {
+    Write-Note 'Configuring the Azure Monitor incident platform before the agent deployment starts...'
+    $agentUrl = "https://management.azure.com/subscriptions/$subId/resourceGroups/$LabResourceGroup/providers/Microsoft.App/agents/$AgentName`?api-version=$AgentApiVersion"
+    $null = Invoke-ArmRequest -Method 'patch' -Url $agentUrl -Body @{
+        properties = @{
+            incidentManagementConfiguration = @{
+                type           = 'AzMonitor'
+                connectionName = 'azmonitor'
+            }
+        }
+    }
+    $agent = Wait-ForAgent -ResourceGroup $LabResourceGroup -Name $AgentName
+}
+
 $agentEndpoint = $agent.properties.agentEndpoint
 if ([string]::IsNullOrWhiteSpace($agentEndpoint)) {
     throw 'The agent has no agentEndpoint yet. Wait a moment and re-run this script.'
@@ -826,6 +844,16 @@ if (-not $agentUamiPrincipalId) {
 $state['agentEndpoint'] = $agentEndpoint
 $state['agentUamiPrincipalId'] = $agentUamiPrincipalId
 $state['agentIdentityName'] = (($agent.identity.userAssignedIdentities.PSObject.Properties.Name | Select-Object -First 1) -split '/')[-1]
+$agentIdentity = Invoke-Az @(
+    'identity', 'show',
+    '--resource-group', $LabResourceGroup,
+    '--name', $state['agentIdentityName'],
+    '-o', 'json'
+)
+if ([string]::IsNullOrWhiteSpace($agentIdentity.clientId)) {
+    throw "Could not determine the client ID of managed identity $($state['agentIdentityName'])."
+}
+$state['agentUamiClientId'] = $agentIdentity.clientId
 Save-State -State $state
 
 Write-Ok "Endpoint: $agentEndpoint"
@@ -1061,8 +1089,9 @@ elseif ($agentAlreadyExisted -and -not $NewThread) {
 $startMessage = @"
 Deploy the Azure SRE Agent Onboarding Lab.
 
-Follow the runbook at $RunbookPath under the sre-agent repository. Work through every step
-in order and run its verification before moving on.
+Follow the runbook at $RunbookPath under the sre-agent repository. Launch its deployment
+script once with the exact inputs below, keep the operator informed with the script's status
+messages, and wait for the script to finish.
 
 Inputs:
 - SUBSCRIPTION: $subId
@@ -1071,11 +1100,13 @@ Inputs:
 - NAME_PREFIX: flu-lab01
 - AGENT_NAME: $AgentName
 - AGENT_IDENTITY_NAME: $($state['agentIdentityName'])
+- AGENT_IDENTITY_CLIENT_ID: $($state['agentUamiClientId'])
 
 You are the final lab agent. The resource group already exists and your action identity has
 temporary Owner on it.
-* Deploy the workload and converge your durable configuration through Bicep. Do not create
-  another SRE Agent or managed identity.
+* Follow $RunbookPath and launch its deployment script with the exact inputs above.
+* Let that script deploy the workload and converge your durable configuration. Do not create
+  another SRE Agent or managed identity, and do not duplicate the script's commands separately.
 * Leave the database fault off.
 * Do not modify anything outside $LabResourceGroup.
 * Report when external finalization is safe.

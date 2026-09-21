@@ -93,6 +93,7 @@ class LessonTests(unittest.TestCase):
         runbook = (LAB / "agent-deploy-runbook.md").read_text(encoding="utf-8")
         infrastructure = (LAB / "infra/main.bicep").read_text(encoding="utf-8")
         compiled_infrastructure = LAB / "infra/main.arm.json"
+        deployment_script = (LAB / "scripts/deploy-agent.sh").read_text(encoding="utf-8")
 
         self.assertFalse((LAB / "scripts/bootstrap-labcreator.ps1").exists())
         self.assertIn("[switch] $Finalize", bootstrap)
@@ -109,7 +110,6 @@ class LessonTests(unittest.TestCase):
         self.assertNotIn("--use-device-code", bootstrap)
         self.assertIn("Automatic thread creation is unavailable", bootstrap)
         self.assertIn("onboardingLabDeploymentStatus", bootstrap)
-        self.assertIn("onboardingLabDeploymentStatus=verified", runbook)
         for provider in (
             "Microsoft.App",
             "Microsoft.Authorization",
@@ -121,24 +121,17 @@ class LessonTests(unittest.TestCase):
             "Microsoft.Web",
         ):
             self.assertIn(f"'{provider}'", bootstrap)
-        self.assertIn('AVAILABLE_KB=$(df -Pk /tmp', runbook)
-        self.assertIn("from zipfile import ZIP_DEFLATED, ZipFile", runbook)
-        self.assertNotIn("for tool in git zip jq", runbook)
-        self.assertIn("keep monitoring its status and provisioned resources periodically", runbook)
-        self.assertIn("--async true", runbook)
-        self.assertIn("az webapp log deployment list", runbook)
-        self.assertIn("Do not submit", runbook)
-        self.assertIn("while OneDeploy is still processing the previous upload", runbook)
         self.assertIn("Keep the operator informed", runbook)
         self.assertIn(
-            "supportedServerEditions[].supportedServerSkus[].name",
-            runbook,
+            "supportedServerEditions[]?.supportedServerSkus[]?.name",
+            deployment_script,
         )
-        self.assertNotIn("[?name=='Standard_B1ms']", runbook)
+        self.assertNotIn("[?name=='Standard_B1ms']", deployment_script)
         self.assertIn(
-            "Follow the runbook at $RunbookPath under the sre-agent repository.",
+            "Launch its deployment",
             bootstrap,
         )
+        self.assertNotIn("Work through every step", bootstrap)
         self.assertIn("* Report when external finalization is safe.", bootstrap)
         self.assertNotIn("*.bicep.azure.com", bootstrap)
         self.assertIn(
@@ -163,9 +156,19 @@ class LessonTests(unittest.TestCase):
             finalize.index("Invoke-Az @('role', 'assignment', 'delete'"),
         )
 
-        self.assertIn("Do not create another agent", runbook)
-        self.assertIn("--template-file labs/onboardinglab/infra/main.arm.json", runbook)
-        self.assertNotIn("--template-file labs/onboardinglab/infra/main.bicep", runbook)
+        self.assertIn("deploy-agent.sh", runbook)
+        self.assertIn("Do not duplicate", runbook)
+        self.assertTrue(deployment_script.startswith("#!/usr/bin/env bash\naz login --identity --client-id"))
+        self.assertIn('available_kb="$(df -Pk /tmp', deployment_script)
+        self.assertIn("from zipfile import ZIP_DEFLATED, ZipFile", deployment_script)
+        self.assertIn("--template-file \"$TEMPLATE\"", deployment_script)
+        self.assertIn("--async true", deployment_script)
+        self.assertIn("az webapp log deployment list", deployment_script)
+        self.assertIn("monitoring it instead of uploading again", deployment_script)
+        self.assertIn("Apply-Extras.ps1", deployment_script)
+        self.assertIn("Verify-Agent.ps1", deployment_script)
+        self.assertIn("onboardingLabDeploymentStatus=verified", deployment_script)
+        self.assertIn("External finalization is safe", deployment_script)
         self.assertIn("module workload", infrastructure)
         self.assertIn("module agentConfiguration", infrastructure)
         compiled = json.loads(compiled_infrastructure.read_text(encoding="utf-8"))
