@@ -1,6 +1,7 @@
 #requires -Version 7.0
 $ErrorActionPreference = 'Stop'
 $path = Join-Path $PSScriptRoot '..\bicep\Apply-Extras.ps1'
+$source = Get-Content -LiteralPath $path -Raw
 $tokens = $null
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile(
@@ -32,4 +33,10 @@ foreach ($tools in @(@(), @('ReadFile'), @('ReadFile', 'ListDir'))) {
         throw 'Empty additionalFiles must remain an array.'
     }
 }
-Write-Host 'PASS: actual skill payload preserves empty, singleton and multiple tool arrays.'
+if ($source -notmatch [regex]::Escape("`$etag = '*'")) {
+    throw 'Tool-permission updates must fall back to If-Match: * when settings have no ETag.'
+}
+if ($source -match 'A single strong ETag is required') {
+    throw 'Tool-permission updates must not require an ETag that the bootstrap endpoint can omit.'
+}
+Write-Host 'PASS: skill arrays are preserved and tool permissions support settings without an ETag.'

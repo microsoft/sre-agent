@@ -897,12 +897,19 @@ if ($toolPermissions) {
         try {
             $currentSettings = Invoke-WebRequest -TimeoutSec 30 -Uri $settingsUrl `
                 -Headers @{ Authorization = "Bearer $token" } -ErrorAction Stop
-            $etags = @($currentSettings.Headers.ETag)
-            if ($etags.Count -ne 1 -or [string]$etags[0] -cnotmatch '^"[^"\r\n]+"$') {
-                throw 'A single strong ETag is required for the settings update.'
+            $etag = '*'
+            $etagValues = @()
+            if ($currentSettings.Headers -and $currentSettings.Headers.Contains('ETag')) {
+                $etagValues = @($currentSettings.Headers.GetValues('ETag'))
             }
-            $etag = [string]$etags[0]
-            $settings = $currentSettings.Content | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+            if ($etagValues.Count -eq 1 -and [string]$etagValues[0] -notmatch '[\r\n]') {
+                $etag = [string]$etagValues[0]
+            }
+            $settings = if ([string]::IsNullOrWhiteSpace($currentSettings.Content)) {
+                @{}
+            } else {
+                $currentSettings.Content | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+            }
             if ($settings -isnot [System.Collections.IDictionary]) { throw 'Expected a settings object.' }
             $settings['permissions'] = $toolPermissions
             $body = $settings | ConvertTo-Json -Compress -Depth 40
@@ -911,7 +918,8 @@ if ($toolPermissions) {
                 -Body $body -ContentType "application/json" -ErrorAction Stop
             Write-Host "  ok toolPermissions"
         } catch {
-            $failure = "settings/global: $($_.Exception.Message)"
+            $detail = if ($_.ErrorDetails.Message) { $_.ErrorDetails.Message } else { $_.Exception.Message }
+            $failure = "settings/global: $detail"
             $script:ExtendedItemFailures.Add($failure)
             Write-Host "  FAILED - $failure"
         }
