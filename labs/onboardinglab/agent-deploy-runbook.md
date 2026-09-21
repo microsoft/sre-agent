@@ -4,6 +4,16 @@ This runbook is for the final Azure SRE Agent. The bootstrap has already created
 its action identity, and the lab resource group, and has granted the action identity temporary
 Owner on that resource group.
 
+## Locate the repository
+
+Find the local workspace directory that contains this exact repository path:
+`labs/onboardinglab/agent-deploy-runbook.md`. Code Access can still be preparing the local
+`sre-agent` clone when the chat becomes available. If the path is not present yet, keep the
+operator informed, wait, and retry periodically. Do not report deployment failure and do not
+clone a second copy of the repository.
+
+Change to the discovered `sre-agent` repository root before continuing.
+
 ## Run the deployment
 
 Use the workspace terminal to launch the repository-owned deployment script once:

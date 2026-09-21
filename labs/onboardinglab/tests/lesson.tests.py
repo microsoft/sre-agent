@@ -128,9 +128,12 @@ class LessonTests(unittest.TestCase):
         )
         self.assertNotIn("[?name=='Standard_B1ms']", deployment_script)
         self.assertIn(
-            "Launch its deployment",
+            "deployment script once",
             bootstrap,
         )
+        self.assertIn("First find the local workspace directory", bootstrap)
+        self.assertIn("wait and retry periodically", bootstrap)
+        self.assertIn("do not", bootstrap.lower())
         self.assertNotIn("Work through every step", bootstrap)
         self.assertIn("* Report when external finalization is safe.", bootstrap)
         self.assertNotIn("*.bicep.azure.com", bootstrap)
@@ -157,6 +160,8 @@ class LessonTests(unittest.TestCase):
         )
 
         self.assertIn("deploy-agent.sh", runbook)
+        self.assertIn("## Locate the repository", runbook)
+        self.assertIn("do not\nclone a second copy", runbook)
         self.assertIn("Do not duplicate", runbook)
         self.assertTrue(deployment_script.startswith("#!/usr/bin/env bash\naz login --identity --client-id"))
         self.assertIn('available_kb="$(df -Pk /tmp', deployment_script)
