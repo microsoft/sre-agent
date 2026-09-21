@@ -120,6 +120,11 @@ class LessonTests(unittest.TestCase):
         self.assertNotIn("Resource group for the lab [SreAgentOnboardingLabRG]", bootstrap)
         self.assertIn("Choose the Azure subscription for the lab", bootstrap)
         self.assertIn("Using the only enabled subscription", bootstrap)
+        self.assertNotIn("savedSubscriptionHasLab", bootstrap)
+        self.assertLess(
+            bootstrap.index("group', 'create'"),
+            bootstrap.index("$state['subscriptionId'] = $subId"),
+        )
         self.assertIn("multiple subscriptions", readme)
         self.assertIn("optional/connectorv2/outlook.yaml", deployment_script)
         self.assertIn('"ListOutlookEmails"', deployment_script)
