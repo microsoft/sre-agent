@@ -250,8 +250,9 @@ locally and is the quickest path. **Manual setup** gives you direct control and 
 ### Agent-driven setup
 
 A bootstrap script creates the final onboarding agent with temporary Owner access, then asks
-that same agent to deploy its workload and durable configuration by following
-[agent-deploy-runbook.md](agent-deploy-runbook.md). You approve each action as it is proposed.
+that same agent to launch the repository-owned deployment script described in
+[agent-deploy-runbook.md](agent-deploy-runbook.md). The script deploys the workload,
+converges the durable agent configuration, and continuously reports progress.
 
 You need:
 
@@ -262,9 +263,9 @@ You need:
 
 #### Fork this repository
 
-The onboarding agent clones a repository through Code Access and deploys the lab from it,
-reading [agent-deploy-runbook.md](agent-deploy-runbook.md) and the Bicep templates. You
-connect that repository in step 6.
+The onboarding agent clones a repository through Code Access and launches
+`labs/onboardinglab/scripts/deploy-agent.sh` from it. The script uses the Bicep-authored,
+committed ARM artifact and the agent recipe. You connect that repository in step 6.
 
 Connect a fork you own rather than `microsoft/sre-agent` directly. Code Access grants the
 agent the repositories your GitHub account can reach, and many organisations restrict
@@ -334,11 +335,12 @@ agent portal link and exact deployment request for you to paste into a new or ex
 agent chat. The agent writes an ARM completion marker only after its end-to-end checks pass,
 so finalization can still verify completion without a human data-plane token.
 
-The infrastructure source is Bicep. The agent deploys its committed compiled ARM artifact so
-the constrained agent sandbox does not need to download the Bicep CLI. This deploys the workload
-and converges permanent read-only RBAC and the Application Insights connector. Skills, knowledge,
-hooks, prompts, and the incident platform use the SRE Agent data-plane APIs because those
-resources are not all available through the ARM resource provider.
+The infrastructure source is Bicep. The agent launches one repository-owned Bash script that
+signs Azure CLI in with its action identity, deploys the committed compiled ARM artifact, publishes
+the application, applies agent configuration, verifies the result, and continuously reports
+progress. The constrained sandbox does not need to download the Bicep CLI. Skills, knowledge,
+hooks, prompts, and tool policy use the SRE Agent data-plane APIs because those resources are not
+all available through the ARM resource provider.
 
 The script is **re-entrant**. Run it again after any interruption and it resumes at the
 first incomplete step. Use `-Reset` to start over.
