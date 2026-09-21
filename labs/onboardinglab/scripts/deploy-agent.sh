@@ -33,6 +33,9 @@ STAGED_EXPECTED_ROOT="/tmp/onboardinglab-agent-staged"
 APP_ARCHIVE="/tmp/checkout-app.zip"
 DEPLOYMENT_NAME="onboardinglab"
 AGENT_API_VERSION="2025-05-01-preview"
+READER_ROLE_ID="acdd72a7-3385-48ef-bd42-f606fba81ae7"
+LOG_ANALYTICS_READER_ROLE_ID="73c42c96-874c-492b-b04d-ab87d138a893"
+MONITORING_READER_ROLE_ID="43d0d8ad-25c7-4714-9337-8ba259a9fe05"
 LOG_FILE="/tmp/onboardinglab-deploy.log"
 CURRENT_STAGE="initialization"
 
@@ -65,6 +68,42 @@ trap 'on_error $? $LINENO "$BASH_COMMAND"' ERR
 
 require_command() {
   command -v "$1" >/dev/null || fail "Missing required command: $1"
+}
+
+wait_for_role_assignments() {
+  local principal_id="$1"
+  local principal_label="$2"
+  local scope="$3"
+  shift 3
+  local required_role_ids=("$@")
+  local deadline=$((SECONDS + 300))
+  local assignments=""
+  local missing=()
+  local role_id=""
+
+  while (( SECONDS < deadline )); do
+    assignments="$(az role assignment list \
+      --subscription "$SUBSCRIPTION" \
+      --scope "$scope" \
+      --query "[?principalId=='$principal_id'].{roleDefinitionId:roleDefinitionId,scope:scope}" \
+      --output json)"
+    missing=()
+    for role_id in "${required_role_ids[@]}"; do
+      if ! jq -e --arg role_id "$role_id" --arg scope "$scope" \
+        'any(.[]; ((.roleDefinitionId | ascii_downcase) | endswith("/" + ($role_id | ascii_downcase))) and ((.scope | ascii_downcase) == ($scope | ascii_downcase)))' \
+        <<<"$assignments" >/dev/null; then
+        missing+=("$role_id")
+      fi
+    done
+    if (( ${#missing[@]} == 0 )); then
+      status "Permanent roles are visible for $principal_label."
+      return 0
+    fi
+    status "Waiting for permanent RBAC propagation for $principal_label; missing role IDs: ${missing[*]}"
+    sleep 15
+  done
+
+  fail "$principal_label is missing permanent role IDs after five minutes: ${missing[*]}"
 }
 
 poll_infrastructure_deployment() {
@@ -300,10 +339,12 @@ existing_deployment_state="$(az deployment group show \
 
 if [[ "$existing_deployment_state" == "Running" || "$existing_deployment_state" == "Accepted" ]]; then
   status "Infrastructure deployment is already $existing_deployment_state; monitoring the existing deployment."
-elif [[ "$existing_deployment_state" == "Succeeded" ]]; then
-  status "Infrastructure deployment already succeeded; reusing its verified outputs."
 else
-  status "Starting asynchronous infrastructure deployment."
+  if [[ "$existing_deployment_state" == "Succeeded" ]]; then
+    status "Infrastructure deployment previously succeeded; reconciling the current Bicep-authored template."
+  else
+    status "Starting asynchronous infrastructure deployment."
+  fi
   az deployment group create \
     --subscription "$SUBSCRIPTION" \
     --resource-group "$LAB_RG" \
@@ -457,27 +498,10 @@ system_principal_id="$(az resource show \
 
 CURRENT_STAGE="permanent role verification"
 lab_scope="/subscriptions/$SUBSCRIPTION/resourceGroups/$LAB_RG"
-uami_assignments="$(az role assignment list \
-  --subscription "$SUBSCRIPTION" \
-  --assignee "$identity_principal_id" \
-  --scope "$lab_scope" \
-  --query '[].{role:roleDefinitionName,scope:scope}' -o json)"
-for required_role in "Reader" "Monitoring Reader" "Log Analytics Reader"; do
-  jq -e --arg role "$required_role" --arg scope "$lab_scope" \
-    'any(.[]; .role == $role and .scope == $scope)' <<<"$uami_assignments" >/dev/null \
-    || fail "The action identity is missing permanent role $required_role on $lab_scope."
-done
-
-system_assignments="$(az role assignment list \
-  --subscription "$SUBSCRIPTION" \
-  --assignee "$system_principal_id" \
-  --scope "$lab_scope" \
-  --query '[].{role:roleDefinitionName,scope:scope}' -o json)"
-for required_role in "Reader" "Log Analytics Reader"; do
-  jq -e --arg role "$required_role" --arg scope "$lab_scope" \
-    'any(.[]; .role == $role and .scope == $scope)' <<<"$system_assignments" >/dev/null \
-    || fail "The system identity is missing permanent role $required_role on $lab_scope."
-done
+wait_for_role_assignments "$identity_principal_id" "action identity" "$lab_scope" \
+  "$READER_ROLE_ID" "$MONITORING_READER_ROLE_ID" "$LOG_ANALYTICS_READER_ROLE_ID"
+wait_for_role_assignments "$system_principal_id" "system identity" "$lab_scope" \
+  "$READER_ROLE_ID" "$LOG_ANALYTICS_READER_ROLE_ID"
 status "Permanent action-identity and system-identity roles are present."
 
 alert_state="$(az monitor scheduled-query show \

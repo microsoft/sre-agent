@@ -180,7 +180,10 @@ class LessonTests(unittest.TestCase):
         self.assertIn('.agent.accessLevel = "High"', deployment_script)
         self.assertIn('.agent.actionMode = "Review"', deployment_script)
         self.assertIn("Permanent action-identity and system-identity roles are present.", deployment_script)
-        self.assertIn('"Reader" "Monitoring Reader" "Log Analytics Reader"', deployment_script)
+        self.assertIn("wait_for_role_assignments", deployment_script)
+        self.assertIn("Waiting for permanent RBAC propagation", deployment_script)
+        self.assertIn("reconciling the current Bicep-authored template", deployment_script)
+        self.assertNotIn("reusing its verified outputs", deployment_script)
         self.assertIn("Applying the durable tool policy after workload and telemetry verification.", deployment_script)
         self.assertLess(
             deployment_script.index("Waiting for Application Insights telemetry."),
