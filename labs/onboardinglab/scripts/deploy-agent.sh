@@ -29,6 +29,7 @@ EXTRAS_FILE="${CONFIG_ROOT}.extras.json"
 FILTERED_EXTRAS_FILE="${CONFIG_ROOT}.runtime.extras.json"
 POLICY_EXTRAS_FILE="${CONFIG_ROOT}.policy.extras.json"
 PRE_POLICY_EXPECTED_ROOT="/tmp/onboardinglab-agent-pre-policy"
+STAGED_EXPECTED_ROOT="/tmp/onboardinglab-agent-staged"
 APP_ARCHIVE="/tmp/checkout-app.zip"
 DEPLOYMENT_NAME="onboardinglab"
 AGENT_API_VERSION="2025-05-01-preview"
@@ -248,12 +249,15 @@ active_subscription="$(az account show --query id -o tsv)"
 status "Using subscription $SUBSCRIPTION."
 
 CURRENT_STAGE="identity and token validation"
-identity_client_id="$(az identity show \
+identity_details="$(az identity show \
   --subscription "$SUBSCRIPTION" \
   --resource-group "$LAB_RG" \
   --name "$AGENT_IDENTITY_NAME" \
-  --query clientId -o tsv)"
+  --query '{clientId:clientId,principalId:principalId}' -o json)"
+identity_client_id="$(jq -r '.clientId // empty' <<<"$identity_details")"
+identity_principal_id="$(jq -r '.principalId // empty' <<<"$identity_details")"
 [[ "$identity_client_id" == "$UAMI_CLIENT_ID" ]] || fail "The supplied client ID does not match $AGENT_IDENTITY_NAME."
+[[ -n "$identity_principal_id" ]] || fail "The action identity has no principal ID."
 
 az account get-access-token --resource https://azuresre.dev --query accessToken -o tsv >/dev/null \
   || fail "The action identity could not acquire an SRE Agent data-plane token."
@@ -385,7 +389,7 @@ az webapp log deployment show \
 
 CURRENT_STAGE="agent configuration generation"
 status "Generating the onboarding agent configuration."
-rm -rf "$CONFIG_ROOT" "$PRE_POLICY_EXPECTED_ROOT"
+rm -rf "$CONFIG_ROOT" "$PRE_POLICY_EXPECTED_ROOT" "$STAGED_EXPECTED_ROOT"
 rm -f "$EXTRAS_FILE" "$FILTERED_EXTRAS_FILE" "$POLICY_EXTRAS_FILE"
 
 pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bin/ps/New-Agent.ps1" \
@@ -403,8 +407,10 @@ pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bicep/Assemble-Agent.ps1" \
 [[ -f "$EXTRAS_FILE" ]] || fail "Agent extras were not generated."
 jq 'del(.incidentPlatforms, .toolPermissions)' "$EXTRAS_FILE" > "$FILTERED_EXTRAS_FILE"
 jq '{toolPermissions}' "$EXTRAS_FILE" > "$POLICY_EXTRAS_FILE"
-mkdir -p "$PRE_POLICY_EXPECTED_ROOT"
-jq 'del(.toolPermissions)' "$CONFIG_ROOT/expected-config.json" \
+mkdir -p "$PRE_POLICY_EXPECTED_ROOT" "$STAGED_EXPECTED_ROOT"
+jq '.agent.accessLevel = "High" | .agent.actionMode = "Review"' \
+  "$CONFIG_ROOT/expected-config.json" > "$STAGED_EXPECTED_ROOT/expected-config.json"
+jq 'del(.toolPermissions)' "$STAGED_EXPECTED_ROOT/expected-config.json" \
   > "$PRE_POLICY_EXPECTED_ROOT/expected-config.json"
 
 CURRENT_STAGE="agent configuration apply"
@@ -438,8 +444,41 @@ incident_platform="$(az resource show \
   --resource-type Microsoft.App/agents \
   --api-version "$AGENT_API_VERSION" \
   --query properties.incidentManagementConfiguration.type -o tsv)"
+system_principal_id="$(az resource show \
+  --subscription "$SUBSCRIPTION" \
+  --resource-group "$LAB_RG" \
+  --name "$AGENT_NAME" \
+  --resource-type Microsoft.App/agents \
+  --api-version "$AGENT_API_VERSION" \
+  --query identity.principalId -o tsv)"
 [[ "$agent_state" == "Succeeded" ]] || fail "Agent provisioning state is $agent_state."
 [[ "$incident_platform" == "AzMonitor" ]] || fail "Agent incident platform is $incident_platform instead of AzMonitor."
+[[ -n "$system_principal_id" ]] || fail "The SRE Agent has no system identity principal ID."
+
+CURRENT_STAGE="permanent role verification"
+lab_scope="/subscriptions/$SUBSCRIPTION/resourceGroups/$LAB_RG"
+uami_assignments="$(az role assignment list \
+  --subscription "$SUBSCRIPTION" \
+  --assignee "$identity_principal_id" \
+  --scope "$lab_scope" \
+  --query '[].{role:roleDefinitionName,scope:scope}' -o json)"
+for required_role in "Reader" "Monitoring Reader" "Log Analytics Reader"; do
+  jq -e --arg role "$required_role" --arg scope "$lab_scope" \
+    'any(.[]; .role == $role and .scope == $scope)' <<<"$uami_assignments" >/dev/null \
+    || fail "The action identity is missing permanent role $required_role on $lab_scope."
+done
+
+system_assignments="$(az role assignment list \
+  --subscription "$SUBSCRIPTION" \
+  --assignee "$system_principal_id" \
+  --scope "$lab_scope" \
+  --query '[].{role:roleDefinitionName,scope:scope}' -o json)"
+for required_role in "Reader" "Log Analytics Reader"; do
+  jq -e --arg role "$required_role" --arg scope "$lab_scope" \
+    'any(.[]; .role == $role and .scope == $scope)' <<<"$system_assignments" >/dev/null \
+    || fail "The system identity is missing permanent role $required_role on $lab_scope."
+done
+status "Permanent action-identity and system-identity roles are present."
 
 alert_state="$(az monitor scheduled-query show \
   --subscription "$SUBSCRIPTION" \
@@ -497,7 +536,7 @@ pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bin/ps/Verify-Agent.ps1" \
   -Subscription "$SUBSCRIPTION" \
   -ResourceGroup "$LAB_RG" \
   -AgentName "$AGENT_NAME" \
-  -Expected "$CONFIG_ROOT"
+  -Expected "$STAGED_EXPECTED_ROOT"
 
 CURRENT_STAGE="completion marker update"
 status "Recording verified deployment completion."
