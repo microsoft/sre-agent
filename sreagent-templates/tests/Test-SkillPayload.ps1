@@ -33,8 +33,25 @@ foreach ($tools in @(@(), @('ReadFile'), @('ReadFile', 'ListDir'))) {
         throw 'Empty additionalFiles must remain an array.'
     }
 }
-if ($source -notmatch [regex]::Escape("`$etag = '*'")) {
-    throw 'Tool-permission updates must fall back to If-Match: * when settings have no ETag.'
+$etagFunction = $ast.Find({
+    param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -eq 'Get-SafeETag'
+}, $true)
+if (-not $etagFunction) { throw 'Get-SafeETag function not found.' }
+Invoke-Expression $etagFunction.Extent.Text
+$etagCases = @(
+    @{ Name = 'missing'; Response = [pscustomobject]@{ Headers = [pscustomobject]@{} }; Expected = '*' }
+    @{ Name = 'empty'; Response = [pscustomobject]@{ Headers = [pscustomobject]@{ ETag = '' } }; Expected = '*' }
+    @{ Name = 'whitespace'; Response = [pscustomobject]@{ Headers = [pscustomobject]@{ ETag = '  ' } }; Expected = '*' }
+    @{ Name = 'valid'; Response = [pscustomobject]@{ Headers = [pscustomobject]@{ ETag = '"valid"' } }; Expected = '"valid"' }
+    @{ Name = 'multiline'; Response = [pscustomobject]@{ Headers = [pscustomobject]@{ ETag = "bad`r`nvalue" } }; Expected = '*' }
+)
+foreach ($etagCase in $etagCases) {
+    $actual = Get-SafeETag -Response $etagCase.Response
+    if ($actual -ne $etagCase.Expected) {
+        throw "Unexpected ETag for $($etagCase.Name): $actual"
+    }
 }
 if ($source -match 'A single strong ETag is required') {
     throw 'Tool-permission updates must not require an ETag that the bootstrap endpoint can omit.'
@@ -45,4 +62,4 @@ if ($source -match '\.Headers\.Contains\(' -or $source -match '\.Headers\.GetVal
 if ($source -notmatch [regex]::Escape("'400', '405'")) {
     throw 'Knowledge retries must confirm existing sources after HTTP 400 or 405.'
 }
-Write-Host 'PASS: skill arrays are preserved and tool permissions support settings without an ETag.'
+Write-Host 'PASS: skill arrays are preserved and tool permissions safely fall back when ETag is missing or invalid.'

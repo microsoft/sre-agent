@@ -157,6 +157,19 @@ function Get-DpToken {
     return $tok
 }
 
+function Get-SafeETag {
+    param($Response)
+
+    $etagValues = @($Response.Headers.ETag)
+    if ($etagValues.Count -eq 1) {
+        $candidate = [string]$etagValues[0]
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and $candidate -notmatch '[\r\n]') {
+            return $candidate
+        }
+    }
+    return '*'
+}
+
 # ── Helper: ARM PUT sub-resource with base64-encoded value envelope ─────────
 # Used for incidentFilters, scheduledTasks, commonPrompts.
 function Arm-PutSubresource {
@@ -897,11 +910,7 @@ if ($toolPermissions) {
         try {
             $currentSettings = Invoke-WebRequest -TimeoutSec 30 -Uri $settingsUrl `
                 -Headers @{ Authorization = "Bearer $token" } -ErrorAction Stop
-            $etag = '*'
-            $etagValues = @($currentSettings.Headers.ETag)
-            if ($etagValues.Count -eq 1 -and [string]$etagValues[0] -notmatch '[\r\n]') {
-                $etag = [string]$etagValues[0]
-            }
+            $etag = Get-SafeETag -Response $currentSettings
             $settings = if ([string]::IsNullOrWhiteSpace($currentSettings.Content)) {
                 @{}
             } else {
