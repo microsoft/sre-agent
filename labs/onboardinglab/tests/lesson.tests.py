@@ -120,6 +120,8 @@ class LessonTests(unittest.TestCase):
         self.assertIn("did not return a thread ID", bootstrap)
         self.assertIn("Automatically finalizing deployment access", bootstrap)
         self.assertIn("Using default lab resource group", bootstrap)
+        self.assertIn("Existing Azure resources are not deleted", bootstrap)
+        self.assertIn("completely fresh run", readme)
         self.assertNotIn("Resource group for the lab [SreAgentOnboardingLabRG]", bootstrap)
         self.assertIn("Choose the Azure subscription for the lab", bootstrap)
         self.assertIn("Using the only enabled subscription", bootstrap)

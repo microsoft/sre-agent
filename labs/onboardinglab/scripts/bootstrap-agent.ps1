@@ -476,7 +476,9 @@ function Wait-ForVerifiedDeployment {
 
 Write-Host 'Azure SRE Agent - Onboarding Lab bootstrap' -ForegroundColor White
 Write-Host "State file: $StateFile"
-if ($Reset) { Write-Warning 'Reset requested - previous progress is being discarded.' }
+if ($Reset) {
+    Write-Warning 'Reset requested - saved choices and progress are being discarded. Existing Azure resources are not deleted.'
+}
 
 $state = Get-State
 if (-not $Finalize -and -not $Reset -and $state.Contains('finalized') -and $state['finalized'] -eq $true) {

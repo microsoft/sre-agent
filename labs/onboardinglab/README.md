@@ -726,6 +726,7 @@ The validator treats the event, patches, and repository content as untrusted. Th
 | Problem | What to do |
 | --- | --- |
 | `azd` login has expired | Run `azd auth logout`, then `azd auth login` and retry. |
+| Workload choice is preselected or you want a completely fresh run | `-Reset` clears saved choices only. For a blank environment, delete the lab resource group, wait for deletion, remove `$HOME/.onboardinglab-agent-bootstrap.json`, then rerun the current bootstrap with `-Reset`. |
 | PostgreSQL 16 or `Standard_B1ms` is unavailable in Sweden Central | Start a new environment with the App Service option, or use a subscription with the required PostgreSQL capability. Setup never silently changes the selected option. |
 | App reservation fails before fault injection | Stop and fix the baseline deployment first. |
 | Fault injection says an alert is still firing | Reset the fault, generate successful reservations, and wait for the alert to resolve. |
