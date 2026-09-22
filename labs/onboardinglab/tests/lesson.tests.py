@@ -136,6 +136,11 @@ class LessonTests(unittest.TestCase):
         self.assertIn("optional/connectorv2/outlook.yaml", deployment_script)
         self.assertIn('"ListOutlookEmails"', deployment_script)
         self.assertIn('"SendOutlookEmail"', deployment_script)
+        self.assertIn('.toolPermissions = $policy[0]', deployment_script)
+        self.assertLess(
+            deployment_script.index('.toolPermissions = $policy[0]'),
+            deployment_script.index('pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bicep/Assemble-Agent.ps1"'),
+        )
         self.assertIn("function Get-KnowledgeResourceName", bootstrap)
         self.assertNotIn("onboardinglab-incident-r-2bcbfae", bootstrap)
         self.assertIn("/api/v2/repos", bootstrap)
