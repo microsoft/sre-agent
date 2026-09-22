@@ -1,0 +1,13 @@
+# Keep shell scripts LF so they run under bash/WSL/Linux even on Windows checkouts
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Other text formats commonly consumed by Linux tooling
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Windows-native scripts stay CRLF
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
