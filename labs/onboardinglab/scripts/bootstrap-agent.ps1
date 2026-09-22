@@ -799,11 +799,21 @@ try { $existing = Invoke-Az @('group', 'show', '-n', $LabResourceGroup, '-o', 'j
 
 if ($existing) {
     Write-Ok "$LabResourceGroup already exists in $($existing.location)."
+    $labResourceGroupId = $existing.id
 }
 else {
     $created = Invoke-Az @('group', 'create', '-n', $LabResourceGroup, '-l', $Location, '-o', 'json')
     Write-Ok "Created $LabResourceGroup in $($created.location)."
+    $labResourceGroupId = $created.id
 }
+$null = Invoke-Az @(
+    'tag', 'update',
+    '--resource-id', $labResourceGroupId,
+    '--operation', 'Merge',
+    '--tags', "onboardingLabRequestedWorkloadOption=$WorkloadOption",
+    '--output', 'none'
+) -AllowEmpty
+Write-Ok "Recorded requested workload option: $WorkloadOption"
 $state['subscriptionId'] = $subId
 Save-State -State $state
 

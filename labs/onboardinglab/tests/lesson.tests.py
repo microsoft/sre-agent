@@ -122,6 +122,8 @@ class LessonTests(unittest.TestCase):
         self.assertIn("Using default lab resource group", bootstrap)
         self.assertIn("Existing Azure resources are not deleted", bootstrap)
         self.assertIn("completely fresh run", readme)
+        self.assertIn("onboardingLabRequestedWorkloadOption", bootstrap)
+        self.assertIn("does not match bootstrap selection", deployment_script)
         self.assertNotIn("Resource group for the lab [SreAgentOnboardingLabRG]", bootstrap)
         self.assertIn("Choose the Azure subscription for the lab", bootstrap)
         self.assertIn("Using the only enabled subscription", bootstrap)

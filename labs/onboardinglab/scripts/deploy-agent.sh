@@ -21,6 +21,15 @@ WORKLOAD_OPTION="$8"
 [[ "$WORKLOAD_OPTION" == "app-service" || "$WORKLOAD_OPTION" == "app-service-postgresql" ]] \
   || { echo "WORKLOAD_OPTION must be app-service or app-service-postgresql." >&2; exit 2; }
 
+REQUESTED_WORKLOAD_OPTION="$(az group show \
+  --subscription "$SUBSCRIPTION" \
+  --name "$LAB_RG" \
+  --query tags.onboardingLabRequestedWorkloadOption -o tsv)"
+[[ -n "$REQUESTED_WORKLOAD_OPTION" ]] \
+  || { echo "The lab resource group does not record a requested workload option. Rerun the current bootstrap before deployment." >&2; exit 2; }
+[[ "$REQUESTED_WORKLOAD_OPTION" == "$WORKLOAD_OPTION" ]] \
+  || { echo "WORKLOAD_OPTION $WORKLOAD_OPTION does not match bootstrap selection $REQUESTED_WORKLOAD_OPTION. Deployment stopped before making changes." >&2; exit 2; }
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAB_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$LAB_ROOT/../.." && pwd)"
