@@ -96,7 +96,10 @@ in **Review** mode. The API represents these UI profiles as `High` and `Low` acc
 
    If your account has access to multiple subscriptions, choose the subscription for
    the lab from the numbered list. With one enabled subscription, setup selects it
-   automatically.
+   automatically. A fresh run uses the first available resource group name in the
+   sequence `SreAgentOnboardingLabRG`, `SreAgentOnboardingLabRG-2`,
+   `SreAgentOnboardingLabRG-3`, and so on. The agent name remains
+   `onboardinglab-agent`; agent names can be reused in different resource groups.
 4. Enter the HTTPS URL of your `sre-agent` fork, then choose **App Service** or
    **App Service + PostgreSQL** when prompted.
 5. Open the GitHub OAuth URL printed by the bootstrap and approve access once. The
@@ -154,7 +157,9 @@ The final agent deploys the selected workload, publishes the application, config
 its telemetry connection and durable safeguards, and records the selected option on
 the resource group. The script and deployment are re-entrant. Rerun the bootstrap
 after an interrupted Cloud Shell session; reuse an existing deployment chat rather
-than starting a second one.
+than starting a second one. To keep an existing environment as a fallback and start
+a separate test, run `./bootstrap-agent.ps1 -Reset`; the script selects the next
+available versioned resource group and leaves the existing environment unchanged.
 
 **Checkpoint: confirm a healthy baseline**
 

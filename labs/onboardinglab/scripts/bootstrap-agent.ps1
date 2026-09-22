@@ -52,7 +52,9 @@
 
 .PARAMETER LabResourceGroup
     Resource group the lab workload is deployed into. Defaults to
-    SreAgentOnboardingLabRG when not supplied.
+    the first available name in the sequence SreAgentOnboardingLabRG,
+    SreAgentOnboardingLabRG-2, SreAgentOnboardingLabRG-3, and so on. A resumed
+    run reuses the resource group saved in the state file.
 
 .PARAMETER Location
     Region for the agent and the lab. Must support both Azure SRE Agent and, on
@@ -260,6 +262,18 @@ function Invoke-Az {
     finally {
         Remove-Item -Path $stdErrFile -ErrorAction SilentlyContinue
     }
+}
+
+function Get-AvailableResourceGroupName {
+    param([Parameter(Mandatory)][string] $BaseName)
+
+    $candidate = $BaseName
+    $version = 1
+    while (Invoke-Az @('group', 'exists', '--name', $candidate, '-o', 'json')) {
+        $version++
+        $candidate = "$BaseName-$version"
+    }
+    return $candidate
 }
 
 function Get-SignedInUserObjectId {
@@ -542,16 +556,18 @@ if ($account.user.type -ne 'user') {
 }
 $signedInUserObjectId = Get-SignedInUserObjectId
 
-# Resolve the lab resource group name up front. The agent is created with both resource
-# groups in scope, so the name has to be known before the agent is created.
+# Resolve the lab resource group name up front. Fresh runs use the first available
+# versioned resource group while resumed runs reuse the name saved in state. The agent
+# name does not need a suffix because Azure allows the same agent name in different
+# resource groups.
 if (-not $LabResourceGroup) {
     if ($state.Contains('labResourceGroup')) {
         $LabResourceGroup = $state['labResourceGroup']
         Write-Note "Using saved lab resource group: $LabResourceGroup"
     }
     else {
-        $LabResourceGroup = 'SreAgentOnboardingLabRG'
-        Write-Note "Using default lab resource group: $LabResourceGroup"
+        $LabResourceGroup = Get-AvailableResourceGroupName -BaseName 'SreAgentOnboardingLabRG'
+        Write-Note "Using available lab resource group: $LabResourceGroup"
     }
 }
 if (-not $PSBoundParameters.ContainsKey('Location') -and $state.Contains('location')) {
