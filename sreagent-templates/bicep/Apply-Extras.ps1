@@ -157,6 +157,19 @@ function Get-DpToken {
     return $tok
 }
 
+function Get-SafeETag {
+    param($Response)
+
+    $etagValues = @($Response.Headers.ETag)
+    if ($etagValues.Count -eq 1) {
+        $candidate = [string]$etagValues[0]
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and $candidate -notmatch '[\r\n]') {
+            return $candidate
+        }
+    }
+    return '*'
+}
+
 # ── Helper: ARM PUT sub-resource with base64-encoded value envelope ─────────
 # Used for incidentFilters, scheduledTasks, commonPrompts.
 function Arm-PutSubresource {
@@ -513,6 +526,7 @@ if ($stCount -gt 0) {
                 description    = if ($spec.description) { $spec.description } else { "" }
                 cronExpression = if ($spec.schedule) { $spec.schedule } elseif ($spec.cronExpression) { $spec.cronExpression } else { "" }
                 agentPrompt    = if ($spec.prompt) { $spec.prompt } elseif ($spec.agentPrompt) { $spec.agentPrompt } else { "" }
+                agent          = if ($spec.handlingAgent) { $spec.handlingAgent } elseif ($spec.agent) { $spec.agent } else { "" }
                 agentMode      = if ($spec.mode) { $spec.mode } elseif ($spec.agentMode) { $spec.agentMode } else { "Review" }
                 isEnabled      = if ($null -ne $spec.enabled) { $spec.enabled } else { $true }
             }
@@ -736,11 +750,11 @@ if ($kiCount -gt 0) {
                 $httpCode = $lines[-1]
                 if ($httpCode -match '^2') {
                     Write-Host "  ok knowledgeItems/$sanitized"
-                } elseif ($httpCode -eq '400') {
+                } elseif ($httpCode -in @('400', '405')) {
                     $existingCode = curl -sS -o /dev/null -w "%{http_code}" $url `
                         -H "Authorization: Bearer $token" 2>$null
                     if ($existingCode -match '^2') {
-                        Write-Host "  ok knowledgeItems/$sanitized (already exists)"
+                        Write-Host "  ok knowledgeItems/$sanitized (already exists; PUT returned HTTP $httpCode)"
                     } else {
                         $script:ExtendedItemFailures.Add("knowledgeItems/$sanitized (HTTP $httpCode)")
                         Write-Host "  FAILED - PUT knowledgeItems/$sanitized (HTTP $httpCode)"
@@ -897,12 +911,12 @@ if ($toolPermissions) {
         try {
             $currentSettings = Invoke-WebRequest -TimeoutSec 30 -Uri $settingsUrl `
                 -Headers @{ Authorization = "Bearer $token" } -ErrorAction Stop
-            $etags = @($currentSettings.Headers.ETag)
-            if ($etags.Count -ne 1 -or [string]$etags[0] -cnotmatch '^"[^"\r\n]+"$') {
-                throw 'A single strong ETag is required for the settings update.'
+            $etag = Get-SafeETag -Response $currentSettings
+            $settings = if ([string]::IsNullOrWhiteSpace($currentSettings.Content)) {
+                @{}
+            } else {
+                $currentSettings.Content | ConvertFrom-Json -AsHashtable -ErrorAction Stop
             }
-            $etag = [string]$etags[0]
-            $settings = $currentSettings.Content | ConvertFrom-Json -AsHashtable -ErrorAction Stop
             if ($settings -isnot [System.Collections.IDictionary]) { throw 'Expected a settings object.' }
             $settings['permissions'] = $toolPermissions
             $body = $settings | ConvertTo-Json -Compress -Depth 40
@@ -911,7 +925,8 @@ if ($toolPermissions) {
                 -Body $body -ContentType "application/json" -ErrorAction Stop
             Write-Host "  ok toolPermissions"
         } catch {
-            $failure = "settings/global: $($_.Exception.Message)"
+            $detail = if ($_.ErrorDetails.Message) { $_.ErrorDetails.Message } else { $_.Exception.Message }
+            $failure = "settings/global: $detail"
             $script:ExtendedItemFailures.Add($failure)
             Write-Host "  FAILED - $failure"
         }
@@ -1114,8 +1129,16 @@ if ($htCount -gt 0) {
             $existingId = ($existingTriggers | Where-Object { $_.name -eq $name } | Select-Object -First 1).id
             if ($existingId) {
                 $existingUrl = "$AgentEndpoint/api/v1/httptriggers/trigger/$existingId"
-                Write-Host "  httpTrigger/${name}: $existingUrl"
-                if (-not $HttpTriggerUrl) { $HttpTriggerUrl = $existingUrl }
+                try {
+                    $null = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/httptriggers/$existingId" `
+                        -Method Put -Headers $headers -Body $bodyJson -ContentType "application/json"
+                    Write-Host "  httpTrigger/${name}: $existingUrl"
+                    if (-not $HttpTriggerUrl) { $HttpTriggerUrl = $existingUrl }
+                } catch {
+                    $httpCode = 0
+                    if ($_.Exception.Response) { $httpCode = [int]$_.Exception.Response.StatusCode }
+                    Write-Host "  httpTrigger/${name}: FAILED update (HTTP $httpCode)"
+                }
             } else {
                 try {
                     $resp = Invoke-RestMethod -TimeoutSec 30 -Uri "$AgentEndpoint/api/v1/httptriggers/create" `
@@ -1158,7 +1181,7 @@ if ($cnCount -gt 0) {
 # ═════════════════════════════════════════════════════════════════════════════
 if ($HttpTriggerUrl) {
     $agentJsonDir = Split-Path $ExtrasFile -Parent
-    $whEnabled = $false
+    $whEnabled = $extras.enableWebhookBridge -eq $true
     $candidates = @(
         (Join-Path (Split-Path $agentJsonDir -Parent) "agent.json"),
         (Join-Path $agentJsonDir "agent.json")
@@ -1168,7 +1191,7 @@ if ($HttpTriggerUrl) {
         if (Test-Path $candidate) {
             try {
                 $agentJson = Get-Content -Raw $candidate | ConvertFrom-Json
-                $whEnabled = $agentJson.toggles.enableWebhookBridge -eq $true
+                $whEnabled = $whEnabled -or $agentJson.toggles.enableWebhookBridge -eq $true
             } catch { }
             break
         }
@@ -1189,16 +1212,16 @@ if ($HttpTriggerUrl) {
             Write-Host ""
             Write-Host "-- Deploying webhook bridge Logic App --"
             Write-Host "  Trigger URL: $HttpTriggerUrl"
-            $scriptPath = $PSScriptRoot
-            # Look for bicep template relative to this script (../../bicep/logic-app-bridge.bicep)
-            $bicepPath = Join-Path (Split-Path (Split-Path $scriptPath -Parent) -Parent) "bicep" "logic-app-bridge.bicep"
+            $bicepPath = Join-Path $PSScriptRoot "logic-app-bridge.bicep"
             $location = az group show -n $ResourceGroup --query location -o tsv 2>$null
+            $stderrPath = Join-Path ([System.IO.Path]::GetTempPath()) "logic-app-bridge-$([guid]::NewGuid()).stderr"
             try {
                 $laResultRaw = az deployment group create `
                     --resource-group $ResourceGroup `
                     --template-file $bicepPath `
                     --parameters agentName=$AgentName location=$location triggerUrl=$HttpTriggerUrl `
-                    --output json 2>&1
+                    --only-show-errors `
+                    --output json 2>$stderrPath
                 $laResult = $laResultRaw | ConvertFrom-Json
                 $laState = $laResult.properties.provisioningState
                 if ($laState -eq "Succeeded") {
@@ -1208,10 +1231,14 @@ if ($HttpTriggerUrl) {
                 } else {
                     Write-Host "  Webhook bridge deployment failed"
                     $laResultRaw | Select-Object -First 10 | Write-Host
+                    Get-Content -LiteralPath $stderrPath -ErrorAction SilentlyContinue | Select-Object -First 10 | Write-Host
                 }
             } catch {
                 Write-Host "  Webhook bridge deployment failed"
                 Write-Host "  $($_.Exception.Message)"
+                Get-Content -LiteralPath $stderrPath -ErrorAction SilentlyContinue | Select-Object -First 10 | Write-Host
+            } finally {
+                Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
             }
         }
     }

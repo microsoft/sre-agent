@@ -105,7 +105,7 @@ try {
     & $script -AgentName optional-test-agent -Stage Preview -GitHubRepositoryUrl https://github.com/example/lab
     $config = Join-Path $lab 'ticketingapp-source\.azure\setup-test\optional-test-agent'
     $expected = Get-Content (Join-Path $config 'expected-config.json') -Raw | ConvertFrom-Json
-    if ('office365' -notin $expected.managedConnectors -or 'ticketingapp-source' -notin $expected.repos) { throw 'Selected extensions missing from expected config.' }
+    if ('office365' -notin $expected.managedConnectors -or 'sre-agent' -notin $expected.repos) { throw 'Selected extensions missing from expected config.' }
     if ('SendOutlookEmail' -notin $expected.toolPermissions.ask -or 'CreateGithubIssue' -notin $expected.toolPermissions.ask) { throw 'Optional writes lack approval policy.' }
     if (-not (Test-Path (Join-Path $config 'config\connectorv2\outlook.yaml'))) { throw 'Selected connector missing.' }
     $global:SetupFailVerify = $false
@@ -140,7 +140,7 @@ try {
     $global:SetupExisting = $false
     & $script -FromAzdHook
     $hookExpected = Get-Content (Join-Path $lab 'ticketingapp-source\.azure\setup-test\hook-standard-agent\expected-config.json') -Raw | ConvertFrom-Json
-    if ('office365' -notin $hookExpected.managedConnectors -or 'ticketingapp-source' -notin $hookExpected.repos) {
+    if ('office365' -notin $hookExpected.managedConnectors -or 'sre-agent' -notin $hookExpected.repos) {
         throw 'The opted-in azd hook did not prepare the standard integrations.'
     }
     $global:SetupCalls.Clear()

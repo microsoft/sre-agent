@@ -303,3 +303,35 @@ test('only allowlisted paths and methods are served, including traversal rejecti
   assert.equal(f.clients.length, 0);
   assert.equal(f.requests.length, 0);
 });
+
+test('App Service option succeeds without PostgreSQL and emits request-only telemetry', async () => {
+  const f = fixture({ handler: { env: { WORKLOAD_OPTION: 'app-service' } } });
+  const response = await invoke(f.handler);
+  assert.equal(response.status, 200);
+  assert.equal(JSON.parse(response.body).success, true);
+  assert.equal(f.clients.length, 0);
+  assert.equal(f.dependencies.length, 0);
+  assert.equal(f.requests[0].properties.outcome, 'available');
+});
+
+test('App Service fault returns 503 while health remains available', async () => {
+  const f = fixture({ handler: { env: {
+    WORKLOAD_OPTION: 'app-service',
+    APP_FAULT_ENABLED: 'true',
+  } } });
+  const response = await invoke(f.handler);
+  assert.equal(response.status, 503);
+  assert.equal(response.headers['Retry-After'], '3');
+  assert.equal(f.clients.length, 0);
+  assert.equal(f.dependencies.length, 0);
+  assert.equal(f.requests[0].properties.outcome, 'application-fault');
+  assert.equal((await invoke(f.handler, 'GET', '/healthz')).status, 200);
+});
+
+test('unknown workload option fails closed without database access', async () => {
+  const f = fixture({ handler: { env: { WORKLOAD_OPTION: 'unknown' } } });
+  assert.equal((await invoke(f.handler)).status, 503);
+  assert.equal(f.clients.length, 0);
+  assert.equal(f.dependencies.length, 0);
+  assert.equal(f.requests[0].properties.outcome, 'configuration-unavailable');
+});

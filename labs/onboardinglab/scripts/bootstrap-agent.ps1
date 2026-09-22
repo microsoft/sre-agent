@@ -1,0 +1,1449 @@
+<#
+.SYNOPSIS
+    Creates the final SRE Agent that deploys its own Onboarding Lab environment.
+
+.DESCRIPTION
+    Run this in Azure Cloud Shell (PowerShell). It is self-contained: it uses only
+    the Azure CLI, needs no local tooling, and does NOT need a clone of this
+    repository. Every Azure resource is created through az, so there is no Bicep
+    to compile here.
+
+    The script creates the final onboarding agent with temporary Owner access on
+    the lab resource group. The agent clones your fork through Code Access and
+    deploys the workload and its durable configuration through Bicep.
+
+    Steps:
+      0. Preflight: check az, resolve the subscription, resolve the lab RG name.
+      1. Register the Azure resource providers required by the agent and workload.
+      2. Create the lab resource group.
+      3. Create Log Analytics, Application Insights, a managed identity and the final agent.
+      4. Append the egress hosts the agent needs to reach while deploying.
+      5. Grant the agent identity temporary Owner and grant agent-scoped
+         SRE Agent Administrator to the identity and signed-in user.
+      6. Pause while you connect your fork as a code repository.
+      7. Start the deployment thread automatically when a data-plane token is
+         available, or print the exact portal prompt when Cloud Shell cannot get one.
+
+    The script is re-entrant, because a portal session can die at any point. Run it
+    again and it picks up where it stopped. Use -Reset to start over. After the
+    deployment thread completes, the script removes temporary Owner and changes
+    the portal permission profile from Privileged to Reader. Use -Finalize only
+    to recover after a Cloud Shell disconnect or timeout.
+
+    Re-entrancy is mostly not based on the state file: each step asks Azure what
+    already exists and skips accordingly, so it behaves correctly even if the state
+    file is gone. That matters in Cloud Shell, which only persists $HOME when a
+    storage account is mounted.
+
+      Step 1  provider show before register
+      Step 2  group show before group create
+      Step 3  Log Analytics / App Insights / agent are PUT upserts and az identity
+              create is idempotent; the agent is read first, and if it is still
+              provisioning the script waits instead of PUTting over it
+      Step 4  reads the current allowlist and appends only what is missing
+      Step 5  role assignment list before role assignment create
+      Step 6  state file only (re-prompting just costs you an extra Enter)
+      Step 7  the one step that must not repeat: every POST starts another thread,
+              and two threads means two agents deploying the same lab at once, so
+              it is skipped when a thread is recorded and asks when it is not
+
+.PARAMETER Subscription
+    Subscription to deploy into. Defaults to the current az subscription.
+
+.PARAMETER LabResourceGroup
+    Resource group the lab workload is deployed into. Defaults to
+    the first available name in the sequence SreAgentOnboardingLabRG,
+    SreAgentOnboardingLabRG-2, SreAgentOnboardingLabRG-3, and so on. A resumed
+    run reuses the resource group saved in the state file.
+
+.PARAMETER Location
+    Region for the agent and the lab. Must support both Azure SRE Agent and, on
+    your subscription, PostgreSQL Flexible Server 16 / Standard_B1ms.
+
+.PARAMETER AgentName
+    Name of the final SRE Agent.
+
+.PARAMETER GitHubRepositoryUrl
+    HTTPS URL of the participant-owned sre-agent fork used for source access,
+    issue creation, and pull-request validation. Prompted for when not supplied.
+
+.PARAMETER GitHubRepositoryBranch
+    Branch containing the onboarding lab deployment assets. Defaults to main.
+    Code Access currently clones the fork's default branch, so this value must
+    match the fork's default branch.
+
+.PARAMETER WorkloadOption
+    Lab scenario option: app-service or app-service-postgresql. When omitted on
+    a new deployment, the script asks you to choose without preferring either.
+
+.PARAMETER StateFile
+    Where progress is recorded so the script can resume.
+
+.PARAMETER Finalize
+    Recover finalization after a Cloud Shell disconnect or timeout: remove the
+    agent identity's temporary Owner assignment and change the portal permission
+    profile to Reader after successful deployment verification.
+
+.PARAMETER Reset
+    Discard saved progress and start from the beginning.
+
+.PARAMETER NewThread
+    Start another deployment thread even if one was started already.
+
+.EXAMPLE
+    ./bootstrap-agent.ps1
+
+.EXAMPLE
+    ./bootstrap-agent.ps1 -LabResourceGroup MyLabRG -Location swedencentral
+
+.EXAMPLE
+    ./bootstrap-agent.ps1 -LabResourceGroup MyLabRG -Finalize
+#>
+
+[CmdletBinding()]
+param(
+    [string] $Subscription,
+
+    [string] $LabResourceGroup,
+
+    [string] $Location = 'swedencentral',
+
+    [string] $AgentName = 'onboardinglab-agent',
+
+    [ValidatePattern('^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?$')]
+    [string] $GitHubRepositoryUrl,
+
+    [ValidatePattern('^[A-Za-z0-9._/-]+$')]
+    [string] $GitHubRepositoryBranch = 'main',
+
+    [ValidateSet('app-service', 'app-service-postgresql')]
+    [string] $WorkloadOption,
+
+    # Progress is recorded here so the script can resume after a dropped session.
+    # In Azure Cloud Shell this persists only when a storage account is mounted; an
+    # ephemeral session loses it. Losing it is safe: every step re-checks Azure itself
+    # rather than trusting this file, and the thread start asks before running twice.
+    [string] $StateFile = (Join-Path $HOME '.onboardinglab-agent-bootstrap.json'),
+
+    [switch] $Reset,
+
+    [switch] $Finalize,
+
+    # Start another deployment thread even if one was started already.
+    [switch] $NewThread
+)
+
+$ErrorActionPreference = 'Stop'
+
+# PS 7.3+ mangles native arguments containing '='; Legacy passing keeps az parameters intact.
+if ($PSVersionTable.PSVersion.Major -ge 7 -and $PSVersionTable.PSVersion.Minor -ge 3) {
+    $PSNativeCommandArgumentPassing = 'Legacy'
+}
+
+$AgentApiVersion = '2025-05-01-preview'
+
+$RequiredResourceProviders = @(
+    'Microsoft.App'
+    'Microsoft.Authorization'
+    'Microsoft.DBforPostgreSQL'
+    'Microsoft.Insights'
+    'Microsoft.ManagedIdentity'
+    'Microsoft.Network'
+    'Microsoft.OperationalInsights'
+    'Microsoft.Web'
+)
+
+# Hosts the onboarding agent must reach while it deploys the lab.
+#   *.azurewebsites.net   - smoke-test the deployed checkout app
+#   *.azuresre.ai         - push skills/knowledge to the agent's data plane
+$RequiredEgressHosts = @(
+    '*.azurewebsites.net'
+    '*.azuresre.ai'
+)
+
+$RunbookPath = 'labs/onboardinglab/agent-deploy-runbook.md'
+
+# ── Output helpers ──────────────────────────────────────────────────────────
+
+function Write-Step { param([string] $Message) Write-Host "`n== $Message ==" -ForegroundColor Cyan }
+function Write-Ok { param([string] $Message) Write-Host "   $Message" -ForegroundColor Green }
+function Write-Note { param([string] $Message) Write-Host "   $Message" }
+
+function Get-StableGuid {
+    param([Parameter(Mandatory)][string] $Value)
+
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Value))
+        $bytes = [byte[]]::new(16)
+        [Array]::Copy($hash, $bytes, 16)
+        return [guid]::new($bytes).ToString()
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
+function Get-KnowledgeResourceName {
+    param([Parameter(Mandatory)][string] $FileName)
+
+    $sanitized = ($FileName.ToLowerInvariant() -replace '[^a-z0-9-]', '-') -replace '-+', '-' -replace '^-|-$', ''
+    if ($sanitized.Length -le 32) {
+        return $sanitized
+    }
+
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = (($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($sanitized)) |
+            ForEach-Object { $_.ToString('x2') }) -join '').Substring(0, 7)
+        return "$($sanitized.Substring(0, 24))-$hash"
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
+# ── State (re-entrancy) ─────────────────────────────────────────────────────
+
+function Get-State {
+    if ($Reset -or -not (Test-Path $StateFile)) { return [ordered]@{} }
+    try {
+        $raw = Get-Content -Path $StateFile -Raw
+        if ([string]::IsNullOrWhiteSpace($raw)) { return [ordered]@{} }
+        $obj = $raw | ConvertFrom-Json
+        $table = [ordered]@{}
+        foreach ($p in $obj.PSObject.Properties) { $table[$p.Name] = $p.Value }
+        return $table
+    }
+    catch {
+        Write-Warning "State file $StateFile is unreadable, starting fresh."
+        return [ordered]@{}
+    }
+}
+
+function Save-State {
+    param([Parameter(Mandatory)] $State)
+    $State | ConvertTo-Json -Depth 8 | Set-Content -Path $StateFile -NoNewline
+}
+
+function Test-StepDone {
+    param([Parameter(Mandatory)] $State, [Parameter(Mandatory)][string] $Name)
+    return ($State.Contains($Name) -and $State[$Name] -eq $true)
+}
+
+function Set-StepDone {
+    param([Parameter(Mandatory)] $State, [Parameter(Mandatory)][string] $Name)
+    $State[$Name] = $true
+    Save-State -State $State
+}
+
+# ── az helpers ──────────────────────────────────────────────────────────────
+
+function Invoke-Az {
+    <#
+        Runs az and returns parsed JSON. Throws with az's own stderr on failure so the
+        caller sees the real Azure error rather than a generic message.
+    #>
+    param([Parameter(Mandatory)][string[]] $Arguments, [switch] $AllowEmpty)
+
+    $stdErrFile = [System.IO.Path]::GetTempFileName()
+    try {
+        $output = & az @Arguments 2> $stdErrFile
+        $exit = $LASTEXITCODE
+        if ($exit -ne 0) {
+            $err = (Get-Content -Path $stdErrFile -Raw)
+            throw "az $($Arguments -join ' ') failed (exit $exit).`n$err"
+        }
+        $joined = ($output | Out-String).Trim()
+        if ([string]::IsNullOrWhiteSpace($joined)) {
+            if ($AllowEmpty) { return $null }
+            throw "az $($Arguments -join ' ') returned no output."
+        }
+        return $joined | ConvertFrom-Json
+    }
+    finally {
+        Remove-Item -Path $stdErrFile -ErrorAction SilentlyContinue
+    }
+}
+
+function Get-AvailableResourceGroupName {
+    param([Parameter(Mandatory)][string] $BaseName)
+
+    $candidate = $BaseName
+    $version = 1
+    while (Invoke-Az @('group', 'exists', '--name', $candidate, '-o', 'json')) {
+        $version++
+        $candidate = "$BaseName-$version"
+    }
+    return $candidate
+}
+
+function Get-SignedInUserObjectId {
+    try {
+        $user = Invoke-Az @('ad', 'signed-in-user', 'show', '--query', '{id:id}', '-o', 'json')
+        if (-not [string]::IsNullOrWhiteSpace($user.id)) {
+            return $user.id
+        }
+    }
+    catch {
+        Write-Note 'Microsoft Graph did not return the signed-in user. Reading the object ID from the ARM token instead.'
+    }
+
+    $token = (& az account get-access-token --resource 'https://management.azure.com/' `
+        --query accessToken --only-show-errors -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($token -join ''))) {
+        throw 'Could not determine the signed-in user object ID.'
+    }
+
+    try {
+        $payload = (($token -join '').Trim().Split('.')[1]).Replace('-', '+').Replace('_', '/')
+        $payload = $payload.PadRight($payload.Length + ((4 - ($payload.Length % 4)) % 4), '=')
+        $claims = [System.Text.Encoding]::UTF8.GetString(
+            [Convert]::FromBase64String($payload)
+        ) | ConvertFrom-Json
+        if ([string]::IsNullOrWhiteSpace($claims.oid)) {
+            throw 'The ARM token has no oid claim.'
+        }
+        return $claims.oid
+    }
+    catch {
+        throw "Could not determine the signed-in user object ID: $($_.Exception.Message)"
+    }
+}
+
+$script:DataPlaneToken = $null
+
+function Get-DataPlaneToken {
+    if (-not [string]::IsNullOrWhiteSpace($script:DataPlaneToken)) {
+        return $script:DataPlaneToken
+    }
+
+    $token = (& az account get-access-token --scope 'https://azuresre.dev/.default' `
+        --query accessToken --only-show-errors -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($token -join ''))) {
+        return $null
+    }
+
+    $script:DataPlaneToken = ($token -join '').Trim()
+    return $script:DataPlaneToken
+}
+
+function Invoke-DataPlaneGet {
+    param([Parameter(Mandatory)][string] $Url)
+
+    $token = Get-DataPlaneToken
+    if ([string]::IsNullOrWhiteSpace($token)) {
+        throw 'An SRE Agent data-plane token is not available in this Azure CLI session.'
+    }
+    try {
+        for ($attempt = 1; $attempt -le 7; $attempt++) {
+            try {
+                return Invoke-RestMethod -Uri $Url -Method Get `
+                    -Headers @{ Authorization = "Bearer $token" } -TimeoutSec 60
+            }
+            catch {
+                $statusCode = [int]$_.Exception.Response.StatusCode
+                if ($statusCode -eq 403 -and $attempt -lt 7) {
+                    if ($attempt -eq 1) {
+                        Write-Note 'Waiting for the SRE Agent Administrator assignment to propagate...'
+                    }
+                    Start-Sleep -Seconds 10
+                    continue
+                }
+                if ($statusCode -eq 403) {
+                    throw 'SRE Agent data-plane access was denied after waiting for RBAC propagation. Wait another minute, sign out and back in if using the portal, then rerun this script.'
+                }
+                throw "SRE Agent data-plane request failed for $Url`: $($_.Exception.Message)"
+            }
+        }
+    }
+    finally {
+        $token = $null
+    }
+}
+
+function Invoke-DataPlanePut {
+    param(
+        [Parameter(Mandatory)][string] $Url,
+        [Parameter(Mandatory)] $Body
+    )
+
+    $token = Get-DataPlaneToken
+    if ([string]::IsNullOrWhiteSpace($token)) {
+        throw 'An SRE Agent data-plane token is not available in this Azure CLI session.'
+    }
+    try {
+        return Invoke-RestMethod -Uri $Url -Method Put `
+            -Headers @{ Authorization = "Bearer $token" } `
+            -ContentType 'application/json' `
+            -Body ($Body | ConvertTo-Json -Depth 10 -Compress) `
+            -TimeoutSec 60
+    }
+    finally {
+        $token = $null
+    }
+}
+
+function Invoke-ArmRequest {
+    <#
+        PUT or PATCH an ARM resource through 'az rest'. Used instead of
+        'az resource create' because the agent needs a top-level identity block,
+        and App Insights needs a top-level kind, neither of which that command sets.
+        Going through az rest also avoids depending on any az extension.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $Method,
+        [Parameter(Mandatory)][string] $Url,
+        [Parameter(Mandatory)] $Body
+    )
+
+    $file = Join-Path ([System.IO.Path]::GetTempPath()) ("arm-" + [guid]::NewGuid().ToString('n') + '.json')
+    try {
+        $Body | ConvertTo-Json -Depth 20 | Set-Content -Path $file -NoNewline
+        return Invoke-Az @(
+            'rest', '--method', $Method, '--url', $Url,
+            '--headers', 'Content-Type=application/json',
+            '--body', "@$file"
+        ) -AllowEmpty
+    }
+    finally {
+        Remove-Item -Path $file -ErrorAction SilentlyContinue
+    }
+}
+
+function Get-ConnectedRepositories {
+    param([Parameter(Mandatory)][string] $Endpoint)
+
+    $response = Invoke-DataPlaneGet -Url "$($Endpoint.TrimEnd('/'))/api/v2/repos"
+    if ($response.PSObject.Properties['value']) {
+        return @($response.value)
+    }
+    return @($response)
+}
+
+function Wait-ForRepositoryCommit {
+    param(
+        [Parameter(Mandatory)][string] $Endpoint,
+        [Parameter(Mandatory)][string] $RepositoryName,
+        [Parameter(Mandatory)][string] $RepositoryUrl,
+        [Parameter(Mandatory)][string] $ExpectedCommit,
+        [int] $TimeoutMinutes = 10
+    )
+
+    $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
+    $encodedRepositoryName = [uri]::EscapeDataString($RepositoryName)
+    do {
+        $repository = Invoke-DataPlaneGet -Url "$($Endpoint.TrimEnd('/'))/api/v2/repos/$encodedRepositoryName"
+        $cloneStatus = $repository.properties.cloneStatus
+        $latestCommit = $repository.properties.latestCommit
+        Write-Note "Repository clone status: $cloneStatus; commit: $latestCommit"
+        if ($repository.properties.url.TrimEnd('/') -eq $RepositoryUrl -and
+            $cloneStatus -eq 'Ready' -and $latestCommit -eq $ExpectedCommit) {
+            return $repository
+        }
+        if ($cloneStatus -eq 'Failed') {
+            throw "Repository clone failed: $($repository.properties.errorMessage)"
+        }
+        Start-Sleep -Seconds 10
+    } while ((Get-Date) -lt $deadline)
+
+    throw "Code Access did not clone expected commit $ExpectedCommit within $TimeoutMinutes minutes. No deployment thread was started."
+}
+
+function Get-AgentResource {
+    param([Parameter(Mandatory)][string] $ResourceGroup, [Parameter(Mandatory)][string] $Name)
+    try {
+        return Invoke-Az @(
+            'resource', 'show', '-g', $ResourceGroup, '-n', $Name,
+            '--resource-type', 'Microsoft.App/agents', '--api-version', $AgentApiVersion, '-o', 'json'
+        )
+    }
+    catch { return $null }
+}
+
+function Wait-ForAgent {
+    <#
+        Agent create and update are long-running: ARM returns before the resource is
+        ready, so poll until it settles.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $ResourceGroup,
+        [Parameter(Mandatory)][string] $Name,
+        [int] $TimeoutMinutes = 20
+    )
+
+    $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
+    $state = $null
+    do {
+        Start-Sleep -Seconds 15
+        $agent = Get-AgentResource -ResourceGroup $ResourceGroup -Name $Name
+        $state = if ($agent) { $agent.properties.provisioningState } else { 'NotFound' }
+        Write-Note "  ... $state"
+        if ($state -in @('Failed', 'Canceled')) {
+            throw "Agent provisioning ended in state $state. Check the deployment in the portal."
+        }
+    } while ($state -ne 'Succeeded' -and (Get-Date) -lt $deadline)
+
+    if ($state -ne 'Succeeded') {
+        throw "Agent did not reach Succeeded within $TimeoutMinutes minutes (last state: $state)."
+    }
+    return $agent
+}
+
+function Wait-ForVerifiedDeployment {
+    param(
+        [Parameter(Mandatory)][string] $ResourceGroup,
+        [Parameter(Mandatory)][string] $ThreadId,
+        [int] $TimeoutMinutes = 90
+    )
+
+    $startedAt = Get-Date
+    $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
+    Write-Step 'Waiting for deployment verification before automatic finalization'
+    do {
+        $status = Invoke-Az @(
+            'group', 'show', '--name', $ResourceGroup,
+            '--query', 'tags.onboardingLabDeploymentStatus', '-o', 'json'
+        ) -AllowEmpty
+        if ($status -eq 'verified') {
+            Write-Ok 'Verified deployment marker found.'
+            return $true
+        }
+        $elapsedMinutes = [math]::Floor(((Get-Date) - $startedAt).TotalMinutes)
+        Write-Note "Waiting for thread $ThreadId ($elapsedMinutes/$TimeoutMinutes minutes). Open the agent portal and approve any pending writes."
+        Start-Sleep -Seconds 60
+    } while ((Get-Date) -lt $deadline)
+
+    return $false
+}
+
+# ════════════════════════════════════════════════════════════════════════════
+
+Write-Host 'Azure SRE Agent - Onboarding Lab bootstrap' -ForegroundColor White
+Write-Host "State file: $StateFile"
+if ($Reset) {
+    Write-Warning 'Reset requested - saved choices and progress are being discarded. Existing Azure resources are not deleted.'
+}
+
+$state = Get-State
+if (-not $Finalize -and -not $Reset -and $state.Contains('finalized') -and $state['finalized'] -eq $true) {
+    throw 'This environment is finalized. Use -Reset only when you intentionally want to start a new deployment lifecycle.'
+}
+
+# ── Step 0: preflight ───────────────────────────────────────────────────────
+
+Write-Step 'Preflight'
+
+if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
+    throw 'The Azure CLI (az) was not found. Run this from Azure Cloud Shell (PowerShell).'
+}
+
+if ($Subscription) {
+    $account = Invoke-Az @('account', 'show', '-o', 'json')
+    if ($account.id -ne $Subscription) {
+        Write-Note "Switching to subscription $Subscription"
+        $null = Invoke-Az @('account', 'set', '--subscription', $Subscription) -AllowEmpty
+        $account = Invoke-Az @('account', 'show', '-o', 'json')
+    }
+}
+else {
+    $subscriptions = @(Invoke-Az @(
+        'account', 'list', '--all',
+        '--query', "[?state=='Enabled'].{id:id,name:name,isDefault:isDefault}",
+        '-o', 'json'
+    ))
+    if ($subscriptions.Count -eq 0) {
+        throw 'No enabled Azure subscriptions are available to the signed-in account.'
+    }
+    if ($subscriptions.Count -eq 1) {
+        $Subscription = $subscriptions[0].id
+        Write-Note "Using the only enabled subscription: $($subscriptions[0].name)"
+    }
+    else {
+        Write-Host '   Choose the Azure subscription for the lab:'
+        for ($index = 0; $index -lt $subscriptions.Count; $index++) {
+            Write-Host "   $($index + 1). $($subscriptions[$index].name) ($($subscriptions[$index].id))"
+        }
+        do {
+            $selection = Read-Host "   Enter 1-$($subscriptions.Count)"
+            $selectedIndex = 0
+            $validSelection = [int]::TryParse($selection, [ref]$selectedIndex) -and
+                $selectedIndex -ge 1 -and $selectedIndex -le $subscriptions.Count
+        } while (-not $validSelection)
+        $Subscription = $subscriptions[$selectedIndex - 1].id
+    }
+
+    $null = Invoke-Az @('account', 'set', '--subscription', $Subscription) -AllowEmpty
+    $account = Invoke-Az @('account', 'show', '-o', 'json')
+}
+
+$subId = $account.id
+
+Write-Ok "Subscription: $($account.name) ($subId)"
+Write-Ok "Signed in as: $($account.user.name)"
+
+if ($account.user.type -ne 'user') {
+    throw 'This bootstrap flow requires an interactive human Azure CLI sign-in so it can grant agent data-plane access for Code Access.'
+}
+$signedInUserObjectId = Get-SignedInUserObjectId
+
+# Resolve the lab resource group name up front. Fresh runs use the first available
+# versioned resource group while resumed runs reuse the name saved in state. The agent
+# name does not need a suffix because Azure allows the same agent name in different
+# resource groups.
+if (-not $LabResourceGroup) {
+    if ($state.Contains('labResourceGroup')) {
+        $LabResourceGroup = $state['labResourceGroup']
+        Write-Note "Using saved lab resource group: $LabResourceGroup"
+    }
+    else {
+        $LabResourceGroup = Get-AvailableResourceGroupName -BaseName 'SreAgentOnboardingLabRG'
+        Write-Note "Using available lab resource group: $LabResourceGroup"
+    }
+}
+if (-not $PSBoundParameters.ContainsKey('Location') -and $state.Contains('location')) {
+    $Location = $state['location']
+}
+if (-not $PSBoundParameters.ContainsKey('AgentName') -and $state.Contains('agentName')) {
+    $AgentName = $state['agentName']
+}
+if (-not $Finalize) {
+    if (-not $PSBoundParameters.ContainsKey('GitHubRepositoryBranch') -and $state.Contains('githubRepositoryBranch')) {
+        $GitHubRepositoryBranch = $state['githubRepositoryBranch']
+    }
+    if (-not $GitHubRepositoryUrl) {
+        if ($state.Contains('githubRepositoryUrl')) {
+            $GitHubRepositoryUrl = $state['githubRepositoryUrl']
+            Write-Note "Using saved GitHub fork: $GitHubRepositoryUrl"
+        }
+        else {
+            $GitHubRepositoryUrl = (Read-Host 'GitHub URL for your sre-agent fork (https://github.com/YOUR-USER/sre-agent)').Trim()
+        }
+    }
+    $GitHubRepositoryUrl = $GitHubRepositoryUrl.TrimEnd('/') -replace '\.git$', ''
+    if ($GitHubRepositoryUrl -notmatch '^https://github\.com/[A-Za-z0-9_.-]+/sre-agent$') {
+        throw 'GitHubRepositoryUrl must be your GitHub fork URL in the form https://github.com/YOUR-USER/sre-agent.'
+    }
+    if ($GitHubRepositoryUrl -eq 'https://github.com/microsoft/sre-agent') {
+        throw 'Use your participant-owned sre-agent fork, not microsoft/sre-agent, so issue and pull-request exercises remain in your repository.'
+    }
+    $repositoryPath = ([uri]$GitHubRepositoryUrl).AbsolutePath.Trim('/')
+    try {
+        $repositoryMetadata = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/$repositoryPath" `
+            -Headers @{ 'User-Agent' = 'sre-agent-onboarding-bootstrap' } `
+            -TimeoutSec 30
+        if ($repositoryMetadata.default_branch -ne $GitHubRepositoryBranch) {
+            throw "Code Access clones the fork's default branch. Change the default branch of $GitHubRepositoryUrl to '$GitHubRepositoryBranch' before running bootstrap (current default: '$($repositoryMetadata.default_branch)')."
+        }
+        $encodedBranch = [uri]::EscapeDataString($GitHubRepositoryBranch)
+        $branchMetadata = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/$repositoryPath/branches/$encodedBranch" `
+            -Headers @{ 'User-Agent' = 'sre-agent-onboarding-bootstrap' } `
+            -TimeoutSec 30
+        $expectedRepositoryCommit = $branchMetadata.commit.sha
+        if ([string]::IsNullOrWhiteSpace($expectedRepositoryCommit)) {
+            throw "GitHub did not return a commit for branch $GitHubRepositoryBranch."
+        }
+    }
+    catch {
+        throw "Could not validate the GitHub repository branch before deployment: $($_.Exception.Message)"
+    }
+    if (-not $PSBoundParameters.ContainsKey('WorkloadOption') -and $state.Contains('workloadOption')) {
+        $WorkloadOption = $state['workloadOption']
+    }
+    while ([string]::IsNullOrWhiteSpace($WorkloadOption)) {
+        Write-Host '   Choose a workload option:'
+        Write-Host '   1. App Service'
+        Write-Host '   2. App Service + PostgreSQL (requires PostgreSQL 16 / Standard_B1ms capability in Sweden Central)'
+        $selection = Read-Host '   Enter 1 or 2'
+        $WorkloadOption = switch ($selection.Trim()) {
+            '1' { 'app-service' }
+            '2' { 'app-service-postgresql' }
+            default { $null }
+        }
+    }
+    if ($state.Contains('workloadOption') -and $state['workloadOption'] -ne $WorkloadOption -and -not $Reset) {
+        throw "This environment was started with workload option $($state['workloadOption']). Use -Reset and a new resource group to choose $WorkloadOption."
+    }
+    $state['workloadOption'] = $WorkloadOption
+    $state['githubRepositoryUrl'] = $GitHubRepositoryUrl
+    $state['githubRepositoryBranch'] = $GitHubRepositoryBranch
+    $state['expectedRepositoryCommit'] = $expectedRepositoryCommit
+}
+$state['labResourceGroup'] = $LabResourceGroup
+$state['location'] = $Location
+$state['agentName'] = $AgentName
+Save-State -State $state
+
+Write-Ok "Lab resource group: $LabResourceGroup"
+Write-Ok "Location: $Location"
+Write-Ok "Agent: $AgentName"
+if (-not $Finalize) { Write-Ok "Workload option: $WorkloadOption" }
+
+if ($Finalize) {
+    Write-Step 'Finalize - Remove temporary deployment access'
+
+    $agent = Get-AgentResource -ResourceGroup $LabResourceGroup -Name $AgentName
+    if (-not $agent) {
+        throw "Agent $AgentName was not found in $LabResourceGroup."
+    }
+
+    $identityId = @($agent.identity.userAssignedIdentities.PSObject.Properties.Name)[0]
+    $identityPrincipalId = @($agent.identity.userAssignedIdentities.PSObject.Properties.Value.principalId)[0]
+    $systemPrincipalId = $agent.identity.principalId
+    if ([string]::IsNullOrWhiteSpace($identityId) -or
+        [string]::IsNullOrWhiteSpace($identityPrincipalId) -or
+        [string]::IsNullOrWhiteSpace($systemPrincipalId)) {
+        throw "Agent $AgentName does not have the expected managed identities."
+    }
+
+    $labScope = "/subscriptions/$subId/resourceGroups/$LabResourceGroup"
+    $ownerAssignmentName = Get-StableGuid "$labScope|$identityPrincipalId|onboardinglab-temporary-owner"
+    $ownerAssignmentId = "$labScope/providers/Microsoft.Authorization/roleAssignments/$ownerAssignmentName"
+    $requiredRoles = @('Reader', 'Monitoring Reader', 'Log Analytics Reader')
+    $assignments = @(Invoke-Az @(
+        'role', 'assignment', 'list',
+        '--assignee', $identityPrincipalId,
+        '--scope', $labScope,
+        '--query', '[].{id:id,role:roleDefinitionName,scope:scope}',
+        '-o', 'json'
+    ) -AllowEmpty)
+
+    $missingRoles = @($requiredRoles | Where-Object { $role = $_; -not ($assignments | Where-Object { $_.role -eq $role -and $_.scope -eq $labScope }) })
+    if ($missingRoles.Count -gt 0) {
+        throw "Cannot finalize because permanent role assignments are missing: $($missingRoles -join ', '). Complete the deployment thread first."
+    }
+
+    $systemAssignments = @(Invoke-Az @(
+        'role', 'assignment', 'list',
+        '--assignee', $systemPrincipalId,
+        '--scope', $labScope,
+        '--query', '[].{role:roleDefinitionName,scope:scope}',
+        '-o', 'json'
+    ) -AllowEmpty)
+    $missingSystemRoles = @(@('Reader', 'Log Analytics Reader') | Where-Object {
+        $role = $_
+        -not ($systemAssignments | Where-Object { $_.role -eq $role -and $_.scope -eq $labScope })
+    })
+    if ($missingSystemRoles.Count -gt 0) {
+        throw "Cannot finalize because system identity roles are missing: $($missingSystemRoles -join ', '). Complete the deployment thread first."
+    }
+
+    $connectorUrl = "https://management.azure.com/subscriptions/$subId/resourceGroups/$LabResourceGroup/providers/Microsoft.App/agents/$AgentName/connectors/app-insights?api-version=$AgentApiVersion"
+    $connector = Invoke-Az @('rest', '--method', 'get', '--url', $connectorUrl, '-o', 'json')
+    if ($connector.properties.provisioningState -notin @('Succeeded', 'Running')) {
+        throw "Cannot finalize because the app-insights connector is not ready (state: $($connector.properties.provisioningState))."
+    }
+
+    if ($agent.properties.incidentManagementConfiguration.type -ne 'AzMonitor') {
+        throw 'Cannot finalize because the Azure Monitor incident platform is not configured.'
+    }
+
+    $completionStatus = Invoke-Az @(
+        'group', 'show',
+        '--name', $LabResourceGroup,
+        '--query', 'tags.onboardingLabDeploymentStatus',
+        '-o', 'json'
+    ) -AllowEmpty
+    if ($completionStatus -ne 'verified') {
+        throw 'Cannot finalize because the agent has not written the verified deployment marker. Complete the deployment thread and its end-to-end checks first.'
+    }
+
+    $dataPlaneToken = Get-DataPlaneToken
+    if (-not [string]::IsNullOrWhiteSpace($dataPlaneToken)) {
+        $endpoint = $agent.properties.agentEndpoint.TrimEnd('/')
+        $requiredDataPlaneObjects = @(
+            @{ Kind = 'skills'; Name = 'sre-agent-self-configure' }
+            @{ Kind = 'skills'; Name = 'onboarding-lab-guide' }
+            @{ Kind = 'skills'; Name = 'onboarding-health-check' }
+            @{ Kind = 'hooks'; Name = 'evidence-checklist' }
+            @{ Kind = 'commonprompts'; Name = 'onboardinglab-safety' }
+        )
+        foreach ($fileName in @('onboardinglab-architecture.md', 'onboardinglab-incident-runbook.md')) {
+            $requiredDataPlaneObjects += @{
+                Kind = 'connectors'
+                Name = (Get-KnowledgeResourceName -FileName $fileName)
+            }
+        }
+        foreach ($item in $requiredDataPlaneObjects) {
+            $encodedName = [uri]::EscapeDataString($item.Name)
+            $installed = Invoke-DataPlaneGet -Url "$endpoint/api/v2/extendedAgent/$($item.Kind)/$encodedName"
+            if ($installed.name -ne $item.Name) {
+                throw "Cannot finalize because $($item.Kind)/$($item.Name) could not be verified."
+            }
+        }
+
+        $globalSettings = Invoke-DataPlaneGet -Url "$endpoint/api/v2/agent/settings/global"
+        if ('RunAzCliWriteCommands' -notin @($globalSettings.permissions.ask) -or
+            'RunInTerminal' -notin @($globalSettings.permissions.deny) -or
+            'Terminal' -notin @($globalSettings.permissions.deny)) {
+            throw 'Cannot finalize because the expected Review-mode tool policy is not installed.'
+        }
+    }
+    else {
+        Write-Note 'Cloud Shell has no SRE Agent data-plane token. Using the agent-written verified deployment marker.'
+    }
+
+    $temporaryOwner = @($assignments | Where-Object {
+        $_.role -eq 'Owner' -and $_.scope -eq $labScope -and $_.id -eq $ownerAssignmentId
+    })
+    if ($temporaryOwner.Count -ne 1) {
+        throw 'Cannot finalize because the temporary Owner assignment created by this script was not found.'
+    }
+    $null = Invoke-Az @('role', 'assignment', 'delete', '--ids', $ownerAssignmentId) -AllowEmpty
+
+    $agentUrl = "https://management.azure.com/subscriptions/$subId/resourceGroups/$LabResourceGroup/providers/Microsoft.App/agents/$AgentName`?api-version=$AgentApiVersion"
+    $null = Invoke-ArmRequest -Method 'patch' -Url $agentUrl -Body @{
+        properties = @{
+            actionConfiguration = @{
+                accessLevel = 'Low'
+                identity = $identityId
+                mode = 'Review'
+            }
+        }
+    }
+    $agent = Wait-ForAgent -ResourceGroup $LabResourceGroup -Name $AgentName
+
+    $remainingOwner = @(Invoke-Az @(
+        'role', 'assignment', 'list',
+        '--scope', $labScope,
+        '--query', "[?name=='$ownerAssignmentName']",
+        '-o', 'json'
+    ) -AllowEmpty)
+    if ($remainingOwner.Count -gt 0) {
+        throw "Temporary Owner could not be removed from $LabResourceGroup."
+    }
+    if ($agent.properties.actionConfiguration.accessLevel -ne 'Low' -or
+        $agent.properties.actionConfiguration.mode -ne 'Review') {
+        throw 'Agent access did not converge to Reader permissions in Review mode (API Low/Review).'
+    }
+
+    $state['finalized'] = $true
+    Save-State -State $state
+    Write-Ok 'Temporary Owner removed.'
+    Write-Ok 'Permanent read-only roles verified.'
+    Write-Ok 'Agent now has Reader permissions in Review mode.'
+    return
+}
+
+# ── Step 1: register resource providers ─────────────────────────────────────
+
+Write-Step 'Step 1 - Register required Azure resource providers'
+
+$pendingProviders = [System.Collections.Generic.List[string]]::new()
+foreach ($providerName in $RequiredResourceProviders) {
+    $provider = Invoke-Az @('provider', 'show', '-n', $providerName, '--query', '{state:registrationState}', '-o', 'json')
+    if ($provider.state -eq 'Registered') {
+        Write-Ok "$providerName is registered."
+        continue
+    }
+
+    Write-Note "Registering $providerName (current state: $($provider.state))..."
+    $null = Invoke-Az @('provider', 'register', '-n', $providerName) -AllowEmpty
+    $pendingProviders.Add($providerName)
+}
+
+$deadline = (Get-Date).AddMinutes(15)
+while ($pendingProviders.Count -gt 0 -and (Get-Date) -lt $deadline) {
+    Start-Sleep -Seconds 10
+    foreach ($providerName in @($pendingProviders)) {
+        $provider = Invoke-Az @('provider', 'show', '-n', $providerName, '--query', '{state:registrationState}', '-o', 'json')
+        if ($provider.state -eq 'Registered') {
+            Write-Ok "$providerName is registered."
+            $null = $pendingProviders.Remove($providerName)
+        }
+    }
+}
+if ($pendingProviders.Count -gt 0) {
+    throw "Azure resource providers did not reach Registered within 15 minutes: $($pendingProviders -join ', ')."
+}
+Set-StepDone -State $state -Name 'rpRegistered'
+
+# ── Step 2: resource groups ─────────────────────────────────────────────────
+
+Write-Step 'Step 2 - Resource groups'
+
+$existing = $null
+try { $existing = Invoke-Az @('group', 'show', '-n', $LabResourceGroup, '-o', 'json') } catch { $existing = $null }
+
+if ($existing) {
+    Write-Ok "$LabResourceGroup already exists in $($existing.location)."
+    $labResourceGroupId = $existing.id
+}
+else {
+    $created = Invoke-Az @('group', 'create', '-n', $LabResourceGroup, '-l', $Location, '-o', 'json')
+    Write-Ok "Created $LabResourceGroup in $($created.location)."
+    $labResourceGroupId = $created.id
+}
+$null = Invoke-Az @(
+    'tag', 'update',
+    '--resource-id', $labResourceGroupId,
+    '--operation', 'Merge',
+    '--tags', "onboardingLabRequestedWorkloadOption=$WorkloadOption",
+    '--output', 'none'
+) -AllowEmpty
+Write-Ok "Recorded requested workload option: $WorkloadOption"
+$state['subscriptionId'] = $subId
+Save-State -State $state
+
+# ── Step 3: create the final onboarding agent ───────────────────────────────
+
+Write-Step 'Step 3 - Create the final onboarding agent'
+
+$sha = [System.Security.Cryptography.SHA256]::Create()
+try {
+    $bytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes("$subId|$LabResourceGroup|$AgentName"))
+    $suffix = (([System.BitConverter]::ToString($bytes)) -replace '-', '').ToLowerInvariant().Substring(0, 10)
+}
+finally { $sha.Dispose() }
+
+$lawName = "law-$suffix"
+$aiName = "ai-$suffix"
+$identityName = "$AgentName-id-$suffix"
+$rgBase = "https://management.azure.com/subscriptions/$subId/resourceGroups/$LabResourceGroup/providers"
+
+$agent = Get-AgentResource -ResourceGroup $LabResourceGroup -Name $AgentName
+$agentState = if ($agent) { $agent.properties.provisioningState } else { $null }
+
+if ($agentState -eq 'Succeeded') {
+    # Tracked so Step 7 can distinguish "first run" from "state file was lost".
+    $agentAlreadyExisted = $true
+    Write-Ok "Agent $AgentName already exists."
+}
+elseif ($agent -and $agentState -notin @('Failed', 'Canceled')) {
+    # A previous run created it and the session died while it was still provisioning.
+    # Wait for it rather than PUTting over a resource that is mid-creation.
+    $agentAlreadyExisted = $true
+    Write-Note "Agent $AgentName is still provisioning ($agentState). Waiting..."
+    $agent = Wait-ForAgent -ResourceGroup $LabResourceGroup -Name $AgentName
+    Write-Ok "Agent $AgentName is ready."
+}
+else {
+    if ($agentState -in @('Failed', 'Canceled')) {
+        Write-Note "Agent $AgentName is in state $agentState. Recreating it."
+    }
+    $agentAlreadyExisted = $false
+
+    # Log Analytics workspace — backs Application Insights.
+    Write-Note "Creating Log Analytics workspace $lawName..."
+    $law = Invoke-ArmRequest -Method 'put' `
+        -Url "$rgBase/Microsoft.OperationalInsights/workspaces/$lawName`?api-version=2023-09-01" `
+        -Body ([ordered]@{
+            location   = $Location
+            properties = [ordered]@{
+                sku             = @{ name = 'PerGB2018' }
+                retentionInDays = 30
+            }
+        })
+    if (-not $law.id) { throw "Could not create Log Analytics workspace $lawName." }
+    Write-Ok "Workspace $lawName ready."
+
+    # Application Insights — the agent's own telemetry.
+    Write-Note "Creating Application Insights $aiName..."
+    $null = Invoke-ArmRequest -Method 'put' `
+        -Url "$rgBase/Microsoft.Insights/components/$aiName`?api-version=2020-02-02" `
+        -Body ([ordered]@{
+            location   = $Location
+            kind       = 'web'
+            properties = [ordered]@{
+                Application_Type    = 'web'
+                Request_Source      = 'SreAgent'
+                WorkspaceResourceId = $law.id
+            }
+        })
+
+    # Read it back: AppId and ConnectionString are assigned by the service.
+    $appInsights = Invoke-Az @(
+        'resource', 'show', '-g', $LabResourceGroup, '-n', $aiName,
+        '--resource-type', 'Microsoft.Insights/components', '--api-version', '2020-02-02', '-o', 'json'
+    )
+    $aiAppId = $appInsights.properties.AppId
+    $aiConnectionString = $appInsights.properties.ConnectionString
+    if ([string]::IsNullOrWhiteSpace($aiAppId) -or [string]::IsNullOrWhiteSpace($aiConnectionString)) {
+        throw "Application Insights $aiName has no AppId/ConnectionString yet. Re-run this script."
+    }
+    Write-Ok "Application Insights $aiName ready."
+
+    # Managed identity the agent acts as.
+    Write-Note "Creating managed identity $identityName..."
+    $identity = Invoke-Az @(
+        'identity', 'create', '-g', $LabResourceGroup, '-n', $identityName, '-l', $Location, '-o', 'json'
+    )
+    if (-not $identity.principalId) { throw "Could not create managed identity $identityName." }
+    Write-Ok "Identity $identityName ready."
+
+    $labScope = "/subscriptions/$subId/resourceGroups/$LabResourceGroup"
+
+    # The API's High access level is shown as Privileged in the portal. Review mode
+    # still requires the participant to approve every proposed write.
+    $agentBody = [ordered]@{
+        location   = $Location
+        tags       = @{ workload = 'onboardinglab' }
+        identity   = [ordered]@{
+            type                   = 'SystemAssigned, UserAssigned'
+            userAssignedIdentities = @{ "$($identity.id)" = @{} }
+        }
+        properties = [ordered]@{
+            knowledgeGraphConfiguration = [ordered]@{
+                identity         = $identity.id
+                managedResources = @($labScope)
+            }
+            actionConfiguration         = [ordered]@{
+                accessLevel = 'High'
+                identity    = $identity.id
+                mode        = 'Review'
+            }
+            incidentManagementConfiguration = [ordered]@{
+                type           = 'AzMonitor'
+                connectionName = 'azmonitor'
+            }
+            logConfiguration            = [ordered]@{
+                applicationInsightsConfiguration = [ordered]@{
+                    appId            = $aiAppId
+                    connectionString = $aiConnectionString
+                }
+            }
+            upgradeChannel              = 'Preview'
+            monthlyAgentUnitLimit       = 10000
+            defaultModel                = [ordered]@{
+                provider = 'MicrosoftFoundry'
+                name     = 'Automatic'
+            }
+            experimentalSettings        = [ordered]@{
+                EnableWorkspaceTools = $true
+                EnableHttpTriggers   = $true
+                EnableV2AgentLoop    = $true
+            }
+        }
+    }
+
+    Write-Note "Creating agent $AgentName (this takes a few minutes)..."
+    $null = Invoke-ArmRequest -Method 'put' `
+        -Url "$rgBase/Microsoft.App/agents/$AgentName`?api-version=$AgentApiVersion" `
+        -Body $agentBody
+
+    $agent = Wait-ForAgent -ResourceGroup $LabResourceGroup -Name $AgentName
+    Write-Ok "Agent $AgentName created."
+}
+
+# Always read the agent back: the data-plane hostname contains service-assigned segments and
+# cannot be composed from the agent name and region.
+$agent = Get-AgentResource -ResourceGroup $LabResourceGroup -Name $AgentName
+if (-not $agent) { throw "Agent $AgentName could not be read back." }
+
+if ($agent.properties.incidentManagementConfiguration.type -ne 'AzMonitor') {
+    Write-Note 'Configuring the Azure Monitor incident platform before the agent deployment starts...'
+    $agentUrl = "https://management.azure.com/subscriptions/$subId/resourceGroups/$LabResourceGroup/providers/Microsoft.App/agents/$AgentName`?api-version=$AgentApiVersion"
+    $null = Invoke-ArmRequest -Method 'patch' -Url $agentUrl -Body @{
+        properties = @{
+            incidentManagementConfiguration = @{
+                type           = 'AzMonitor'
+                connectionName = 'azmonitor'
+            }
+        }
+    }
+    $agent = Wait-ForAgent -ResourceGroup $LabResourceGroup -Name $AgentName
+}
+
+$agentEndpoint = $agent.properties.agentEndpoint
+if ([string]::IsNullOrWhiteSpace($agentEndpoint)) {
+    throw 'The agent has no agentEndpoint yet. Wait a moment and re-run this script.'
+}
+
+$agentUamiPrincipalId = $null
+foreach ($uami in $agent.identity.userAssignedIdentities.PSObject.Properties) {
+    $agentUamiPrincipalId = $uami.Value.principalId
+    break
+}
+if (-not $agentUamiPrincipalId) {
+    throw 'Could not determine the user-assigned managed identity of the agent.'
+}
+
+$state['agentEndpoint'] = $agentEndpoint
+$state['agentUamiPrincipalId'] = $agentUamiPrincipalId
+$state['agentIdentityName'] = (($agent.identity.userAssignedIdentities.PSObject.Properties.Name | Select-Object -First 1) -split '/')[-1]
+$agentIdentity = Invoke-Az @(
+    'identity', 'show',
+    '--resource-group', $LabResourceGroup,
+    '--name', $state['agentIdentityName'],
+    '-o', 'json'
+)
+if ([string]::IsNullOrWhiteSpace($agentIdentity.clientId)) {
+    throw "Could not determine the client ID of managed identity $($state['agentIdentityName'])."
+}
+$state['agentUamiClientId'] = $agentIdentity.clientId
+Save-State -State $state
+
+Write-Ok "Endpoint: $agentEndpoint"
+Write-Ok "Agent identity: $agentUamiPrincipalId"
+
+# ── Step 4: egress allowlist ────────────────────────────────────────────────
+
+Write-Step 'Step 4 - Allow the egress hosts the agent needs'
+
+# Read the current egress block and append. Do NOT write a fresh list: the platform seeds
+# roughly thirty defaults (management.azure.com, api.github.com, the package registries, ...)
+# and replacing them would leave the agent unable to reach Azure at all.
+$egress = $agent.properties.sandboxConfiguration.egress
+
+if (-not $egress -or $egress.mode -eq 'Unrestricted') {
+    # No restriction in force, so the hosts are already reachable. Writing an allowlist
+    # here would *introduce* a restriction rather than relax one.
+    Write-Ok 'Sandbox egress is unrestricted; no allowlist needed.'
+}
+else {
+    $currentHosts = @()
+    if ($egress.allowedHosts) { $currentHosts = @($egress.allowedHosts) }
+
+    $missing = @($RequiredEgressHosts | Where-Object { $_ -notin $currentHosts })
+
+    if ($missing.Count -eq 0) {
+        Write-Ok 'All required hosts are already allowed.'
+    }
+    else {
+        Write-Note "Adding: $($missing -join ', ')"
+
+        $egressBody = [ordered]@{
+            mode         = $egress.mode
+            allowedHosts = @($currentHosts + $missing)
+        }
+        # Preserve the other egress settings verbatim.
+        if ($null -ne $egress.allowedRegistries) { $egressBody['allowedRegistries'] = @($egress.allowedRegistries) }
+        if ($null -ne $egress.allowedCodeRepositories) { $egressBody['allowedCodeRepositories'] = @($egress.allowedCodeRepositories) }
+        if ($null -ne $egress.allowHttpMcpServerNetworkAccess) { $egressBody['allowHttpMcpServerNetworkAccess'] = $egress.allowHttpMcpServerNetworkAccess }
+
+        $armUrl = "https://management.azure.com/subscriptions/$subId/resourceGroups/$LabResourceGroup/providers/Microsoft.App/agents/$AgentName" + "?api-version=$AgentApiVersion"
+        $null = Invoke-ArmRequest -Method 'patch' -Url $armUrl `
+            -Body @{ properties = @{ sandboxConfiguration = @{ egress = $egressBody } } }
+
+        # The PATCH briefly moves the agent to InProgress; wait for it to settle.
+        $deadline = (Get-Date).AddMinutes(5)
+        do {
+            Start-Sleep -Seconds 10
+            $check = Invoke-Az @(
+                'resource', 'show', '-g', $LabResourceGroup, '-n', $AgentName,
+                '--resource-type', 'Microsoft.App/agents', '--api-version', $AgentApiVersion,
+                '--query', '{state:properties.provisioningState,hosts:properties.sandboxConfiguration.egress.allowedHosts}', '-o', 'json'
+            )
+        } while ($check.state -eq 'InProgress' -and (Get-Date) -lt $deadline)
+
+        $stillMissing = @($RequiredEgressHosts | Where-Object { $_ -notin @($check.hosts) })
+        if ($stillMissing.Count -gt 0) {
+            throw "Egress update did not take effect. Still missing: $($stillMissing -join ', ')"
+        }
+        Write-Ok 'Egress hosts allowed.'
+    }
+}
+
+# ── Step 5: grant temporary deployment access ───────────────────────────────
+
+Write-Step 'Step 5 - Grant temporary Owner on the lab resource group'
+
+$labScope = "/subscriptions/$subId/resourceGroups/$LabResourceGroup"
+$ownerAssignmentName = Get-StableGuid "$labScope|$agentUamiPrincipalId|onboardinglab-temporary-owner"
+
+# Owner is temporary. The Bicep deployment creates the permanent read-only roles,
+# which Contributor alone cannot do. -Finalize removes Owner after verification.
+$existingAssignments = Invoke-Az @(
+    'role', 'assignment', 'list',
+    '--assignee', $agentUamiPrincipalId,
+    '--scope', $labScope,
+    '--query', "[?roleDefinitionName=='Owner'].{id:id,name:name}",
+    '-o', 'json'
+) -AllowEmpty
+
+if ($existingAssignments -and @($existingAssignments | Where-Object { $_.name -eq $ownerAssignmentName }).Count -gt 0) {
+    Write-Ok 'Temporary Owner already assigned.'
+}
+elseif ($existingAssignments -and @($existingAssignments).Count -gt 0) {
+    throw 'The agent identity already has an Owner assignment that this script did not create. Refusing to adopt or later remove it.'
+}
+else {
+    $null = Invoke-Az @(
+        'role', 'assignment', 'create',
+        '--name', $ownerAssignmentName,
+        '--assignee-object-id', $agentUamiPrincipalId,
+        '--assignee-principal-type', 'ServicePrincipal',
+        '--role', 'Owner',
+        '--scope', $labScope,
+        '-o', 'json'
+    ) -AllowEmpty
+    Write-Ok "Temporary Owner granted on $LabResourceGroup."
+}
+
+$agentAdminAssignments = Invoke-Az @(
+    'role', 'assignment', 'list',
+    '--assignee', $agentUamiPrincipalId,
+    '--scope', $agent.id,
+    '--query', "[?roleDefinitionName=='SRE Agent Administrator']",
+    '-o', 'json'
+) -AllowEmpty
+if (-not ($agentAdminAssignments -and @($agentAdminAssignments).Count -gt 0)) {
+    $null = Invoke-Az @(
+        'role', 'assignment', 'create',
+        '--assignee-object-id', $agentUamiPrincipalId,
+        '--assignee-principal-type', 'ServicePrincipal',
+        '--role', 'SRE Agent Administrator',
+        '--scope', $agent.id,
+        '-o', 'json'
+    ) -AllowEmpty
+}
+Write-Ok 'Agent identity can configure its own agent data plane.'
+
+$userAdminAssignments = Invoke-Az @(
+    'role', 'assignment', 'list',
+    '--assignee', $signedInUserObjectId,
+    '--scope', $agent.id,
+    '--query', "[?roleDefinitionName=='SRE Agent Administrator']",
+    '-o', 'json'
+) -AllowEmpty
+if (-not ($userAdminAssignments -and @($userAdminAssignments).Count -gt 0)) {
+    $null = Invoke-Az @(
+        'role', 'assignment', 'create',
+        '--assignee-object-id', $signedInUserObjectId,
+        '--assignee-principal-type', 'User',
+        '--role', 'SRE Agent Administrator',
+        '--scope', $agent.id,
+        '-o', 'json'
+    ) -AllowEmpty
+}
+Write-Ok 'Signed-in user can administer the agent and configure Code Access.'
+
+# ── Step 6: authorize GitHub and connect the code repository ────────────────
+
+Write-Step 'Step 6 - Authorize GitHub and connect the code repository'
+
+$dataPlaneToken = Get-DataPlaneToken
+$portalUrl = "https://sre.azure.com/agents/subscriptions/$subId/resourceGroups/$LabResourceGroup/providers/Microsoft.App/agents/$AgentName"
+$repositoryUrl = $GitHubRepositoryUrl
+$repositoryName = 'sre-agent'
+
+if (-not [string]::IsNullOrWhiteSpace($dataPlaneToken)) {
+    $connectedRepositories = @(Get-ConnectedRepositories -Endpoint $agentEndpoint)
+    $targetRepository = @($connectedRepositories | Where-Object { $_.name -eq $repositoryName })
+    if ($targetRepository.Count -eq 1 -and
+        $targetRepository[0].properties.url.TrimEnd('/') -eq $repositoryUrl -and
+        $targetRepository[0].properties.cloneStatus -eq 'Ready' -and
+        $targetRepository[0].properties.latestCommit -eq $expectedRepositoryCommit) {
+        Set-StepDone -State $state -Name 'codeAccessConfirmed'
+        Write-Ok "Code access verified: $repositoryUrl ($GitHubRepositoryBranch at $expectedRepositoryCommit)"
+    }
+    else {
+        $githubDomains = Invoke-DataPlaneGet -Url "$($agentEndpoint.TrimEnd('/'))/api/v2/github/domains"
+        $githubAuthorized = @($githubDomains.values).Count -gt 0
+        if (-not $githubAuthorized) {
+            $githubOAuth = Invoke-DataPlaneGet -Url "$($agentEndpoint.TrimEnd('/'))/api/v2/github/oauth/config"
+            $oauthUrl = if ($githubOAuth.oAuthUrl) { $githubOAuth.oAuthUrl } else { $githubOAuth.OAuthUrl }
+            if ([string]::IsNullOrWhiteSpace($oauthUrl)) {
+                throw 'Could not retrieve the GitHub OAuth URL from the agent.'
+            }
+            Write-Host ''
+            Write-Host '   Open this URL and approve GitHub access:' -ForegroundColor Yellow
+            Write-Host "   $oauthUrl"
+            Write-Host ''
+            $null = Read-Host '   Press Enter after GitHub authorization is complete'
+            $githubDomains = Invoke-DataPlaneGet -Url "$($agentEndpoint.TrimEnd('/'))/api/v2/github/domains"
+            $githubAuthorized = @($githubDomains.values).Count -gt 0
+            if (-not $githubAuthorized) {
+                throw 'GitHub authorization was not detected. Complete OAuth and rerun the bootstrap.'
+            }
+        }
+
+        $encodedRepositoryName = [uri]::EscapeDataString($repositoryName)
+        $null = Invoke-DataPlanePut `
+            -Url "$($agentEndpoint.TrimEnd('/'))/api/v2/repos/$encodedRepositoryName" `
+            -Body @{
+                name = $repositoryName
+                type = 'CodeRepo'
+                properties = @{
+                    url = $repositoryUrl
+                    type = 'GitHub'
+                    branch = $GitHubRepositoryBranch
+                    description = 'Azure SRE Agent onboarding lab source'
+                }
+            }
+
+        try {
+            $targetRepository = Wait-ForRepositoryCommit `
+                -Endpoint $agentEndpoint `
+                -RepositoryName $repositoryName `
+                -RepositoryUrl $repositoryUrl `
+                -ExpectedCommit $expectedRepositoryCommit
+        }
+        catch {
+            $state['codeAccessConfirmed'] = $false
+            Save-State -State $state
+            throw "Repository verification failed for $repositoryUrl ($GitHubRepositoryBranch at $expectedRepositoryCommit): $($_.Exception.Message)"
+        }
+        Set-StepDone -State $state -Name 'codeAccessConfirmed'
+        Write-Ok "GitHub authorized and repository connected: $repositoryUrl ($GitHubRepositoryBranch at $expectedRepositoryCommit)"
+    }
+}
+else {
+    Write-Warning 'Cloud Shell cannot acquire an SRE Agent data-plane token. Continuing through the portal.'
+
+    Write-Host ''
+    Write-Host '   The final onboarding agent clones your fork and deploys its workload' -ForegroundColor Yellow
+    Write-Host "   and durable configuration from $RunbookPath and the lab templates." -ForegroundColor Yellow
+    Write-Host ''
+    Write-Host '   1. Open the agent in the portal:'
+    Write-Host "      $portalUrl"
+    Write-Host '   2. Go to Manage - Sources (code repositories).'
+    Write-Host '   3. Complete GitHub OAuth and connect this repository:'
+    Write-Host "      $repositoryUrl ($GitHubRepositoryBranch)"
+    Write-Host '   4. Wait until the repository shows as connected.'
+    Write-Host ''
+    Write-Note 'Confirm that the repository shows as connected in the portal. The script cannot verify it from this Cloud Shell session.'
+}
+
+# ── Step 7: start the deployment thread ─────────────────────────────────────
+
+Write-Step 'Step 7 - Ask the agent to deploy the lab'
+
+# This is the one step that is not safe to simply repeat: every POST starts another
+# thread, and two threads would have two agents deploying the same lab into the same
+# resource group at once, each asking for conflicting approvals.
+$existingThreadId = if ($state.Contains('threadId')) { $state['threadId'] } else { $null }
+$threadId = $existingThreadId
+$startThread = -not [string]::IsNullOrWhiteSpace($dataPlaneToken)
+
+if (-not $startThread) {
+    Write-Warning 'Automatic thread creation is unavailable in this Cloud Shell session.'
+}
+elseif ($existingThreadId -and -not $NewThread) {
+    Write-Ok "A deployment thread was already started: $existingThreadId"
+    Write-Note 'Re-running does not start another one. Use -NewThread to force a fresh thread.'
+    $startThread = $false
+}
+elseif ($agentAlreadyExisted -and -not $NewThread) {
+    # The agent predates this run but nothing recorded a thread, which usually means the
+    # state file was lost with an ephemeral Cloud Shell session. A thread may already be
+    # running, so confirm rather than silently starting a second one.
+    Write-Host ''
+    Write-Warning 'The agent already existed, but this run has no record of a deployment thread.'
+    Write-Host '   The state file was probably lost with a previous session.' -ForegroundColor DarkGray
+    Write-Host '   Check whether a deployment is already running before starting another:' -ForegroundColor DarkGray
+    Write-Host "   $portalUrl"
+    Write-Host ''
+    $reply = Read-Host '   Start a new deployment thread? [y/N]'
+    if ($reply -notmatch '^\s*[Yy]') {
+        Write-Note 'Skipped. Re-run with -NewThread once you are sure no thread is running.'
+        $startThread = $false
+    }
+}
+
+$startMessage = @"
+Deploy the Azure SRE Agent Onboarding Lab.
+
+First find the local workspace directory for the Code Access clone of the sre-agent repository.
+Confirm that it contains $RunbookPath. Repository setup can still be in progress when this chat
+starts, so if the path is not available yet, wait and retry periodically instead of failing or
+cloning another copy. Change to that repository root, then follow $RunbookPath. Launch its
+deployment script with the exact inputs below, keep the operator informed with the script's status
+messages, and wait for the script to finish. Never run two copies concurrently. If the script exits
+nonzero and a confirmed repository fix is then applied, rerun the same command once to resume its
+idempotent workflow.
+
+Inputs:
+- SUBSCRIPTION: $subId
+- LAB_RG: $LabResourceGroup
+- LOCATION: $Location
+- NAME_PREFIX: flu-lab01
+- AGENT_NAME: $AgentName
+- AGENT_IDENTITY_NAME: $($state['agentIdentityName'])
+- AGENT_IDENTITY_CLIENT_ID: $($state['agentUamiClientId'])
+- WORKLOAD_OPTION: $WorkloadOption
+
+You are the final lab agent. The resource group already exists and your action identity has
+temporary Owner on it.
+* Find the local sre-agent repository root, then follow $RunbookPath and launch its deployment
+    script with the exact inputs above. Resume with the same command after a confirmed fix; never
+    run concurrent copies.
+* Let that script deploy the workload and converge your durable configuration. Do not create
+  another SRE Agent or managed identity, and do not duplicate the script's commands separately.
+* Leave the selected workload fault off.
+* Do not modify anything outside $LabResourceGroup.
+* Report when external finalization is safe.
+"@
+
+if ($startThread) {
+    $dpToken = $dataPlaneToken
+
+    $body = @{ StartMessage = $startMessage } | ConvertTo-Json -Depth 5
+
+    try {
+        $thread = Invoke-RestMethod -Uri "$agentEndpoint/api/v1/threads" -Method Post `
+            -Headers @{ Authorization = "Bearer $dpToken" } `
+            -ContentType 'application/json' -Body $body -TimeoutSec 60
+    }
+    catch {
+        throw "Could not start the agent thread: $($_.Exception.Message)"
+    }
+    finally {
+        $dpToken = $null
+    }
+
+    $threadId = if ($thread.id) { $thread.id } elseif ($thread.threadId) { $thread.threadId } else { $null }
+    if ([string]::IsNullOrWhiteSpace($threadId)) {
+        throw 'The agent accepted the deployment request but did not return a thread ID. No verification wait was started.'
+    }
+
+    # Recorded immediately so a session that dies right after this does not start a second
+    # thread on the next run.
+    $state['threadId'] = $threadId
+    Save-State -State $state
+
+    Write-Ok 'Thread started.'
+}
+else {
+    Write-Host ''
+    Write-Host '   Open this agent in the portal and start or reuse a chat:' -ForegroundColor Yellow
+    Write-Host "   $portalUrl"
+    Write-Host ''
+    Write-Host '   Paste this deployment request:' -ForegroundColor Yellow
+    Write-Host '---'
+    Write-Host $startMessage
+    Write-Host '---'
+    Write-Host ''
+    Write-Note 'No deployment thread was created by this script.'
+}
+
+# ── Done ────────────────────────────────────────────────────────────────────
+
+Write-Host ''
+if ([string]::IsNullOrWhiteSpace($dataPlaneToken)) {
+    Write-Host 'Bootstrap preparation complete. Finish the deployment in the agent portal.' -ForegroundColor Green
+}
+else {
+    Write-Host 'Bootstrap complete.' -ForegroundColor Green
+}
+Write-Host ''
+Write-Host "  Onboarding agent  : $AgentName"
+Write-Host "  Lab resource group: $LabResourceGroup"
+Write-Host "  Region            : $Location"
+if ($threadId) { Write-Host "  Thread            : $threadId" }
+Write-Host ''
+Write-Host '  Watch progress at:'
+Write-Host "  $portalUrl"
+Write-Host ''
+Write-Host '  The agent runs in Review mode, so approve each action as it is proposed.' -ForegroundColor Yellow
+Write-Host '  Read commands run without prompting; only writes need your approval.' -ForegroundColor DarkGray
+Write-Host ''
+
+if ([string]::IsNullOrWhiteSpace($threadId)) {
+    Write-Warning 'No deployment thread exists, so automatic verification and finalization were not started.'
+    Write-Host '  Follow the deployment request printed above, then rerun this script after the agent writes the verified marker.' -ForegroundColor Yellow
+    return
+}
+
+if (Wait-ForVerifiedDeployment -ResourceGroup $LabResourceGroup -ThreadId $threadId) {
+    Write-Step 'Automatically finalizing deployment access'
+    & $PSCommandPath -Subscription $subId -LabResourceGroup $LabResourceGroup `
+        -Location $Location -AgentName $AgentName -StateFile $StateFile -Finalize
+    return
+}
+
+Write-Warning 'Automatic finalization did not complete in this session.'
+Write-Host "  Recovery: ./bootstrap-agent.ps1 -LabResourceGroup '$LabResourceGroup' -AgentName '$AgentName' -Finalize" -ForegroundColor Yellow
+Write-Host ''

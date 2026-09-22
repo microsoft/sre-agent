@@ -119,11 +119,11 @@ if (-not (Test-Path -LiteralPath $selectionPath)) {
         $repoConfig = Join-Path $config 'config\repos'
         $null = New-Item -ItemType Directory -Path $repoConfig -Force
         @{
-            name = 'ticketingapp-source'
+            name = 'sre-agent'
             spec = @{ url = $GitHubRepositoryUrl; branch = 'main'; description = 'Selected lab source repository' }
         } | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $repoConfig 'ticketingapp-source.yaml') -Encoding utf8
-        $expected.repos = @('ticketingapp-source')
-        $expected.repoBranches = @{ 'ticketingapp-source' = 'main' }
+        $expected.repos = @('sre-agent')
+        $expected.repoBranches = @{ 'sre-agent' = 'main' }
     }
     if ($EnableGitHubIssues) {
         $policy.allow += @('FetchGithubIssue', 'FetchGithubIssues')

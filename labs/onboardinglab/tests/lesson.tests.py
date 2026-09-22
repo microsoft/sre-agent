@@ -1,5 +1,6 @@
 """Offline contracts for the learner guide, separate from live agent validation."""
 
+import json
 import unittest
 import re
 from pathlib import Path
@@ -41,23 +42,23 @@ class LessonTests(unittest.TestCase):
         self.assertIn("Namespaces do not", facilitator)
         self.assertIn("actual run", facilitator)
 
-    def test_startup_prompt_and_skill_trigger_match(self):
+    def test_readme_restores_participant_driven_three_scenario_flow(self):
         readme = (LAB / "README.md").read_text(encoding="utf-8")
-        guide = (LAB / "agent-recipe/config/skills/onboarding-lab-guide.md").read_text(
-            encoding="utf-8"
-        )
-        registration = yaml.safe_load(
-            (LAB / "agent-recipe/config/skills/onboarding-lab-guide.yaml").read_text()
-        )
-        prompt_start = "Use onboarding-lab-guide to start the onboarding lab."
-        self.assertIn(prompt_start, readme)
-        self.assertIn(prompt_start, guide)
-        self.assertIn("start the onboarding lab", registration["metadata"]["description"])
-        self.assertIn("No slash command is required.", readme)
-        self.assertIn("No slash command is required.", guide)
-        self.assertIn("**New chat**", readme)
-        self.assertIn("If the guide is unavailable", readme)
-        self.assertIn("one next action", readme)
+        for heading in (
+            "## 1. Deploy the workload and final agent",
+            "### Finalize deployment access",
+            "## 2. Clone the repository and install the workflows",
+            "### Install the incident and health workflows",
+            "## Scenario 1: Incident workflow",
+            "## Scenario 2: Scheduled health check and Live Report",
+            "## Scenario 3: Pull-request validation",
+        ):
+            with self.subTest(heading=heading):
+                self.assertIn(heading, readme)
+        self.assertIn("participant-driven", readme)
+        self.assertIn("git clone https://github.com/YOUR-GITHUB-USER/sre-agent.git", readme)
+        self.assertIn("install-workflow-template", readme)
+        self.assertIn("install-pr-validation", readme)
 
     def test_coaching_is_explicit_and_excluded_from_incident_skill_selection(self):
         registration = yaml.safe_load(
@@ -71,21 +72,213 @@ class LessonTests(unittest.TestCase):
         selected = [skill["name"] for skill in workflow["custom_agent"]["skills"]]
         self.assertNotIn("onboarding-lab-guide", selected)
         readme = (LAB / "README.md").read_text(encoding="utf-8")
-        self.assertIn("not a blind benchmark", readme)
+        self.assertIn("read-only incident response workflow", readme)
 
-    def test_standard_lesson_includes_authenticated_github_and_outlook_followups(self):
+    def test_readme_presents_equal_workload_options_and_postgresql_limitation(self):
         readme = (LAB / "README.md").read_text(encoding="utf-8")
-        setup = (LAB / "docs/setup.md").read_text(encoding="utf-8")
-        guide = (LAB / "agent-recipe/config/skills/onboarding-lab-guide.md").read_text(
-            encoding="utf-8"
+        self.assertIn("## Choose a workload option", readme)
+        self.assertNotIn("neither option is preferred", readme)
+        self.assertIn("**App Service**", readme)
+        self.assertIn("**App Service + PostgreSQL**", readme)
+        self.assertIn("PostgreSQL 16 with `Standard_B1ms` in Sweden Central", readme)
+        self.assertIn("does not silently change the selected option", readme)
+        self.assertIn("| **1. Incident workflow** |", readme)
+        self.assertIn("| **2. Scheduled health check and Live Report** |", readme)
+        self.assertIn("| **3. Pull-request validation** |", readme)
+        self.assertIn("$WorkloadOption", readme)
+        self.assertIn('--workload-option "$workload_option"', readme)
+
+    def test_readme_documents_temporary_access_and_fallback_request(self):
+        readme = (LAB / "README.md").read_text(encoding="utf-8")
+        self.assertIn("**Privileged** permissions in **Review**", readme)
+        self.assertIn("**Reader** permissions", readme)
+        self.assertIn("`High` and `Low` access", readme)
+        self.assertIn("temporary **Owner** access", readme)
+        self.assertIn("automatically removes temporary Owner", readme)
+        self.assertIn("Office 365 Outlook", readme)
+        self.assertIn("Outlook authentication remains interactive", readme)
+        self.assertIn("- WORKLOAD_OPTION: <app-service OR app-service-postgresql>", readme)
+        self.assertIn("* Report when external finalization is safe.", readme)
+        self.assertNotIn("PR #341", readme)
+
+    def test_agent_driven_setup_uses_one_agent_and_external_finalization(self):
+        readme = (LAB / "README.md").read_text(encoding="utf-8")
+        bootstrap = (LAB / "scripts/bootstrap-agent.ps1").read_text(encoding="utf-8")
+        runbook = (LAB / "agent-deploy-runbook.md").read_text(encoding="utf-8")
+        infrastructure = (LAB / "infra/main.bicep").read_text(encoding="utf-8")
+        compiled_infrastructure = LAB / "infra/main.arm.json"
+        deployment_script = (LAB / "scripts/deploy-agent.sh").read_text(encoding="utf-8")
+
+        self.assertFalse((LAB / "scripts/bootstrap-labcreator.ps1").exists())
+        self.assertIn("[switch] $Finalize", bootstrap)
+        self.assertIn("'--role', 'Owner'", bootstrap)
+        self.assertIn("'role', 'assignment', 'delete'", bootstrap)
+        self.assertIn("accessLevel = 'Low'", bootstrap)
+        self.assertIn("function Wait-ForVerifiedDeployment", bootstrap)
+        self.assertIn("No deployment thread exists", bootstrap)
+        self.assertIn("-ThreadId $threadId", bootstrap)
+        self.assertIn("did not return a thread ID", bootstrap)
+        self.assertIn("Automatically finalizing deployment access", bootstrap)
+        self.assertIn("function Get-AvailableResourceGroupName", bootstrap)
+        self.assertIn("Using available lab resource group", bootstrap)
+        self.assertIn("$candidate = \"$BaseName-$version\"", bootstrap)
+        self.assertIn("The agent\n# name does not need a suffix", bootstrap)
+        self.assertIn("Existing Azure resources are not deleted", bootstrap)
+        self.assertIn("completely fresh run", readme)
+        self.assertIn("onboardingLabRequestedWorkloadOption", bootstrap)
+        self.assertIn("does not match bootstrap selection", deployment_script)
+        self.assertNotIn("Resource group for the lab [SreAgentOnboardingLabRG]", bootstrap)
+        self.assertIn("Choose the Azure subscription for the lab", bootstrap)
+        self.assertIn("Using the only enabled subscription", bootstrap)
+        self.assertNotIn("savedSubscriptionHasLab", bootstrap)
+        self.assertLess(
+            bootstrap.index("group', 'create'"),
+            bootstrap.index("$state['subscriptionId'] = $subId"),
         )
-        self.assertIn("GitHub and Outlook are part of the standard lab", readme)
-        self.assertIn("Turn the investigation into follow-up work", readme)
-        self.assertIn("issue link and email receipt", readme)
-        self.assertIn("-Stage Connect", setup)
-        self.assertIn("-CoreOnly", setup)
-        self.assertIn("## Share the investigation", guide)
-        self.assertIn("obtain separate approval to send", guide)
+        self.assertIn("multiple subscriptions", readme)
+        self.assertIn("optional/connectorv2/outlook.yaml", deployment_script)
+        self.assertIn('"ListOutlookEmails"', deployment_script)
+        self.assertIn('"SendOutlookEmail"', deployment_script)
+        self.assertIn('.toolPermissions = $policy[0]', deployment_script)
+        self.assertLess(
+            deployment_script.index('.toolPermissions = $policy[0]'),
+            deployment_script.index('pwsh -NoProfile -File "$REPO_ROOT/sreagent-templates/bicep/Assemble-Agent.ps1"'),
+        )
+        self.assertIn("function Get-KnowledgeResourceName", bootstrap)
+        self.assertNotIn("onboardinglab-incident-r-2bcbfae", bootstrap)
+        self.assertIn("/api/v2/repos", bootstrap)
+        self.assertIn("/api/v2/github/oauth/config", bootstrap)
+        self.assertIn("function Invoke-DataPlanePut", bootstrap)
+        self.assertIn("your participant-owned sre-agent fork", bootstrap)
+        self.assertIn("$repositoryName = 'sre-agent'", bootstrap)
+        self.assertIn("Repository verification failed", bootstrap)
+        self.assertIn("function Wait-ForRepositoryCommit", bootstrap)
+        self.assertIn("$repositoryMetadata.default_branch -ne $GitHubRepositoryBranch", bootstrap)
+        self.assertIn("$targetRepository[0].properties.latestCommit -eq $expectedRepositoryCommit", bootstrap)
+        self.assertIn("No deployment thread was started", bootstrap)
+        self.assertNotIn("Select your fork of sre-agent", bootstrap)
+        self.assertIn("you do not select repositories manually", readme)
+        self.assertIn("One interactive OAuth consent", readme)
+        self.assertIn("'--assignee-principal-type', 'User'", bootstrap)
+        self.assertIn("'--role', 'SRE Agent Administrator'", bootstrap)
+        self.assertIn("https://azuresre.dev/.default", bootstrap)
+        self.assertNotIn("--use-device-code", bootstrap)
+        self.assertIn("Automatic thread creation is unavailable", bootstrap)
+        self.assertIn("confirmed repository fix", bootstrap)
+        self.assertIn("Never run two copies", runbook)
+        self.assertIn("onboardingLabDeploymentStatus", bootstrap)
+        for provider in (
+            "Microsoft.App",
+            "Microsoft.Authorization",
+            "Microsoft.DBforPostgreSQL",
+            "Microsoft.Insights",
+            "Microsoft.ManagedIdentity",
+            "Microsoft.Network",
+            "Microsoft.OperationalInsights",
+            "Microsoft.Web",
+        ):
+            self.assertIn(f"'{provider}'", bootstrap)
+        self.assertIn("Keep the operator informed", runbook)
+        self.assertIn(
+            "supportedServerEditions[]?.supportedServerSkus[]?.name",
+            deployment_script,
+        )
+        self.assertNotIn("[?name=='Standard_B1ms']", deployment_script)
+        self.assertIn(
+            "deployment script with the exact inputs",
+            bootstrap,
+        )
+        self.assertIn("First find the local workspace directory", bootstrap)
+        self.assertIn("wait and retry periodically", bootstrap)
+        self.assertIn("do not", bootstrap.lower())
+        self.assertNotIn("Work through every step", bootstrap)
+        self.assertIn("* Report when external finalization is safe.", bootstrap)
+        self.assertNotIn("*.bicep.azure.com", bootstrap)
+        self.assertIn(
+            "https://sre.azure.com/agents/subscriptions/$subId/resourceGroups/"
+            "$LabResourceGroup/providers/Microsoft.App/agents/$AgentName",
+            bootstrap,
+        )
+        self.assertNotIn("https://sre.azure.com/#/agent/", bootstrap)
+        self.assertNotIn("https://sre.azure.com/#/agent/", runbook)
+
+        finalize = bootstrap[
+            bootstrap.index("if ($Finalize) {"):
+            bootstrap.index("# ── Step 1: register resource providers")
+        ]
+        self.assertIn(
+            "Invoke-Az @('role', 'assignment', 'delete', '--ids', $ownerAssignmentId)",
+            finalize,
+        )
+        self.assertNotIn("$signedInUserObjectId", finalize)
+        self.assertLess(
+            finalize.index("onboardingLabDeploymentStatus"),
+            finalize.index("Invoke-Az @('role', 'assignment', 'delete'"),
+        )
+
+        self.assertIn("deploy-agent.sh", runbook)
+        self.assertIn("## Locate the repository", runbook)
+        self.assertIn("do not\nclone a second copy", runbook)
+        self.assertIn("Do not duplicate", runbook)
+        self.assertTrue(deployment_script.startswith("#!/usr/bin/env bash\naz login --identity --client-id"))
+        self.assertIn('available_kb="$(df -Pk /tmp', deployment_script)
+        self.assertIn("from zipfile import ZIP_DEFLATED, ZipFile", deployment_script)
+        self.assertIn("--template-file \"$TEMPLATE\"", deployment_script)
+        self.assertIn("--async true", deployment_script)
+        self.assertIn("az webapp log deployment list", deployment_script)
+        self.assertIn("monitoring it instead of uploading again", deployment_script)
+        self.assertIn("already succeeded; reusing the completed application deployment", deployment_script)
+        self.assertIn("Waiting for the SRE Agent data-plane endpoint", deployment_script)
+        self.assertIn("Database fault rule is Allow.", deployment_script)
+        self.assertIn("FAILED during $CURRENT_STAGE", deployment_script)
+        self.assertIn("az deployment operation group list", deployment_script)
+        self.assertIn("infrastructure_failure_is_workspace_propagation", deployment_script)
+        self.assertIn('contains("workspace could not be found")', deployment_script)
+        self.assertIn("attempt ${infrastructure_attempt}/3", deployment_script)
+        self.assertIn("Failed OneDeploy record", deployment_script)
+        self.assertIn("/tmp/onboardinglab-deploy.log", deployment_script)
+        self.assertIn("Apply-Extras.ps1", deployment_script)
+        self.assertIn("Verify-Agent.ps1", deployment_script)
+        workflow_installer = (LAB / "scripts/install-workflow-template.ps1").read_text(encoding="utf-8")
+        self.assertIn("$extras.installerRequirements.askApprovalTools", workflow_installer)
+        self.assertIn("Workflow approval policy is missing tool", workflow_installer)
+        repository_configurator = (LAB / "scripts/configure-pr-validation-repository.py").read_text(encoding="utf-8")
+        sample_creator = (LAB / "scripts/create-pr-validation-sample.py").read_text(encoding="utf-8")
+        self.assertIn('"--json", "defaultBranchRef"', repository_configurator)
+        self.assertIn('"git", "push", "origin", default_branch', repository_configurator)
+        self.assertNotIn('"git", "push", "origin", "main"', repository_configurator)
+        self.assertIn('"--json", "defaultBranchRef"', sample_creator)
+        self.assertNotIn('"--base", "main"', sample_creator)
+        self.assertIn('if args.scenario == "block":', sample_creator)
+        self.assertIn('BLOCK sample unexpectedly passed', sample_creator)
+        apply_extras = (LAB.parents[1] / "sreagent-templates/bicep/Apply-Extras.ps1").read_text(encoding="utf-8")
+        self.assertIn("agent          = if ($spec.handlingAgent)", apply_extras)
+        self.assertIn('/api/v1/httptriggers/$existingId', apply_extras)
+        self.assertIn('-Method Put -Headers $headers -Body $bodyJson', apply_extras)
+        self.assertIn("$whEnabled = $extras.enableWebhookBridge -eq $true", apply_extras)
+        self.assertIn('Join-Path $PSScriptRoot "logic-app-bridge.bicep"', apply_extras)
+        self.assertIn("--only-show-errors", apply_extras)
+        self.assertIn("2>$stderrPath", apply_extras)
+        self.assertIn("del(.incidentPlatforms, .toolPermissions)", deployment_script)
+        self.assertIn('.agent.accessLevel = "High"', deployment_script)
+        self.assertIn('.agent.actionMode = "Review"', deployment_script)
+        self.assertIn("Permanent action-identity and system-identity roles are present.", deployment_script)
+        self.assertIn("wait_for_role_assignments", deployment_script)
+        self.assertIn("Waiting for permanent RBAC propagation", deployment_script)
+        self.assertIn("reconciling the current Bicep-authored template", deployment_script)
+        self.assertNotIn("reusing its verified outputs", deployment_script)
+        self.assertIn("Applying the durable tool policy after workload and telemetry verification.", deployment_script)
+        self.assertLess(
+            deployment_script.index("Waiting for Application Insights telemetry."),
+            deployment_script.index("Applying the durable tool policy after workload and telemetry verification."),
+        )
+        self.assertIn("onboardingLabDeploymentStatus=verified", deployment_script)
+        self.assertIn("External finalization is safe", deployment_script)
+        self.assertIn("module workload", infrastructure)
+        self.assertIn("module agentConfiguration", infrastructure)
+        compiled = json.loads(compiled_infrastructure.read_text(encoding="utf-8"))
+        self.assertEqual(compiled["$schema"].split("/")[-1], "deploymentTemplate.json#")
+        self.assertTrue(compiled["resources"])
 
     def test_local_document_links_resolve(self):
         documents = [

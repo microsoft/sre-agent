@@ -1,0 +1,755 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.41.2.15936",
+      "templateHash": "12514175363404020622"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Region for the onboarding workload."
+      }
+    },
+    "namePrefix": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 20,
+      "metadata": {
+        "description": "Stable prefix for workload resource names."
+      }
+    },
+    "agentName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the existing final SRE Agent."
+      }
+    },
+    "agentIdentityName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the existing user-assigned identity used by the agent."
+      }
+    },
+    "workloadOption": {
+      "type": "string",
+      "allowedValues": [
+        "app-service",
+        "app-service-postgresql"
+      ],
+      "metadata": {
+        "description": "Selects the App Service or App Service plus PostgreSQL lab scenarios."
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {
+        "workload": "onboardinglab"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "onboardinglab-workload",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "namePrefix": {
+            "value": "[parameters('namePrefix')]"
+          },
+          "workloadOption": {
+            "value": "[parameters('workloadOption')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "8188693890910218636"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the lab workload."
+              }
+            },
+            "namePrefix": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 20,
+              "metadata": {
+                "description": "Short lowercase prefix used for globally scoped resource names."
+              }
+            },
+            "workloadOption": {
+              "type": "string",
+              "defaultValue": "app-service-postgresql",
+              "allowedValues": [
+                "app-service",
+                "app-service-postgresql"
+              ],
+              "metadata": {
+                "description": "Selects the App Service or App Service plus PostgreSQL lab scenarios."
+              }
+            },
+            "injectDatabaseFault": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "When true, deny checkout traffic to PostgreSQL on TCP 5432."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Resource tags applied to the lab resources."
+              }
+            }
+          },
+          "variables": {
+            "uniqueSuffix": "[toLower(uniqueString(resourceGroup().id))]",
+            "virtualNetworkName": "[format('{0}-vnet', parameters('namePrefix'))]",
+            "applicationSubnetName": "app-service",
+            "databaseSubnetName": "postgresql",
+            "networkSecurityGroupName": "[format('{0}-app-nsg', parameters('namePrefix'))]",
+            "logAnalyticsName": "[format('{0}-logs', parameters('namePrefix'))]",
+            "applicationInsightsName": "[format('{0}-appi', parameters('namePrefix'))]",
+            "appServicePlanName": "[format('{0}-plan', parameters('namePrefix'))]",
+            "webAppName": "[format('{0}-checkout-{1}', parameters('namePrefix'), variables('uniqueSuffix'))]",
+            "postgresServerName": "[take(format('{0}-pg-{1}', parameters('namePrefix'), variables('uniqueSuffix')), 63)]",
+            "privateDnsZoneName": "private.postgres.database.azure.com",
+            "databaseName": "checkout",
+            "usePostgresql": "[equals(parameters('workloadOption'), 'app-service-postgresql')]"
+          },
+          "resources": {
+            "checkoutIdentity": {
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2023-01-31",
+              "name": "[format('{0}-checkout-identity', parameters('namePrefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]"
+            },
+            "applicationNetworkSecurityGroup": {
+              "condition": "[variables('usePostgresql')]",
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[variables('networkSecurityGroupName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "PostgreSqlFaultInjection",
+                    "properties": {
+                      "description": "Toggle for the Azure SRE Agent Onboarding Lab database connectivity incident.",
+                      "protocol": "Tcp",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "5432",
+                      "sourceAddressPrefix": "10.42.0.0/23",
+                      "destinationAddressPrefix": "10.42.2.0/24",
+                      "access": "[if(parameters('injectDatabaseFault'), 'Deny', 'Allow')]",
+                      "priority": 100,
+                      "direction": "Outbound"
+                    }
+                  }
+                ]
+              }
+            },
+            "virtualNetwork": {
+              "condition": "[variables('usePostgresql')]",
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2024-05-01",
+              "name": "[variables('virtualNetworkName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "addressSpace": {
+                  "addressPrefixes": [
+                    "10.42.0.0/16"
+                  ]
+                },
+                "subnets": [
+                  {
+                    "name": "[variables('applicationSubnetName')]",
+                    "properties": {
+                      "addressPrefix": "10.42.0.0/23",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]"
+                      },
+                      "delegations": [
+                        {
+                          "name": "Microsoft.Web.serverFarms",
+                          "properties": {
+                            "serviceName": "Microsoft.Web/serverFarms"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "name": "[variables('databaseSubnetName')]",
+                    "properties": {
+                      "addressPrefix": "10.42.2.0/24",
+                      "delegations": [
+                        {
+                          "name": "Microsoft.DBforPostgreSQL.flexibleServers",
+                          "properties": {
+                            "serviceName": "Microsoft.DBforPostgreSQL/flexibleServers"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "applicationNetworkSecurityGroup"
+              ]
+            },
+            "privateDnsZone": {
+              "condition": "[variables('usePostgresql')]",
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2024-06-01",
+              "name": "[variables('privateDnsZoneName')]",
+              "location": "global",
+              "tags": "[parameters('tags')]"
+            },
+            "privateDnsLink": {
+              "condition": "[variables('usePostgresql')]",
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', variables('privateDnsZoneName'), format('{0}-vnet-link', parameters('namePrefix')))]",
+              "location": "global",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                  "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]"
+                }
+              },
+              "dependsOn": [
+                "privateDnsZone",
+                "virtualNetwork"
+              ]
+            },
+            "logAnalytics": {
+              "type": "Microsoft.OperationalInsights/workspaces",
+              "apiVersion": "2023-09-01",
+              "name": "[variables('logAnalyticsName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "retentionInDays": 30,
+                "features": {
+                  "enableLogAccessUsingOnlyResourcePermissions": true
+                }
+              }
+            },
+            "applicationInsights": {
+              "type": "Microsoft.Insights/components",
+              "apiVersion": "2020-02-02",
+              "name": "[variables('applicationInsightsName')]",
+              "location": "[parameters('location')]",
+              "kind": "web",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "Application_Type": "web",
+                "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]"
+              },
+              "dependsOn": [
+                "logAnalytics"
+              ]
+            },
+            "checkoutFailureAlert": {
+              "type": "Microsoft.Insights/scheduledQueryRules",
+              "apiVersion": "2023-03-15-preview",
+              "name": "[format('{0}-checkout-failures', parameters('namePrefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "displayName": "[format('{0}-checkout-failures', parameters('namePrefix'))]",
+                "description": "Checkout requests returned HTTP 5xx responses during the onboarding lab.",
+                "severity": 2,
+                "enabled": true,
+                "evaluationFrequency": "PT1M",
+                "windowSize": "PT5M",
+                "scopes": [
+                  "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]"
+                ],
+                "criteria": {
+                  "allOf": [
+                    {
+                      "query": "            AppRequests\r\n            | where TimeGenerated > ago(5m)\r\n            | where Name == \"POST /checkout\"\r\n            | where Success == false or toint(ResultCode) >= 500\r\n            | summarize FailureCount = count()\r\n          ",
+                      "timeAggregation": "Total",
+                      "metricMeasureColumn": "FailureCount",
+                      "operator": "GreaterThan",
+                      "threshold": 0,
+                      "failingPeriods": {
+                        "numberOfEvaluationPeriods": 1,
+                        "minFailingPeriodsToAlert": 1
+                      }
+                    }
+                  ]
+                },
+                "autoMitigate": true
+              },
+              "dependsOn": [
+                "logAnalytics"
+              ]
+            },
+            "appServicePlan": {
+              "type": "Microsoft.Web/serverfarms",
+              "apiVersion": "2024-04-01",
+              "name": "[variables('appServicePlanName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "linux",
+              "sku": {
+                "name": "B1",
+                "tier": "Basic",
+                "capacity": 1
+              },
+              "properties": {
+                "reserved": true
+              }
+            },
+            "postgresServer": {
+              "condition": "[variables('usePostgresql')]",
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers",
+              "apiVersion": "2024-08-01",
+              "name": "[variables('postgresServerName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "Standard_B1ms",
+                "tier": "Burstable"
+              },
+              "properties": {
+                "version": "16",
+                "authConfig": {
+                  "activeDirectoryAuth": "Enabled",
+                  "passwordAuth": "Disabled",
+                  "tenantId": "[tenant().tenantId]"
+                },
+                "backup": {
+                  "backupRetentionDays": 7,
+                  "geoRedundantBackup": "Disabled"
+                },
+                "highAvailability": {
+                  "mode": "Disabled"
+                },
+                "network": {
+                  "delegatedSubnetResourceId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('databaseSubnetName'))]",
+                  "privateDnsZoneArmResourceId": "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneName'))]",
+                  "publicNetworkAccess": "Disabled"
+                },
+                "storage": {
+                  "autoGrow": "Enabled",
+                  "storageSizeGB": 32
+                }
+              },
+              "dependsOn": [
+                "privateDnsLink",
+                "privateDnsZone",
+                "virtualNetwork"
+              ]
+            },
+            "checkoutDatabase": {
+              "condition": "[variables('usePostgresql')]",
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/databases",
+              "apiVersion": "2024-08-01",
+              "name": "[format('{0}/{1}', variables('postgresServerName'), variables('databaseName'))]",
+              "properties": {},
+              "dependsOn": [
+                "postgresServer"
+              ]
+            },
+            "checkoutApp": {
+              "type": "Microsoft.Web/sites",
+              "apiVersion": "2024-04-01",
+              "name": "[variables('webAppName')]",
+              "location": "[parameters('location')]",
+              "kind": "app,linux",
+              "tags": "[union(parameters('tags'), createObject('azd-service-name', 'checkout', 'workloadOption', parameters('workloadOption')))]",
+              "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                  "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-checkout-identity', parameters('namePrefix'))))]": {}
+                }
+              },
+              "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+                "httpsOnly": true,
+                "virtualNetworkSubnetId": "[if(variables('usePostgresql'), resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('applicationSubnetName')), null())]",
+                "siteConfig": {
+                  "linuxFxVersion": "NODE|22-lts",
+                  "appCommandLine": "cd /home/site/wwwroot && npm start",
+                  "alwaysOn": true,
+                  "ftpsState": "Disabled",
+                  "minTlsVersion": "1.2",
+                  "scmMinTlsVersion": "1.2",
+                  "healthCheckPath": "/healthz",
+                  "appSettings": "[concat(createArray(createObject('name', 'SCM_DO_BUILD_DURING_DEPLOYMENT', 'value', 'true'), createObject('name', 'ENABLE_ORYX_BUILD', 'value', 'true'), createObject('name', 'AZURE_CLIENT_ID', 'value', reference('checkoutIdentity').clientId), createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', reference('applicationInsights').ConnectionString), createObject('name', 'WORKLOAD_OPTION', 'value', parameters('workloadOption')), createObject('name', 'APP_FAULT_ENABLED', 'value', 'false')), if(variables('usePostgresql'), createArray(createObject('name', 'POSTGRES_HOST', 'value', reference('postgresServer').fullyQualifiedDomainName), createObject('name', 'POSTGRES_PORT', 'value', '5432'), createObject('name', 'POSTGRES_DATABASE', 'value', variables('databaseName')), createObject('name', 'POSTGRES_USER', 'value', format('{0}-checkout-identity', parameters('namePrefix')))), createArray()))]"
+                }
+              },
+              "dependsOn": [
+                "applicationInsights",
+                "appServicePlan",
+                "checkoutDatabase",
+                "checkoutDatabaseAdministrator",
+                "checkoutIdentity",
+                "postgresServer",
+                "virtualNetwork"
+              ]
+            },
+            "disableFtp": {
+              "type": "Microsoft.Web/sites/basicPublishingCredentialsPolicies",
+              "apiVersion": "2024-04-01",
+              "name": "[format('{0}/{1}', variables('webAppName'), 'ftp')]",
+              "properties": {
+                "allow": false
+              },
+              "dependsOn": [
+                "checkoutApp"
+              ]
+            },
+            "disableScmBasicAuth": {
+              "type": "Microsoft.Web/sites/basicPublishingCredentialsPolicies",
+              "apiVersion": "2024-04-01",
+              "name": "[format('{0}/{1}', variables('webAppName'), 'scm')]",
+              "properties": {
+                "allow": false
+              },
+              "dependsOn": [
+                "checkoutApp"
+              ]
+            },
+            "checkoutDatabaseAdministrator": {
+              "condition": "[variables('usePostgresql')]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[format('checkoutDatabaseAdministrator-{0}', uniqueString('checkoutDatabaseAdministrator', deployment().name))]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "serverName": {
+                    "value": "[variables('postgresServerName')]"
+                  },
+                  "principalId": {
+                    "value": "[reference('checkoutIdentity').principalId]"
+                  },
+                  "principalName": {
+                    "value": "[format('{0}-checkout-identity', parameters('namePrefix'))]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.41.2.15936",
+                      "templateHash": "18283806189710532584"
+                    }
+                  },
+                  "parameters": {
+                    "serverName": {
+                      "type": "string"
+                    },
+                    "principalId": {
+                      "type": "string"
+                    },
+                    "principalName": {
+                      "type": "string"
+                    }
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.DBforPostgreSQL/flexibleServers/administrators",
+                      "apiVersion": "2024-08-01",
+                      "name": "[format('{0}/{1}', parameters('serverName'), parameters('principalId'))]",
+                      "properties": {
+                        "principalName": "[parameters('principalName')]",
+                        "principalType": "ServicePrincipal",
+                        "tenantId": "[tenant().tenantId]"
+                      }
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "checkoutIdentity",
+                "postgresServer"
+              ]
+            }
+          },
+          "outputs": {
+            "checkoutAppName": {
+              "type": "string",
+              "value": "[variables('webAppName')]"
+            },
+            "checkoutAppId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Web/sites', variables('webAppName'))]"
+            },
+            "checkoutUrl": {
+              "type": "string",
+              "value": "[format('https://{0}', reference('checkoutApp').defaultHostName)]"
+            },
+            "workloadOption": {
+              "type": "string",
+              "value": "[parameters('workloadOption')]"
+            },
+            "postgresServerId": {
+              "type": "string",
+              "value": "[if(variables('usePostgresql'), resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName')), '')]"
+            },
+            "postgresHost": {
+              "type": "string",
+              "value": "[if(variables('usePostgresql'), reference('postgresServer').fullyQualifiedDomainName, '')]"
+            },
+            "applicationInsightsId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Insights/components', variables('applicationInsightsName'))]"
+            },
+            "applicationInsightsAppId": {
+              "type": "string",
+              "value": "[reference('applicationInsights').AppId]"
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]"
+            },
+            "faultInjectionEnabled": {
+              "type": "bool",
+              "value": "[and(variables('usePostgresql'), parameters('injectDatabaseFault'))]"
+            },
+            "networkSecurityGroupName": {
+              "type": "string",
+              "value": "[if(variables('usePostgresql'), variables('networkSecurityGroupName'), '')]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "onboardinglab-agent-configuration",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "agentName": {
+            "value": "[parameters('agentName')]"
+          },
+          "identityName": {
+            "value": "[parameters('agentIdentityName')]"
+          },
+          "workloadAppInsightsId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'onboardinglab-workload'), '2025-04-01').outputs.applicationInsightsId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "10275480700238786825"
+            }
+          },
+          "parameters": {
+            "agentName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the SRE Agent."
+              }
+            },
+            "workloadAppInsightsId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the workload Application Insights instance."
+              }
+            },
+            "identityName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the existing user-assigned managed identity used by the agent."
+              }
+            }
+          },
+          "variables": {
+            "readerRoleId": "acdd72a7-3385-48ef-bd42-f606fba81ae7",
+            "logAnalyticsReaderRoleId": "73c42c96-874c-492b-b04d-ab87d138a893",
+            "monitoringReaderRoleId": "43d0d8ad-25c7-4714-9337-8ba259a9fe05"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), variables('readerRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', variables('readerRoleId'))]",
+                "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), '2023-01-31').principalId]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), variables('logAnalyticsReaderRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', variables('logAnalyticsReaderRoleId'))]",
+                "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), '2023-01-31').principalId]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), variables('monitoringReaderRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', variables('monitoringReaderRoleId'))]",
+                "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), '2023-01-31').principalId]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(resourceGroup().id, resourceId('Microsoft.App/agents', parameters('agentName')), variables('readerRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', variables('readerRoleId'))]",
+                "principalId": "[reference(resourceId('Microsoft.App/agents', parameters('agentName')), '2025-05-01-preview', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(resourceGroup().id, resourceId('Microsoft.App/agents', parameters('agentName')), variables('logAnalyticsReaderRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', variables('logAnalyticsReaderRoleId'))]",
+                "principalId": "[reference(resourceId('Microsoft.App/agents', parameters('agentName')), '2025-05-01-preview', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.App/agents/connectors",
+              "apiVersion": "2025-05-01-preview",
+              "name": "[format('{0}/{1}', parameters('agentName'), 'app-insights')]",
+              "properties": {
+                "dataConnectorType": "AppInsights",
+                "dataSource": "[parameters('workloadAppInsightsId')]",
+                "extendedProperties": {
+                  "armResourceId": "[parameters('workloadAppInsightsId')]",
+                  "resource": {
+                    "name": "[last(split(parameters('workloadAppInsightsId'), '/'))]"
+                  },
+                  "appId": "[reference(resourceId('Microsoft.Insights/components', last(split(parameters('workloadAppInsightsId'), '/'))), '2020-02-02').AppId]"
+                },
+                "identity": "system"
+              }
+            }
+          ],
+          "outputs": {
+            "agentId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.App/agents', parameters('agentName'))]"
+            },
+            "agentName": {
+              "type": "string",
+              "value": "[parameters('agentName')]"
+            },
+            "agentEndpoint": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.App/agents', parameters('agentName')), '2025-05-01-preview').agentEndpoint]"
+            },
+            "identityId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName'))]"
+            },
+            "identityPrincipalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), '2023-01-31').principalId]"
+            },
+            "systemIdentityPrincipalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.App/agents', parameters('agentName')), '2025-05-01-preview', 'full').identity.principalId]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'onboardinglab-workload')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "checkoutAppName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'onboardinglab-workload'), '2025-04-01').outputs.checkoutAppName.value]"
+    },
+    "checkoutUrl": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'onboardinglab-workload'), '2025-04-01').outputs.checkoutUrl.value]"
+    },
+    "workloadOption": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'onboardinglab-workload'), '2025-04-01').outputs.workloadOption.value]"
+    },
+    "applicationInsightsId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'onboardinglab-workload'), '2025-04-01').outputs.applicationInsightsId.value]"
+    },
+    "applicationInsightsAppId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'onboardinglab-workload'), '2025-04-01').outputs.applicationInsightsAppId.value]"
+    },
+    "networkSecurityGroupName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'onboardinglab-workload'), '2025-04-01').outputs.networkSecurityGroupName.value]"
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'onboardinglab-workload'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
+    },
+    "agentId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'onboardinglab-agent-configuration'), '2025-04-01').outputs.agentId.value]"
+    },
+    "agentEndpoint": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'onboardinglab-agent-configuration'), '2025-04-01').outputs.agentEndpoint.value]"
+    }
+  }
+}
