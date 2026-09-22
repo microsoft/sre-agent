@@ -61,6 +61,11 @@ def main():
     run("az", "account", "show", "--subscription", args.subscription, cwd=repo, capture=True)
     run("gh", "auth", "status", cwd=repo, capture=True)
     repo_slug = github_slug(run("git", "remote", "get-url", "origin", cwd=repo, capture=True))
+    default_branch = run(
+        "gh", "repo", "view", repo_slug,
+        "--json", "defaultBranchRef", "--jq", ".defaultBranchRef.name",
+        cwd=repo, capture=True,
+    )
 
     resources = json.loads(run(
         "az", "resource", "list",
@@ -90,8 +95,8 @@ def main():
     if not callback_url.startswith("https://"):
         raise SystemExit("The Logic App callback URL is unavailable. Install Scenario 3 first.")
 
-    run("git", "switch", "main", cwd=repo)
-    run("git", "pull", "--ff-only", "origin", "main", cwd=repo)
+    run("git", "switch", default_branch, cwd=repo)
+    run("git", "pull", "--ff-only", "origin", default_branch, cwd=repo)
     destination = repo / WORKFLOW_PATH
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source, destination)
@@ -101,13 +106,13 @@ def main():
     ).returncode
     if staged == 1:
         run("git", "commit", "-m", "Add SRE Agent PR validation workflow", cwd=repo)
-        run("git", "push", "origin", "main", cwd=repo)
+        run("git", "push", "origin", default_branch, cwd=repo)
     elif staged != 0:
         raise SystemExit("Could not inspect the staged workflow change.")
 
     run("gh", "secret", "set", SECRET_NAME, "--repo", repo_slug, cwd=repo, input_text=callback_url)
     remote_path = run(
-        "gh", "api", f"repos/{repo_slug}/contents/{WORKFLOW_PATH.as_posix()}?ref=main",
+        "gh", "api", f"repos/{repo_slug}/contents/{WORKFLOW_PATH.as_posix()}?ref={default_branch}",
         "--jq", ".path", cwd=repo, capture=True,
     )
     secrets = json.loads(run(
@@ -118,7 +123,7 @@ def main():
         raise SystemExit("Repository workflow verification failed.")
 
     print(f"Configured PR validation for {repo_slug}.")
-    print(f"Verified workflow: {WORKFLOW_PATH.as_posix()} on main")
+    print(f"Verified workflow: {WORKFLOW_PATH.as_posix()} on {default_branch}")
     print(f"Verified Actions secret: {SECRET_NAME}")
 
 

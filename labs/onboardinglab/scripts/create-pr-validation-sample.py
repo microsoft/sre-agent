@@ -162,13 +162,22 @@ def main():
 
     config = SCENARIOS[(args.workload_option, args.scenario)]
     run("gh", "auth", "status", cwd=repo)
-    run("git", "switch", "main", cwd=repo)
-    run("git", "pull", "--ff-only", "origin", "main", cwd=repo)
+    default_branch = run(
+        "gh", "repo", "view", "--json", "defaultBranchRef",
+        "--jq", ".defaultBranchRef.name", cwd=repo, capture=True,
+    )
+    run("git", "switch", default_branch, cwd=repo)
+    run("git", "pull", "--ff-only", "origin", default_branch, cwd=repo)
     run("git", "switch", "-c", config["branch"], cwd=repo)
     try:
         apply_scenario(app_root, args.workload_option, args.scenario)
         npm = "npm.cmd" if os.name == "nt" else "npm"
-        run(npm, "test", cwd=app_root / "app")
+        if args.scenario == "block":
+            test_result = subprocess.run((npm, "test"), cwd=app_root / "app", check=False)
+            if test_result.returncode == 0:
+                raise SystemExit("The BLOCK sample unexpectedly passed its behavioral tests.")
+        else:
+            run(npm, "test", cwd=app_root / "app")
         run(npm, "run", "check", cwd=app_root / "app")
         run(
             "git", "add",
@@ -180,7 +189,7 @@ def main():
         run("git", "push", "--set-upstream", "origin", config["branch"], cwd=repo)
         url = run(
             "gh", "pr", "create",
-            "--base", "main",
+            "--base", default_branch,
             "--head", config["branch"],
             "--title", config["title"],
             "--body", config["body"],

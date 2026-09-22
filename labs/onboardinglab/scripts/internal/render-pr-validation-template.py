@@ -113,8 +113,8 @@ def render(template_path):
             "name": trigger_name,
             "spec": {
                 "description": description,
-                "prompt": prompt,
-                "handlingAgent": handling_agent,
+                "agentPrompt": prompt,
+                "agent": handling_agent,
                 "agentMode": mode,
             },
         }],

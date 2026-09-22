@@ -100,6 +100,26 @@ try {
     $token = (& az account get-access-token --resource https://azuresre.dev --query accessToken --output tsv).Trim()
     $headers = @{ Authorization = "Bearer $token" }
     $endpoint = $agent.properties.agentEndpoint.TrimEnd('/')
+    $settingsUrl = "$endpoint/api/v2/agent/settings/global"
+    $settingsResponse = Invoke-WebRequest -Method Get -Uri $settingsUrl -Headers $headers -TimeoutSec 30
+    $settings = $settingsResponse.Content | ConvertFrom-Json -AsHashtable
+    $settings.permissions.ask = @(
+        $settings.permissions.ask + $extras.installerRequirements.askApprovalTools |
+            Sort-Object -Unique
+    )
+    $settingsBody = $settings | ConvertTo-Json -Depth 40 -Compress
+    $settingsEtag = [string]@($settingsResponse.Headers.ETag)[0]
+    $null = Invoke-RestMethod -Method Put -Uri $settingsUrl `
+        -Headers @{ Authorization = "Bearer $token"; 'If-Match' = $settingsEtag } `
+        -ContentType 'application/json' -Body $settingsBody -TimeoutSec 30
+    $installedSettings = Invoke-RestMethod -Method Get -Uri $settingsUrl -Headers $headers -TimeoutSec 30
+    foreach ($toolName in $extras.installerRequirements.askApprovalTools) {
+        if ($toolName -notin $installedSettings.permissions.ask) {
+            throw "Workflow approval policy is missing tool: $toolName"
+        }
+    }
+    Write-Host "  ok review-gated tools: $($extras.installerRequirements.askApprovalTools -join ', ')"
+
     $customAgentName = $extras.installerRequirements.customAgentName
     $filterName = $extras.installerRequirements.workflowName
     $responsePlan = $extras.incidentFilters[0]

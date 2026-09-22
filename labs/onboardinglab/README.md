@@ -658,7 +658,7 @@ The installer verifies the skill, subagent tools and allowed skill, Review-mode 
 
 **Connect the repository workflow**
 
-Run the repository configurator after the Scenario 3 installer. It copies the trusted workflow to the participant's `sre-agent` fork on `main`, commits and pushes it when needed, retrieves the Logic App callback directly from Azure, stores it as the `SRE_AGENT_WEBHOOK_URL` Actions secret, and verifies both resources.
+Run the repository configurator after the Scenario 3 installer. It copies the trusted workflow to the participant's `sre-agent` fork on its default branch, commits and pushes it when needed, retrieves the Logic App callback directly from Azure, stores it as the `SRE_AGENT_WEBHOOK_URL` Actions secret, and verifies both resources.
 
 Windows:
 
