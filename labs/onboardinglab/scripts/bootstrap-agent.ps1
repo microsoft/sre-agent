@@ -69,6 +69,8 @@
 
 .PARAMETER GitHubRepositoryBranch
     Branch containing the onboarding lab deployment assets. Defaults to main.
+    Code Access currently clones the fork's default branch, so this value must
+    match the fork's default branch.
 
 .PARAMETER WorkloadOption
     Lab scenario option: app-service or app-service-postgresql. When omitted on
@@ -419,6 +421,35 @@ function Get-ConnectedRepositories {
     return @($response)
 }
 
+function Wait-ForRepositoryCommit {
+    param(
+        [Parameter(Mandatory)][string] $Endpoint,
+        [Parameter(Mandatory)][string] $RepositoryName,
+        [Parameter(Mandatory)][string] $RepositoryUrl,
+        [Parameter(Mandatory)][string] $ExpectedCommit,
+        [int] $TimeoutMinutes = 10
+    )
+
+    $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
+    $encodedRepositoryName = [uri]::EscapeDataString($RepositoryName)
+    do {
+        $repository = Invoke-DataPlaneGet -Url "$($Endpoint.TrimEnd('/'))/api/v2/repos/$encodedRepositoryName"
+        $cloneStatus = $repository.properties.cloneStatus
+        $latestCommit = $repository.properties.latestCommit
+        Write-Note "Repository clone status: $cloneStatus; commit: $latestCommit"
+        if ($repository.properties.url.TrimEnd('/') -eq $RepositoryUrl -and
+            $cloneStatus -eq 'Ready' -and $latestCommit -eq $ExpectedCommit) {
+            return $repository
+        }
+        if ($cloneStatus -eq 'Failed') {
+            throw "Repository clone failed: $($repository.properties.errorMessage)"
+        }
+        Start-Sleep -Seconds 10
+    } while ((Get-Date) -lt $deadline)
+
+    throw "Code Access did not clone expected commit $ExpectedCommit within $TimeoutMinutes minutes. No deployment thread was started."
+}
+
 function Get-AgentResource {
     param([Parameter(Mandatory)][string] $ResourceGroup, [Parameter(Mandatory)][string] $Name)
     try {
@@ -596,6 +627,28 @@ if (-not $Finalize) {
     if ($GitHubRepositoryUrl -eq 'https://github.com/microsoft/sre-agent') {
         throw 'Use your participant-owned sre-agent fork, not microsoft/sre-agent, so issue and pull-request exercises remain in your repository.'
     }
+    $repositoryPath = ([uri]$GitHubRepositoryUrl).AbsolutePath.Trim('/')
+    try {
+        $repositoryMetadata = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/$repositoryPath" `
+            -Headers @{ 'User-Agent' = 'sre-agent-onboarding-bootstrap' } `
+            -TimeoutSec 30
+        if ($repositoryMetadata.default_branch -ne $GitHubRepositoryBranch) {
+            throw "Code Access clones the fork's default branch. Change the default branch of $GitHubRepositoryUrl to '$GitHubRepositoryBranch' before running bootstrap (current default: '$($repositoryMetadata.default_branch)')."
+        }
+        $encodedBranch = [uri]::EscapeDataString($GitHubRepositoryBranch)
+        $branchMetadata = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/$repositoryPath/branches/$encodedBranch" `
+            -Headers @{ 'User-Agent' = 'sre-agent-onboarding-bootstrap' } `
+            -TimeoutSec 30
+        $expectedRepositoryCommit = $branchMetadata.commit.sha
+        if ([string]::IsNullOrWhiteSpace($expectedRepositoryCommit)) {
+            throw "GitHub did not return a commit for branch $GitHubRepositoryBranch."
+        }
+    }
+    catch {
+        throw "Could not validate the GitHub repository branch before deployment: $($_.Exception.Message)"
+    }
     if (-not $PSBoundParameters.ContainsKey('WorkloadOption') -and $state.Contains('workloadOption')) {
         $WorkloadOption = $state['workloadOption']
     }
@@ -616,6 +669,7 @@ if (-not $Finalize) {
     $state['workloadOption'] = $WorkloadOption
     $state['githubRepositoryUrl'] = $GitHubRepositoryUrl
     $state['githubRepositoryBranch'] = $GitHubRepositoryBranch
+    $state['expectedRepositoryCommit'] = $expectedRepositoryCommit
 }
 $state['labResourceGroup'] = $LabResourceGroup
 $state['location'] = $Location
@@ -1170,9 +1224,10 @@ if (-not [string]::IsNullOrWhiteSpace($dataPlaneToken)) {
     $targetRepository = @($connectedRepositories | Where-Object { $_.name -eq $repositoryName })
     if ($targetRepository.Count -eq 1 -and
         $targetRepository[0].properties.url.TrimEnd('/') -eq $repositoryUrl -and
-        $targetRepository[0].properties.branch -eq $GitHubRepositoryBranch) {
+        $targetRepository[0].properties.cloneStatus -eq 'Ready' -and
+        $targetRepository[0].properties.latestCommit -eq $expectedRepositoryCommit) {
         Set-StepDone -State $state -Name 'codeAccessConfirmed'
-        Write-Ok "Code access verified: $repositoryUrl ($GitHubRepositoryBranch)"
+        Write-Ok "Code access verified: $repositoryUrl ($GitHubRepositoryBranch at $expectedRepositoryCommit)"
     }
     else {
         $githubDomains = Invoke-DataPlaneGet -Url "$($agentEndpoint.TrimEnd('/'))/api/v2/github/domains"
@@ -1209,17 +1264,20 @@ if (-not [string]::IsNullOrWhiteSpace($dataPlaneToken)) {
                 }
             }
 
-        $connectedRepositories = @(Get-ConnectedRepositories -Endpoint $agentEndpoint)
-        $targetRepository = @($connectedRepositories | Where-Object { $_.name -eq $repositoryName })
-        if ($targetRepository.Count -ne 1 -or
-            $targetRepository[0].properties.url.TrimEnd('/') -ne $repositoryUrl -or
-            $targetRepository[0].properties.branch -ne $GitHubRepositoryBranch) {
+        try {
+            $targetRepository = Wait-ForRepositoryCommit `
+                -Endpoint $agentEndpoint `
+                -RepositoryName $repositoryName `
+                -RepositoryUrl $repositoryUrl `
+                -ExpectedCommit $expectedRepositoryCommit
+        }
+        catch {
             $state['codeAccessConfirmed'] = $false
             Save-State -State $state
-            throw "Repository verification failed for $repositoryUrl ($GitHubRepositoryBranch); no deployment thread was started."
+            throw "Repository verification failed for $repositoryUrl ($GitHubRepositoryBranch at $expectedRepositoryCommit): $($_.Exception.Message)"
         }
         Set-StepDone -State $state -Name 'codeAccessConfirmed'
-        Write-Ok "GitHub authorized and repository connected: $repositoryUrl ($GitHubRepositoryBranch)"
+        Write-Ok "GitHub authorized and repository connected: $repositoryUrl ($GitHubRepositoryBranch at $expectedRepositoryCommit)"
     }
 }
 else {

@@ -102,10 +102,12 @@ in **Review** mode. The API represents these UI profiles as `High` and `Low` acc
    `onboardinglab-agent`; agent names can be reused in different resource groups.
 4. Enter the HTTPS URL of your `sre-agent` fork, then choose **App Service** or
    **App Service + PostgreSQL** when prompted.
-5. Open the GitHub OAuth URL printed by the bootstrap and approve access once. The
-   script then adds your fork on branch `main` through Code Access and verifies it
-   automatically. The same connection is used for source inspection, approved issue
-   creation, and pull-request validation; you do not select repositories manually.
+5. Ensure the branch you pass with `-GitHubRepositoryBranch` is the fork's default
+   branch. Code Access currently clones the default branch. Open the GitHub OAuth URL
+   printed by the bootstrap. One interactive OAuth consent authorizes the fork. The
+   script verifies the exact cloned commit before it starts deployment. The same
+   connection is used for source inspection, approved issue creation, and pull-request
+   validation; you do not select repositories manually.
 6. If Cloud Shell cannot create the deployment thread, open the printed agent link,
     start a new chat, and paste the request below after replacing every `<...>` value
     with the value printed by the script:
