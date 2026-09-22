@@ -398,6 +398,7 @@ if [[ "$count" -gt 0 ]]; then
         description: (.description // ""),
         cronExpression: (.schedule // .cronExpression // ""),
         agentPrompt: (.prompt // .agentPrompt // ""),
+        agent: (.handlingAgent // .agent // ""),
         agentMode: (.mode // .agentMode // "Review"),
         isEnabled: (.enabled // true)
       }' <<< "$spec")

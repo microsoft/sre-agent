@@ -45,10 +45,11 @@ class LessonTests(unittest.TestCase):
     def test_readme_restores_participant_driven_three_scenario_flow(self):
         readme = (LAB / "README.md").read_text(encoding="utf-8")
         for heading in (
-            "## 1. Deploy the workload and final agent",
+            "## 1. Deploy the workload",
             "### Finalize deployment access",
-            "## 2. Clone the repository and install the workflows",
-            "### Install the incident and health workflows",
+            "## 2. Create and connect the SRE Agent",
+            "## 3. Clone the repository and install the workflows",
+            "### Install the incident workflow",
             "## Scenario 1: Incident workflow",
             "## Scenario 2: Scheduled health check and Live Report",
             "## Scenario 3: Pull-request validation",
@@ -56,9 +57,16 @@ class LessonTests(unittest.TestCase):
             with self.subTest(heading=heading):
                 self.assertIn(heading, readme)
         self.assertIn("participant-driven", readme)
-        self.assertIn("git clone https://github.com/YOUR-GITHUB-USER/sre-agent.git", readme)
+        self.assertIn("git clone https://github.com/microsoft/sre-agent.git", readme)
         self.assertIn("install-workflow-template", readme)
-        self.assertIn("install-pr-validation", readme)
+        self.assertIn("workflow-templates/http-triggers/pr-validation.yaml", readme)
+        self.assertIn("source ./scripts/prereqs.sh", readme)
+        self.assertIn(". .\\scripts\\prereqs.ps1", readme)
+        self.assertIn("source ./scripts/prereqs.sh --check", readme)
+        self.assertIn(". .\\scripts\\prereqs.ps1 -Check", readme)
+        self.assertIn("Copilot-assisted local setup (recommended)", readme)
+        self.assertIn("### Simple portal setup", readme)
+        self.assertIn("https://sre.azure.com", readme)
 
     def test_coaching_is_explicit_and_excluded_from_incident_skill_selection(self):
         registration = yaml.safe_load(
@@ -240,8 +248,8 @@ class LessonTests(unittest.TestCase):
         self.assertIn("Apply-Extras.ps1", deployment_script)
         self.assertIn("Verify-Agent.ps1", deployment_script)
         workflow_installer = (LAB / "scripts/install-workflow-template.ps1").read_text(encoding="utf-8")
-        self.assertIn("$extras.installerRequirements.askApprovalTools", workflow_installer)
-        self.assertIn("Workflow approval policy is missing tool", workflow_installer)
+        self.assertNotIn("/api/v2/agent/settings/global", workflow_installer)
+        self.assertNotIn("askApprovalTools", workflow_installer)
         repository_configurator = (LAB / "scripts/configure-pr-validation-repository.py").read_text(encoding="utf-8")
         sample_creator = (LAB / "scripts/create-pr-validation-sample.py").read_text(encoding="utf-8")
         self.assertIn('"--json", "defaultBranchRef"', repository_configurator)

@@ -3,10 +3,10 @@
     Creates the final SRE Agent that deploys its own Onboarding Lab environment.
 
 .DESCRIPTION
-    Run this in Azure Cloud Shell (PowerShell). It is self-contained: it uses only
-    the Azure CLI, needs no local tooling, and does NOT need a clone of this
-    repository. Every Azure resource is created through az, so there is no Bicep
-    to compile here.
+    Run this in local PowerShell with Azure CLI, or in Azure Cloud Shell
+    (PowerShell). It is self-contained: it uses only the Azure CLI and does NOT
+    need a clone of this repository. Every Azure resource is created through az,
+    so there is no Bicep to compile here.
 
     The script creates the final onboarding agent with temporary Owner access on
     the lab resource group. The agent clones your fork through Code Access and
