@@ -101,7 +101,7 @@ function Invoke-WebRequest {
     [pscustomobject]@{ StatusCode = [int]$status; Content = '{}' }
 }
 & $Installer -Subscription '00000000-0000-0000-0000-000000000001' -AgentName lab `
-    -NotificationEmailRecipient 'user@example.com' -Template $Template
+    -Template $Template
 '''
 
 
@@ -114,7 +114,7 @@ class WorkflowInstallerTests(unittest.TestCase):
         if not cls.pwsh or not cls.bash or not shutil.which("jq"):
             raise unittest.SkipTest("Both PowerShell, Bash, and jq are required for installer parity tests")
 
-    def _run(self, shell, mode="core"):
+    def _run(self, shell, mode="core", template_name="incidentinvestigation-workflowtemplate.yaml"):
         with tempfile.TemporaryDirectory(prefix="workflow-install-test-") as directory:
             root = Path(directory)
             lab = root / "labs/onboardinglab"
@@ -142,7 +142,7 @@ class WorkflowInstallerTests(unittest.TestCase):
             env = os.environ.copy()
             env.update(WORKFLOW_TEST_STATE=str(root), WORKFLOW_TEST_MODE=mode,
                        WORKFLOW_TEST_PYTHON=sys.executable, WORKFLOW_TEST_MOCK=str(mock))
-            template = lab / "workflow-templates/incidentinvestigation-workflowtemplate.yaml"
+            template = lab / "workflow-templates" / template_name
             if shell == "ps":
                 harness = root / "harness.ps1"
                 harness.write_text(PS_HARNESS, encoding="utf-8")
@@ -164,23 +164,38 @@ class WorkflowInstallerTests(unittest.TestCase):
                 env["WORKFLOW_TEST_MOCK"] = mock.as_posix()
                 env["WORKFLOW_TEST_STATE"] = root.as_posix()
                 command = [self.bash, str(harness), str(scripts / "install-workflow-template.sh"), "--subscription", SUBSCRIPTION,
-                           "--agent-name", "lab", "--notification-email-recipient", "user@example.com",
-                           "--template", str(template)]
+                           "--agent-name", "lab", "--template", str(template)]
             result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=90)
             applied = root / "applied.json"
             calls = root / "calls.jsonl"
             return result, json.loads(applied.read_text(encoding="utf-8-sig")) if applied.exists() else None, (
                 [json.loads(line) for line in calls.read_text().splitlines()] if calls.exists() else [])
 
-    def test_incident_and_scheduled_health_installer_parity(self):
+    def test_incident_installer_parity(self):
         results = {}
         for shell in ("ps", "bash"):
             with self.subTest(shell=shell):
                 result, applied, _ = self._run(shell)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertIsNotNone(applied)
-                self.assertEqual(len(applied["subagents"]), 2)
+                self.assertEqual(len(applied["subagents"]), 1)
+                self.assertNotIn("scheduledTasks", applied)
+                results[shell] = applied
+        if len(results) == 2:
+            self.assertEqual(results["ps"], results["bash"])
+
+    def test_scheduled_health_installer_parity(self):
+        results = {}
+        for shell in ("ps", "bash"):
+            with self.subTest(shell=shell):
+                result, applied, _ = self._run(
+                    shell,
+                    template_name="scheduled-tasks/reservation-daily-health-report.yaml",
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(len(applied["subagents"]), 1)
                 self.assertEqual(len(applied["scheduledTasks"]), 1)
+                self.assertNotIn("incidentFilters", applied)
                 results[shell] = applied
         if len(results) == 2:
             self.assertEqual(results["ps"], results["bash"])

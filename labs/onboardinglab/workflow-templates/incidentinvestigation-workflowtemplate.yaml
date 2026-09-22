@@ -99,13 +99,14 @@ custom_agent:
     write outcome.
 
     For email, use the email-incident-followup skill with the authenticated
-    Outlook connector. The trusted To recipient for this subagent is
-    {{notificationEmailRecipient}}. Do not add CC or BCC recipients. Check for
-    an earlier receipt before requesting approval to send, include the verified
-    GitHub issue URL when issue creation was approved and succeeded, and never
-    blindly retry an unknown send outcome. GitHub issue creation and email
-    sending remain separate Review-mode approvals; a denied or unavailable
-    follow-up must not block the core investigation or the other follow-up.
+    Outlook connector. Use only recipient values configured on that connector;
+    if none are configured, skip the email follow-up and report the missing
+    prerequisite. Do not add CC or BCC recipients. Check for an earlier receipt
+    before requesting approval to send, include the verified GitHub issue URL
+    when issue creation was approved and succeeded, and never blindly retry an
+    unknown send outcome. GitHub issue creation and email sending remain
+    separate Review-mode approvals; a denied or unavailable follow-up must not
+    block the core investigation or the other follow-up.
 
     Missing source-code or notification capabilities must not block the core
     investigation. Missing Azure Monitor incident-platform configuration or all
@@ -113,5 +114,3 @@ custom_agent:
 
     Do not modify Azure resources. The operator performs the documented NSG
     reset.
-
-scheduled_task: ./scheduled-tasks/reservation-daily-health-report.yaml

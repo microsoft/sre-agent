@@ -16,13 +16,15 @@ In this hands-on lab, you configure least-privilege access and safeguards, insta
 
 ## Setup at a glance
 
-Complete these two steps to prepare the agent and run the participant-driven workflows.
+The lab always has three steps. The setup path you choose changes how you complete
+Steps 1 and 2; it does not remove either step.
 
 ```mermaid
 flowchart LR
-   deploy["1. Deploy and finalize<br/>Choose and verify the workload"]
-   workflow["2. Install workflows<br/>Run all three scenarios"]
-   deploy --> workflow
+   workload["1. Deploy workload<br/>Choose and verify the sample app"]
+   agent["2. Create and connect SRE Agent<br/>Apply durable access and safeguards"]
+   workflow["3. Install workflows<br/>Run all three scenarios"]
+   workload --> agent --> workflow
 ```
 
 ## What is in this lab
@@ -43,13 +45,52 @@ flowchart LR
 
 | Requirement | Required? | Details |
 | --- | --- | --- |
-| Local tools | For Step 2 and scenarios | [Git](https://git-scm.com/downloads), a terminal and editor such as [VS Code](https://code.visualstudio.com/download), Visual Studio, or an IntelliJ-based IDE, and the prerequisites installed in Step 2 |
+| Local tools | For local setup, Step 3, and scenarios | [Git](https://git-scm.com/downloads), a terminal and editor such as [VS Code](https://code.visualstudio.com/download), Visual Studio, or an IntelliJ-based IDE, and the prerequisites installed in Step 3 |
 | macOS tools | On macOS | [Bash](https://formulae.brew.sh/formula/bash) and [`curl`](https://formulae.brew.sh/formula/curl) |
-| Windows tools | On Windows | [Windows PowerShell](https://learn.microsoft.com/powershell/scripting/windows-powershell/install/installing-windows-powershell) and [WinGet](https://learn.microsoft.com/windows/package-manager/winget/) |
+| Windows tools | On Windows | [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows) and [WinGet](https://learn.microsoft.com/windows/package-manager/winget/) |
 | Azure subscription | Yes | Must allow resource creation and role assignments |
 | GitHub account | Yes | Fork [`microsoft/sre-agent`](https://github.com/microsoft/sre-agent/fork) before setup and enable Issues on the fork. One interactive OAuth consent lets the agent use that fork for source access, issue creation, and pull-request validation. |
 | Email account | Optional | Required only to send incident summaries to approved recipients |
 | Azure region | Yes | This lab uses Sweden Central. The App Service + PostgreSQL option also depends on PostgreSQL Flexible Server 16 / `Standard_B1ms` capability for the participant's subscription in Sweden Central. |
+
+From the `labs/onboardinglab` directory, run the check command for your platform
+to confirm the local prerequisites before starting. Check mode reports missing or
+outdated tools without installing or changing them.
+
+macOS:
+
+```bash
+source ./scripts/prereqs.sh --check
+```
+
+Windows:
+
+```powershell
+. .\scripts\prereqs.ps1 -Check
+```
+
+If the check reports missing prerequisites, run the same command without `--check`
+or `-Check` to install or configure them as described in Step 1.
+
+## Choose how to complete Steps 1 and 2
+
+All paths deploy the same workload and produce the same final SRE Agent. Choose one
+path for Steps 1 and 2, verify its checkpoints, and then continue to Step 3.
+
+| Path | When to use it | What you do |
+| --- | --- | --- |
+| **Copilot-assisted local setup (recommended)** | You have this repository open in a coding environment with Copilot and want guided execution. | Ask Copilot to follow this README for Steps 1 and 2. Review every proposed command and Azure change. Copilot uses the same repository-owned local commands described under **Local setup for Steps 1 and 2**; it is not a separate deployment model. |
+| **Manual local setup** | You prefer to run and inspect each command yourself. | Follow **Local setup for Steps 1 and 2** directly. You deploy the workload with `azd`, then generate and deploy the base-agent configuration. |
+| **SRE Agent-assisted setup** | You want the final SRE Agent to deploy and configure the lab after a minimal bootstrap. | Run `bootstrap-agent.ps1` from local PowerShell or Azure Cloud Shell. The bootstrap creates the agent required to start, and that same agent then runs the repository deployment script to complete Steps 1 and 2. |
+
+Suggested prompt for the recommended path:
+
+```text
+Follow labs/onboardinglab/README.md to complete Steps 1 and 2 using the local
+setup path. Show me each command and its effect before running it, preserve my
+selected workload option, stop on any failed checkpoint, and do not continue to
+Step 3 until I confirm the workload and base agent are healthy.
+```
 
 ## Choose a workload option
 
@@ -73,124 +114,50 @@ workload that fits the Azure capability available to you.
 > PostgreSQL 16 with `Standard_B1ms` in Sweden Central. Setup checks that capability
 > before deployment and does not silently change the selected option.
 
-## 1. Deploy the workload and final agent
+## 1. Deploy the workload
 
-Run the bootstrap from Azure Cloud Shell in **PowerShell**; no local deployment tools
-are required.
+<details open>
+<summary><strong>Recommended: local setup for Steps 1 and 2 (Copilot-assisted or manual)</strong></summary>
 
-The bootstrap creates the final agent with **Privileged** permissions in **Review**
-mode and grants its action identity temporary **Owner** access on the lab resource
-group. Privileged permissions let the agent deploy resources, while Review mode
-requires you to approve each write. After successful verification, the bootstrap
-automatically removes temporary Owner and changes the agent to **Reader** permissions
-in **Review** mode. The API represents these UI profiles as `High` and `Low` access.
+Use these commands when working locally, either with Copilot guidance or by running
+them yourself. They are a supported participant path, not only a maintainer fallback.
+The workload and agent remain separate steps so you can review and verify each
+boundary before continuing.
 
-1. Download [`scripts/bootstrap-agent.ps1`](scripts/bootstrap-agent.ps1).
-2. Open [Azure Cloud Shell](https://shell.azure.com), switch to **PowerShell**, and
-   upload `bootstrap-agent.ps1` through **Manage files**.
-3. Run the script:
+### Prepare the local workspace
 
-   ```powershell
-   ./bootstrap-agent.ps1
-   ```
+Clone the public repository and install the lab prerequisites before running the
+local commands. Create a fork later only if you choose an optional GitHub scenario.
 
-   If your account has access to multiple subscriptions, choose the subscription for
-   the lab from the numbered list. With one enabled subscription, setup selects it
-   automatically. A fresh run uses the first available resource group name in the
-   sequence `SreAgentOnboardingLabRG`, `SreAgentOnboardingLabRG-2`,
-   `SreAgentOnboardingLabRG-3`, and so on. The agent name remains
-   `onboardinglab-agent`; agent names can be reused in different resource groups.
-4. Enter the HTTPS URL of your `sre-agent` fork, then choose **App Service** or
-   **App Service + PostgreSQL** when prompted.
-5. Ensure the branch you pass with `-GitHubRepositoryBranch` is the fork's default
-   branch. Code Access currently clones the default branch. Open the GitHub OAuth URL
-   printed by the bootstrap. One interactive OAuth consent authorizes the fork. The
-   script verifies the exact cloned commit before it starts deployment. The same
-   connection is used for source inspection, approved issue creation, and pull-request
-   validation; you do not select repositories manually.
-6. If Cloud Shell cannot create the deployment thread, open the printed agent link,
-    start a new chat, and paste the request below after replacing every `<...>` value
-    with the value printed by the script:
+macOS:
 
-    ```text
-    Deploy the Azure SRE Agent Onboarding Lab.
-
-    First find the local workspace directory for the Code Access clone of the sre-agent
-    repository. Confirm that it contains labs/onboardinglab/agent-deploy-runbook.md.
-    Repository setup can still be in progress when this chat starts, so if the path is
-    not available yet, wait and retry periodically instead of failing or cloning another
-    copy. Change to that repository root, then follow
-    labs/onboardinglab/agent-deploy-runbook.md. Launch its deployment script once with
-    the exact inputs below, keep the operator informed with the script's status messages,
-    and wait for the script to finish.
-
-    Inputs:
-    - SUBSCRIPTION: <SUBSCRIPTION-ID>
-    - LAB_RG: <LAB-RESOURCE-GROUP>
-    - LOCATION: swedencentral
-    - NAME_PREFIX: flu-lab01
-    - AGENT_NAME: <AGENT-NAME>
-    - AGENT_IDENTITY_NAME: <AGENT-IDENTITY-NAME>
-    - AGENT_IDENTITY_CLIENT_ID: <AGENT-IDENTITY-CLIENT-ID>
-    - WORKLOAD_OPTION: <app-service OR app-service-postgresql>
-
-    You are the final lab agent. The resource group already exists and your action
-    identity has temporary Owner on it.
-    * Find the local sre-agent repository root, then follow
-       labs/onboardinglab/agent-deploy-runbook.md and launch its deployment script with
-       the exact inputs above.
-    * Let that script deploy the workload and converge your durable configuration. Do
-       not create another SRE Agent or managed identity, and do not duplicate the script's
-       commands separately.
-    * Leave the selected workload fault off.
-    * Do not modify anything outside <LAB-RESOURCE-GROUP>.
-    * Report when external finalization is safe.
-    ```
-7. Keep Cloud Shell open while you review the agent's proposed writes. After the agent
-   records successful end-to-end verification, the bootstrap finalizes access
-   automatically. If the wait times out or Cloud Shell disconnects, rerun the command
-   under [Finalize deployment access](#finalize-deployment-access).
-8. In the agent portal, go to **Build + setup** > **Extensions** > **Connectors**, open
-   **Office 365 Outlook**, and complete OAuth consent. The bootstrap registers and
-   configures the connection, but Outlook authentication remains interactive. Skip
-   this consent only when you do not intend to send the optional email follow-ups.
-
-The final agent deploys the selected workload, publishes the application, configures
-its telemetry connection and durable safeguards, and records the selected option on
-the resource group. The script and deployment are re-entrant. Rerun the bootstrap
-after an interrupted Cloud Shell session; reuse an existing deployment chat rather
-than starting a second one. To keep an existing environment as a fallback and start
-a separate test, run `./bootstrap-agent.ps1 -Reset`; the script selects the next
-available versioned resource group and leaves the existing environment unchanged.
-
-**Checkpoint: confirm a healthy baseline**
-
-Open the checkout URL reported by the deployment and select **Reserve tickets**.
-Continue only when the request succeeds and the **Confirmed** count increases. A
-failed baseline request is a deployment problem, not the lab incident.
-
-### Finalize deployment access
-
-The bootstrap normally performs finalization automatically. Use this recovery command
-only if Cloud Shell disconnected or timed out after the agent completed verification:
-
-```powershell
-./bootstrap-agent.ps1 -LabResourceGroup SreAgentOnboardingLabRG -Finalize
+```bash
+git clone https://github.com/microsoft/sre-agent.git
+cd sre-agent/labs/onboardinglab
+source ./scripts/prereqs.sh
 ```
 
-Pass `-AgentName` if you changed its default. Finalization verifies the workload,
-permanent read-only roles, telemetry connector, agent configuration, and completion
-marker before removing temporary Owner and switching from Privileged to Reader
-permissions. It refuses to finalize a failed or incomplete deployment.
+Windows:
 
-<details>
-<summary><strong>Optional manual deployment alternatives</strong></summary>
+```powershell
+git clone https://github.com/microsoft/sre-agent.git
+Set-Location .\sre-agent\labs\onboardinglab
+. .\scripts\prereqs.ps1
+```
 
-The Cloud Shell bootstrap in Step 1 is the main setup path. The following sections
-retain the separate workload and agent deployment commands for maintainers who need
-to exercise those components independently.
+For an optional GitHub or pull-request scenario, create and clone your own fork
+instead (requires the GitHub CLI):
 
-### Manual workload deployment alternative
+```bash
+gh repo fork microsoft/sre-agent --clone
+```
+
+The prerequisite script installs only missing tools, activates Node.js 22 or later in
+the current terminal, and restores locked application dependencies. To verify without
+installing, run `source ./scripts/prereqs.sh --check` on macOS or
+`. .\scripts\prereqs.ps1 -Check` on Windows.
+
+### Local workload deployment
 
 **Run the deployment**
 
@@ -199,38 +166,46 @@ The command prompts for an environment name, your subscription, and a region. Ch
 macOS:
 
 ```bash
+workload_option='app-service' # or 'app-service-postgresql'
 azd auth login
 az login
-az provider register --namespace Microsoft.DBforPostgreSQL --wait
 az provider register --namespace Microsoft.AlertsManagement --wait
-pushd ./ticketingapp-source
-azd up
-popd
+if [[ "$workload_option" == 'app-service-postgresql' ]]; then
+  az provider register --namespace Microsoft.DBforPostgreSQL --wait
+fi
+azd -C ./ticketingapp-source env set LAB_WORKLOAD_OPTION "$workload_option"
+azd -C ./ticketingapp-source up
 ```
 
 Windows:
 
 ```powershell
+$WorkloadOption = 'app-service' # or 'app-service-postgresql'
 azd auth login
 az login
-az provider register --namespace Microsoft.DBforPostgreSQL --wait
 az provider register --namespace Microsoft.AlertsManagement --wait
-Push-Location .\ticketingapp-source
-azd up
-Pop-Location
+if ($WorkloadOption -eq 'app-service-postgresql') {
+   az provider register --namespace Microsoft.DBforPostgreSQL --wait
+}
+azd -C .\ticketingapp-source env set LAB_WORKLOAD_OPTION $WorkloadOption
+azd -C .\ticketingapp-source up
 ```
 
 **What `azd up` deploys**
 
-| Resource | Role in the lab |
-| --- | --- |
-| Azure App Service | Hosts the Node.js ticket reservation experience and `POST /checkout` API |
-| Azure Database for PostgreSQL | Accepts the application's fixed, read-only connectivity query |
-| Virtual network and NSG | Provides the private database path and controlled fault boundary |
-| Managed identities and RBAC | Authenticate the application and authorize agent reads |
-| Application Insights and Log Analytics | Capture request, dependency, and platform telemetry |
+| Resource | App Service | App Service + PostgreSQL | Role in the lab |
+| --- | --- | --- | --- |
+| Azure App Service | Yes | Yes | Hosts the Node.js ticket reservation experience and `POST /checkout` API |
+| Application Insights and Log Analytics | Yes | Yes | Capture request, dependency, and platform telemetry |
+| Managed identities and RBAC | Yes | Yes | Authenticate the application and authorize agent reads |
+| Azure Monitor alert rule | Yes | Yes | Detects the controlled failure used in Scenario 1 |
+| Azure Database for PostgreSQL | No | Yes | Accepts the application's fixed connectivity query |
+| Virtual network and NSG | No | Yes | Provides the private database path and controlled fault boundary |
 
-The sample does not store ticket or payment data. Each reservation opens a PostgreSQL connection, runs `SELECT 1`, and closes the connection.
+The sample does not store ticket or payment data. With the PostgreSQL option, each
+reservation also opens a PostgreSQL connection, runs `SELECT 1`, and closes the
+connection. The App Service option avoids the PostgreSQL resources and uses a
+controlled application failure for the incident scenario.
 
 **Checkpoint: confirm a healthy baseline**
 
@@ -245,7 +220,7 @@ Open the application URL and select **Reserve tickets**.
 > [!TIP]
 > Continue only when the reservation succeeds and the **Confirmed** count increases. A failed baseline request is a deployment problem, not the lab incident.
 
-### Manual agent deployment alternative
+### Local agent deployment
 
 **1. Fork the sre-agent repository**
 
@@ -373,7 +348,7 @@ azd -C $TicketingAppDirectory env set SRE_AGENT_URL $AgentUrl
 
 **What the agent deployment sets up**
 
-The recipe uses the same core flow described in [Create and set up your Azure SRE Agent](https://sre.azure.com/docs/get-started/create-and-setup). Investigation workflow configuration is installed separately in Step 2.
+The recipe uses the same core flow described in [Create and set up your Azure SRE Agent](https://sre.azure.com/docs/get-started/create-and-setup). Investigation workflow configuration is installed separately in Step 3.
 
 | Resource or setup | What the deployment configures | Completion | Learn more |
 | --- | --- | --- | --- |
@@ -421,16 +396,189 @@ Use these read-only UI checks. Do not create a GitHub issue or send a test email
 
 </details>
 
-## 2. Clone the repository and install the workflows
+### SRE Agent-assisted path (also completes Step 2)
 
-The workflow installers and scenario helpers run from a local clone. Use your preferred
-terminal and editor, such as VS Code, Visual Studio, an IntelliJ-based IDE, or an
-equivalent tool, to clone this repository and open the `labs/onboardinglab` directory.
+Run the bootstrap from PowerShell locally or in Azure Cloud Shell. Cloud Shell is
+an optional convenience, not a requirement. This path creates the final agent first
+so that the agent can deploy the selected workload and converge its own durable
+configuration. It therefore completes both Step 1 and Step 2.
+
+The bootstrap creates the final agent with **Privileged** permissions in **Review**
+mode and grants its action identity temporary **Owner** access on the lab resource
+group. Privileged permissions let the agent deploy resources, while Review mode
+requires you to approve each write. After successful verification, the bootstrap
+automatically removes temporary Owner and changes the agent to **Reader** permissions
+in **Review** mode. The API represents these UI profiles as `High` and `Low` access.
+
+1. Download [`scripts/bootstrap-agent.ps1`](scripts/bootstrap-agent.ps1). If you
+   already cloned the repository locally, use the script from that clone.
+2. Open a PowerShell terminal. You can use local PowerShell with Azure CLI, or open
+   [Azure Cloud Shell](https://shell.azure.com), switch to **PowerShell**, and upload
+   `bootstrap-agent.ps1` through **Manage files**.
+3. Run the script:
+
+   ```powershell
+   ./bootstrap-agent.ps1
+   ```
+
+   If your account has access to multiple subscriptions, choose the subscription for
+   the lab from the numbered list. With one enabled subscription, setup selects it
+   automatically. A fresh run uses the first available resource group name in the
+   sequence `SreAgentOnboardingLabRG`, `SreAgentOnboardingLabRG-2`,
+   `SreAgentOnboardingLabRG-3`, and so on. The agent name remains
+   `onboardinglab-agent`; agent names can be reused in different resource groups.
+4. Enter the HTTPS URL of your `sre-agent` fork, then choose **App Service** or
+   **App Service + PostgreSQL** when prompted.
+5. Ensure the branch you pass with `-GitHubRepositoryBranch` is the fork's default
+   branch. Code Access currently clones the default branch. Open the GitHub OAuth URL
+   printed by the bootstrap. One interactive OAuth consent authorizes the fork. The
+   script verifies the exact cloned commit before it starts deployment. The same
+   connection is used for source inspection, approved issue creation, and pull-request
+   validation; you do not select repositories manually.
+6. If the bootstrap cannot create the deployment thread, open the printed agent link,
+    start a new chat, and paste the request below after replacing every `<...>` value
+    with the value printed by the script:
+
+    ```text
+    Deploy the Azure SRE Agent Onboarding Lab.
+
+    First find the local workspace directory for the Code Access clone of the sre-agent
+    repository. Confirm that it contains labs/onboardinglab/agent-deploy-runbook.md.
+    Repository setup can still be in progress when this chat starts, so if the path is
+    not available yet, wait and retry periodically instead of failing or cloning another
+    copy. Change to that repository root, then follow
+    labs/onboardinglab/agent-deploy-runbook.md. Launch its deployment script once with
+    the exact inputs below, keep the operator informed with the script's status messages,
+    and wait for the script to finish.
+
+    Inputs:
+    - SUBSCRIPTION: <SUBSCRIPTION-ID>
+    - LAB_RG: <LAB-RESOURCE-GROUP>
+    - LOCATION: swedencentral
+    - NAME_PREFIX: flu-lab01
+    - AGENT_NAME: <AGENT-NAME>
+    - AGENT_IDENTITY_NAME: <AGENT-IDENTITY-NAME>
+    - AGENT_IDENTITY_CLIENT_ID: <AGENT-IDENTITY-CLIENT-ID>
+    - WORKLOAD_OPTION: <app-service OR app-service-postgresql>
+
+    You are the final lab agent. The resource group already exists and your action
+    identity has temporary Owner on it.
+    * Find the local sre-agent repository root, then follow
+       labs/onboardinglab/agent-deploy-runbook.md and launch its deployment script with
+       the exact inputs above.
+    * Let that script deploy the workload and converge your durable configuration. Do
+       not create another SRE Agent or managed identity, and do not duplicate the script's
+       commands separately.
+    * Leave the selected workload fault off.
+    * Do not modify anything outside <LAB-RESOURCE-GROUP>.
+    * Report when external finalization is safe.
+    ```
+7. Keep the PowerShell session open while you review the agent's proposed writes. After the agent
+   records successful end-to-end verification, the bootstrap finalizes access
+   automatically. If the wait times out or the terminal disconnects, rerun the command
+   under [Finalize deployment access](#finalize-deployment-access).
+8. In the agent portal, go to **Build + setup** > **Extensions** > **Connectors**, open
+   **Office 365 Outlook**, and complete OAuth consent. The bootstrap registers and
+   configures the connection, but Outlook authentication remains interactive. Skip
+   this consent only when you do not intend to send the optional email follow-ups.
+
+The final agent deploys the selected workload, publishes the application, configures
+its telemetry connection and durable safeguards, and records the selected option on
+the resource group. The script and deployment are re-entrant. Rerun the bootstrap
+after an interrupted terminal session; reuse an existing deployment chat rather
+than starting a second one. To keep an existing environment as a fallback and start
+a separate test, run `./bootstrap-agent.ps1 -Reset`; the script selects the next
+available versioned resource group and leaves the existing environment unchanged.
+
+**Checkpoint: confirm a healthy baseline**
+
+Open the checkout URL reported by the deployment and select **Reserve tickets**.
+Continue only when the request succeeds and the **Confirmed** count increases. A
+failed baseline request is a deployment problem, not the lab incident.
+
+### Finalize deployment access
+
+The bootstrap normally performs finalization automatically. Use this recovery command
+only if the terminal disconnected or timed out after the agent completed verification:
+
+```powershell
+./bootstrap-agent.ps1 -LabResourceGroup SreAgentOnboardingLabRG -Finalize
+```
+
+Pass `-AgentName` if you changed its default. Finalization verifies the workload,
+permanent read-only roles, telemetry connector, agent configuration, and completion
+marker before removing temporary Owner and switching from Privileged to Reader
+permissions. It refuses to finalize a failed or incomplete deployment.
+
+
+## 2. Create and connect the SRE Agent
+
+This step creates or selects the base agent and connects it to the workload from
+Step 1. It does not install the scenario workflows.
+
+### Simple portal setup
+
+Use this path when participants created the workload with `azd up` and want to
+configure the agent manually:
+
+1. Open [Azure SRE Agent](https://sre.azure.com), create an agent with a unique
+   name, and select the same subscription and region used by the workload.
+2. Under **Settings** > **Managed resources**, add the resource group created by
+   `azd up`.
+3. Under **Build + setup** > **Extensions** > **Connectors**, connect the
+   Application Insights resource created by `azd up` and wait for it to report a
+   healthy state.
+4. Connect **Azure Monitor** as the incident platform.
+5. Confirm that the agent identities have **Reader** access to the workload
+   resource group.
+
+GitHub and Outlook connections are optional for the core incident exercise. Missing
+optional connectors must not block workflow installation or investigation.
+
+Participants who prefer an automated base-agent configuration can use one of the
+existing setup paths:
+
+- **SRE Agent-assisted path:** the bootstrap and agent deployment in Step 1 already
+  completed this step. Confirm the base-agent checkpoint and finalized access before
+  continuing.
+- **Copilot-assisted or manual local path:** complete **Local agent deployment**
+  under the local setup section above, then confirm its base-agent
+  checkpoint.
+
+Do not continue until the agent is healthy, the workload resource group and
+Application Insights are connected, and Azure Monitor is configured. For the SRE
+Agent-assisted path, also confirm that temporary deployment access was removed.
+
+## 3. Clone the repository and install the workflows
+
+> [!TIP]
+> Already have an SRE Agent, an Azure resource group, and Application Insights?
+> You can skip Steps 1 and 2 and begin at Step 3. Connect the resource group as a
+> managed resource, connect its Application Insights resource, and connect Azure
+> Monitor as the incident platform before installing an incident scenario. The
+> resources do not need to use the lab's names or resource group. They should
+> represent the workload you want the agent to investigate.
+
+The workflow installers and scenario helpers run from a local clone:
+
+- **Copilot-assisted or manual local path:** continue in the existing
+  `sre-agent/labs/onboardinglab` directory. Do not clone a second copy.
+- **SRE Agent-assisted path:** clone the repository now and install the local prerequisites
+  with the commands below.
+
+Run the prerequisite script before installing any Step 3 scenario, including when
+you skipped Steps 1 and 2. It checks the local command-line tools required by the
+scenario installers; it does not deploy or modify Azure resources.
+
+If you do not already have a local clone, clone the public repository first:
+
+```bash
+git clone https://github.com/microsoft/sre-agent.git
+```
 
 macOS:
 
 ```bash
-git clone https://github.com/YOUR-GITHUB-USER/sre-agent.git
 cd sre-agent/labs/onboardinglab
 source ./scripts/prereqs.sh
 ```
@@ -438,21 +586,19 @@ source ./scripts/prereqs.sh
 Windows:
 
 ```powershell
-git clone https://github.com/YOUR-GITHUB-USER/sre-agent.git
 Set-Location .\sre-agent\labs\onboardinglab
 . .\scripts\prereqs.ps1
 ```
 
-The prerequisite script installs only missing tools, activates Node.js 22 or later in
-the current terminal, and restores locked application dependencies. To verify without
-installing, run `source ./scripts/prereqs.sh --check` on macOS or
-`. .\scripts\prereqs.ps1 -Check` on Windows.
+### Install the incident workflow
 
-### Install the incident and health workflows
+Each workflow template represents one scenario. The installer reads the selected
+template's trigger type and installs only that scenario's skills, subagent, and
+trigger. It discovers the agent resource group, validates the prerequisites
+declared by the template, and does not read or mutate agent-level tool policies.
 
-The installer accepts the existing agent name, subscription, workflow template, and approved notification email recipient. It renders that recipient only into the incident and health-report subagents; it is not added to the global agent prompt. The installer discovers the agent resource group, validates Azure Monitor and app telemetry, and installs two independent workflows. The incident trigger routes to `alert-investigator` through the `alert-investigation` response plan. The active `reservation-daily-health-report` scheduled task routes directly to `health-report-investigator`. It does not install or validate the pull-request workflow used in Scenario 3.
-
-Set the values reported by the bootstrap before running the installer:
+Set the subscription and agent name produced by your selected setup path before
+running the installer:
 
 macOS:
 
@@ -474,7 +620,6 @@ macOS:
 ./scripts/install-workflow-template.sh \
    --subscription "$subscription" \
    --agent-name "$agent_name" \
-   --notification-email-recipient 'YOUR-EMAIL@EXAMPLE.COM' \
    --template ./workflow-templates/incidentinvestigation-workflowtemplate.yaml
 ```
 
@@ -484,7 +629,6 @@ Windows:
 ./scripts/install-workflow-template.ps1 `
    -Subscription $Subscription `
    -AgentName $AgentName `
-   -NotificationEmailRecipient 'YOUR-EMAIL@EXAMPLE.COM' `
    -Template .\workflow-templates\incidentinvestigation-workflowtemplate.yaml
 ```
 
@@ -495,18 +639,14 @@ Windows:
 | Skill | `azure-monitor-rca` | Guides evidence-based Azure Monitor investigation. | [Skills](https://sre.azure.com/docs/concepts/skills) |
 | Skill | `github-issue-followup` | Prepares a deduplicated GitHub incident follow-up when that optional capability is available and approved. | [Connectors](https://sre.azure.com/docs/concepts/connectors) |
 | Skill | `email-incident-followup` | Prepares an Outlook incident summary when that optional capability is available and approved. | [Send notifications](https://sre.azure.com/docs/capabilities/send-notifications) |
-| Skill | `proactive-health-check` | Assesses ticket reservation availability, failures, latency, dependencies, and Azure resource health using read-only evidence. | [Skills](https://sre.azure.com/docs/concepts/skills) |
 | Subagent | `alert-investigator` | Correlates telemetry, Azure state, and source evidence without Azure write tools, adding time-series or comparison charts when they clarify measured evidence. | [Custom agents](https://sre.azure.com/docs/concepts/subagents) |
 | Response plan | `alert-investigation` | Routes Azure Monitor Sev1 and Sev2 incidents to the `alert-investigator` subagent in Review mode and merges related incidents for three hours. | [Incident response plans](https://sre.azure.com/docs/capabilities/incident-response-plans) |
-| Subagent | `health-report-investigator` | Runs proactive reservation health analysis with the health-check and email follow-up skills, charting meaningful health trends and baseline comparisons. | [Custom agents](https://sre.azure.com/docs/concepts/subagents) |
-| Scheduled task | `reservation-daily-health-report` | Runs on weekdays and routes directly to the `health-report-investigator` subagent. The recurring schedule is installed active. | [Scheduled tasks](https://sre.azure.com/docs/capabilities/scheduled-tasks) |
 
 **Checkpoint: verify the workflow**
 
-1. Go to **Build + setup** > **Extensions** > **Skill Builder** and confirm the four workflow skills are present.
-2. Go to **Build + setup** > **Workflows** and confirm the `alert-investigator` and `health-report-investigator` subagents are present. Both must include the discovered telemetry query tool, `PlotAreaChartWithCorrelation`, and `PlotBarChart`.
+1. Go to **Build + setup** > **Extensions** > **Skill Builder** and confirm the three incident workflow skills are present.
+2. Go to **Build + setup** > **Workflows** and confirm the `alert-investigator` subagent is present. It must include the discovered telemetry query tool, `PlotAreaChartWithCorrelation`, and `PlotBarChart`.
 3. In **Workflows**, confirm the `alert-investigation` response plan routes Azure Monitor Sev1 and Sev2 incidents to the `alert-investigator` subagent in Review mode.
-4. Go to **Build + setup** > **Scheduled tasks** and confirm `reservation-daily-health-report` is active and its handling agent is `health-report-investigator`.
 
 ## Architecture and responsibilities
 
@@ -592,6 +732,30 @@ The `alert-investigation` response plan routes the alert to the `alert-investiga
 
 This optional scenario assesses the same service without introducing a fault, then turns the reviewed findings into a reusable operational view.
 
+**Install the scheduled-health workflow**
+
+macOS:
+
+```bash
+./scripts/install-workflow-template.sh \
+   --subscription "$subscription" \
+   --agent-name "$agent_name" \
+   --template ./workflow-templates/scheduled-tasks/reservation-daily-health-report.yaml
+```
+
+Windows:
+
+```powershell
+./scripts/install-workflow-template.ps1 `
+   -Subscription $Subscription `
+   -AgentName $AgentName `
+   -Template .\workflow-templates\scheduled-tasks\reservation-daily-health-report.yaml
+```
+
+This template installs only the `proactive-health-check` and
+`email-incident-followup` skills, the `health-report-investigator` subagent, and
+the `reservation-daily-health-report` scheduled task.
+
 **Run the scheduled task**
 
 1. Go to **Build + setup** > **Scheduled tasks**.
@@ -634,12 +798,16 @@ This optional scenario validates an actual pull-request diff without deploying i
 
 **Install the pull-request workflow**
 
-This installer updates only the `ticketing-pr-validation` skill, `pr-validator` subagent, HTTP trigger, and managed-identity Logic App bridge. It does not query, reinstall, or validate the incident response plan or scheduled task.
+The shared workflow installer dispatches this HTTP-trigger template to its
+specialized handler. It updates only the `ticketing-pr-validation` skill,
+`pr-validator` subagent, HTTP trigger, and managed-identity Logic App bridge. It
+does not query, reinstall, or validate the incident response plan or scheduled
+task.
 
 macOS:
 
 ```bash
-./scripts/install-pr-validation.sh \
+./scripts/install-workflow-template.sh \
    --subscription "$subscription" \
    --agent-name "$agent_name" \
    --template ./workflow-templates/http-triggers/pr-validation.yaml
@@ -648,7 +816,7 @@ macOS:
 Windows:
 
 ```powershell
-./scripts/install-pr-validation.ps1 `
+./scripts/install-workflow-template.ps1 `
    -Subscription $Subscription `
    -AgentName $AgentName `
    -Template .\workflow-templates\http-triggers\pr-validation.yaml

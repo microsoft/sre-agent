@@ -1,4 +1,11 @@
 name: reservation-daily-health-report
+
+prerequisites:
+  failure_policy: fail-deployment
+  required:
+    - telemetry_connectors:
+        minimum: 1
+
 trigger:
   type: scheduled-task
   description: Analyze ticket reservation health and return read-only findings in the task thread.
@@ -38,9 +45,10 @@ custom_agent:
     dependency comparison. Label charts with UTC windows, units, and series,
     and do not chart empty, sparse, or invented values. Return timestamped
     findings, evidence, missing data, risks, and recommended follow-up in the
-    task thread. Prepare the same summary for
-    {{notificationEmailRecipient}} using the authenticated Outlook connector,
-    and request Review-mode approval before sending it. Do not add CC or BCC
+    task thread. When the authenticated Outlook connector has configured
+    recipient values, prepare the same summary for those recipients and request
+    Review-mode approval before sending it. If no recipients are configured,
+    skip email and report the missing prerequisite. Do not add CC or BCC
     recipients, and never blindly retry an unknown send outcome. Do not modify
     resources, create issues, update memory, or create or update a Live Report.
     If severe customer impact is active, include an escalation draft for human

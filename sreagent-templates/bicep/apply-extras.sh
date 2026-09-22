@@ -398,6 +398,7 @@ if [[ "$count" -gt 0 ]]; then
         description: (.description // ""),
         cronExpression: (.schedule // .cronExpression // ""),
         agentPrompt: (.prompt // .agentPrompt // ""),
+        agent: (.handlingAgent // .agent // ""),
         agentMode: (.mode // .agentMode // "Review"),
         isEnabled: (.enabled // true)
       }' <<< "$spec")
@@ -1023,10 +1024,16 @@ if [[ -n "$HTTP_TRIGGER_URL" ]]; then
   AGENT_JSON_DIR=$(dirname "$FILE")
   # The FILE is extras.json — look for agent.json in the original config dir
   # deploy.sh passes INPUT as an env var if available
-  WH_ENABLED="false"
-  for candidate in "${INPUT}/agent.json" "${AGENT_JSON_DIR}/../agent.json" "${AGENT_JSON_DIR}/agent.json"; do
+  WH_ENABLED=$(jq -r '.enableWebhookBridge // false' "$FILE")
+  AGENT_JSON_CANDIDATES=("${AGENT_JSON_DIR}/../agent.json" "${AGENT_JSON_DIR}/agent.json")
+  if [[ -n "${INPUT:-}" ]]; then
+    AGENT_JSON_CANDIDATES=("${INPUT}/agent.json" "${AGENT_JSON_CANDIDATES[@]}")
+  fi
+  for candidate in "${AGENT_JSON_CANDIDATES[@]}"; do
     if [[ -f "$candidate" ]]; then
-      WH_ENABLED=$(jq -r '.toggles.enableWebhookBridge // false' "$candidate" 2>/dev/null)
+      if [[ "$(jq -r '.toggles.enableWebhookBridge // false' "$candidate" 2>/dev/null)" == "true" ]]; then
+        WH_ENABLED="true"
+      fi
       break
     fi
   done
