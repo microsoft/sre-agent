@@ -79,7 +79,8 @@ curl -fsS "$endpoint/api/v2/extendedAgent/skills/$expected_skill" -H "$auth_head
   jq -e --arg name "$expected_skill" '.name == $name' >/dev/null
 curl -fsS "$endpoint/api/v1/httpTriggers" -H "$auth_header" |
   jq -e --arg name "$expected_trigger" --arg agent "$expected_agent" \
-    '(.value // .) | any(.[]; .name == $name and .agent == $agent and .agentMode == "Review")' >/dev/null
+    '(if type == "object" then (.value // []) elif type == "array" then . else [] end)
+     | any(.[]; .name == $name and .agent == $agent and .agentMode == "Review")' >/dev/null
 
 logic_app_name="${agent_name}-webhook-bridge"
 [[ "$(az resource list --subscription "$subscription" --resource-group "$resource_group" --resource-type Microsoft.Logic/workflows --query "[?name=='$logic_app_name'] | length(@)" --output tsv)" == '1' ]] || {
