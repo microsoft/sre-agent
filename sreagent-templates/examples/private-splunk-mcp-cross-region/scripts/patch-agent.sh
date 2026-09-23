@@ -21,6 +21,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$SUBSCRIPTION" && -n "$RESOURCE_GROUP" && -n "$AGENT_NAME" && -n "$SUBNET_ID" ]] || { usage; exit 1; }
+command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
 
 AGENT_URL="https://management.azure.com/subscriptions/${SUBSCRIPTION}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.App/agents/${AGENT_NAME}?api-version=2025-05-01-preview"
 VNET_ID="${SUBNET_ID%/subnets/*}"
@@ -48,10 +49,29 @@ if [[ -n "$CURRENT_SUBNET" && "$CURRENT_SUBNET_LOWER" != "$SUBNET_ID_LOWER" ]]; 
   exit 1
 fi
 
+PATCH_BODY="$(jq -c --arg subnetId "$SUBNET_ID" '
+  {
+    properties: {
+      vnetConfiguration: ((.properties.vnetConfiguration // {}) + {
+        subnetResourceId: $subnetId
+      }),
+      sandboxConfiguration: ((.properties.sandboxConfiguration // {}) + {
+        egress: ((.properties.sandboxConfiguration.egress // {}) + {
+          mode: "AzureVNet",
+          allowHttpMcpServerNetworkAccess: false,
+          vnetConfiguration: ((.properties.sandboxConfiguration.egress.vnetConfiguration // {}) + {
+            usePrivateDnsResolution: true
+          })
+        })
+      })
+    }
+  }
+' <<<"$AGENT_JSON")"
+
 az rest \
   --method PATCH \
   --url "$AGENT_URL" \
-  --body "{\"properties\":{\"vnetConfiguration\":{\"subnetResourceId\":\"${SUBNET_ID}\"},\"sandboxConfiguration\":{\"egress\":{\"mode\":\"AzureVNet\",\"allowHttpMcpServerNetworkAccess\":false,\"vnetConfiguration\":{\"usePrivateDnsResolution\":true}}}}}" \
+  --body "$PATCH_BODY" \
   --output none
 
 echo "Agent VNet integration configured."

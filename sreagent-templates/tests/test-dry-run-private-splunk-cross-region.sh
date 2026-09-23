@@ -70,6 +70,98 @@ parameter_output="$(
 expected_parameter_output=$'P@ss word&value\nhttps://example.test/package.tgz?sv=1&sig=a+b/c=\nregistry.example.test\ntest-user\nRegistry&password\ntrue'
 [[ "$parameter_output" == "$expected_parameter_output" ]]
 
+mkdir -p "$TMP_DIR/bin" "$TMP_DIR/state"
+cat > "$TMP_DIR/bin/az" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+command="$*"
+if [[ "$command" == "rest --method GET "* ]]; then
+  if [[ "$command" == *"/providers/Microsoft.App/agents/"* ]]; then
+    printf '%s\n' '{"location":"East US 2","properties":{"vnetConfiguration":{"existingVnetSetting":"keep-vnet"},"sandboxConfiguration":{"packages":[{"name":"requests","packageManager":"pip"}],"egress":{"allowedHosts":["existing.example"],"allowedRegistries":["pypi"],"vnetConfiguration":{"existingDnsSetting":"keep-dns"}}}}}'
+  else
+    printf '%s\n' 'eastus2'
+  fi
+  exit 0
+fi
+if [[ "$command" == "rest --method PATCH "* ]]; then
+  while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "--body" ]]; then
+      printf '%s' "$2" > "$AZ_TEST_STATE/patch.json"
+      exit 0
+    fi
+    shift
+  done
+  exit 12
+fi
+if [[ "$command" == "vm show "* ]]; then
+  printf '%s\n' 'eastus2'
+  exit 0
+fi
+if [[ "$command" == "vm run-command create "* ]]; then
+  if [[ "$command" == *"--script true"* ]]; then
+    touch "$AZ_TEST_STATE/scrubbed"
+    exit 0
+  fi
+  touch "$AZ_TEST_STATE/exists"
+  if [[ "${AZ_CREATE_FAIL:-false}" == "true" ]]; then
+    echo 'offline client create failure' >&2
+    exit 42
+  fi
+  exit 0
+fi
+if [[ "$command" == "vm run-command delete "* ]]; then
+  touch "$AZ_TEST_STATE/deleted"
+  rm -f "$AZ_TEST_STATE/exists"
+  exit 0
+fi
+if [[ "$command" == "vm run-command show "* ]]; then
+  if [[ "$command" == *"--output none"* ]]; then
+    if [[ -f "$AZ_TEST_STATE/exists" ]]; then
+      exit 0
+    fi
+    echo 'ResourceNotFound: run command does not exist' >&2
+    exit 1
+  fi
+  if [[ "$command" == *"instanceView.exitCode"* ]]; then
+    printf '%s\n' '0'
+  else
+    printf '%s\n' 'offline-encrypted-token'
+  fi
+  exit 0
+fi
+exit 13
+EOF
+chmod +x "$TMP_DIR/bin/az"
+
+AZ_TEST_STATE="$TMP_DIR/state" PATH="$TMP_DIR/bin:$PATH" \
+  "$EXAMPLE/scripts/patch-agent.sh" \
+  --subscription 00000000-0000-0000-0000-000000000000 \
+  --resource-group offline-test-rg \
+  --agent-name offline-test-agent \
+  --subnet-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/offline-test-rg/providers/Microsoft.Network/virtualNetworks/offline-test-vnet/subnets/agent-subnet
+jq -e '
+  .properties.vnetConfiguration.existingVnetSetting == "keep-vnet"
+  and .properties.sandboxConfiguration.packages[0].name == "requests"
+  and .properties.sandboxConfiguration.egress.allowedHosts[0] == "existing.example"
+  and .properties.sandboxConfiguration.egress.allowedRegistries[0] == "pypi"
+  and .properties.sandboxConfiguration.egress.vnetConfiguration.existingDnsSetting == "keep-dns"
+  and .properties.sandboxConfiguration.egress.mode == "AzureVNet"
+  and .properties.sandboxConfiguration.egress.allowHttpMcpServerNetworkAccess == false
+  and .properties.sandboxConfiguration.egress.vnetConfiguration.usePrivateDnsResolution == true
+' "$TMP_DIR/state/patch.json" >/dev/null
+
+set +e
+printf '%s\n' 'offline-password' | AZ_TEST_STATE="$TMP_DIR/state" AZ_CREATE_FAIL=true PATH="$TMP_DIR/bin:$PATH" \
+  "$EXAMPLE/scripts/mint-mcp-token.sh" --resource-group offline-test-rg --vm-name offline-test-vm --scheme http --days 1 \
+  >"$TMP_DIR/mint.out" 2>&1
+mint_status=$?
+set -e
+[[ "$mint_status" -eq 42 ]]
+grep -q 'offline client create failure' "$TMP_DIR/mint.out"
+[[ -f "$TMP_DIR/state/scrubbed" ]]
+[[ -f "$TMP_DIR/state/deleted" ]]
+[[ ! -f "$TMP_DIR/state/exists" ]]
+
 if grep -q 'Storage Blob Data Contributor\|role assignment create\|--as-user' "$EXAMPLE/scripts/configure-splunk.sh" "$EXAMPLE/scripts/Configure-Splunk.ps1"; then
   echo "Package transfer must not depend on a self-granted data-plane role." >&2
   exit 1

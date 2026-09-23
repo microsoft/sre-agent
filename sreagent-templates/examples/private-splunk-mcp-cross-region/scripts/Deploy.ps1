@@ -35,6 +35,12 @@ function Get-ParameterValue {
     return Get-OptionalProperty (Get-OptionalProperty (Get-OptionalProperty $Document 'parameters') $Name) 'value'
 }
 
+function Normalize-AzureLocation {
+    param([string]$Location)
+
+    return ($Location -replace '\s', '').ToLowerInvariant()
+}
+
 $ExampleDir = Split-Path -Parent $PSScriptRoot
 
 if ($Backend -eq 'Bicep') {
@@ -53,7 +59,7 @@ if ($Backend -eq 'Bicep') {
         $splunkLocation = 'centralus'
     }
 
-    if ($location -eq $splunkLocation) {
+    if ((Normalize-AzureLocation $location) -eq (Normalize-AzureLocation $splunkLocation)) {
         throw "agentLocation and splunkLocation must be different to exercise cross-region connectivity (both are '$location')."
     }
 

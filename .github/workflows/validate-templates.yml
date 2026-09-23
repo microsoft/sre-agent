@@ -19,10 +19,13 @@ on:
       - 'sreagent-templates/bin/**'
       - 'sreagent-templates/terraform/**'
       - 'sreagent-templates/tests/**'
+      - 'sreagent-templates/examples/**'
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    outputs:
+      splunk_examples: ${{ steps.changes.outputs.splunk_examples }}
     defaults:
       run:
         working-directory: sreagent-templates
@@ -111,6 +114,7 @@ jobs:
         run: |
           CHANGED_RECIPES=""
           SHARED_CHANGED=false
+          SPLUNK_EXAMPLES_CHANGED=false
 
           # Check if shared scripts changed
           if git diff --name-only origin/main...HEAD | grep -qE '^(bicep/|bin/)'; then
@@ -131,9 +135,21 @@ jobs:
             CHANGED_RECIPES=$(ls -d recipes/*/ | xargs -I{} basename {})
           fi
 
+          if git diff --name-only origin/main...HEAD | grep -qE '^sreagent-templates/(examples/private-splunk-mcp-(cross-region|same-region)/|tests/test-dry-run-private-splunk-(cross-region|same-region)\.sh$)'; then
+            SPLUNK_EXAMPLES_CHANGED=true
+          fi
+
           echo "recipes=${CHANGED_RECIPES}" >> $GITHUB_OUTPUT
           echo "shared=${SHARED_CHANGED}" >> $GITHUB_OUTPUT
+          echo "splunk_examples=${SPLUNK_EXAMPLES_CHANGED}" >> $GITHUB_OUTPUT
           echo "Testing recipes: ${CHANGED_RECIPES:-none}"
+
+      - name: Validate private Splunk examples
+        if: steps.changes.outputs.splunk_examples == 'true'
+        run: |
+          set -euo pipefail
+          bash tests/test-dry-run-private-splunk-cross-region.sh
+          bash tests/test-dry-run-private-splunk-same-region.sh
 
       # ── 4. Dry-run test suite (all 6 recipes × 4 backends) ──
       - name: Dry-run test suite
@@ -208,3 +224,16 @@ jobs:
             echo "::error::$errors README(s) failed validation"
             exit 1
           fi
+
+  validate-private-splunk-windows:
+    needs: validate
+    if: needs.validate.outputs.splunk_examples == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate private Splunk PowerShell scripts through az.cmd
+        shell: pwsh
+        run: |
+          ./sreagent-templates/examples/private-splunk-mcp-cross-region/tests/Test-PowerShellRuntime.ps1
+          ./sreagent-templates/examples/private-splunk-mcp-same-region/tests/Test-PowerShellRuntime.ps1

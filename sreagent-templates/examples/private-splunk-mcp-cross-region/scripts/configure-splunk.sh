@@ -39,7 +39,7 @@ else
 fi
 STORAGE_ACCOUNT="stsplunk${TRANSFER_ID}"
 CONTAINER_NAME="packages"
-BLOB_NAME="$(basename "$PACKAGE_PATH")"
+BLOB_NAME="splunk-mcp-server.tgz"
 RUN_COMMAND_NAME="configure-private-splunk-${TRANSFER_ID}"
 BOOTSTRAP_SCRIPT_BASE64="$(base64 < "$SCRIPT_DIR/vm-bootstrap.sh" | tr -d '\r\n')"
 RUN_COMMAND_SCRIPT="printf '%s' '$BOOTSTRAP_SCRIPT_BASE64' | base64 -d | bash -s -- \"\$@\""

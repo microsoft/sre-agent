@@ -29,7 +29,7 @@ Use different CIDR ranges if both tests run in the same subscription at the same
 - Deallocating the VM stops VM compute charges, but the disk, NAT Gateway, and public IP continue to incur charges.
 - Delete the test resource group or run `terraform destroy` after testing.
 - Do not commit `terraform.tfvars`, generated parameter files, Terraform state, the Splunk package, passwords, or MCP tokens.
-- The HTTP option in this guide is only for the isolated private lab. Production must use HTTPS with a certificate trusted by SRE Agent.
+- The HTTP option in this guide is only for the isolated private lab. Production must use HTTPS with a certificate trusted by SRE Agent; the templates do not issue or install that certificate.
 - Use a disposable SRE Agent or an agent that is not already attached to another subnet. The patch scripts refuse to move an existing VNet attachment.
 
 ## Prerequisites
@@ -39,6 +39,8 @@ Each tester needs:
 - Azure CLI authenticated to the target subscription.
 - Permission to deploy networking, a VM, a NAT Gateway, private DNS, and managed identities.
 - An existing SRE Agent in the same region as the new delegated agent subnet.
+- **Workspace tools** enabled. ADC workspace runtime and `HttpMcpInSandbox` are service-side prerequisites; contact the SRE Agent product team if the terminal probe succeeds but connector tool calls cannot reach the private hostname.
+- The encrypted Splunk token authentication flow used by this guide. Key Vault, OAuth, Spec OAuth, and Agent Work Identity HTTP MCP authentication currently use the in-pod transport instead of the injected VNet route.
 - An SSH public key.
 - The MCP Server for Splunk Platform package downloaded directly from [Splunkbase](https://splunkbase.splunk.com/app/7931).
 - `jq` when using Bash.
@@ -287,6 +289,8 @@ curl -v --connect-timeout 15 http://splunk-mcp.lab.internal:8089/services/mcp
 
 Expected: connection to the private IP followed by HTTP `405 Method Not Allowed`. The `405` is correct because this command sends `GET` while MCP uses authenticated JSON-RPC `POST`.
 
+This proves sandbox DNS and endpoint reachability only. Steps 9-11 are the authoritative connector-path validation.
+
 ## 8. Mint an encrypted MCP token
 
 Bash:
@@ -302,6 +306,8 @@ Set-Location ./examples/private-splunk-mcp-cross-region; ./scripts/Mint-McpToken
 ```
 
 Copy the displayed token immediately into an approved password manager or secret store. Do not save it in the extracted template directory.
+
+The scripts mint for `admin` by default. For production, create a least-privilege Splunk user and add `--username "<user>"` or `-Username "<user>"`.
 
 ## 9. Create and test the Splunk connector
 
@@ -320,6 +326,7 @@ In `https://sre.azure.com`:
 11. Refresh until its status is **Connected**.
 
 If the connection returns HTTP `401`, verify that the entire encrypted token was pasted. The validated token contained two dot-separated segments.
+Keep the encrypted token/header authentication used by this Splunk connector. Key Vault, OAuth, Spec OAuth, and Agent Work Identity HTTP MCP authentication do not currently use the sandbox VNet path.
 
 ## 10. Invoke tools through SRE Agent
 

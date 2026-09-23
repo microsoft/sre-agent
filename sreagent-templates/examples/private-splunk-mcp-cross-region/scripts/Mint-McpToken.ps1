@@ -10,7 +10,9 @@ param(
     [string]$Scheme = 'https',
 
     [ValidateRange(1, 180)]
-    [int]$Days = 7
+    [int]$Days = 7,
+
+    [string]$Username = 'admin'
 )
 
 Set-StrictMode -Version Latest
@@ -19,21 +21,37 @@ $ErrorActionPreference = 'Stop'
 function Remove-TokenRunCommand {
     param(
         [string]$Location,
-        [string]$RunCommandName
+        [string]$RunCommandName,
+        [bool]$ConfirmedCreated
     )
 
-    $scrubArguments = @(
-        'vm', 'run-command', 'create',
-        '--resource-group', $ResourceGroup,
-        '--vm-name', $VmName,
-        '--location', $Location,
-        '--run-command-name', $RunCommandName,
-        '--script', 'true',
-        '--timeout-in-seconds', '60',
-        '--output', 'none'
-    )
-    $scrubOutput = & az @scrubArguments 2>&1
-    $scrubbed = $LASTEXITCODE -eq 0
+    $resourceExists = $ConfirmedCreated
+    if (-not $resourceExists) {
+        $showOutput = & az vm run-command show --resource-group $ResourceGroup --vm-name $VmName --run-command-name $RunCommandName --instance-view --output none 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $resourceExists = $true
+        }
+        elseif (($showOutput -join "`n") -match 'ResourceNotFound|could not be found') {
+            $global:LASTEXITCODE = 0
+            return $null
+        }
+    }
+
+    $scrubbed = $false
+    if ($resourceExists) {
+        $scrubArguments = @(
+            'vm', 'run-command', 'create',
+            '--resource-group', $ResourceGroup,
+            '--vm-name', $VmName,
+            '--location', $Location,
+            '--run-command-name', $RunCommandName,
+            '--script', 'true',
+            '--timeout-in-seconds', '60',
+            '--output', 'none'
+        )
+        $scrubOutput = & az @scrubArguments 2>&1
+        $scrubbed = $LASTEXITCODE -eq 0
+    }
 
     $deleted = $false
     for ($attempt = 1; $attempt -le 3; $attempt++) {
@@ -71,6 +89,7 @@ function Remove-TokenRunCommand {
 $securePassword = Read-Host 'Splunk administrator password' -AsSecureString
 $password = [System.Net.NetworkCredential]::new('', $securePassword).Password
 $runCommandName = "mint-splunk-mcp-token-$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())-$((Get-Random -Maximum 10000))"
+$runCommandAttempted = $false
 $runCommandCreated = $false
 $vmLocation = $null
 $token = $null
@@ -81,6 +100,7 @@ set -euo pipefail
 SPLUNK_PASSWORD=""
 SCHEME="${scheme:-}"
 DAYS="${days:-}"
+TOKEN_USERNAME="${username:-admin}"
 if [[ -n "${splunkPasswordBase64:-}" ]]; then
   SPLUNK_PASSWORD="$(printf '%s' "$splunkPasswordBase64" | base64 -d)"
 fi
@@ -89,9 +109,13 @@ for argument in "$@"; do
     splunkPasswordBase64=*) SPLUNK_PASSWORD="$(printf '%s' "${argument#*=}" | base64 -d)" ;;
     scheme=*) SCHEME="${argument#*=}" ;;
     days=*) DAYS="${argument#*=}" ;;
+    username=*) TOKEN_USERNAME="${argument#*=}" ;;
   esac
 done
-response="$(curl -sk -u "admin:${SPLUNK_PASSWORD}" "${SCHEME}://127.0.0.1:8089/services/mcp_token?username=admin&expires_on=%2B${DAYS}d")"
+response="$(curl -sk -u "admin:${SPLUNK_PASSWORD}" --get \
+  --data-urlencode "username=${TOKEN_USERNAME}" \
+  --data-urlencode "expires_on=+${DAYS}d" \
+  "${SCHEME}://127.0.0.1:8089/services/mcp_token")"
 python3 -c 'import json,sys; data=json.load(sys.stdin); token=data.get("token"); assert token, "Token missing from response"; print(token)' <<<"$response"
 '@
 $script = $script.Replace("`r`n", "`n")
@@ -112,11 +136,12 @@ try {
         '--location', $vmLocation,
         '--run-command-name', $runCommandName,
         '--script', $runCommandScript,
-        '--parameters', "scheme=$Scheme", "days=$Days",
+        '--parameters', "scheme=$Scheme", "days=$Days", "username=$Username",
         '--protected-parameters', "splunkPasswordBase64=$passwordBase64",
         '--timeout-in-seconds', '300',
         '--output', 'none'
     )
+    $runCommandAttempted = $true
     & az @runCommandArguments
     if ($LASTEXITCODE -ne 0) {
         throw 'MCP token creation failed.'
@@ -137,8 +162,8 @@ catch {
     $primaryError = $_
 }
 finally {
-    if ($runCommandCreated) {
-        $cleanupFailure = Remove-TokenRunCommand -Location $vmLocation -RunCommandName $runCommandName
+    if ($runCommandAttempted) {
+        $cleanupFailure = Remove-TokenRunCommand -Location $vmLocation -RunCommandName $runCommandName -ConfirmedCreated $runCommandCreated
     }
     $securePassword = $null
     $password = $null

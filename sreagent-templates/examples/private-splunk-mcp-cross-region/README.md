@@ -60,13 +60,15 @@ The infrastructure templates do **not** contain a Splunk password, MCP token, Sp
 - The standalone Splunk container stores its data on Docker volumes backed by the VM OS disk.
 - The official MCP app package is not redistributed. Download it directly from [Splunkbase app 7931](https://splunkbase.splunk.com/app/7931).
 - Review and accept the [Splunk General Terms](https://www.splunk.com/en_us/legal/splunk-general-terms.html) before running the setup script.
-- Production should use a certificate trusted by the SRE Agent runtime.
+- Production should use a certificate trusted by the SRE Agent runtime. These templates do not issue or install that certificate.
 - `--enable-lab-http` disables TLS only on the private Splunk management endpoint. It is an explicit, lab-only workaround for testing when the private CA cannot be added to the SRE Agent trust store.
 - The setup scripts pass secrets to Azure CLI as protected VM Run Command parameters. They are not stored in ARM outputs or Terraform state, but can be transiently visible to administrators inspecting processes on the operator workstation while the command starts.
 
 ## Prerequisites
 
 - An existing SRE Agent in a supported Azure region.
+- **Workspace tools** enabled on the SRE Agent. Private HTTP MCP routing also requires the service-managed ADC workspace runtime and `HttpMcpInSandbox`; if connector tool calls cannot reach the private hostname after the terminal probe succeeds, contact the SRE Agent product team to confirm those service-side capabilities for the agent.
+- The encrypted-token Splunk connector flow shown here. HTTP MCP connectors using Key Vault, OAuth, Spec OAuth, or Agent Work Identity authentication currently use the in-pod transport instead of the injected VNet path.
 - Contributor or equivalent deployment permissions for the lab resource group, including permission to list keys for the temporary storage account created by the setup script.
 - Azure CLI and `jq` for Bash, or Azure CLI and PowerShell 7+ for PowerShell.
 - Terraform 1.5+ when using Terraform.
@@ -146,6 +148,8 @@ The patch script:
 4. Enables private DNS resolution.
 5. Disables remote HTTP MCP access through the SRE Agent infrastructure network.
 
+The script preserves existing sandbox packages, allowlists, registry and repository settings, proxy settings, and other VNet configuration fields. It performs a read-modify-write; if the agent is edited concurrently, review the resulting configuration and rerun the script if needed.
+
 ## Install Splunk and the MCP app
 
 The setup script prompts for the Splunk administrator password and passes secrets using protected Azure VM Run Command parameters. Named Linux Run Command parameters are read from environment variables inside the VM; punctuation-heavy values are base64-encoded before crossing the operator shell boundary. The wrapper also checks the guest script's `instanceView.exitCode` rather than treating ARM provisioning success as installation success. It creates a temporary storage account in the lab resource group, uploads the package with the account key, issues a one-hour read-only service SAS, installs Docker and Splunk, installs the user-provided MCP package as the `splunk` OS user, and deletes the temporary storage account.
@@ -196,6 +200,8 @@ Use the terminal to run: curl -v --connect-timeout 15 https://splunk-mcp.lab.int
 
 An HTTP `401` is expected without credentials and proves the request reached Splunk. Do not use `curl -k` as the final production validation because it bypasses certificate verification.
 
+These terminal probes validate private DNS and TCP/TLS reachability from the sandbox. They do not prove that the MCP connector uses the sandbox route; the connector tool invocation in **Final validation** is the authoritative end-to-end check.
+
 ## Mint an encrypted MCP token
 
 Bash:
@@ -210,7 +216,7 @@ PowerShell:
 ./scripts/Mint-McpToken.ps1 -ResourceGroup rg-private-splunk-lab -VmName sre-splunk-vm -Scheme https -Days 7
 ```
 
-For the explicit lab HTTP mode, replace `https` with `http`. The script displays the encrypted token once, deletes the managed run-command resource, and does not write the token to a repository file or Terraform state. Store the token in an approved secret store.
+For the explicit lab HTTP mode, replace `https` with `http`. The token defaults to the `admin` Splunk user. For production, create a least-privilege Splunk user with only the required search and MCP capabilities, then pass `--username <user>` or `-Username <user>`. The script displays the encrypted token once, deletes the managed run-command resource, and does not write the token to a repository file or Terraform state. Store the token in an approved secret store.
 
 ## Configure the SRE Agent Splunk connector
 
@@ -222,6 +228,8 @@ In the SRE Agent portal:
 4. Paste the encrypted MCP token.
 5. Select the read-only tools needed for the test.
 6. Save and wait for the connector to report **Connected**.
+
+The encrypted Splunk token is carried by the connector's sandbox-compatible token/header authentication path. Do not switch this private connector to Key Vault, OAuth, Spec OAuth, or Agent Work Identity HTTP MCP authentication; those modes currently use the in-pod transport.
 
 ## Final validation
 
@@ -266,6 +274,8 @@ The exact customer route may additionally require gateway transit, an NVA, custo
 
 ## Cleanup
 
+Before deleting infrastructure, remove the connector and either restore the SRE Agent's intended network configuration or delete the disposable agent. Confirm the agent no longer references the subnet being deleted.
+
 Bicep deployments are removed by deleting the dedicated lab resource group:
 
 ```bash
@@ -277,8 +287,6 @@ Terraform:
 ```bash
 terraform -chdir=terraform destroy -var-file=terraform.tfvars
 ```
-
-The SRE Agent keeps its subnet reference after the infrastructure is deleted. Before cleanup, either restore the agent’s intended network configuration or delete the disposable lab agent.
 
 ## References
 

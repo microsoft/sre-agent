@@ -29,13 +29,15 @@ Use separate CIDRs because only one test environment can be attached to the SRE 
 - The VM, NAT Gateway, managed disk, and NAT public IP incur charges.
 - The Splunk VM has no public IP.
 - Do not commit generated parameter files, `terraform.tfvars`, Terraform state, SSH keys, passwords, packages, or MCP tokens.
-- The HTTP option is lab-only. Production requires trusted HTTPS.
+- The HTTP option is lab-only. Production requires trusted HTTPS; the templates do not issue or install the certificate.
 - Use a disposable SRE Agent or explicitly restore its intended subnet after testing.
 
 ## Prerequisites
 
 - Azure CLI authenticated to the target subscription.
 - An existing SRE Agent in the selected region.
+- **Workspace tools** enabled. ADC workspace runtime and `HttpMcpInSandbox` are service-side prerequisites; contact the SRE Agent product team if the terminal probe succeeds but connector tool calls cannot reach the private hostname.
+- The encrypted Splunk token authentication flow used by this guide. Key Vault, OAuth, Spec OAuth, and Agent Work Identity HTTP MCP authentication currently use the in-pod transport instead of the injected VNet route.
 - Deployment permissions for networking, VM, NAT Gateway, private DNS, managed identities, and temporary storage.
 - An SSH public key.
 - The Splunk MCP package downloaded from Splunkbase.
@@ -196,6 +198,8 @@ curl -v --connect-timeout 15 http://splunk-mcp.lab.internal:8089/services/mcp
 
 Expected: HTTP `405 Method Not Allowed`.
 
+This proves sandbox DNS and endpoint reachability only. A successful connector tool invocation in steps 8-10 is the authoritative end-to-end MCP-path validation.
+
 ## 7. Mint a token
 
 Bash:
@@ -212,6 +216,8 @@ Set-Location ./examples/private-splunk-mcp-same-region; ./scripts/Mint-McpToken.
 
 Store the token securely and do not write it into the template directory.
 
+The scripts mint for `admin` by default. For production, create a least-privilege Splunk user and add `--username "<user>"` or `-Username "<user>"`.
+
 ## 8. Create or update the connector
 
 In `https://sre.azure.com`:
@@ -224,6 +230,8 @@ In `https://sre.azure.com`:
 6. Test the connection and confirm 17 tools are discovered.
 7. Select the required read-only tools and save.
 8. Wait for **Connected**.
+
+Keep the encrypted token/header authentication used by this Splunk connector. Key Vault, OAuth, Spec OAuth, and Agent Work Identity HTTP MCP authentication do not currently use the sandbox VNet path.
 
 ## 9. Invoke real tools
 

@@ -2,15 +2,17 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: mint-mcp-token.sh --resource-group <rg> --vm-name <vm> [--scheme http|https] [--days <1-180>]" >&2
+  echo "Usage: mint-mcp-token.sh --resource-group <rg> --vm-name <vm> [--scheme http|https] [--days <1-180>] [--username <Splunk user>]" >&2
 }
 
 RESOURCE_GROUP=""
 VM_NAME=""
 SCHEME="https"
 DAYS="7"
+USERNAME="admin"
 VM_LOCATION=""
 RUN_COMMAND_NAME=""
+RUN_COMMAND_ATTEMPTED=false
 RUN_COMMAND_CREATED=false
 TOKEN=""
 
@@ -20,6 +22,7 @@ while [[ $# -gt 0 ]]; do
     --vm-name) VM_NAME="$2"; shift 2 ;;
     --scheme) SCHEME="$2"; shift 2 ;;
     --days) DAYS="$2"; shift 2 ;;
+    --username) USERNAME="$2"; shift 2 ;;
     *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
   esac
 done
@@ -27,23 +30,40 @@ done
 [[ -n "$RESOURCE_GROUP" && -n "$VM_NAME" ]] || { usage; exit 1; }
 [[ "$SCHEME" == "http" || "$SCHEME" == "https" ]] || { echo "Scheme must be http or https." >&2; exit 1; }
 [[ "$DAYS" =~ ^[0-9]+$ && "$DAYS" -ge 1 && "$DAYS" -le 180 ]] || { echo "Days must be between 1 and 180." >&2; exit 1; }
+[[ -n "$USERNAME" ]] || { echo "Username must not be empty." >&2; exit 1; }
 
 cleanup_run_command() {
-  [[ "$RUN_COMMAND_CREATED" == true ]] || return 0
+  [[ "$RUN_COMMAND_ATTEMPTED" == true ]] || return 0
 
   local scrubbed=false
   local deleted=false
   local output=""
+  local resource_exists="$RUN_COMMAND_CREATED"
 
-  if az vm run-command create \
-    --resource-group "$RESOURCE_GROUP" \
-    --vm-name "$VM_NAME" \
-    --location "$VM_LOCATION" \
-    --run-command-name "$RUN_COMMAND_NAME" \
-    --script "true" \
-    --timeout-in-seconds 60 \
-    --output none >/dev/null 2>&1; then
-    scrubbed=true
+  if [[ "$resource_exists" != true ]]; then
+    if output="$(az vm run-command show \
+      --resource-group "$RESOURCE_GROUP" \
+      --vm-name "$VM_NAME" \
+      --run-command-name "$RUN_COMMAND_NAME" \
+      --instance-view \
+      --output none 2>&1)"; then
+      resource_exists=true
+    elif grep -Eqi 'ResourceNotFound|could not be found' <<<"$output"; then
+      return 0
+    fi
+  fi
+
+  if [[ "$resource_exists" == true ]]; then
+    if az vm run-command create \
+      --resource-group "$RESOURCE_GROUP" \
+      --vm-name "$VM_NAME" \
+      --location "$VM_LOCATION" \
+      --run-command-name "$RUN_COMMAND_NAME" \
+      --script "true" \
+      --timeout-in-seconds 60 \
+      --output none >/dev/null 2>&1; then
+      scrubbed=true
+    fi
   fi
 
   for attempt in 1 2 3; do
@@ -103,6 +123,8 @@ on_exit() {
   exit "$cleanup_status"
 }
 trap on_exit EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 read -r -s -p "Splunk administrator password: " SPLUNK_PASSWORD
 echo
@@ -114,6 +136,7 @@ SCRIPT='set -euo pipefail
 SPLUNK_PASSWORD=""
 SCHEME="${scheme:-}"
 DAYS="${days:-}"
+TOKEN_USERNAME="${username:-admin}"
 if [[ -n "${splunkPasswordBase64:-}" ]]; then
   SPLUNK_PASSWORD="$(printf "%s" "$splunkPasswordBase64" | base64 -d)"
 fi
@@ -122,21 +145,26 @@ for argument in "$@"; do
     splunkPasswordBase64=*) SPLUNK_PASSWORD="$(printf '%s' "${argument#*=}" | base64 -d)" ;;
     scheme=*) SCHEME="${argument#*=}" ;;
     days=*) DAYS="${argument#*=}" ;;
+    username=*) TOKEN_USERNAME="${argument#*=}" ;;
   esac
 done
-response="$(curl -sk -u "admin:${SPLUNK_PASSWORD}" "${SCHEME}://127.0.0.1:8089/services/mcp_token?username=admin&expires_on=%2B${DAYS}d")"
+response="$(curl -sk -u "admin:${SPLUNK_PASSWORD}" --get \
+  --data-urlencode "username=${TOKEN_USERNAME}" \
+  --data-urlencode "expires_on=+${DAYS}d" \
+  "${SCHEME}://127.0.0.1:8089/services/mcp_token")"
 python3 -c "import json,sys; data=json.load(sys.stdin); token=data.get(\"token\"); assert token, \"Token missing from response\"; print(token)" <<<"$response"'
 SCRIPT_BASE64="$(printf '%s' "$SCRIPT" | base64 | tr -d '\r\n')"
 RUN_COMMAND_SCRIPT="printf '%s' '$SCRIPT_BASE64' | base64 -d | bash -s -- \"\$@\""
 SPLUNK_PASSWORD_BASE64="$(printf '%s' "$SPLUNK_PASSWORD" | base64 | tr -d '\r\n')"
 
+RUN_COMMAND_ATTEMPTED=true
 az vm run-command create \
   --resource-group "$RESOURCE_GROUP" \
   --vm-name "$VM_NAME" \
   --location "$VM_LOCATION" \
   --run-command-name "$RUN_COMMAND_NAME" \
   --script "$RUN_COMMAND_SCRIPT" \
-  --parameters "scheme=$SCHEME" "days=$DAYS" \
+  --parameters "scheme=$SCHEME" "days=$DAYS" "username=$USERNAME" \
   --protected-parameters "splunkPasswordBase64=$SPLUNK_PASSWORD_BASE64" \
   --timeout-in-seconds 300 \
   --output none

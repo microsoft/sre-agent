@@ -31,6 +31,22 @@ function Get-OptionalProperty {
     return $property.Value
 }
 
+function ConvertTo-Hashtable {
+    param($InputObject)
+
+    if ($null -eq $InputObject) {
+        return @{}
+    }
+
+    return $InputObject | ConvertTo-Json -Depth 20 | ConvertFrom-Json -AsHashtable
+}
+
+function Normalize-AzureLocation {
+    param([string]$Location)
+
+    return ($Location -replace '\s', '').ToLowerInvariant()
+}
+
 $agentUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.App/agents/$AgentName`?api-version=2025-05-01-preview"
 $vnetId = $SubnetId -replace '/subnets/[^/]+$', ''
 $vnetUrl = "https://management.azure.com$vnetId`?api-version=2025-03-01"
@@ -45,35 +61,45 @@ if ($LASTEXITCODE -ne 0) {
     throw 'Unable to read the agent VNet resource.'
 }
 
-if ($agent.location -ne $vnetLocation) {
+if ((Normalize-AzureLocation $agent.location) -ne (Normalize-AzureLocation $vnetLocation)) {
     throw "Agent region '$($agent.location)' does not match agent VNet region '$vnetLocation'."
 }
 
-$currentSubnet = Get-OptionalProperty (Get-OptionalProperty (Get-OptionalProperty $agent 'properties') 'vnetConfiguration') 'subnetResourceId'
+$properties = Get-OptionalProperty $agent 'properties'
+$currentSubnet = Get-OptionalProperty (Get-OptionalProperty $properties 'vnetConfiguration') 'subnetResourceId'
 if ($currentSubnet -and $currentSubnet -ne $SubnetId) {
     throw "The agent is already attached to a different subnet: $currentSubnet. This script will not reassign an existing VNet integration."
 }
 
+$vnetConfiguration = ConvertTo-Hashtable (Get-OptionalProperty $properties 'vnetConfiguration')
+$vnetConfiguration['subnetResourceId'] = $SubnetId
+
+$sandboxConfiguration = ConvertTo-Hashtable (Get-OptionalProperty $properties 'sandboxConfiguration')
+$egress = ConvertTo-Hashtable $sandboxConfiguration['egress']
+$egressVnetConfiguration = ConvertTo-Hashtable $egress['vnetConfiguration']
+$egressVnetConfiguration['usePrivateDnsResolution'] = $true
+$egress['mode'] = 'AzureVNet'
+$egress['allowHttpMcpServerNetworkAccess'] = $false
+$egress['vnetConfiguration'] = $egressVnetConfiguration
+$sandboxConfiguration['egress'] = $egress
+
 $body = @{
     properties = @{
-        vnetConfiguration = @{
-            subnetResourceId = $SubnetId
-        }
-        sandboxConfiguration = @{
-            egress = @{
-                mode = 'AzureVNet'
-                allowHttpMcpServerNetworkAccess = $false
-                vnetConfiguration = @{
-                    usePrivateDnsResolution = $true
-                }
-            }
-        }
+        vnetConfiguration = $vnetConfiguration
+        sandboxConfiguration = $sandboxConfiguration
     }
-} | ConvertTo-Json -Depth 8 -Compress
+} | ConvertTo-Json -Depth 20 -Compress
 
-az rest --method PATCH --url $agentUrl --body $body --output none
-if ($LASTEXITCODE -ne 0) {
-    throw 'Failed to configure SRE Agent VNet integration.'
+$bodyPath = Join-Path ([System.IO.Path]::GetTempPath()) "patch-sre-agent-$([Guid]::NewGuid()).json"
+try {
+    [System.IO.File]::WriteAllText($bodyPath, $body, [System.Text.UTF8Encoding]::new($false))
+    az rest --method PATCH --url $agentUrl --body "@$bodyPath" --output none
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Failed to configure SRE Agent VNet integration.'
+    }
+}
+finally {
+    Remove-Item $bodyPath -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host 'Agent VNet integration configured.'

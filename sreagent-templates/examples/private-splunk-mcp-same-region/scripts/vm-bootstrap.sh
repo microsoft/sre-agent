@@ -8,6 +8,18 @@ REGISTRY_USERNAME="${registryUsername:-}"
 REGISTRY_PASSWORD=""
 ENABLE_LAB_HTTP="${enableLabHttp:-false}"
 
+cleanup() {
+  local status=$?
+  trap - EXIT
+  if [[ -n "${REGISTRY_SERVER:-}" ]]; then
+    docker logout "$REGISTRY_SERVER" >/dev/null 2>&1 || true
+    rm -f /root/.docker/config.json
+  fi
+  rm -f /tmp/splunk-mcp-server.tgz
+  exit "$status"
+}
+trap cleanup EXIT
+
 if [[ -n "${splunkPasswordBase64:-}" ]]; then
   SPLUNK_PASSWORD="$(printf '%s' "$splunkPasswordBase64" | base64 -d)"
 fi
@@ -102,12 +114,6 @@ docker cp /tmp/splunk-mcp-server.tgz splunk:/tmp/splunk-mcp-server.tgz
 docker exec -u splunk -e INSTALL_PASSWORD="$SPLUNK_PASSWORD" splunk sh -c \
   '/opt/splunk/bin/splunk install app /tmp/splunk-mcp-server.tgz -auth "admin:$INSTALL_PASSWORD" -update 1'
 docker restart splunk >/dev/null
-rm -f /tmp/splunk-mcp-server.tgz
-
-if [[ -n "${REGISTRY_SERVER:-}" ]]; then
-  docker logout "$REGISTRY_SERVER" >/dev/null
-  rm -f /root/.docker/config.json
-fi
 
 for _ in {1..90}; do
   if [[ "$(docker inspect --format '{{.State.Health.Status}}' splunk 2>/dev/null || true)" == "healthy" ]]; then

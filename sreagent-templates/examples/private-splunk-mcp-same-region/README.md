@@ -49,13 +49,15 @@ The templates do **not** deploy an SRE Agent, contain a Splunk password or MCP t
 - The standalone Splunk container stores data on Docker volumes backed by the VM OS disk.
 - Download the official MCP package directly from [Splunkbase app 7931](https://splunkbase.splunk.com/app/7931).
 - Review and accept the [Splunk General Terms](https://www.splunk.com/en_us/legal/splunk-general-terms.html).
-- Production should use HTTPS with a certificate trusted by the SRE Agent runtime.
+- Production should use HTTPS with a certificate trusted by the SRE Agent runtime. These templates do not issue or install that certificate.
 - `--enable-lab-http` disables TLS only on the private Splunk management endpoint and is intended only for an isolated lab.
 - The setup scripts use protected Azure VM Run Command parameters and verify the VM-side exit code.
 
 ## Prerequisites
 
 - An existing SRE Agent in the target Azure region.
+- **Workspace tools** enabled on the SRE Agent. Private HTTP MCP routing also requires the service-managed ADC workspace runtime and `HttpMcpInSandbox`; if connector tool calls cannot reach the private hostname after the terminal probe succeeds, contact the SRE Agent product team to confirm those service-side capabilities for the agent.
+- The encrypted-token Splunk connector flow shown here. HTTP MCP connectors using Key Vault, OAuth, Spec OAuth, or Agent Work Identity authentication currently use the in-pod transport instead of the injected VNet path.
 - Contributor or equivalent permissions for the lab resource group.
 - Azure CLI and `jq` for Bash, or Azure CLI and PowerShell 7+.
 - Terraform 1.5+ for the Terraform path.
@@ -132,7 +134,7 @@ PowerShell:
 ./scripts/Patch-Agent.ps1 -SubscriptionId "<subscription-id>" -ResourceGroup "<agent-resource-group>" -AgentName "<agent-name>" -SubnetId "<agent-subnet-resource-id>"
 ```
 
-The patch script confirms that the agent and VNet are in the same region, selects `AzureVNet` egress, enables private DNS resolution, and disables remote HTTP MCP access through the SRE Agent infrastructure network. It refuses to silently move an agent already attached to another subnet.
+The patch script confirms that the agent and VNet are in the same region, selects `AzureVNet` egress, enables private DNS resolution, and disables remote HTTP MCP access through the SRE Agent infrastructure network. It refuses to silently move an agent already attached to another subnet and preserves existing sandbox packages, allowlists, registry and repository settings, proxy settings, and other VNet configuration fields. It performs a read-modify-write; if the agent is edited concurrently, review the resulting configuration and rerun the script if needed.
 
 ## Install Splunk and the MCP app
 
@@ -176,6 +178,8 @@ curl -v --connect-timeout 15 https://splunk-mcp.lab.internal:8089/services/mcp
 
 Expected: HTTP `405 Method Not Allowed`. MCP uses authenticated JSON-RPC `POST`; the `GET` response proves private DNS and TCP reachability.
 
+The terminal probe validates private DNS and TCP/TLS reachability from the sandbox. It does not prove that the MCP connector uses the sandbox route; a real connector tool invocation is the authoritative end-to-end check.
+
 Splunk's default self-signed certificate is not trusted by the SRE Agent connector. If you explicitly configured the isolated lab with `--enable-lab-http`, use:
 
 ```bash
@@ -198,7 +202,7 @@ PowerShell:
 ./scripts/Mint-McpToken.ps1 -ResourceGroup rg-private-splunk-same-region -VmName sre-splunk-vm -Scheme https -Days 7
 ```
 
-For the explicit `--enable-lab-http` mode, replace `https` with `http`. Store the displayed token in an approved secret store.
+For the explicit `--enable-lab-http` mode, replace `https` with `http`. The token defaults to the `admin` Splunk user. For production, create a least-privilege Splunk user with only the required search and MCP capabilities, then pass `--username <user>` or `-Username <user>`. Store the displayed token in an approved secret store.
 
 ## Configure and test the connector
 
@@ -210,6 +214,8 @@ In the SRE Agent portal:
 4. Paste the encrypted token.
 5. Select the required read-only tools.
 6. Save and wait for **Connected**.
+
+The encrypted Splunk token is carried by the connector's sandbox-compatible token/header authentication path. Do not switch this private connector to Key Vault, OAuth, Spec OAuth, or Agent Work Identity HTTP MCP authentication; those modes currently use the in-pod transport.
 
 Ask the agent:
 
