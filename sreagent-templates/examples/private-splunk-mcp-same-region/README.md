@@ -6,27 +6,27 @@ Use this example when the SRE Agent region can also host the private Splunk work
 
 ## Architecture
 
-```text
-Existing SRE Agent (East US 2)
-  |
-  | AzureVNet egress; private DNS enabled
-  v
-Shared regional VNet 10.100.0.0/16
-  |
-  +-- Delegated agent subnet 10.100.0.0/27
-  |
-  +-- Private Splunk subnet 10.100.1.0/24
-      +-- NSG: allow only the agent subnet to TCP 8080 and 8089
-      +-- NSG: deny other VirtualNetwork and Internet inbound traffic
-      +-- NAT Gateway: outbound-only package and image downloads
-      |
-      v
-      Private Ubuntu VM 10.100.1.4 (no public IP)
-        +-- Nginx connectivity probe: TCP 8080
-        +-- Splunk MCP: TCP 8089 /services/mcp
+```mermaid
+flowchart LR
+    subgraph Region[Shared Azure region]
+        subgraph SharedVNet[Shared VNet]
+            Agent[SRE Agent]
+            AgentSubnet[Delegated agent subnet<br/>Microsoft.App/environments]
+            SplunkSubnet[Private Splunk subnet]
+            SplunkVM[Splunk VM<br/>No public IP]
+            Agent --> AgentSubnet
+            AgentSubnet -->|Private MCP traffic| SplunkSubnet
+            SplunkSubnet --> SplunkVM
+        end
+        NAT[NAT Gateway<br/>Outbound bootstrap only]
+        SplunkSubnet -->|Outbound package and image access| NAT
+    end
+
+    DNS[Private DNS zone<br/>Splunk hostname to private IP]
+    DNS -. VNet link .-> SharedVNet
 ```
 
-No VNet peering is required. The SRE Agent and Splunk VM use separate subnets in one regional VNet.
+The SRE Agent and Splunk use isolated subnets in one VNet, so no VNet peering is required.
 
 ## What this example deploys
 

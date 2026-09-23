@@ -11,27 +11,33 @@ The default regions are:
 
 ## Architecture
 
-```text
-Existing SRE Agent (East US 2)
-  |
-  | AzureVNet egress; remote MCP infra-network bypass disabled
-  v
-Delegated agent subnet 10.20.0.0/27
-  |
-  | Global VNet Peering
-  v
-Private Splunk subnet 10.40.1.0/24 (Central US)
-  |
-  +-- NSG: allow 10.20.0.0/27 to TCP 8080 and 8089
-  +-- NSG: deny all other VirtualNetwork and Internet inbound traffic
-  +-- NAT Gateway: outbound-only package and image downloads
-  |
-  v
-Private Ubuntu VM 10.40.1.4 (no public IP)
-  +-- Nginx connectivity probe: TCP 8080
-  +-- Splunk Web: TCP 8000, not allowed across the peering by default
-  +-- Splunk MCP: TCP 8089 /services/mcp
+```mermaid
+flowchart LR
+    subgraph AgentRegion[Agent region]
+        Agent[SRE Agent]
+        AgentSubnet[Delegated agent subnet<br/>Microsoft.App/environments]
+        AgentVNet[Agent VNet]
+        Agent --> AgentSubnet
+        AgentSubnet --- AgentVNet
+    end
+
+    subgraph SplunkRegion[Splunk region]
+        SplunkVNet[Splunk VNet]
+        SplunkSubnet[Private Splunk subnet]
+        SplunkVM[Splunk VM<br/>No public IP]
+        NAT[NAT Gateway<br/>Outbound bootstrap only]
+        SplunkVNet --- SplunkSubnet
+        SplunkSubnet --> SplunkVM
+        SplunkSubnet -->|Outbound package and image access| NAT
+    end
+
+    AgentVNet <-->|Global VNet Peering<br/>Private MCP traffic| SplunkVNet
+    DNS[Private DNS zone<br/>Splunk hostname to private IP]
+    DNS -. VNet link .-> AgentVNet
+    DNS -. VNet link .-> SplunkVNet
 ```
+
+The SRE Agent reaches the private Splunk MCP endpoint across Global VNet Peering; private DNS is linked to both VNets.
 
 ## What this example deploys
 
