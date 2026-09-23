@@ -350,13 +350,6 @@ Find entries with:
 - User agent `python-httpx`
 - A source IP inside the delegated SRE Agent subnet
 
-The September 15, 2026 live tests showed:
-
-```text
-Bicep:    10.60.0.15 ... "POST /services/mcp HTTP/1.1" 200 ... "python-httpx/0.28.1"
-Terraform: 10.80.0.19 ... "POST /services/mcp HTTP/1.1" 200 ... "python-httpx/0.28.1"
-```
-
 The SRE Agent **Network audit** panel might not display this connector flow. It is a filtered ADC sandbox audit rather than a complete VNet flow log. Splunk's source IP evidence or Azure Virtual Network Flow Logs provide the definitive route confirmation.
 
 ## 12. Record results

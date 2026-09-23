@@ -1,7 +1,5 @@
 # Private same-region Splunk MCP lab
 
-> **Validation status:** The Bicep and Terraform paths were validated live end to end on September 23, 2026. Each path deployed one regional VNet with two isolated subnets, installed Splunk and the official MCP app, connected an existing SRE Agent, discovered 17 tools, completed `splunk_get_info` and `splunk_get_indexes`, and logged connector requests from the corresponding delegated agent subnet.
-
 This example deploys a private Splunk Enterprise MCP endpoint in the **same Azure region and VNet** as the delegated subnet used by an existing Azure SRE Agent.
 
 Use this example when the SRE Agent region can also host the private Splunk workload. Use [`../private-splunk-mcp-cross-region`](../private-splunk-mcp-cross-region/) when Splunk must remain in another Azure region.
@@ -225,14 +223,6 @@ Success requires:
 - MCP tools are discovered.
 - Both tool calls complete.
 - Splunk access logs show `python-httpx` requests from the delegated agent subnet.
-
-The September 23 live validation returned:
-
-- Bicep: server `75f87f7cfb3a`, Splunk `10.4.3`, 17 tools, 16 indexes, and HTTP `200`/`202` requests from `10.110.0.9` in `10.110.0.0/27`.
-- Terraform: server `9491748c2f99`, Splunk `10.4.3`, 17 tools, 16 indexes, and HTTP `200`/`202` requests from `10.120.0.15` in `10.120.0.0/27`.
-- Both VMs had no public IP, both VNets had zero peerings, and both private DNS zones linked only to their shared regional VNet.
-
-Freshly bootstrapped instances temporarily reported yellow or red overall health because Splunk's three-minute IOWait indicator crossed its startup threshold while images, packages, and indexes were being initialized. The detailed health endpoint showed the license, KV store, indexing, search scheduler, and other functional subsystems green. Treat persistent resource-health warnings separately from MCP connectivity validation.
 
 ## Cleanup
 

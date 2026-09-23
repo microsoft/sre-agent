@@ -1,7 +1,5 @@
 # Private cross-region Splunk MCP lab
 
-> **Validation status:** The corrected Bicep and Terraform deployment paths were both validated live end to end on September 15, 2026. Each path deployed the private topology, installed Splunk and the official MCP app through Managed Run Command, minted an encrypted token, connected the SRE Agent, discovered 17 tools, invoked `splunk_get_info` and `splunk_get_indexes`, and produced Splunk access-log entries from the corresponding delegated agent subnet.
-
 This example shows how an Azure SRE Agent in one region can reach a private Splunk Enterprise MCP endpoint in another region without exposing Splunk to inbound internet traffic.
 
 Use [`../private-splunk-mcp-same-region`](../private-splunk-mcp-same-region/) when the SRE Agent and private Splunk workload can run in the same Azure region and shared VNet.
@@ -10,8 +8,6 @@ The default regions are:
 
 - SRE Agent and delegated subnet: **East US 2**
 - Private Splunk VM: **Central US**
-
-Central US is only the default because the test subscription had no deployable general-purpose VM capacity in East US. Changing the Splunk region does not change the routing mechanism: private traffic still crosses Microsoft’s backbone through Global VNet Peering.
 
 ## Architecture
 
@@ -237,22 +233,14 @@ Success requires:
 - Splunk access logs show authenticated requests from the delegated SRE Agent subnet.
 - Disabling peering or denying TCP 8089 causes the connector invocation to fail.
 
-The September 15 live validation returned:
-
-- Splunk Enterprise `10.4.3`, build `4174a2deda5d`, with green health.
-- 17 MCP tools discovered.
-- 16 indexes returned by `splunk_get_indexes`.
-- Bicep: HTTP `200`/`202` entries from `10.60.0.15` in the delegated `10.60.0.0/27` subnet.
-- Terraform: HTTP `200`/`202` entries from `10.80.0.19` in the delegated `10.80.0.0/27` subnet.
-
-The live connector used the explicit lab-only HTTP mode because Splunk's default self-signed certificate failed the SRE Agent connector's certificate validation. The HTTPS failure reached the private hostname and failed with `CERTIFICATE_VERIFY_FAILED`, confirming that routing was working and certificate trust was the only HTTPS blocker. Use a publicly trusted or organization-trusted certificate for production.
+Use a publicly trusted or organization-trusted certificate for production. Use the explicit lab-only HTTP mode only for an isolated test environment.
 
 ### Common validation failures
 
 | Symptom | Likely cause | Resolution |
 |---|---|---|
 | `CERTIFICATE_VERIFY_FAILED` | Splunk is using its default self-signed certificate | Install a certificate trusted by the SRE Agent runtime, or use the explicit lab-only HTTP mode |
-| HTTP `401` from `/services/mcp` | Missing, expired, truncated, or plaintext token | Mint a new encrypted token and paste the entire value; the validated encrypted token had two dot-separated segments |
+| HTTP `401` from `/services/mcp` | Missing, expired, truncated, or plaintext token | Mint a new encrypted token and paste the entire value |
 | Hostname doesn't resolve | Private DNS zone or VNet link is missing | Link the zone to both VNets with registration disabled and verify the explicit A record |
 | Connection times out | Peering, NSG, route, or return path is missing | Verify both peering directions and allow the agent subnet to TCP 8089 |
 

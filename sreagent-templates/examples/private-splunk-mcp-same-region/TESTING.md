@@ -2,8 +2,6 @@
 
 This guide validates the Bicep and Terraform variants independently. Each path deploys the delegated SRE Agent subnet and private Splunk subnet into one regional VNet.
 
-> **Live verification:** Both paths passed this procedure on September 23, 2026 in East US 2.
-
 ## Test goals
 
 The template passes when:
@@ -269,20 +267,3 @@ terraform -chdir=examples/private-splunk-mcp-same-region/terraform destroy -var-
 ```
 
 Record the tool results, connector status, Splunk server identifier, private source IP, and cleanup outcome for each deployment path.
-
-## Live reference results
-
-| Check | Bicep | Terraform |
-|---|---|---|
-| Resource group | `rg-splunk-mcp-same-bicep-live-923` | `rg-splunk-mcp-same-tf-live-923` |
-| VNet | `splsameb923-vnet` | `splsametf923-vnet` |
-| Splunk private IP | `10.110.1.4` | `10.120.1.4` |
-| Delegated agent subnet | `10.110.0.0/27` | `10.120.0.0/27` |
-| VNet peerings | 0 | 0 |
-| VM public IP | none | none |
-| Tools discovered | 17 | 17 |
-| Splunk server identifier | `75f87f7cfb3a` | `9491748c2f99` |
-| Indexes returned | 16 | 16 |
-| Observed connector source | `10.110.0.9` | `10.120.0.15` |
-
-Both tool invocations completed. During the initial post-install window, the overall Splunk health color was yellow or red because the three-minute IOWait resource indicator crossed its threshold. Detailed health showed the license, KV store, indexing pipeline, and search scheduler green; this startup resource warning did not prevent connector discovery or tool execution.
