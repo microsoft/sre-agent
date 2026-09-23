@@ -55,6 +55,10 @@ grep -q 'instanceView.exitCode' "$EXAMPLE/scripts/configure-splunk.sh"
 grep -q 'instanceView.exitCode' "$EXAMPLE/scripts/Configure-Splunk.ps1"
 grep -q 'base64 -d | bash -s' "$EXAMPLE/scripts/mint-mcp-token.sh"
 grep -q 'base64 -d | bash -s' "$EXAMPLE/scripts/Mint-McpToken.ps1"
+grep -q -- '--script "true"' "$EXAMPLE/scripts/mint-mcp-token.sh"
+grep -q -- "'--script', 'true'" "$EXAMPLE/scripts/Mint-McpToken.ps1"
+grep -q 'Treat it as compromised' "$EXAMPLE/scripts/mint-mcp-token.sh"
+grep -q 'Treat it as compromised' "$EXAMPLE/scripts/Mint-McpToken.ps1"
 grep -q 'splunkPasswordBase64' "$EXAMPLE/scripts/vm-bootstrap.sh"
 grep -q 'packageUrlBase64' "$EXAMPLE/scripts/vm-bootstrap.sh"
 
@@ -88,5 +92,8 @@ if command -v pwsh >/dev/null 2>&1; then
   done
   pwsh -NoProfile -File "$EXAMPLE/tests/Test-PowerShellRuntime.ps1"
 fi
+
+cmp -s "$EXAMPLE/scripts/mint-mcp-token.sh" "examples/private-splunk-mcp-cross-region/scripts/mint-mcp-token.sh"
+cmp -s "$EXAMPLE/scripts/Mint-McpToken.ps1" "examples/private-splunk-mcp-cross-region/scripts/Mint-McpToken.ps1"
 
 echo "private-splunk-same-region: PASS"

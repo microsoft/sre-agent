@@ -9,6 +9,10 @@ RESOURCE_GROUP=""
 VM_NAME=""
 SCHEME="https"
 DAYS="7"
+VM_LOCATION=""
+RUN_COMMAND_NAME=""
+RUN_COMMAND_CREATED=false
+TOKEN=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -24,17 +28,87 @@ done
 [[ "$SCHEME" == "http" || "$SCHEME" == "https" ]] || { echo "Scheme must be http or https." >&2; exit 1; }
 [[ "$DAYS" =~ ^[0-9]+$ && "$DAYS" -ge 1 && "$DAYS" -le 180 ]] || { echo "Days must be between 1 and 180." >&2; exit 1; }
 
+cleanup_run_command() {
+  [[ "$RUN_COMMAND_CREATED" == true ]] || return 0
+
+  local scrubbed=false
+  local deleted=false
+  local output=""
+
+  if az vm run-command create \
+    --resource-group "$RESOURCE_GROUP" \
+    --vm-name "$VM_NAME" \
+    --location "$VM_LOCATION" \
+    --run-command-name "$RUN_COMMAND_NAME" \
+    --script "true" \
+    --timeout-in-seconds 60 \
+    --output none >/dev/null 2>&1; then
+    scrubbed=true
+  fi
+
+  for attempt in 1 2 3; do
+    if output="$(az vm run-command delete \
+      --resource-group "$RESOURCE_GROUP" \
+      --vm-name "$VM_NAME" \
+      --run-command-name "$RUN_COMMAND_NAME" \
+      --yes 2>&1)"; then
+      deleted=true
+      break
+    fi
+
+    if grep -Eqi 'ResourceNotFound|could not be found' <<<"$output"; then
+      deleted=true
+      break
+    fi
+
+    [[ "$attempt" -eq 3 ]] || sleep $((attempt * 5))
+  done
+
+  if [[ "$deleted" == true ]]; then
+    if output="$(az vm run-command show \
+      --resource-group "$RESOURCE_GROUP" \
+      --vm-name "$VM_NAME" \
+      --run-command-name "$RUN_COMMAND_NAME" \
+      --instance-view \
+      --output none 2>&1)"; then
+      deleted=false
+    elif ! grep -Eqi 'ResourceNotFound|could not be found' <<<"$output"; then
+      deleted=false
+    fi
+  fi
+
+  [[ "$deleted" == true ]] && return 0
+
+  echo "WARNING: Managed Run Command cleanup failed for '$RUN_COMMAND_NAME' on VM '$VM_NAME' in resource group '$RESOURCE_GROUP'." >&2
+  echo "Delete it manually: az vm run-command delete --resource-group '$RESOURCE_GROUP' --vm-name '$VM_NAME' --run-command-name '$RUN_COMMAND_NAME' --yes" >&2
+  if [[ "$scrubbed" != true ]]; then
+    echo "The command output could still contain the minted token. Treat it as compromised and revoke or replace it before retrying." >&2
+  fi
+  return 3
+}
+
+on_exit() {
+  local original_status=$?
+  local cleanup_status=0
+  trap - EXIT
+  set +e
+  cleanup_run_command
+  cleanup_status=$?
+  unset SPLUNK_PASSWORD SPLUNK_PASSWORD_BASE64
+  TOKEN=""
+
+  if [[ "$original_status" -ne 0 ]]; then
+    exit "$original_status"
+  fi
+  exit "$cleanup_status"
+}
+trap on_exit EXIT
+
 read -r -s -p "Splunk administrator password: " SPLUNK_PASSWORD
 echo
 
 VM_LOCATION="$(az vm show --resource-group "$RESOURCE_GROUP" --name "$VM_NAME" --query location --output tsv)"
 RUN_COMMAND_NAME="mint-splunk-mcp-token-$(date +%s)-${RANDOM}"
-
-cleanup() {
-  az vm run-command delete --resource-group "$RESOURCE_GROUP" --vm-name "$VM_NAME" --run-command-name "$RUN_COMMAND_NAME" --yes >/dev/null 2>&1 || true
-  unset SPLUNK_PASSWORD
-}
-trap cleanup EXIT
 
 SCRIPT='set -euo pipefail
 SPLUNK_PASSWORD=""
@@ -66,6 +140,7 @@ az vm run-command create \
   --protected-parameters "splunkPasswordBase64=$SPLUNK_PASSWORD_BASE64" \
   --timeout-in-seconds 300 \
   --output none
+RUN_COMMAND_CREATED=true
 
 RUN_COMMAND_EXIT_CODE="$(az vm run-command show --resource-group "$RESOURCE_GROUP" --vm-name "$VM_NAME" --run-command-name "$RUN_COMMAND_NAME" --instance-view --query instanceView.exitCode --output tsv)"
 if [[ "$RUN_COMMAND_EXIT_CODE" != "0" ]]; then
@@ -77,6 +152,15 @@ fi
 TOKEN="$(az vm run-command show --resource-group "$RESOURCE_GROUP" --vm-name "$VM_NAME" --run-command-name "$RUN_COMMAND_NAME" --instance-view --query instanceView.output --output tsv | tr -d '\r\n')"
 [[ -n "$TOKEN" ]] || { echo "MCP token creation returned no token." >&2; exit 1; }
 
+trap - EXIT
+set +e
+cleanup_run_command
+CLEANUP_STATUS=$?
+set -e
+unset SPLUNK_PASSWORD SPLUNK_PASSWORD_BASE64
+[[ "$CLEANUP_STATUS" -eq 0 ]] || exit "$CLEANUP_STATUS"
+
 echo
 echo "Encrypted MCP token (shown once; store it securely and do not commit it):"
 echo "$TOKEN"
+TOKEN=""

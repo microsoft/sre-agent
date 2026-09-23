@@ -170,27 +170,37 @@ getent hosts splunk-mcp.lab.internal
 
 Expected: the configured private VM address, such as `10.100.1.4`.
 
+If you installed a certificate trusted by the SRE Agent runtime, validate the default HTTPS mode:
+
 ```bash
-curl -v --connect-timeout 15 http://splunk-mcp.lab.internal:8089/services/mcp
+curl -v --connect-timeout 15 https://splunk-mcp.lab.internal:8089/services/mcp
 ```
 
 Expected: HTTP `405 Method Not Allowed`. MCP uses authenticated JSON-RPC `POST`; the `GET` response proves private DNS and TCP reachability.
 
+Splunk's default self-signed certificate is not trusted by the SRE Agent connector. If you explicitly configured the isolated lab with `--enable-lab-http`, use:
+
+```bash
+curl -v --connect-timeout 15 http://splunk-mcp.lab.internal:8089/services/mcp
+```
+
 ## Mint an encrypted MCP token
+
+With a trusted HTTPS certificate:
 
 Bash:
 
 ```bash
-./scripts/mint-mcp-token.sh --resource-group rg-private-splunk-same-region --vm-name sre-splunk-vm --scheme http --days 7
+./scripts/mint-mcp-token.sh --resource-group rg-private-splunk-same-region --vm-name sre-splunk-vm --scheme https --days 7
 ```
 
 PowerShell:
 
 ```powershell
-./scripts/Mint-McpToken.ps1 -ResourceGroup rg-private-splunk-same-region -VmName sre-splunk-vm -Scheme http -Days 7
+./scripts/Mint-McpToken.ps1 -ResourceGroup rg-private-splunk-same-region -VmName sre-splunk-vm -Scheme https -Days 7
 ```
 
-Use `https` instead of `http` when Splunk has a trusted certificate. Store the displayed token in an approved secret store.
+For the explicit `--enable-lab-http` mode, replace `https` with `http`. Store the displayed token in an approved secret store.
 
 ## Configure and test the connector
 
@@ -198,7 +208,7 @@ In the SRE Agent portal:
 
 1. Open **Build + setup > Connectors**.
 2. Add the **Splunk** partner MCP connector.
-3. Set the endpoint to `https://splunk-mcp.lab.internal:8089/services/mcp`, or `http://...` only for the isolated lab.
+3. Set the endpoint to `https://splunk-mcp.lab.internal:8089/services/mcp` after installing a trusted certificate, or `http://...` only for the explicit isolated-lab HTTP mode.
 4. Paste the encrypted token.
 5. Select the required read-only tools.
 6. Save and wait for **Connected**.

@@ -16,10 +16,66 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Remove-TokenRunCommand {
+    param(
+        [string]$Location,
+        [string]$RunCommandName
+    )
+
+    $scrubArguments = @(
+        'vm', 'run-command', 'create',
+        '--resource-group', $ResourceGroup,
+        '--vm-name', $VmName,
+        '--location', $Location,
+        '--run-command-name', $RunCommandName,
+        '--script', 'true',
+        '--timeout-in-seconds', '60',
+        '--output', 'none'
+    )
+    $scrubOutput = & az @scrubArguments 2>&1
+    $scrubbed = $LASTEXITCODE -eq 0
+
+    $deleted = $false
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        $deleteOutput = & az vm run-command delete --resource-group $ResourceGroup --vm-name $VmName --run-command-name $RunCommandName --yes 2>&1
+        if ($LASTEXITCODE -eq 0 -or ($deleteOutput -join "`n") -match 'ResourceNotFound|could not be found') {
+            $deleted = $true
+            break
+        }
+
+        if ($attempt -lt 3) {
+            Start-Sleep -Seconds ($attempt * 5)
+        }
+    }
+
+    if ($deleted) {
+        $verifyOutput = & az vm run-command show --resource-group $ResourceGroup --vm-name $VmName --run-command-name $RunCommandName --instance-view --output none 2>&1
+        if ($LASTEXITCODE -eq 0 -or ($verifyOutput -join "`n") -notmatch 'ResourceNotFound|could not be found') {
+            $deleted = $false
+        }
+    }
+
+    if ($deleted) {
+        $global:LASTEXITCODE = 0
+        return $null
+    }
+
+    $message = "Managed Run Command cleanup failed for '$RunCommandName' on VM '$VmName' in resource group '$ResourceGroup'. " +
+        "Delete it manually: az vm run-command delete --resource-group '$ResourceGroup' --vm-name '$VmName' --run-command-name '$RunCommandName' --yes."
+    if (-not $scrubbed) {
+        $message += ' The command output could still contain the minted token. Treat it as compromised and revoke or replace it before retrying.'
+    }
+    return $message
+}
+
 $securePassword = Read-Host 'Splunk administrator password' -AsSecureString
 $password = [System.Net.NetworkCredential]::new('', $securePassword).Password
 $runCommandName = "mint-splunk-mcp-token-$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())-$((Get-Random -Maximum 10000))"
+$runCommandCreated = $false
+$vmLocation = $null
 $token = $null
+$primaryError = $null
+$cleanupFailure = $null
 $script = @'
 set -euo pipefail
 SPLUNK_PASSWORD=""
@@ -65,6 +121,7 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw 'MCP token creation failed.'
     }
+    $runCommandCreated = $true
 
     $runCommandResult = az vm run-command show --resource-group $ResourceGroup --vm-name $VmName --run-command-name $runCommandName --instance-view --query '{exitCode:instanceView.exitCode,output:instanceView.output,error:instanceView.error}' --output json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or $runCommandResult.exitCode -ne 0) {
@@ -75,13 +132,33 @@ try {
     if ($LASTEXITCODE -ne 0 -or -not $token) {
         throw 'MCP token creation returned no token.'
     }
-
-    Write-Host ''
-    Write-Host 'Encrypted MCP token (shown once; store it securely and do not commit it):'
-    Write-Host $token.Trim()
+}
+catch {
+    $primaryError = $_
 }
 finally {
-    az vm run-command delete --resource-group $ResourceGroup --vm-name $VmName --run-command-name $runCommandName --yes 2>$null | Out-Null
+    if ($runCommandCreated) {
+        $cleanupFailure = Remove-TokenRunCommand -Location $vmLocation -RunCommandName $runCommandName
+    }
+    $securePassword = $null
     $password = $null
-    $token = $null
+    $passwordBase64 = $null
+    $runCommandArguments = $null
 }
+
+if ($null -ne $primaryError) {
+    if ($cleanupFailure) {
+        Write-Warning $cleanupFailure
+    }
+    throw $primaryError
+}
+
+if ($cleanupFailure) {
+    $token = $null
+    throw $cleanupFailure
+}
+
+Write-Host ''
+Write-Host 'Encrypted MCP token (shown once; store it securely and do not commit it):'
+Write-Host $token.Trim()
+$token = $null
