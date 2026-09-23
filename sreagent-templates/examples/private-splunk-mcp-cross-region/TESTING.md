@@ -267,6 +267,8 @@ Set-Location ./examples/private-splunk-mcp-cross-region; ./scripts/Configure-Spl
 
 Enter a strong disposable Splunk administrator password when prompted. The operation can take 10–20 minutes while Docker images are downloaded and Splunk starts.
 
+The scripts transport the multiline guest script as base64, read named Linux Managed Run Command parameters from environment variables, and fail when the guest `instanceView.exitCode` is nonzero. This prevents a successful ARM provisioning state from masking a failed installation.
+
 ## 7. Validate private DNS and TCP connectivity
 
 In SRE Agent, open **Settings > Workspace configuration > Inspect** and run:
@@ -348,10 +350,11 @@ Find entries with:
 - User agent `python-httpx`
 - A source IP inside the delegated SRE Agent subnet
 
-The previously validated test showed:
+The September 15, 2026 live tests showed:
 
 ```text
-10.20.0.9 ... "POST /services/mcp HTTP/1.1" 200 ... "python-httpx/0.28.1"
+Bicep:    10.60.0.15 ... "POST /services/mcp HTTP/1.1" 200 ... "python-httpx/0.28.1"
+Terraform: 10.80.0.19 ... "POST /services/mcp HTTP/1.1" 200 ... "python-httpx/0.28.1"
 ```
 
 The SRE Agent **Network audit** panel might not display this connector flow. It is a filtered ADC sandbox audit rather than a complete VNet flow log. Splunk's source IP evidence or Azure Virtual Network Flow Logs provide the definitive route confirmation.

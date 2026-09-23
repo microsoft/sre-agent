@@ -1,6 +1,6 @@
 # Private cross-region Splunk MCP lab
 
-> **Validation status:** The Bicep deployment path, private DNS, Global VNet Peering, Splunk Enterprise container, official MCP app installation, encrypted token creation, SRE Agent connector, tool discovery, and read-only tool invocation were validated end to end on September 10, 2026. Both infrastructure definitions pass offline compilation and validation; use [TESTING.md](TESTING.md) to validate either deployment path in your subscription.
+> **Validation status:** The corrected Bicep and Terraform deployment paths were both validated live end to end on September 15, 2026. Each path deployed the private topology, installed Splunk and the official MCP app through Managed Run Command, minted an encrypted token, connected the SRE Agent, discovered 17 tools, invoked `splunk_get_info` and `splunk_get_indexes`, and produced Splunk access-log entries from the corresponding delegated agent subnet.
 
 This example shows how an Azure SRE Agent in one region can reach a private Splunk Enterprise MCP endpoint in another region without exposing Splunk to inbound internet traffic.
 
@@ -144,7 +144,7 @@ The patch script:
 
 ## Install Splunk and the MCP app
 
-The setup script prompts for the Splunk administrator password and passes secrets using protected Azure VM Run Command parameters. It creates a temporary storage account in the lab resource group, uploads the package with the account key, issues a one-hour read-only service SAS, installs Docker and Splunk, installs the user-provided MCP package as the `splunk` OS user, and deletes the temporary storage account.
+The setup script prompts for the Splunk administrator password and passes secrets using protected Azure VM Run Command parameters. Named Linux Run Command parameters are read from environment variables inside the VM; punctuation-heavy values are base64-encoded before crossing the operator shell boundary. The wrapper also checks the guest script's `instanceView.exitCode` rather than treating ARM provisioning success as installation success. It creates a temporary storage account in the lab resource group, uploads the package with the account key, issues a one-hour read-only service SAS, installs Docker and Splunk, installs the user-provided MCP package as the `splunk` OS user, and deletes the temporary storage account.
 
 Bash with trusted HTTPS:
 
@@ -235,12 +235,13 @@ Success requires:
 - Splunk access logs show authenticated requests from the delegated SRE Agent subnet.
 - Disabling peering or denying TCP 8089 causes the connector invocation to fail.
 
-The validated lab returned:
+The September 15 live validation returned:
 
 - Splunk Enterprise `10.4.3`, build `4174a2deda5d`, with green health.
 - 17 MCP tools discovered.
 - 16 indexes returned by `splunk_get_indexes`.
-- HTTP `200` entries in `splunkd_access.log` from `10.20.0.9`, an address in the delegated `10.20.0.0/27` agent subnet.
+- Bicep: HTTP `200`/`202` entries from `10.60.0.15` in the delegated `10.60.0.0/27` subnet.
+- Terraform: HTTP `200`/`202` entries from `10.80.0.19` in the delegated `10.80.0.0/27` subnet.
 
 The live connector used the explicit lab-only HTTP mode because Splunk's default self-signed certificate failed the SRE Agent connector's certificate validation. The HTTPS failure reached the private hostname and failed with `CERTIFICATE_VERIFY_FAILED`, confirming that routing was working and certificate trust was the only HTTPS blocker. Use a publicly trusted or organization-trusted certificate for production.
 

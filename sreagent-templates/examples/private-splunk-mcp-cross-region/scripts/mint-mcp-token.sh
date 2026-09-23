@@ -37,26 +37,42 @@ cleanup() {
 trap cleanup EXIT
 
 SCRIPT='set -euo pipefail
+SPLUNK_PASSWORD=""
+SCHEME="${scheme:-}"
+DAYS="${days:-}"
+if [[ -n "${splunkPasswordBase64:-}" ]]; then
+  SPLUNK_PASSWORD="$(printf "%s" "$splunkPasswordBase64" | base64 -d)"
+fi
 for argument in "$@"; do
   case "$argument" in
-    splunkPassword=*) SPLUNK_PASSWORD="${argument#*=}" ;;
+    splunkPasswordBase64=*) SPLUNK_PASSWORD="$(printf '%s' "${argument#*=}" | base64 -d)" ;;
     scheme=*) SCHEME="${argument#*=}" ;;
     days=*) DAYS="${argument#*=}" ;;
   esac
 done
 response="$(curl -sk -u "admin:${SPLUNK_PASSWORD}" "${SCHEME}://127.0.0.1:8089/services/mcp_token?username=admin&expires_on=%2B${DAYS}d")"
 python3 -c "import json,sys; data=json.load(sys.stdin); token=data.get(\"token\"); assert token, \"Token missing from response\"; print(token)" <<<"$response"'
+SCRIPT_BASE64="$(printf '%s' "$SCRIPT" | base64 | tr -d '\r\n')"
+RUN_COMMAND_SCRIPT="printf '%s' '$SCRIPT_BASE64' | base64 -d | bash -s -- \"\$@\""
+SPLUNK_PASSWORD_BASE64="$(printf '%s' "$SPLUNK_PASSWORD" | base64 | tr -d '\r\n')"
 
 az vm run-command create \
   --resource-group "$RESOURCE_GROUP" \
   --vm-name "$VM_NAME" \
   --location "$VM_LOCATION" \
   --run-command-name "$RUN_COMMAND_NAME" \
-  --script "$SCRIPT" \
+  --script "$RUN_COMMAND_SCRIPT" \
   --parameters "scheme=$SCHEME" "days=$DAYS" \
-  --protected-parameters "splunkPassword=$SPLUNK_PASSWORD" \
+  --protected-parameters "splunkPasswordBase64=$SPLUNK_PASSWORD_BASE64" \
   --timeout-in-seconds 300 \
   --output none
+
+RUN_COMMAND_EXIT_CODE="$(az vm run-command show --resource-group "$RESOURCE_GROUP" --vm-name "$VM_NAME" --run-command-name "$RUN_COMMAND_NAME" --instance-view --query instanceView.exitCode --output tsv)"
+if [[ "$RUN_COMMAND_EXIT_CODE" != "0" ]]; then
+  az vm run-command show --resource-group "$RESOURCE_GROUP" --vm-name "$VM_NAME" --run-command-name "$RUN_COMMAND_NAME" --instance-view --query instanceView.error --output tsv >&2
+  echo "MCP token creation failed on the VM." >&2
+  exit 1
+fi
 
 TOKEN="$(az vm run-command show --resource-group "$RESOURCE_GROUP" --vm-name "$VM_NAME" --run-command-name "$RUN_COMMAND_NAME" --instance-view --query instanceView.output --output tsv | tr -d '\r\n')"
 [[ -n "$TOKEN" ]] || { echo "MCP token creation returned no token." >&2; exit 1; }

@@ -41,6 +41,8 @@ STORAGE_ACCOUNT="stsplunk${TRANSFER_ID}"
 CONTAINER_NAME="packages"
 BLOB_NAME="$(basename "$PACKAGE_PATH")"
 RUN_COMMAND_NAME="configure-private-splunk-${TRANSFER_ID}"
+BOOTSTRAP_SCRIPT_BASE64="$(base64 < "$SCRIPT_DIR/vm-bootstrap.sh" | tr -d '\r\n')"
+RUN_COMMAND_SCRIPT="printf '%s' '$BOOTSTRAP_SCRIPT_BASE64' | base64 -d | bash -s -- \"\$@\""
 
 read -r -s -p "Splunk administrator password: " SPLUNK_PASSWORD
 echo
@@ -87,13 +89,16 @@ PACKAGE_SAS="$(AZURE_STORAGE_KEY="$AZURE_STORAGE_KEY" az storage blob generate-s
   --output tsv)"
 PACKAGE_URL="https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}/${BLOB_NAME}?${PACKAGE_SAS}"
 
-PROTECTED_PARAMETERS=("splunkPassword=$SPLUNK_PASSWORD" "packageUrl=$PACKAGE_URL")
+SPLUNK_PASSWORD_BASE64="$(printf '%s' "$SPLUNK_PASSWORD" | base64 | tr -d '\r\n')"
+PACKAGE_URL_BASE64="$(printf '%s' "$PACKAGE_URL" | base64 | tr -d '\r\n')"
+PROTECTED_PARAMETERS=("splunkPasswordBase64=$SPLUNK_PASSWORD_BASE64" "packageUrlBase64=$PACKAGE_URL_BASE64")
 PARAMETERS=("enableLabHttp=$ENABLE_LAB_HTTP")
 if [[ -n "$ACR_NAME" ]]; then
   REGISTRY_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer --output tsv)"
   REGISTRY_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username --output tsv)"
   REGISTRY_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query 'passwords[0].value' --output tsv)"
-  PROTECTED_PARAMETERS+=("registryServer=$REGISTRY_SERVER" "registryUsername=$REGISTRY_USERNAME" "registryPassword=$REGISTRY_PASSWORD")
+  REGISTRY_PASSWORD_BASE64="$(printf '%s' "$REGISTRY_PASSWORD" | base64 | tr -d '\r\n')"
+  PROTECTED_PARAMETERS+=("registryServer=$REGISTRY_SERVER" "registryUsername=$REGISTRY_USERNAME" "registryPasswordBase64=$REGISTRY_PASSWORD_BASE64")
 fi
 
 az vm run-command create \
@@ -101,11 +106,18 @@ az vm run-command create \
   --vm-name "$VM_NAME" \
   --location "$VM_LOCATION" \
   --run-command-name "$RUN_COMMAND_NAME" \
-  --script "$(cat "$SCRIPT_DIR/vm-bootstrap.sh")" \
+  --script "$RUN_COMMAND_SCRIPT" \
   --parameters "${PARAMETERS[@]}" \
   --protected-parameters "${PROTECTED_PARAMETERS[@]}" \
   --timeout-in-seconds 1800 \
   --output none
+
+RUN_COMMAND_EXIT_CODE="$(az vm run-command show --resource-group "$RESOURCE_GROUP" --vm-name "$VM_NAME" --run-command-name "$RUN_COMMAND_NAME" --instance-view --query instanceView.exitCode --output tsv)"
+if [[ "$RUN_COMMAND_EXIT_CODE" != "0" ]]; then
+  az vm run-command show --resource-group "$RESOURCE_GROUP" --vm-name "$VM_NAME" --run-command-name "$RUN_COMMAND_NAME" --instance-view --query instanceView.error --output tsv >&2
+  echo "Splunk configuration failed on the VM." >&2
+  exit 1
+fi
 
 echo "Splunk and the MCP app are installed."
 if [[ "$ENABLE_LAB_HTTP" == "true" ]]; then

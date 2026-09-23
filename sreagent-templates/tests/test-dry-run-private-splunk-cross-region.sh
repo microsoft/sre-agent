@@ -41,6 +41,31 @@ grep -q 'storage account keys list' "$EXAMPLE/scripts/configure-splunk.sh"
 grep -q 'storage account keys list' "$EXAMPLE/scripts/Configure-Splunk.ps1"
 grep -q 'storage account delete' "$EXAMPLE/scripts/configure-splunk.sh"
 grep -q 'storage account delete' "$EXAMPLE/scripts/Configure-Splunk.ps1"
+grep -q 'base64 -d | bash -s' "$EXAMPLE/scripts/configure-splunk.sh"
+grep -q 'base64 -d | bash -s' "$EXAMPLE/scripts/Configure-Splunk.ps1"
+grep -q 'instanceView.exitCode' "$EXAMPLE/scripts/configure-splunk.sh"
+grep -q 'instanceView.exitCode' "$EXAMPLE/scripts/Configure-Splunk.ps1"
+grep -q 'base64 -d | bash -s' "$EXAMPLE/scripts/mint-mcp-token.sh"
+grep -q 'base64 -d | bash -s' "$EXAMPLE/scripts/Mint-McpToken.ps1"
+grep -q 'splunkPasswordBase64' "$EXAMPLE/scripts/vm-bootstrap.sh"
+grep -q 'packageUrlBase64' "$EXAMPLE/scripts/vm-bootstrap.sh"
+
+awk '/^export DEBIAN_FRONTEND=/{exit} {print}' "$EXAMPLE/scripts/vm-bootstrap.sh" > "$TMP_DIR/bootstrap-parameters.sh"
+cat >> "$TMP_DIR/bootstrap-parameters.sh" <<'EOF'
+printf '%s\n' "$SPLUNK_PASSWORD" "$PACKAGE_URL" "$REGISTRY_SERVER" "$REGISTRY_USERNAME" "$REGISTRY_PASSWORD" "$ENABLE_LAB_HTTP"
+EOF
+parameter_output="$(
+  splunkPasswordBase64="$(printf '%s' 'P@ss word&value' | base64 | tr -d '\r\n')" \
+  packageUrlBase64="$(printf '%s' 'https://example.test/package.tgz?sv=1&sig=a+b/c=' | base64 | tr -d '\r\n')" \
+  registryServer="registry.example.test" \
+  registryUsername="test-user" \
+  registryPasswordBase64="$(printf '%s' 'Registry&password' | base64 | tr -d '\r\n')" \
+  enableLabHttp="true" \
+  bash "$TMP_DIR/bootstrap-parameters.sh"
+)"
+expected_parameter_output=$'P@ss word&value\nhttps://example.test/package.tgz?sv=1&sig=a+b/c=\nregistry.example.test\ntest-user\nRegistry&password\ntrue'
+[[ "$parameter_output" == "$expected_parameter_output" ]]
+
 if grep -q 'Storage Blob Data Contributor\|role assignment create\|--as-user' "$EXAMPLE/scripts/configure-splunk.sh" "$EXAMPLE/scripts/Configure-Splunk.ps1"; then
   echo "Package transfer must not depend on a self-granted data-plane role." >&2
   exit 1

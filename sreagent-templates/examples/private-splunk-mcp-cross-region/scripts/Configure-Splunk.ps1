@@ -31,6 +31,8 @@ $containerName = 'packages'
 $blobName = Split-Path $PackagePath -Leaf
 $runCommandName = "configure-private-splunk-$suffix"
 $bootstrapScript = Get-Content (Join-Path $PSScriptRoot 'vm-bootstrap.sh') -Raw
+$bootstrapScriptBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($bootstrapScript))
+$runCommandScript = "printf '%s' '$bootstrapScriptBase64' | base64 -d | bash -s -- `"`$@`""
 $packageUrl = $null
 $registryPassword = $null
 $previousStorageKey = $env:AZURE_STORAGE_KEY
@@ -68,7 +70,9 @@ try {
     }
     $env:AZURE_STORAGE_KEY = $previousStorageKey
     $packageUrl = "https://$storageAccount.blob.core.windows.net/$containerName/$blobName`?$sas"
-    $protectedParameters = @("splunkPassword=$password", "packageUrl=$packageUrl")
+    $passwordBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($password))
+    $packageUrlBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($packageUrl))
+    $protectedParameters = @("splunkPasswordBase64=$passwordBase64", "packageUrlBase64=$packageUrlBase64")
 
     if ($AcrName) {
         $registryServer = az acr show --name $AcrName --query loginServer --output tsv
@@ -86,13 +90,33 @@ try {
             throw "Unable to read the admin password for ACR '$AcrName'. Confirm that its admin account is enabled."
         }
 
-        $protectedParameters += @("registryServer=$registryServer", "registryUsername=$registryUsername", "registryPassword=$registryPassword")
+        $registryPasswordBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($registryPassword))
+        $protectedParameters += @("registryServer=$registryServer", "registryUsername=$registryUsername", "registryPasswordBase64=$registryPasswordBase64")
     }
 
     $parameters = @("enableLabHttp=$($EnableLabHttp.IsPresent.ToString().ToLowerInvariant())")
-    az vm run-command create --resource-group $ResourceGroup --vm-name $VmName --location $vmLocation --run-command-name $runCommandName --script $bootstrapScript --parameters $parameters --protected-parameters $protectedParameters --timeout-in-seconds 1800 --output none
+    $runCommandArguments = @(
+        'vm', 'run-command', 'create',
+        '--resource-group', $ResourceGroup,
+        '--vm-name', $VmName,
+        '--location', $vmLocation,
+        '--run-command-name', $runCommandName,
+        '--script', $runCommandScript,
+        '--parameters'
+    ) + $parameters + @(
+        '--protected-parameters'
+    ) + $protectedParameters + @(
+        '--timeout-in-seconds', '1800',
+        '--output', 'none'
+    )
+    & az @runCommandArguments
     if ($LASTEXITCODE -ne 0) {
         throw 'Splunk configuration failed.'
+    }
+
+    $runCommandResult = az vm run-command show --resource-group $ResourceGroup --vm-name $VmName --run-command-name $runCommandName --instance-view --query '{exitCode:instanceView.exitCode,error:instanceView.error}' --output json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $runCommandResult.exitCode -ne 0) {
+        throw "Splunk configuration failed on the VM: $($runCommandResult.error)"
     }
 
     Write-Host 'Splunk and the MCP app are installed.'

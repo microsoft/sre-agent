@@ -1,19 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SPLUNK_PASSWORD=""
+PACKAGE_URL=""
+REGISTRY_SERVER="${registryServer:-}"
+REGISTRY_USERNAME="${registryUsername:-}"
+REGISTRY_PASSWORD=""
+ENABLE_LAB_HTTP="${enableLabHttp:-false}"
+
+if [[ -n "${splunkPasswordBase64:-}" ]]; then
+  SPLUNK_PASSWORD="$(printf '%s' "$splunkPasswordBase64" | base64 -d)"
+fi
+if [[ -n "${packageUrlBase64:-}" ]]; then
+  PACKAGE_URL="$(printf '%s' "$packageUrlBase64" | base64 -d)"
+fi
+if [[ -n "${registryPasswordBase64:-}" ]]; then
+  REGISTRY_PASSWORD="$(printf '%s' "$registryPasswordBase64" | base64 -d)"
+fi
+
 for argument in "$@"; do
   case "$argument" in
-    splunkPassword=*) SPLUNK_PASSWORD="${argument#*=}" ;;
-    packageUrl=*) PACKAGE_URL="${argument#*=}" ;;
+    splunkPasswordBase64=*) SPLUNK_PASSWORD="$(printf '%s' "${argument#*=}" | base64 -d)" ;;
+    packageUrlBase64=*) PACKAGE_URL="$(printf '%s' "${argument#*=}" | base64 -d)" ;;
     registryServer=*) REGISTRY_SERVER="${argument#*=}" ;;
     registryUsername=*) REGISTRY_USERNAME="${argument#*=}" ;;
-    registryPassword=*) REGISTRY_PASSWORD="${argument#*=}" ;;
+    registryPasswordBase64=*) REGISTRY_PASSWORD="$(printf '%s' "${argument#*=}" | base64 -d)" ;;
     enableLabHttp=*) ENABLE_LAB_HTTP="${argument#*=}" ;;
   esac
 done
 
-: "${SPLUNK_PASSWORD:?splunkPassword is required}"
-: "${PACKAGE_URL:?packageUrl is required}"
+: "${SPLUNK_PASSWORD:?splunkPasswordBase64 is required}"
+: "${PACKAGE_URL:?packageUrlBase64 is required}"
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
