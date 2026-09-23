@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+EXAMPLE="examples/private-splunk-mcp-same-region"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+for script in "$EXAMPLE"/scripts/*.sh; do
+  bash -n "$script"
+done
+
+az bicep build --file "$EXAMPLE/bicep/main.bicep" --outfile "$TMP_DIR/main.json" >/dev/null
+
+grep -q "Microsoft.App/environments" "$EXAMPLE/bicep/main.bicep"
+grep -q "DenyOtherVirtualNetworkInbound" "$EXAMPLE/bicep/main.bicep"
+grep -q "allowHttpMcpServerNetworkAccess.*false" "$EXAMPLE/scripts/patch-agent.sh"
+grep -q "registrationEnabled: false" "$EXAMPLE/bicep/main.bicep"
+grep -q "SPLUNKD_SSL_ENABLE=false" "$EXAMPLE/scripts/vm-bootstrap.sh"
+grep -q "resource labVnet" "$EXAMPLE/bicep/main.bicep"
+grep -q "parent: labVnet" "$EXAMPLE/bicep/main.bicep"
+if grep -q "virtualNetworkPeerings" "$EXAMPLE/bicep/main.bicep"; then
+  echo "Same-region topology must not deploy VNet peering." >&2
+  exit 1
+fi
+
+if command -v terraform >/dev/null 2>&1 && [[ -f "$EXAMPLE/terraform/main.tf" ]]; then
+  terraform -chdir="$EXAMPLE/terraform" fmt -check
+  terraform -chdir="$EXAMPLE/terraform" init -backend=false -input=false >/dev/null
+  terraform -chdir="$EXAMPLE/terraform" validate
+fi
+
+grep -q 'name.*=.*"DenyOtherVirtualNetworkInbound"' "$EXAMPLE/terraform/main.tf"
+grep -q 'name.*=.*"DenyInternetInbound"' "$EXAMPLE/terraform/main.tf"
+grep -q 'registration_enabled.*=.*false' "$EXAMPLE/terraform/main.tf"
+grep -q 'service_delegation' "$EXAMPLE/terraform/main.tf"
+grep -q 'azurerm_virtual_network" "lab"' "$EXAMPLE/terraform/main.tf"
+if grep -q "azurerm_virtual_network_peering" "$EXAMPLE/terraform/main.tf"; then
+  echo "Same-region topology must not deploy VNet peering." >&2
+  exit 1
+fi
+if grep -q 'public_ip_address_id' "$EXAMPLE/terraform/main.tf"; then
+  grep -q 'azurerm_nat_gateway_public_ip_association' "$EXAMPLE/terraform/main.tf"
+fi
+
+grep -q 'Get-OptionalProperty' "$EXAMPLE/scripts/Deploy.ps1"
+grep -q 'Get-OptionalProperty' "$EXAMPLE/scripts/Patch-Agent.ps1"
+grep -q 'storage account keys list' "$EXAMPLE/scripts/configure-splunk.sh"
+grep -q 'storage account keys list' "$EXAMPLE/scripts/Configure-Splunk.ps1"
+grep -q 'storage account delete' "$EXAMPLE/scripts/configure-splunk.sh"
+grep -q 'storage account delete' "$EXAMPLE/scripts/Configure-Splunk.ps1"
+grep -q 'base64 -d | bash -s' "$EXAMPLE/scripts/configure-splunk.sh"
+grep -q 'base64 -d | bash -s' "$EXAMPLE/scripts/Configure-Splunk.ps1"
+grep -q 'instanceView.exitCode' "$EXAMPLE/scripts/configure-splunk.sh"
+grep -q 'instanceView.exitCode' "$EXAMPLE/scripts/Configure-Splunk.ps1"
+grep -q 'base64 -d | bash -s' "$EXAMPLE/scripts/mint-mcp-token.sh"
+grep -q 'base64 -d | bash -s' "$EXAMPLE/scripts/Mint-McpToken.ps1"
+grep -q 'splunkPasswordBase64' "$EXAMPLE/scripts/vm-bootstrap.sh"
+grep -q 'packageUrlBase64' "$EXAMPLE/scripts/vm-bootstrap.sh"
+
+awk '/^export DEBIAN_FRONTEND=/{exit} {print}' "$EXAMPLE/scripts/vm-bootstrap.sh" > "$TMP_DIR/bootstrap-parameters.sh"
+cat >> "$TMP_DIR/bootstrap-parameters.sh" <<'EOF'
+printf '%s\n' "$SPLUNK_PASSWORD" "$PACKAGE_URL" "$REGISTRY_SERVER" "$REGISTRY_USERNAME" "$REGISTRY_PASSWORD" "$ENABLE_LAB_HTTP"
+EOF
+parameter_output="$(
+  splunkPasswordBase64="$(printf '%s' 'P@ss word&value' | base64 | tr -d '\r\n')" \
+  packageUrlBase64="$(printf '%s' 'https://example.test/package.tgz?sv=1&sig=a+b/c=' | base64 | tr -d '\r\n')" \
+  registryServer="registry.example.test" \
+  registryUsername="test-user" \
+  registryPasswordBase64="$(printf '%s' 'Registry&password' | base64 | tr -d '\r\n')" \
+  enableLabHttp="true" \
+  bash "$TMP_DIR/bootstrap-parameters.sh"
+)"
+expected_parameter_output=$'P@ss word&value\nhttps://example.test/package.tgz?sv=1&sig=a+b/c=\nregistry.example.test\ntest-user\nRegistry&password\ntrue'
+[[ "$parameter_output" == "$expected_parameter_output" ]]
+
+if grep -q 'Storage Blob Data Contributor\|role assignment create\|--as-user' "$EXAMPLE/scripts/configure-splunk.sh" "$EXAMPLE/scripts/Configure-Splunk.ps1"; then
+  echo "Package transfer must not depend on a self-granted data-plane role." >&2
+  exit 1
+fi
+grep -q 'bicep/main.parameters.json' "$EXAMPLE/.gitignore"
+grep -q 'terraform -chdir=terraform destroy -var-file=terraform.tfvars' "$EXAMPLE/README.md"
+grep -q 'terraform -chdir=examples/private-splunk-mcp-same-region/terraform destroy -var-file=terraform.tfvars' "$EXAMPLE/TESTING.md"
+
+if command -v pwsh >/dev/null 2>&1; then
+  for script in "$EXAMPLE"/scripts/*.ps1; do
+    PS_SCRIPT_PATH="$script" pwsh -NoProfile -Command '$errors = $null; [System.Management.Automation.Language.Parser]::ParseFile($env:PS_SCRIPT_PATH, [ref]$null, [ref]$errors) > $null; if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }'
+  done
+  pwsh -NoProfile -File "$EXAMPLE/tests/Test-PowerShellRuntime.ps1"
+fi
+
+echo "private-splunk-same-region: PASS"

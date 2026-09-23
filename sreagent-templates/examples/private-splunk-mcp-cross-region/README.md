@@ -4,6 +4,8 @@
 
 This example shows how an Azure SRE Agent in one region can reach a private Splunk Enterprise MCP endpoint in another region without exposing Splunk to inbound internet traffic.
 
+Use [`../private-splunk-mcp-same-region`](../private-splunk-mcp-same-region/) when the SRE Agent and private Splunk workload can run in the same Azure region and shared VNet.
+
 The default regions are:
 
 - SRE Agent and delegated subnet: **East US 2**
