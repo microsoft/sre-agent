@@ -39,7 +39,7 @@ variable "splunk_location" {
   default  = null
   nullable = true
   validation {
-    condition     = var.splunk_location == null || length(trimspace(var.splunk_location)) > 0
+    condition     = var.splunk_location == null ? true : length(trimspace(var.splunk_location)) > 0
     error_message = "splunk_location must be null or a non-empty Azure region."
   }
 }
@@ -58,7 +58,7 @@ variable "splunk_vnet_address_prefix" {
   default  = null
   nullable = true
   validation {
-    condition     = var.splunk_vnet_address_prefix == null || (can(cidrhost(var.splunk_vnet_address_prefix, 0)) && can(regex("/16$", var.splunk_vnet_address_prefix)))
+    condition     = var.splunk_vnet_address_prefix == null ? true : can(cidrhost(var.splunk_vnet_address_prefix, 0)) && can(regex("/16$", var.splunk_vnet_address_prefix))
     error_message = "splunk_vnet_address_prefix must be null or a valid IPv4 /16 CIDR."
   }
 }
