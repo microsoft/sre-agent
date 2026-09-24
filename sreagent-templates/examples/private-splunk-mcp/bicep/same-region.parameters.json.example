@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "topology": { "value": "same-region" },
+    "namePrefix": { "value": "sre-splunk" },
+    "agentLocation": { "value": "eastus2" },
+    "agentVnetAddressPrefix": { "value": "10.100.0.0/16" },
+    "agentSubnetPrefix": { "value": "10.100.0.0/27" },
+    "splunkSubnetPrefix": { "value": "10.100.1.0/24" },
+    "splunkPrivateIp": { "value": "10.100.1.4" },
+    "adminSshPublicKey": { "value": "ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY" }
+  }
+}

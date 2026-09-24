@@ -42,7 +42,7 @@ jobs:
           # Install Terraform
           wget -qO- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
           echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-          sudo apt-get update && sudo apt-get install -y terraform || true
+          sudo apt-get update && sudo apt-get install -y terraform
 
       # ── 1. YAML lint ──
       - name: YAML lint
@@ -135,7 +135,7 @@ jobs:
             CHANGED_RECIPES=$(ls -d recipes/*/ | xargs -I{} basename {})
           fi
 
-          if git diff --name-only origin/main...HEAD | grep -qE '^sreagent-templates/(examples/private-splunk-mcp-(cross-region|same-region)/|tests/test-dry-run-private-splunk-(cross-region|same-region)\.sh$)'; then
+          if git diff --name-only origin/main...HEAD | grep -qE '^sreagent-templates/(examples/private-splunk-mcp/|tests/test-dry-run-private-splunk\.sh$)'; then
             SPLUNK_EXAMPLES_CHANGED=true
           fi
 
@@ -148,8 +148,7 @@ jobs:
         if: steps.changes.outputs.splunk_examples == 'true'
         run: |
           set -euo pipefail
-          bash tests/test-dry-run-private-splunk-cross-region.sh
-          bash tests/test-dry-run-private-splunk-same-region.sh
+          bash tests/test-dry-run-private-splunk.sh
 
       # ── 4. Dry-run test suite (all 6 recipes × 4 backends) ──
       - name: Dry-run test suite
@@ -235,5 +234,4 @@ jobs:
       - name: Validate private Splunk PowerShell scripts through az.cmd
         shell: pwsh
         run: |
-          ./sreagent-templates/examples/private-splunk-mcp-cross-region/tests/Test-PowerShellRuntime.ps1
-          ./sreagent-templates/examples/private-splunk-mcp-same-region/tests/Test-PowerShellRuntime.ps1
+          ./sreagent-templates/examples/private-splunk-mcp/tests/Test-PowerShellRuntime.ps1
