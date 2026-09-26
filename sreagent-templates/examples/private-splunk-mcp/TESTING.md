@@ -31,7 +31,7 @@ For every row:
 6. Create a uniquely named connector. Never modify an existing connector.
 7. Confirm tool discovery, then invoke `splunk_get_info` and `splunk_get_indexes`.
 8. Confirm Splunk access logs show the connector request from the delegated subnet.
-9. Delete the unique connector, restore and compare captured fields, confirm the old test subnet is no longer referenced, then destroy that row.
+9. Delete the unique connector, restore and compare captured fields, confirm the old test subnet is no longer referenced, then allow the delegated subnet's service-association link to detach before destroying that row. If Azure returns `InUseSubnetCannotBeDeleted` for `serviceAssociationLinks/legionservicelink`, wait a few minutes, reconfirm the captured agent state, and retry.
 
 After all rows, repeat restore/compare; confirm original connectors are untouched, test connectors and token-bearing Run Commands are absent, and all test resource groups are deleted.
 
@@ -63,8 +63,10 @@ Configure and mint:
 
 ```bash
 ./scripts/configure-splunk.sh --resource-group "<rg>" --vm-name "<vm>" --package "<package>" --enable-lab-http
-./scripts/mint-mcp-token.sh --resource-group "<rg>" --vm-name "<vm>" --scheme http --days 1 --username "<least-privilege-user>"
+./scripts/mint-mcp-token.sh --resource-group "<rg>" --vm-name "<vm>" --scheme http --days 1
 ```
+
+Pass `--username` only for an account that already exists in Splunk. The setup creates only `admin`; create a restricted user before using a least-privilege username.
 
 Cleanup Bicep:
 

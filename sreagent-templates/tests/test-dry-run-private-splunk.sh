@@ -40,6 +40,7 @@ grep -q 'topology.*=.*"same-region"' "$EXAMPLE/terraform/same-region.tfvars.exam
 grep -q 'topology.*=.*"cross-region"' "$EXAMPLE/terraform/cross-region.tfvars.example"
 grep -q '^splunk_location' "$EXAMPLE/terraform/cross-region.tfvars.example"
 grep -q 'output "splunk_vnet_id".*azurerm_virtual_network.lab.id' "$EXAMPLE/terraform/modules/same-region-network/main.tf"
+grep -q 'prevent_deletion_if_contains_resources = false' "$EXAMPLE/terraform/versions.tf"
 if grep -RE 'module\.(same_region_network|cross_region_network)\[0\]' "$EXAMPLE/terraform" --include='*.tf' | grep -vE 'var\.topology == "(same-region|cross-region)"'; then
   echo "Found unguarded conditional Terraform module access." >&2
   exit 1
@@ -96,9 +97,11 @@ if [[ "$command" == "rest --method PATCH "* ]]; then
     if [[ "$1" == "--body" ]]; then
       cp "${2#@}" "$AZ_TEST_STATE/patch.json"
       jq -s '
-        .[0] * .[1]
-        | if .[1].properties.vnetConfiguration == null then del(.properties.vnetConfiguration) else . end
-        | if .[1].properties.sandboxConfiguration == null then del(.properties.sandboxConfiguration) else . end
+        .[0] as $original
+        | .[1] as $patch
+        | $original + {properties: ($original.properties + $patch.properties)}
+        | if $patch.properties.vnetConfiguration == null then del(.properties.vnetConfiguration) else . end
+        | if $patch.properties.sandboxConfiguration == null then del(.properties.sandboxConfiguration) else . end
       ' "$AZ_TEST_STATE/agent.json" "${2#@}" >"$AZ_TEST_STATE/agent.next.json"
       mv "$AZ_TEST_STATE/agent.next.json" "$AZ_TEST_STATE/agent.json"
       exit 0

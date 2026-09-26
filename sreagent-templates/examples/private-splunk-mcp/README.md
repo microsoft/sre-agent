@@ -79,11 +79,13 @@ Before destroying a test subnet, delete the uniquely named test connector, resto
 
 PowerShell equivalents are `Capture-AgentState.ps1` and `Restore-AgentState.ps1`. Restore performs an ARM PATCH from a body file, GETs the agent, and compares the two writable fields. Never edit or replace existing connectors during validation; create and delete a unique connector per matrix entry.
 
+Azure removes the delegated subnet's service-association link asynchronously after reassignment. If deletion reports `InUseSubnetCannotBeDeleted` for `serviceAssociationLinks/legionservicelink`, wait a few minutes and retry only after confirming the agent still matches the captured state.
+
 ## Configure Splunk
 
 Use `configure-splunk.sh`/`Configure-Splunk.ps1` with the downloaded Splunk MCP package. The scripts use protected Run Command parameters, base64 transport for punctuation-heavy values, no storage data-plane role assignment, and delete the temporary storage account. `--enable-lab-http`/`-EnableLabHttp` is for isolated testing only.
 
-Mint a short-lived encrypted connector token with `mint-mcp-token.sh`/`Mint-McpToken.ps1`. The scripts scrub Run Command output and delete the command resource even after failures. Store the displayed token only in an approved secret store.
+Mint a short-lived encrypted connector token with `mint-mcp-token.sh`/`Mint-McpToken.ps1`. The optional username must already exist in Splunk; the setup creates only the `admin` account. Create a restricted Splunk user first when testing least-privilege access, otherwise omit the username option. The scripts scrub Run Command output and delete the command resource even after failures. Store the displayed token only in an approved secret store.
 
 ## Terraform state migration
 

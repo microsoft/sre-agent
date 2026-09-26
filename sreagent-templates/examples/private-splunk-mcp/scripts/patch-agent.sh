@@ -30,7 +30,9 @@ if [[ "$(printf '%s' "$AGENT_LOCATION" | tr -d '[:space:]' | tr '[:upper:]' '[:l
   echo "Agent region '$AGENT_LOCATION' does not match agent VNet region '$VNET_LOCATION'." >&2
   exit 1
 fi
-if [[ -n "$CURRENT_SUBNET" && "${CURRENT_SUBNET,,}" != "${SUBNET_ID,,}" && "$ALLOW_REASSIGNMENT" != true ]]; then
+CURRENT_SUBNET_NORMALIZED="$(printf '%s' "$CURRENT_SUBNET" | tr '[:upper:]' '[:lower:]')"
+SUBNET_ID_NORMALIZED="$(printf '%s' "$SUBNET_ID" | tr '[:upper:]' '[:lower:]')"
+if [[ -n "$CURRENT_SUBNET" && "$CURRENT_SUBNET_NORMALIZED" != "$SUBNET_ID_NORMALIZED" && "$ALLOW_REASSIGNMENT" != true ]]; then
   echo "The agent is already attached to a different subnet: $CURRENT_SUBNET" >&2
   echo "Pass --allow-subnet-reassignment only after capturing the original agent state." >&2
   exit 1
