@@ -1,4 +1,4 @@
-# Private Splunk MCP lab
+# Private Splunk MCP deployment template
 
 This example deploys a private Splunk Enterprise MCP endpoint for an existing Azure SRE Agent. Select one topology with the `topology` input:
 
@@ -46,7 +46,7 @@ Copy exactly one complete sample and replace its SSH key placeholder:
 
 ```bash
 cp bicep/same-region.parameters.json.example bicep/main.parameters.json
-./scripts/deploy.sh bicep --resource-group rg-private-splunk-lab --parameters bicep/main.parameters.json
+./scripts/deploy.sh bicep --resource-group rg-private-splunk --parameters bicep/main.parameters.json
 ```
 
 ```bash
