@@ -5,6 +5,7 @@ This repository is the official community hub for Azure SRE Agent. Here you'll f
 - **🐛 Report Issues** — File bugs, feature requests, and feedback via [GitHub Issues](https://github.com/microsoft/sre-agent/issues)
 - **📚 Resources** — Curated links to docs, videos, blogs, and community content for Azure SRE Agent
 - **🧪 Labs** — Hands-on labs and sample environments to deploy, break, and fix apps with Azure SRE Agent (see the [`labs/`](labs/) folder)
+- **Live Reports** — Build a connector-backed operational report with the [Live Report build guide](live-reports/README.md)
 
 ---
 
