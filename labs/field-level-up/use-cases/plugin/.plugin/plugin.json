@@ -1,0 +1,6 @@
+{
+  "name": "azure-monitor-incident-response",
+  "version": "1.0.0",
+  "description": "Evidence-backed Azure Monitor RCA with reviewed GitHub issue and email follow-ups.",
+  "skills": ["./skills"]
+}
