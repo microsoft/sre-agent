@@ -1,0 +1,23 @@
+name: Validate SRE Agent issues
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  validate:
+    if: startsWith(github.event.issue.title, '[SRE Agent Issue]') || startsWith(github.event.issue.title, '[Issue]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate issue details
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const validateIssue = require('./.github/scripts/validate-sre-agent-issue.js');
+            await validateIssue({ github, context, core });

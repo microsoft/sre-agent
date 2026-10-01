@@ -1,0 +1,110 @@
+name: SRE Agent issue
+description: Report a problem with Azure SRE Agent
+title: "[SRE Agent Issue] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting an issue. Complete every required field so the team can investigate without unnecessary delays.
+
+        Do not include credentials, access tokens, customer data, or other secrets. Azure subscription IDs are identifiers, not credentials, but should still be shared only when needed for support.
+
+  - type: input
+    id: agent-name
+    attributes:
+      label: Agent name
+      description: Enter the name of the SRE Agent that experienced the issue.
+      placeholder: my-sre-agent
+    validations:
+      required: true
+
+  - type: input
+    id: subscription-id
+    attributes:
+      label: Azure subscription ID
+      description: Enter the Azure subscription ID containing the SRE Agent.
+      placeholder: 00000000-0000-0000-0000-000000000000
+    validations:
+      required: true
+
+  - type: input
+    id: thread-id
+    attributes:
+      label: Thread ID (required for thread-related issues)
+      description: Paste the thread ID from the SRE Agent portal when reporting thread, chat, conversation, or message-history behavior. Otherwise, leave this blank.
+      placeholder: 50f7521d-dfee-487e-9188-5abdc8adde91
+
+  - type: textarea
+    id: issue-description
+    attributes:
+      label: Issue description
+      description: Clearly describe the problem, including when it started and how frequently it occurs.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: customer-impact
+    attributes:
+      label: Customer impact
+      description: Is this issue blocking the customer?
+      options:
+        - Fully blocked - no workaround
+        - Blocked - workaround available
+        - Degraded but not blocked
+        - Not customer-blocking
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround
+      description: Describe the current workaround. Enter "None" if no workaround is available.
+      placeholder: Describe the workaround or enter None.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Provide at least two numbered, specific steps, including the resource or service involved.
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot-evidence
+    attributes:
+      label: Screenshots
+      description: Drag and drop screenshots that show the problem. Redact credentials, customer data, and other sensitive information.
+      placeholder: Drag and drop one or more screenshots here.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual behavior
+      description: What happened instead? Include exact error messages where possible.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: sensitive-data
+    attributes:
+      label: Sensitive data check
+      options:
+        - label: I have removed or redacted credentials, tokens, customer data, and other secrets from this report and its screenshots.
+          required: true
