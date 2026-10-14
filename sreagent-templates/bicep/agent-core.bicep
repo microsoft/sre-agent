@@ -7,7 +7,7 @@ param location string
 param suffix string
 @allowed(['High', 'Low'])
 param accessLevel string
-@allowed(['Review', 'Automatic'])
+@allowed(['Review', 'Autonomous'])
 param actionMode string = 'Review'
 param targetResourceGroups array
 param subscriptionId string
