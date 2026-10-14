@@ -78,6 +78,7 @@ resource existingAppInsights 'Microsoft.Insights/components@2020-02-02' existing
 
 var effectiveAppInsightsAppId = empty(existingAgentAppInsightsId) ? appInsights.properties.AppId : existingAppInsights.properties.AppId
 var effectiveAppInsightsConnStr = empty(existingAgentAppInsightsId) ? appInsights.properties.ConnectionString : existingAppInsights.properties.ConnectionString
+var effectiveAppInsightsId = empty(existingAgentAppInsightsId) ? appInsights.id : existingAppInsights.id
 
 // ── Managed Identity ──
 
@@ -144,6 +145,7 @@ resource sreAgent 'Microsoft.App/agents@2025-05-01-preview' = {
       applicationInsightsConfiguration: {
         appId: effectiveAppInsightsAppId
         connectionString: effectiveAppInsightsConnStr
+        applicationInsightsResourceId: effectiveAppInsightsId
       }
     }
     upgradeChannel: upgradeChannel
