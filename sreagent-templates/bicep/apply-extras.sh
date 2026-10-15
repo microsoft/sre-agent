@@ -215,7 +215,25 @@ dataplane_post_json() {
 }
 
 # Reusable: get a data-plane bearer (defined here so multipart helper can use it)
-_dp_token() { az account get-access-token --resource https://azuresre.dev --query accessToken -o tsv 2>/dev/null; }
+# The data-plane token is valid for about an hour, but this was called once per item --
+# once per skill, per subagent, per hook and per knowledge item. Each call shells out to the
+# Azure CLI, which costs roughly a second, so applying a real agent's extras spent longer
+# minting tokens than talking to the service: measured at ~1,100 ms per acquisition against
+# ~450 ms for the PUT it was authorising.
+#
+# The cache is a file rather than a variable on purpose. Callers use TOKEN=$(_dp_token),
+# which runs the function in a subshell, so a variable assigned inside it would be discarded
+# the moment the substitution closed and every call would re-mint.
+_DP_TOKEN_FILE="${TMPDIR:-/tmp}/.sre-dp-token.$$"
+trap 'rm -f "$_DP_TOKEN_FILE"' EXIT
+_dp_token_reset() { rm -f "$_DP_TOKEN_FILE"; }
+_dp_token() {
+  if [[ ! -s "$_DP_TOKEN_FILE" ]]; then
+    az account get-access-token --resource https://azuresre.dev --query accessToken -o tsv 2>/dev/null \
+      > "$_DP_TOKEN_FILE"
+  fi
+  cat "$_DP_TOKEN_FILE"
+}
 
 # ---------------------------------------------------------------------------
 # Helper: PUT to v2 extendedAgent dataplane (skills/subagents/hooks/commonprompts/etc.).
@@ -264,6 +282,18 @@ dataplane_put_extended() {
       fi
     fi
     echo "  ok ${kind}/${name}"
+  elif [[ "$http_code" == "401" ]]; then
+    # token likely expired mid-run; re-mint once and retry
+    _dp_token_reset
+    TOKEN=$(_dp_token)
+    if curl -sS -f -X PUT "$url" \
+         -H "Authorization: ******" \
+         -H "Content-Type: application/json" \
+         --data "$body" >/dev/null 2>&1; then
+      echo "  ok ${kind}/${name} (after token refresh)"
+    else
+      echo "  FAILED — PUT ${kind}/${name} (HTTP 401, refresh did not help)"
+    fi
   else
     echo "  FAILED — PUT ${kind}/${name} (HTTP ${http_code})"
   fi
@@ -550,6 +580,16 @@ if [[ "$count" -gt 0 ]]; then
         -H "Authorization: Bearer ${TOKEN}" \
         -H "Content-Type: application/json" \
         --data "$body" 2>&1)
+      # A burst of PUTs can draw a transient 405 or 429; retry a few times before giving up.
+      _attempt=1
+      while [[ "$(printf '%s' "$result" | tail -1)" =~ ^(405|429|503)$ && $_attempt -lt 4 ]]; do
+        sleep $(( _attempt * 2 ))
+        result=$(curl -sS -w "\n%{http_code}" -X PUT "$url" \
+             -H "Authorization: Bearer ${TOKEN}" \
+             -H "Content-Type: application/json" \
+             --data "$body" 2>&1)
+        _attempt=$(( _attempt + 1 ))
+      done
       http_code=$(echo "$result" | tail -1)
       if [[ "$http_code" =~ ^2 ]]; then
         echo "  ok knowledgeItems/${sanitized}"
@@ -566,7 +606,13 @@ if [[ "$count" -gt 0 ]]; then
         echo "  FAILED — PUT knowledgeItems/${sanitized} (HTTP ${http_code})"
         echo "    $(echo "$result" | sed '$d' | head -2)"
       fi
-      [[ $i -lt $((count - 1)) ]] && sleep 5
+      # The pause between items used to be an unconditional 5 seconds, which on a real
+      # agent's 949 knowledge items is 79 minutes of sleeping against roughly 0.4 s of
+      # actual work each. It cannot simply be removed: the service answers a burst of
+      # PUTs with 405, and dropping the pause took a 20-item sample from 20 successes to
+      # 8. The interval is now configurable and much smaller by default, with a retry on
+      # the transient codes so a slower service still completes rather than losing items.
+      [[ $i -lt $((count - 1)) ]] && sleep "${SRE_APPLY_ITEM_DELAY:-1}"
     done
   else
     echo "knowledgeItems: ${count} — ⚠ skipped (no data-plane token)"
