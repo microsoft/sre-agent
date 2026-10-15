@@ -45,7 +45,7 @@ Optional:
   --target-resource-groups  Comma-separated RGs the clone should monitor
   --subscription        Target subscription (default: current az account)
   --access-level        Override access level (High/Low)
-  --action-mode         Override action mode (Review/Automatic)
+  --action-mode         Override action mode (Review/Autonomous)
   --override            key=value override (repeatable). e.g.:
                           --override connectors.0.properties.dataSource=/subscriptions/.../new-ai
   --backend             Deploy backend: bicep (default) or terraform
@@ -252,10 +252,16 @@ if [[ "$NEW_ACCESS" == "High" || "$NEW_ACCESS" == "Low" ]]; then
 else
   _err "Invalid access level '${NEW_ACCESS}' — must be High or Low"
 fi
-if [[ "$NEW_ACTION" == "Review" || "$NEW_ACTION" == "Automatic" ]]; then
+# "Automatic" was renamed to "Autonomous" in the Bicep @allowed list, but this validation
+# was not updated with it, so --action-mode Autonomous was rejected here while
+# --action-mode Automatic was accepted here and then rejected by the template at deploy
+# time. Only Review worked at all. The old spelling is still accepted and mapped forward,
+# so an export taken before the rename keeps working.
+[[ "$NEW_ACTION" == "Automatic" ]] && NEW_ACTION="Autonomous"
+if [[ "$NEW_ACTION" == "Review" || "$NEW_ACTION" == "Autonomous" ]]; then
   _ok "Action mode: ${NEW_ACTION}"
 else
-  _err "Invalid action mode '${NEW_ACTION}' — must be Review or Automatic"
+  _err "Invalid action mode '${NEW_ACTION}' — must be Review or Autonomous"
 fi
 
 echo
@@ -417,8 +423,8 @@ else
 fi
 
 # 4e. Access level + action mode coherence
-if [[ "$NEW_ACCESS" == "High" && "$NEW_ACTION" == "Automatic" ]]; then
-  _warn "accessLevel=High + actionMode=Automatic — agent can take actions WITHOUT human approval. Make sure this is intentional"
+if [[ "$NEW_ACCESS" == "High" && "$NEW_ACTION" == "Autonomous" ]]; then
+  _warn "accessLevel=High + actionMode=Autonomous — agent can take actions WITHOUT human approval. Make sure this is intentional"
 fi
 
 # 4f. Feature flags — check if source agent had workspace tools + v2 loop enabled
