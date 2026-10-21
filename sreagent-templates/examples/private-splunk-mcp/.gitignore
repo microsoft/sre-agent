@@ -1,0 +1,12 @@
+bicep/*.parameters.json
+terraform/*.tfvars
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfplan
+*.tgz
+*.spl
+agent-state*.json
+deployment-output*.json
+token.txt

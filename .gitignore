@@ -12,3 +12,14 @@ samples/deployment-compliance/skills/.DS_Store
 
 # Browser automation artifacts
 .playwright-mcp/
+
+# Private Splunk MCP local deployment artifacts
+sreagent-templates/examples/private-splunk-mcp/bicep/*.parameters.json
+sreagent-templates/examples/private-splunk-mcp/terraform/*.tfvars
+sreagent-templates/examples/private-splunk-mcp/terraform/.terraform/
+sreagent-templates/examples/private-splunk-mcp/terraform/.terraform.lock.hcl
+sreagent-templates/examples/private-splunk-mcp/terraform/*.tfstate
+sreagent-templates/examples/private-splunk-mcp/terraform/*.tfstate.*
+sreagent-templates/examples/private-splunk-mcp/terraform/*.tfplan
+sreagent-templates/examples/private-splunk-mcp/agent-state*.json
+sreagent-templates/examples/private-splunk-mcp/deployment-output*.json
