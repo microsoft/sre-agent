@@ -22,7 +22,7 @@ for test in tests/test-dry-run-*.sh; do
   echo ""
 done
 
-for test in tests/test-connector-v2.sh tests/test-model-provider.sh tests/test-verify-required-subsets.sh tests/test-export-prerequisites.sh tests/test-region-discovery.sh tests/test-supported-regions.py; do
+for test in tests/test-connector-v2.sh tests/test-model-provider.sh tests/test-verify-required-subsets.sh tests/test-export-prerequisites.sh tests/test-region-discovery.sh tests/test-assemble-config-integrity.sh tests/test-supported-regions.py; do
   name=$(basename "$test")
   echo "════════════ $name ════════════"
   if [[ "$test" == *.py ]]; then
