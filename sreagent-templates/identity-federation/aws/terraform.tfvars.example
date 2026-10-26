@@ -1,0 +1,47 @@
+# User-assigned identity example:
+managed_identity = {
+  type         = "UserAssigned"
+  resource_id  = "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/<identity-name>"
+  name         = "<identity-name>"
+  tenant_id    = "<tenant-id>"
+  client_id    = "<client-id>"
+  principal_id = "<principal-id>"
+}
+
+# System-assigned identity example:
+# managed_identity = {
+#   type         = "SystemAssigned"
+#   resource_id  = "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.App/agents/<agent-name>"
+#   name         = "<agent-name>"
+#   tenant_id    = "<tenant-id>"
+#   client_id    = "<system-identity-client-id>"
+#   principal_id = "<system-identity-principal-id>"
+# }
+
+role_name = "SREAgentRole"
+
+# Populated automatically by the guided setup when the role already exists.
+# Each managed identity receives its own trust statement.
+existing_role_trust_statements = []
+
+# Add client IDs only when this Terraform state owns a shared OIDC provider.
+additional_oidc_provider_audiences = []
+
+# AWSMCPSignInOAuthAccessPolicy is attached automatically. Add only additional
+# managed policies needed by SRE Agent operator scripts.
+policy_arns = []
+
+# Define separate named inline policies. The guided scripts populate this map.
+# Use jsondecode(file(...)) in a .tf file; .tfvars files require literal values.
+workload_policies = {
+  SREAgentReadOnlyAccess = {
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "ec2:DescribeInstances"
+        Resource = "*"
+      }
+    ]
+  }
+}
