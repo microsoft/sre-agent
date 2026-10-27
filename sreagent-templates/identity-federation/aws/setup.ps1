@@ -237,13 +237,6 @@ function Assert-CompatibleTools {
         throw "AWS CLI v2 is required. Installed: $($awsVersionResult.Text)"
     }
 
-    $signinResult = Invoke-NativeCommand -Command aws -Arguments @(
-        'signin', 'create-oauth2-token-with-iam',
-        '--generate-cli-skeleton', 'input'
-    )
-    if ($signinResult.ExitCode -ne 0) {
-        throw 'The installed AWS CLI does not support signin create-oauth2-token-with-iam. Upgrade AWS CLI v2.'
-    }
 }
 
 foreach ($command in @('az', 'aws', 'terraform')) {

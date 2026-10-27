@@ -145,16 +145,14 @@ aws_cli_supported() {
 
   version="$(aws --version 2>&1)" || return 1
   [[ "$version" =~ aws-cli/([0-9]+)\. ]] || return 1
-  ((BASH_REMATCH[1] >= 2)) || return 1
-  AWS_PAGER="" aws signin create-oauth2-token-with-iam \
-    --generate-cli-skeleton input >/dev/null 2>&1
+  ((BASH_REMATCH[1] >= 2))
 }
 
 for command in az aws terraform jq; do
   command -v "$command" >/dev/null 2>&1 || fail "Required command not found: $command"
 done
 terraform_supported || fail "Terraform 1.7 or later is required."
-aws_cli_supported || fail "AWS CLI v2 with signin create-oauth2-token-with-iam is required."
+aws_cli_supported || fail "AWS CLI v2 is required."
 
 cd "$script_dir"
 

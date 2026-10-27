@@ -17,9 +17,7 @@ The following tools are required:
 - [`jq`](https://jqlang.org/download/) on Linux and macOS
 
 Install the tools by following their official documentation links above before
-running the setup. The setup scripts validate that Terraform is a stable
-version 1.7 or later and that AWS CLI v2 provides
-`signin create-oauth2-token-with-iam`.
+running the setup.
 
 ### Verify the installation
 
