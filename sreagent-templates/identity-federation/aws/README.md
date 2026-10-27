@@ -11,6 +11,7 @@ user-assigned managed identity, provide that identity's own ARM resource ID.
 
 The following tools are required:
 
+- [Git](https://git-scm.com/downloads) to clone this repository
 - [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
 - [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 - [Terraform 1.7 or later](https://developer.hashicorp.com/terraform/install)
@@ -35,20 +36,33 @@ jq --version
 
 ## Windows
 
-### 1. Login
+### 1. Download the files
 
-Open PowerShell in the directory containing this README and the Terraform
-files:
+Open PowerShell 7 or later:
+
+```powershell
+git clone https://github.com/microsoft/sre-agent.git
+cd sre-agent\sreagent-templates\identity-federation\aws
+```
+
+### 2. Login
+
+From the same PowerShell window, sign in to the Azure tenant containing your
+managed identity or SRE Agent, then sign in to the target AWS account:
+
+The AWS account permissions must allow you to create or update OIDC identity
+providers and their audiences, create or update IAM roles and trust
+relationships, manage inline policies, and attach managed policies.
 
 ```powershell
 az login
 aws login
 ```
 
-If your organization uses AWS SSO or another AWS authentication method, use
-that instead of `aws login`. Terraform uses the active AWS credentials.
+Terraform uses the active AWS credentials to configure identity federation in
+that account.
 
-### 2. Run the setup script
+### 3. Run the setup script
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
@@ -72,19 +86,31 @@ For unattended execution:
 
 ## Linux or macOS
 
-### 1. Login
+### 1. Download the files
 
-Open Bash in the directory containing this README and the Terraform files:
+```bash
+git clone https://github.com/microsoft/sre-agent.git
+cd sre-agent/sreagent-templates/identity-federation/aws
+```
+
+### 2. Login
+
+From the same Bash session, sign in to the Azure tenant containing your managed
+identity or SRE Agent, then sign in to the target AWS account:
+
+The AWS account permissions must allow you to create or update OIDC identity
+providers and their audiences, create or update IAM roles and trust
+relationships, manage inline policies, and attach managed policies.
 
 ```bash
 az login
 aws login
 ```
 
-If your organization uses AWS SSO or another AWS authentication method, use
-that instead of `aws login`. Terraform uses the active AWS credentials.
+Terraform uses the active AWS credentials to
+configure identity federation in that account.
 
-### 2. Run the setup script
+### 3. Run the setup script
 
 ```bash
 chmod +x setup.sh
@@ -110,8 +136,14 @@ For unattended execution:
 
 The following samples are ready-to-use, account-wide permission sets with no
 resource placeholders. They target common investigation and operational tasks,
-not every AWS service or every possible debugging operation. They do not grant
-AWS's `aidevops:*` product-management permissions.
+not every AWS service or every possible debugging operation.
+
+> **Note:** These sample policies may not be exhaustive, and the permissions your
+> workload needs may change over time. Review
+> [`SREAgentReadOnlyAccess.json`](SREAgentReadOnlyAccess.json) and
+> [`SREAgentWriteAccess.json`](SREAgentWriteAccess.json), and add or update
+> permissions as needed before running the setup. Grant only the permissions
+> required for your workload.
 
 | Sample policy | What it enables | Intended use |
 | --- | --- | --- |
