@@ -1,0 +1,57 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SREAgentRestartAndScaleCompute",
+      "Effect": "Allow",
+      "Action": [
+        "application-autoscaling:RegisterScalableTarget",
+        "autoscaling:SetDesiredCapacity",
+        "ec2:RebootInstances",
+        "ec2:StartInstances",
+        "ec2:StopInstances",
+        "ecs:UpdateService",
+        "eks:UpdateNodegroupConfig",
+        "lambda:PutFunctionConcurrency",
+        "lambda:PutProvisionedConcurrencyConfig"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SREAgentRestartDatabasesAndCaches",
+      "Effect": "Allow",
+      "Action": [
+        "elasticache:RebootCacheCluster",
+        "rds:RebootDBInstance",
+        "rds:StartDBCluster",
+        "rds:StartDBInstance",
+        "rds:StopDBCluster",
+        "rds:StopDBInstance"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SREAgentRecoverWorkflowsAndInvalidateCache",
+      "Effect": "Allow",
+      "Action": [
+        "cloudfront:CreateInvalidation",
+        "states:RedriveExecution",
+        "states:StopExecution"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SREAgentInteractiveWorkloadAccess",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:ExecuteCommand",
+        "eks:AccessKubernetesApi",
+        "rds-db:connect",
+        "ssm:ResumeSession",
+        "ssm:StartSession",
+        "ssm:TerminateSession"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
