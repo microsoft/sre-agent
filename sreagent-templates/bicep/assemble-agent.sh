@@ -104,6 +104,8 @@ print(json.dumps(resolve(data)))
 collect_config() {
   local subdir="$1"
   local result="[]"
+  local _item_tmp="${TMPDIR:-/tmp}/.assemble-item.$$"
+  trap 'rm -f "${TMPDIR:-/tmp}/.assemble-item.$$"' RETURN
   for base in "${DIR}/config" "${DIR}/automations"; do
     local full="${base}/${subdir}"
     if [[ -d "$full" ]]; then
@@ -118,14 +120,20 @@ with open('$f') as fh:
     data = yaml.safe_load(fh)
 print(json.dumps(data))
 " 2>/dev/null) || continue
-        items=$(echo "$items" | jq -c --argjson i "$item" '. + [$i]')
+        # Pass the item via a file, not argv: Linux caps one argument at MAX_ARG_STRLEN
+        # (128 KiB) and a large subagent or tool definition exceeds it. Without the guard
+        # below a failure here emptied "$items", silently dropping every sibling too.
+        printf '%s' "$item" > "$_item_tmp"
+        items=$(echo "$items" | jq -c --slurpfile i "$_item_tmp" '. + $i') || {
+          echo "  warning: could not append $(basename "$f")" >&2; continue; }
       done
       # Also read JSON files (for backward compat)
       for f in "${full}"/*.json; do
         [[ -f "$f" ]] || continue
         local item
         item=$(cat "$f") || continue
-        items=$(echo "$items" | jq -c --argjson i "$item" '. + [$i]' 2>/dev/null) || continue
+        printf '%s' "$item" > "$_item_tmp"
+        items=$(echo "$items" | jq -c --slurpfile i "$_item_tmp" '. + $i' 2>/dev/null) || continue
       done
       result=$(echo "$result" "$items" | jq -sc 'add // []')
     fi
@@ -329,6 +337,19 @@ _log "knowledge: $(echo "$KNOWLEDGE" | jq 'length'), items: $(echo "$KNOWLEDGE_I
 
 _info "Writing ${PARAMS_FILE}"
 
+# Hand the large collections to jq through files rather than argv. A real agent exceeds
+# both MAX_ARG_STRLEN (128 KiB per argument) and ARG_MAX for the whole command line.
+_param_dir="$(mktemp -d)"
+trap 'rm -rf "$_param_dir"' EXIT
+printf '%s' "$TOOLS" > "$_param_dir/tools.json"
+printf '%s' "$SKILLS" > "$_param_dir/skills.json"
+printf '%s' "$SUBAGENTS" > "$_param_dir/subagents.json"
+printf '%s' "$CONNECTORS" > "$_param_dir/connectors.json"
+printf '%s' "$SCHEDULED_TASKS" > "$_param_dir/scheduledTasks.json"
+printf '%s' "$INCIDENT_FILTERS" > "$_param_dir/incidentFilters.json"
+printf '%s' "$COMMON_PROMPTS" > "$_param_dir/commonPrompts.json"
+printf '%s' "$PLUGIN_CONFIGS" > "$_param_dir/pluginConfigs.json"
+
 jq -n \
   --arg agent "$AGENT_NAME" \
   --arg rg "$AGENT_RG" \
@@ -351,14 +372,14 @@ jq -n \
   --argjson targetRgs "$TARGET_RGS" \
   --argjson toggles "$TOGGLES" \
   --argjson ctog "$CONNECTOR_TOGGLES" \
-  --argjson connectors "$CONNECTORS" \
-  --argjson tools "$TOOLS" \
-  --argjson skills "$SKILLS" \
-  --argjson subagents "$SUBAGENTS" \
-  --argjson scheduledTasks "$SCHEDULED_TASKS" \
-  --argjson incidentFilters "$INCIDENT_FILTERS" \
-  --argjson commonPrompts "$COMMON_PROMPTS" \
-  --argjson pluginConfigs "$PLUGIN_CONFIGS" \
+  --slurpfile connectors "$_param_dir/connectors.json" \
+  --slurpfile tools "$_param_dir/tools.json" \
+  --slurpfile skills "$_param_dir/skills.json" \
+  --slurpfile subagents "$_param_dir/subagents.json" \
+  --slurpfile scheduledTasks "$_param_dir/scheduledTasks.json" \
+  --slurpfile incidentFilters "$_param_dir/incidentFilters.json" \
+  --slurpfile commonPrompts "$_param_dir/commonPrompts.json" \
+  --slurpfile pluginConfigs "$_param_dir/pluginConfigs.json" \
   '{
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
     "contentVersion": "1.0.0.0",
@@ -394,7 +415,7 @@ jq -n \
       "enableSafetyRulesPrompt":       { "value": ($toggles.enableSafetyRulesPrompt // false) },
       "enableWebhookBridge":           { "value": ($toggles.enableWebhookBridge // false) },
       "webhookBridgeTriggerUrl":       { "value": ($toggles.webhookBridgeTriggerUrl // "") },
-      "connectors":                    { "value": [$connectors[] | select(.properties.dataConnectorType != "KnowledgeFile")] },
+      "connectors":                    { "value": [$connectors[0][] | select(.properties.dataConnectorType != "KnowledgeFile")] },
       "tools":                         { "value": [] },
       "skills":                        { "value": [] },
       "subagents":                     { "value": [] },
@@ -411,54 +432,68 @@ _log "Wrote $(wc -c < "$PARAMS_FILE" | tr -d ' ') bytes"
 
 _info "Writing ${EXTRAS_FILE}"
 
+printf '%s' "$REPOS" > "$_param_dir/x_repos.json"
+printf '%s' "$INCIDENT_PLATFORMS" > "$_param_dir/x_incidentPlatforms.json"
+printf '%s' "$HOOKS" > "$_param_dir/x_hooks.json"
+printf '%s' "$HTTP_TRIGGERS" > "$_param_dir/x_httpTriggers.json"
+printf '%s' "$KNOWLEDGE" > "$_param_dir/x_knowledge.json"
+printf '%s' "$KNOWLEDGE_ITEMS" > "$_param_dir/x_knowledgeItems.json"
+printf '%s' "$SYNTH_KNOWLEDGE" > "$_param_dir/x_synthesizedKnowledge.json"
+printf '%s' "$REPO_INSTRUCTIONS" > "$_param_dir/x_repoInstructions.json"
+printf '%s' "$MARKETPLACES" > "$_param_dir/x_marketplaces.json"
+printf '%s' "$INSTALLATIONS" > "$_param_dir/x_installations.json"
+printf '%s' "$TOOL_PERMISSIONS" > "$_param_dir/x_toolPermissions.json"
+printf '%s' "$GITHUB_DOMAINS" > "$_param_dir/x_githubDomains.json"
+printf '%s' "$CONNECTORV2" > "$_param_dir/x_connectorV2.json"
+
 jq -n \
-  --argjson repos "$REPOS" \
-  --argjson incidentPlatforms "$INCIDENT_PLATFORMS" \
-  --argjson incidentFilters "$INCIDENT_FILTERS" \
-  --argjson scheduledTasks "$SCHEDULED_TASKS" \
-  --argjson hooks "$HOOKS" \
-  --argjson commonPrompts "$COMMON_PROMPTS" \
-  --argjson httpTriggers "$HTTP_TRIGGERS" \
-  --argjson knowledge "$KNOWLEDGE" \
-  --argjson knowledgeItems "$KNOWLEDGE_ITEMS" \
-  --argjson synthesizedKnowledge "$SYNTH_KNOWLEDGE" \
+  --slurpfile repos "$_param_dir/x_repos.json" \
+  --slurpfile incidentPlatforms "$_param_dir/x_incidentPlatforms.json" \
+  --slurpfile incidentFilters "$_param_dir/incidentFilters.json" \
+  --slurpfile scheduledTasks "$_param_dir/scheduledTasks.json" \
+  --slurpfile hooks "$_param_dir/x_hooks.json" \
+  --slurpfile commonPrompts "$_param_dir/commonPrompts.json" \
+  --slurpfile httpTriggers "$_param_dir/x_httpTriggers.json" \
+  --slurpfile knowledge "$_param_dir/x_knowledge.json" \
+  --slurpfile knowledgeItems "$_param_dir/x_knowledgeItems.json" \
+  --slurpfile synthesizedKnowledge "$_param_dir/x_synthesizedKnowledge.json" \
   --arg synthesizedKnowledgeDir "$SYNTH_KNOWLEDGE_DIR" \
-  --argjson repoInstructions "$REPO_INSTRUCTIONS" \
-  --argjson marketplaces "$MARKETPLACES" \
-  --argjson installations "$INSTALLATIONS" \
-  --argjson connectors "$CONNECTORS" \
-  --argjson skills "$SKILLS" \
-  --argjson subagents "$SUBAGENTS" \
-  --argjson tools "$TOOLS" \
-  --argjson pluginConfigs "$PLUGIN_CONFIGS" \
-  --argjson toolPermissions "$TOOL_PERMISSIONS" \
-  --argjson githubDomains "$GITHUB_DOMAINS" \
-  --argjson connectorV2 "$CONNECTORV2" \
+  --slurpfile repoInstructions "$_param_dir/x_repoInstructions.json" \
+  --slurpfile marketplaces "$_param_dir/x_marketplaces.json" \
+  --slurpfile installations "$_param_dir/x_installations.json" \
+  --slurpfile connectors "$_param_dir/connectors.json" \
+  --slurpfile skills "$_param_dir/skills.json" \
+  --slurpfile subagents "$_param_dir/subagents.json" \
+  --slurpfile tools "$_param_dir/tools.json" \
+  --slurpfile pluginConfigs "$_param_dir/pluginConfigs.json" \
+  --slurpfile toolPermissions "$_param_dir/x_toolPermissions.json" \
+  --slurpfile githubDomains "$_param_dir/x_githubDomains.json" \
+  --slurpfile connectorV2 "$_param_dir/x_connectorV2.json" \
   '{
-    "repos": $repos,
-    "incidentPlatforms": $incidentPlatforms,
-    "incidentFilters": $incidentFilters,
-    "scheduledTasks": $scheduledTasks,
-    "hooks": [($hooks // [])[] | {name: (.metadata.name // .name), type: (.type // "GlobalHook"), tags: (.tags // []), properties: (.spec // .properties // {})}],
-    "commonPrompts": [($commonPrompts // [])[] | {name: (.metadata.name // .name), type: (.type // "CommonPrompt"), tags: (.tags // []), properties: (.spec // .properties // {})}],
-    "httpTriggers": $httpTriggers,
-    "knowledge": $knowledge,
-    "knowledgeItems": $knowledgeItems,
-    "synthesizedKnowledge": $synthesizedKnowledge,
+    "repos": $repos[0],
+    "incidentPlatforms": $incidentPlatforms[0],
+    "incidentFilters": $incidentFilters[0],
+    "scheduledTasks": $scheduledTasks[0],
+    "hooks": [($hooks[0] // [])[] | {name: (.metadata.name // .name), type: (.type // "GlobalHook"), tags: (.tags // []), properties: (.spec // .properties // {})}],
+    "commonPrompts": [($commonPrompts[0] // [])[] | {name: (.metadata.name // .name), type: (.type // "CommonPrompt"), tags: (.tags // []), properties: (.spec // .properties // {})}],
+    "httpTriggers": $httpTriggers[0],
+    "knowledge": $knowledge[0],
+    "knowledgeItems": $knowledgeItems[0],
+    "synthesizedKnowledge": $synthesizedKnowledge[0],
     "synthesizedKnowledgeDir": $synthesizedKnowledgeDir,
-    "repoInstructions": $repoInstructions,
+    "repoInstructions": $repoInstructions[0],
     "plugins": {
-      "marketplaces": $marketplaces,
-      "installations": $installations
+      "marketplaces": $marketplaces[0],
+      "installations": $installations[0]
     },
-    "connectors": [$connectors[] | select(.properties.dataConnectorType == "Mcp")],
-    "skills": $skills,
-    "subagents": $subagents,
-    "tools": $tools,
-    "pluginConfigs": [($pluginConfigs // [])[] | {name: (.metadata.name // .name), type: (.type // "Plugin"), tags: (.tags // []), properties: (.spec // .properties // {})}],
-    "toolPermissions": $toolPermissions,
-    "githubDomains": $githubDomains,
-    "connectorV2": $connectorV2
+    "connectors": [$connectors[0][] | select(.properties.dataConnectorType == "Mcp")],
+    "skills": $skills[0],
+    "subagents": $subagents[0],
+    "tools": $tools[0],
+    "pluginConfigs": [($pluginConfigs[0] // [])[] | {name: (.metadata.name // .name), type: (.type // "Plugin"), tags: (.tags // []), properties: (.spec // .properties // {})}],
+    "toolPermissions": $toolPermissions[0],
+    "githubDomains": $githubDomains[0],
+    "connectorV2": $connectorV2[0]
   }' > "$EXTRAS_FILE"
 
 # Merge admin settings if present (adminUsers for cross-tenant access)
