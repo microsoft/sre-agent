@@ -1,0 +1,51 @@
+[
+  {
+    "name": "well-architected-capacity-planning",
+    "type": "KnowledgeWebPage",
+    "url": "https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/capacity-planning",
+    "displayName": "Well-Architected capacity planning",
+    "description": "Plan workload capacity from demand forecasts, reachable limits, and workload objectives."
+  },
+  {
+    "name": "well-architected-regions-and-zones",
+    "type": "KnowledgeWebPage",
+    "url": "https://learn.microsoft.com/en-us/azure/well-architected/design-guides/regions-availability-zones",
+    "displayName": "Well-Architected regions and availability zones",
+    "description": "Evaluate workload-driven region and availability-zone resilience tradeoffs."
+  },
+  {
+    "name": "well-architected-disaster-recovery",
+    "type": "KnowledgeWebPage",
+    "url": "https://learn.microsoft.com/en-us/azure/well-architected/reliability/disaster-recovery",
+    "displayName": "Well-Architected disaster recovery",
+    "description": "Design tested recovery plans and prepare recovery-region infrastructure."
+  },
+  {
+    "name": "azure-quotas-overview",
+    "type": "KnowledgeWebPage",
+    "url": "https://learn.microsoft.com/en-us/azure/quotas/quotas-overview",
+    "displayName": "Azure Quotas overview",
+    "description": "Understand adjustable limits and why quota does not guarantee capacity."
+  },
+  {
+    "name": "azure-capacity-reservations",
+    "type": "KnowledgeWebPage",
+    "url": "https://learn.microsoft.com/en-us/azure/virtual-machines/capacity-reservation-overview",
+    "displayName": "Azure on-demand capacity reservations",
+    "description": "Understand capacity guarantees, eligibility, quota prerequisites, limitations, and pricing."
+  },
+  {
+    "name": "azure-check-zone-peers",
+    "type": "KnowledgeWebPage",
+    "url": "https://learn.microsoft.com/en-us/rest/api/resources/subscriptions/check-zone-peers?view=rest-resources-2022-12-01",
+    "displayName": "Check Zone Peers API",
+    "description": "Compare subscription-specific logical availability-zone mappings."
+  },
+  {
+    "name": "aks-upgrade-capacity-planning",
+    "type": "KnowledgeWebPage",
+    "url": "https://learn.microsoft.com/en-us/azure/aks/upgrade-capacity-cost-planning",
+    "displayName": "AKS upgrade capacity planning",
+    "description": "Plan surge nodes, quota, subnet IPs, load balancer resources, and temporary upgrade cost."
+  }
+]

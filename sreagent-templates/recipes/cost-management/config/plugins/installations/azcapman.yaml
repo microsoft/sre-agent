@@ -1,0 +1,8 @@
+name: azcapman-azure-capacity-management
+operation: install-from-marketplace
+spec:
+  marketplaceName: azcapman
+  pluginName: azure-capacity-management
+  expectedSkills:
+    - azure-capacity-management
+  autoUpdate: false

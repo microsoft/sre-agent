@@ -1,0 +1,57 @@
+api_version: azuresre.ai/v2
+kind: ScheduledTask
+metadata:
+  name: BudgetCoverageAudit
+spec:
+  name: BudgetCoverageAudit
+  description: Monthly audit of subscription budget coverage and missing budget controls
+  schedule: 0 8 15 * *
+  mode: Review
+  agent: finops-practitioner
+  prompt: |-
+    # Budget Coverage Audit
+
+    ## Phase 0: Preparation
+
+    Before starting, read all documents in the knowledge base. Pay special attention to budgeting standards, subscription ownership notes, and prior missing-budget findings.
+    Output style: Label measured, derived, and estimated evidence; cite each source or derivation; state exact scope and time period; organize findings by FinOps capability; include risk thresholds, confidence, caveats, and required disclaimers.
+    Tool routing and delivery guard: This scheduled task is owned by `finops-practitioner`, which has `SearchMemory`, its assigned `azure-resource-manager-mcp_*` Cost Management and Pricing tools, its assigned Python ARM tools (`resource-graph-query`, `benefit-recommendations`, `deploy-budget`, `deploy-bulk-budgets`, `deploy-anomaly-alert`, `deploy-bulk-anomaly-alerts`, and `suppress-advisor-recommendations`), its visualization tools (`PlotBarChart`, `PlotPieChart`, `PlotAreaChartWithCorrelation`), and its Microsoft Teams delivery tools (`GetMessagesFromChannel`, `PostMessageToConversation`, `PostCardToConversation`, `ReplyWithMessageToConversation`, `ReplyWithCardToConversation`, `UpdateCardInConversation`). Use the `Task` system tool to invoke `azure-capacity-manager` for quota, capacity reservation group, SKU availability, zone mapping, database service quota, and benefit recommendation Python tools (`vm-quota-usage`, `non-compute-quotas`, `db-service-quotas`, `capacity-reservation-groups`, `zone-mapping`, `sku-availability`, `benefit-recommendations`), and invoke `chief-financial-officer` for executive finance framing. Pass the full task scope, evidence already collected, open questions, and desired output shape with each `Task` invocation. Check available visualization tools once per run and use `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation` to generate charts for key findings; if no visualization tool is available, provide the data as a chart-ready table. Complete the report and chart artifacts before delivery. When a Microsoft Teams connector/channel is configured, `finops-practitioner` makes one final `PostMessageToConversation` attempt to the configured Teams channel. If a configured Teams delivery attempt fails, mark the task/run failed instead of degrading to local output or probing alternate paths. If Teams delivery is not configured or available, render the completed report in the run output and state that Teams delivery was skipped.
+
+
+    Apply the FinOps practitioner guidance in this task. Run the evidence tools directly on `finops-practitioner`.
+
+    ## Specialist tools to request
+
+    Specialist tools use their configured authentication and the agent system-managed identity where required.
+
+    - `finops-practitioner`: Run `resource-graph-query` with `query`, optional `subscription_ids` to find subscriptions, budget resources, tags, ownership metadata, and budget coverage gaps.
+
+    ## 1. Establish subscription inventory
+
+    Run `resource-graph-query` to identify active subscriptions and subscription metadata needed for ownership, environment, cost center, or portfolio grouping. Exclude subscriptions that are documented as out of scope.
+
+    ## 2. Find configured budgets
+
+    Run `resource-graph-query` against budget resource types and related policy or governance metadata. Run `azure-resource-manager-mcp_list_budgets` and `azure-resource-manager-mcp_get_budget` directly to inventory budgets and inspect their details. Identify subscription-level budgets and any documented management-group or shared budget coverage that should count as coverage.
+
+    ## 3. Identify coverage gaps
+
+    Compare active subscriptions with detected budget coverage. Report subscriptions missing budgets, subscriptions with ambiguous budget scope, and subscriptions where owner metadata is missing or incomplete.
+
+    ## 4. Recommend remediation
+
+    Recommend budget creation, owner follow-up, tag correction, or policy remediation for each uncovered subscription. Prioritize production and high-risk environments first.
+
+    ## Report format
+
+    Produce a markdown report with an executive summary, a subscription budget coverage table, a missing-budget table, ownership gaps, and recommended remediation actions.
+
+    ## Persistence
+
+    **Microsoft Teams (results only):** Post the final report to our Teams channel using `PostMessageToConversation` when configured. Do not post intermediate results. If Teams delivery is not configured or available, return the completed report in the run output with a note stating that Teams delivery was skipped. If a configured Teams final delivery attempt fails, do not retry or probe alternate delivery paths; mark the task/run failed.
+
+    **Knowledge (#remember):** Save operational findings using #remember for future reference. Do not commit task reports, financial figures, cost amounts, budget amounts, or customer financial data to git or the knowledge base. Financial detail goes to configured Microsoft Teams delivery only.
+
+    ## Visualizations
+
+    Before delivery, `finops-practitioner` generates charts for key findings using `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation`; for capacity evidence, `azure-capacity-manager` generates the charts and may use `ExecutePythonCode` only as a fallback. If visualization tools are unavailable, provide chart-ready tables. Include at minimum a budget coverage by portfolio chart and a missing-budget count by environment chart where the data supports it. Verify each chart file non-visually by checking that it exists, has non-zero size, opens as an image, and has the expected dimensions and metadata. Regenerate or omit a chart that fails these checks and state why. Embed chart images inline in the Microsoft Teams message alongside text tables.

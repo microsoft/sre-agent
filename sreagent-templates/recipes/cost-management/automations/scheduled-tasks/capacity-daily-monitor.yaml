@@ -1,0 +1,139 @@
+api_version: azuresre.ai/v2
+kind: ScheduledTask
+metadata:
+  name: CapacityDailyMonitor
+spec:
+  name: CapacityDailyMonitor
+  description: Daily FinOps capacity management health check — quota usage, CRG utilization, zone capacity
+  schedule: 30 6 * * *
+  mode: Review
+  agent: finops-practitioner
+  prompt: '# Daily FinOps Capacity Management Monitor
+
+
+    ## Phase 0: Preparation
+
+
+    Before starting, search available knowledge and prior memory for relevant context, known issues, and previous findings.
+
+    Output style: Label measured, derived, and estimated evidence; cite each source or derivation; state exact scope and time period; organize findings by FinOps capability; include risk thresholds, confidence, caveats, and required disclaimers.
+
+    Tool routing and delivery guard: This scheduled task is owned by `finops-practitioner`, which has `SearchMemory`, its assigned `azure-resource-manager-mcp_*` Cost Management and Pricing tools, its assigned Python ARM tools (`resource-graph-query`, `benefit-recommendations`, `deploy-budget`, `deploy-bulk-budgets`, `deploy-anomaly-alert`, `deploy-bulk-anomaly-alerts`, and `suppress-advisor-recommendations`), its visualization tools (`PlotBarChart`, `PlotPieChart`, `PlotAreaChartWithCorrelation`), and its Microsoft Teams delivery tools (`GetMessagesFromChannel`, `PostMessageToConversation`, `PostCardToConversation`, `ReplyWithMessageToConversation`, `ReplyWithCardToConversation`, `UpdateCardInConversation`). Use the `Task` system tool to invoke `azure-capacity-manager` for quota, capacity reservation group, SKU availability, zone mapping, database service quota, and benefit recommendation Python tools (`vm-quota-usage`, `non-compute-quotas`, `db-service-quotas`, `capacity-reservation-groups`, `zone-mapping`, `sku-availability`, `benefit-recommendations`), and invoke `chief-financial-officer` for executive finance framing. Pass the full task scope, evidence already collected, open questions, and desired output shape with each `Task` invocation. Check available visualization tools once per run and use `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation` to generate charts for key findings; if no visualization tool is available, provide the data as a chart-ready table. Complete the report and chart artifacts before delivery. When a Microsoft Teams connector/channel is configured, `finops-practitioner` makes one final `PostMessageToConversation` attempt to the configured Teams channel. If a configured Teams delivery attempt fails, mark the task/run failed instead of degrading to local output or probing alternate paths. If Teams delivery is not configured or available, render the completed report in the run output and state that Teams delivery was skipped.
+
+
+
+    Orchestration rule: This scheduled task is owned by `finops-practitioner`. Delegate capacity evidence collection and specialist analysis to `azure-capacity-manager`; do not try to run capacity tools directly from the practitioner. When the specialist returns evidence, assemble the final FinOps report, apply the reporting requirements in this task, generate supported visualizations, and deliver the completed output through configured connectors.
+
+    Ask `azure-capacity-manager` to apply its capacity-management guidance during the `Task` invocation.
+
+
+    This daily check maps Azure capacity health into FinOps Automation, Tools, & Services, Usage Optimization, and Governance, Policy & Risk signals so issues are visible before they block deployments.
+
+    ## Specialist tools to request from `azure-capacity-manager`
+
+    - Ask `azure-capacity-manager` to run `vm-quota-usage` and `non-compute-quotas` with `subscription_id` and `location`, and `capacity-reservation-groups` with `subscription_id` and optional `resource_group`. `finops-practitioner` runs `resource-graph-query`, `azure-resource-manager-mcp_list_alerts`, and `azure-resource-manager-mcp_list_budgets` directly.
+
+
+    ## 1. Quota Health
+
+
+    Ask `azure-capacity-manager` to run `vm-quota-usage` with `subscription_id` and `location` for each scoped subscription and region to check:
+
+    - VM family quota usage vs limits
+
+    - Flag any family at >80% utilization — these are deployment risks
+
+    - Flag any family at >95% — these are imminent blockers
+
+    - Check quota groups if configured — report group-level headroom
+
+    - For documented critical workloads, compare remaining headroom with one complete deployable scale unit and flag critical when less than one unit remains, even if percentage thresholds have not been crossed
+
+    Ask `azure-capacity-manager` to run `non-compute-quotas` with `subscription_id` and `location` for Storage and Network quota usage.
+
+
+
+
+    ## 2. Capacity Reservation Utilization
+
+
+    Ask `azure-capacity-manager` to run `capacity-reservation-groups` with `subscription_id` and optional `resource_group` to enumerate CRGs and their instanceView utilization:
+
+    - Check reserved vs allocated VM count
+
+    - Flag any CRG where utilization < 50% (paying for unused capacity)
+
+    - Flag any CRG where overallocation exceeds 2x reservation
+
+    - Check zone alignment for shared CRGs
+
+    - Label each CRG as reserved-available, consumed, or overallocated; overallocated instances do not inherit the reserved-capacity SLA
+
+
+
+
+    ## 3. AKS Node Pool Capacity
+
+
+    Have `finops-practitioner` run `resource-graph-query` to inventory AKS node pools, VM sizes, autoscaler bounds, upgrade settings, subnet configuration, and CRG associations, then ask `azure-capacity-manager` to assess:
+
+    - Verify node pool CRG association is still active
+
+    - Check if autoscaler is hitting quota limits
+
+    - Report node pool scale events in last 24 hours
+
+    - Calculate temporary upgrade capacity from base nodes and `maxSurge`, including VM-family quota, subnet IP, load-balancer, and CRG headroom
+
+    - Treat unknown node-pool, network, or upgrade settings as insufficient evidence rather than healthy status
+
+    ## 4. Failure Classification and Follow-up
+
+    Classify any recent allocation failure as quota exhaustion, hard access or offer restriction, over-constrained placement, or transient inventory stockout before recommending action. Retry only transient stockouts. If a previously approved quota, access, CRG, or placement change is recorded, rerun the relevant check and report before/after evidence.
+
+
+
+
+    ## 5. Alert Status
+
+
+    Have `finops-practitioner` run `azure-resource-manager-mcp_list_alerts` and `azure-resource-manager-mcp_list_budgets` to check for any fired alerts in the last 24 hours:
+
+    - Quota threshold alerts
+
+    - Budget alerts
+
+    - Cost anomaly alerts
+
+    Record evidence collection timestamps and identify stale or unavailable alert and cost context.
+
+
+
+
+    ## Output
+
+
+    Use #remember to note key findings. Escalate:
+
+    - 🔴 CRITICAL: Any quota at >95% or CRG billing waste >$1000/day
+
+    - 🟡 WARNING: Any quota at >80% or CRG utilization <50%
+
+    - 🟢 HEALTHY: All within thresholds
+
+    Include each evidence source and collection timestamp. Mark evidence older than this daily cadence as STALE and lower confidence.
+
+
+    Do not stop until all checks are complete.
+
+
+    ## Deliver
+
+
+
+    **Visualizations:** Before delivery, `azure-capacity-manager` or `finops-practitioner` generates charts for key findings using `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation`. Only `azure-capacity-manager` may use `ExecutePythonCode` as a fallback for capacity evidence. If no visualization tool is available, provide the data as a chart-ready table. Include at minimum one trend chart and one comparison chart where the data supports it. Verify each generated chart non-visually before embedding by checking the output file exists, has non-zero size, opens as an image, and reports expected dimensions and metadata through code interpreter filesystem or image-library checks. Do not use visual inspection as the verification gate; regenerate or omit any chart that fails these checks and state why. Embed chart images inline in the Microsoft Teams message alongside text tables. Charts make the report immediately actionable for stakeholders who scan rather than read.
+
+    **Microsoft Teams (status results only):** Post the final report to our Teams channel using `PostMessageToConversation` when configured. Do not post intermediate results. If Teams delivery is not configured or available, return the completed report in the run output with a note stating that Teams delivery was skipped. If a configured Teams final delivery attempt fails, do not retry or probe alternate delivery paths; mark the task/run failed.
+
+
+    **Knowledge base (operational learnings only):** Save any new operational insights to the knowledge base — Python tool failures, quota API workarounds, CRG query patterns, zone alignment discoveries. Never save financial figures, cost amounts, or any customer financial data to the knowledge base. Financial detail goes to configured Microsoft Teams delivery only.'

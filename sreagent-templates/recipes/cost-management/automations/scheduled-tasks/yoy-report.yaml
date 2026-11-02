@@ -1,0 +1,92 @@
+api_version: azuresre.ai/v2
+kind: ScheduledTask
+metadata:
+  name: Semiannual
+spec:
+  name: Semiannual
+  description: Semiannual year-over-year financial analysis for January and July close checkpoints
+  schedule: 0 9 5 1,7 *
+  mode: Review
+  agent: finops-practitioner
+  prompt: |-
+    # Semiannual Financial Analysis
+    --- **FISCAL YEAR CONFIGURATION:**
+    This task is configured for a **July–June fiscal year** (the Microsoft fiscal calendar) as a worked example. If your organization uses a different fiscal year, customize the following elements to match your fiscal calendar:
+    1. **Cron schedule** (line 8): Adjust `0 9 5 1,7 *` to run at your mid-year and year-end close dates 2. **Fiscal period logic** (line 28): Update "July through June", "January 5 and July 5", and period-comparison statements 3. **Forecast targets** (lines 87, 145): Adjust "June 30" and checkpoint dates to align with your fiscal year end and mid-year close
+    The analysis logic below assumes July–June periods as the default example. Adapt month references and comparison windows to your fiscal calendar before deploying.
+    ---
+
+    ## Phase 0: Preparation
+
+    Before starting, search available knowledge and prior memory for relevant context, known issues, and previous findings.
+    Output style: Label measured, derived, and estimated evidence; cite each source or derivation; state exact scope and time period; organize findings by FinOps capability; include risk thresholds, confidence, caveats, and required disclaimers.
+    Tool routing and delivery guard: This scheduled task is owned by `finops-practitioner`, which has `SearchMemory`, its assigned `azure-resource-manager-mcp_*` Cost Management and Pricing tools, its assigned Python ARM tools (`resource-graph-query`, `benefit-recommendations`, `deploy-budget`, `deploy-bulk-budgets`, `deploy-anomaly-alert`, `deploy-bulk-anomaly-alerts`, and `suppress-advisor-recommendations`), its visualization tools (`PlotBarChart`, `PlotPieChart`, `PlotAreaChartWithCorrelation`), and its Microsoft Teams delivery tools (`GetMessagesFromChannel`, `PostMessageToConversation`, `PostCardToConversation`, `ReplyWithMessageToConversation`, `ReplyWithCardToConversation`, `UpdateCardInConversation`). Use the `Task` system tool to invoke `azure-capacity-manager` for quota, capacity reservation group, SKU availability, zone mapping, database service quota, and benefit recommendation Python tools (`vm-quota-usage`, `non-compute-quotas`, `db-service-quotas`, `capacity-reservation-groups`, `zone-mapping`, `sku-availability`, `benefit-recommendations`), and invoke `chief-financial-officer` for executive finance framing. Pass the full task scope, evidence already collected, open questions, and desired output shape with each `Task` invocation. Check available visualization tools once per run and use `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation` to generate charts for key findings; if no visualization tool is available, provide the data as a chart-ready table. Complete the report and chart artifacts before delivery. When a Microsoft Teams connector/channel is configured, `finops-practitioner` makes one final `PostMessageToConversation` attempt to the configured Teams channel. If a configured Teams delivery attempt fails, mark the task/run failed instead of degrading to local output or probing alternate paths. If Teams delivery is not configured or available, render the completed report in the run output and state that Teams delivery was skipped.
+
+
+    Lead this as the FinOps practitioner. Collect fiscal cost, pricing, savings, recommendation, and transaction evidence directly; delegate capacity-risk evidence to `azure-capacity-manager` and consult `chief-financial-officer` for fiscal planning and executive framing.
+
+    **Fiscal period assumptions (default: July–June fiscal year):** This task runs at mid-year and year-end close checkpoints. For a July–June fiscal year, that means January 5 and July 5. On the January checkpoint, compare the completed first-half period (July–December) against the same period in the prior fiscal year and forecast through the fiscal year end (June 30). On the July checkpoint, compare the just-completed fiscal year (July–June) against the previous fiscal year and prepare the next fiscal year planning view. Adjust these month references if your organization uses a different fiscal calendar (see configuration note above).
+    ## Specialist evidence requests for this task
+
+    `finops-practitioner` runs the Azure Cost Management and ARM tools below directly. Ask `azure-capacity-manager` to run `benefit-recommendations` for capacity-related commitment evidence where needed.
+
+    ## Phase 1: Data Collection
+
+    Check returned data periods and completeness; report freshness and coverage limitations rather than assuming missing data means zero.
+
+    ### 1.1 Fiscal cost comparisons
+
+    Run `azure-resource-manager-mcp_query_costs` across current and prior-year fiscal comparison periods by month, service, resource group, region, resource type, and tags. Compare quarterly resource-group patterns, monthly volatility, anomalies, and charge-type or publisher breakdowns where available.
+
+    ### 1.2 Forecast, alerts, and budgets
+
+    Run `azure-resource-manager-mcp_forecast_costs` for the next fiscal checkpoint, `azure-resource-manager-mcp_list_alerts` for alert evidence, and `azure-resource-manager-mcp_list_budgets` for budget comparisons. At mid-year forecast through fiscal year end; at year-end prepare the next fiscal year planning baseline.
+
+    ### 1.3 Commitments, savings, and transactions
+
+    Run `azure-resource-manager-mcp_list_benefit_utilization`, `azure-resource-manager-mcp_get_benefit_recommendations`, `benefit-recommendations`, and `azure-resource-manager-mcp_list_reservation_transactions` for current and prior comparison periods where available. Assess utilization, savings, recommendations, and reservation transactions; disclose missing fields and do not infer no purchases from incomplete data.
+
+    ### 1.4 Prices, allocation, and inventory
+
+    Run `azure-resource-manager-mcp_get_retail_prices` for price benchmarking, `azure-resource-manager-mcp_list_dimensions` for allocation dimensions, and `resource-graph-query` for resource inventory and tags. Compare pricing and allocation across periods only when comparable evidence is available.
+
+    ### 1.5 Fiscal scorecard
+
+    Build a year-over-year FinOps scorecard from supported evidence. Separate measured results from derived interpretation, cite sources, and identify unavailable measures as data sufficiency limitations.
+
+    **Checkpoint:** Collect available evidence and document gaps before strategic analysis.
+
+    ## Phase 2: Strategic Analysis
+
+    ### 2.1 Year-over-year scorecard
+    Grade year-over-year performance (A+ to F) across: cost management, savings realization, commitment coverage, tag compliance, forecast accuracy, and forecast risk.
+
+    ### 2.2 Forecast
+    For mid-year checkpoint runs, project total fiscal year spend with Conservative/Expected/Optimistic scenarios and compare to annual budget. For year-end checkpoint runs, create the next fiscal year planning baseline.
+
+    ### 2.3 Savings opportunities
+    Identify quick-win optimization opportunities that can reduce costs before the next fiscal checkpoint. Prioritize by days remaining and implementation effort.
+
+    ### 2.4 Fiscal planning
+    Based on year-over-year trends, recommend budget changes, commitment purchase strategy, and optimization roadmap.
+
+    ### 2.5 Detailed Findings
+    7 sections: Cost Analysis, Savings Analysis, Optimization, Governance, Market Positioning, Temporal Themes, Implementation Roadmap.
+
+    ### 2.6 Recommendations
+    Prioritized actions: before the next fiscal checkpoint, next half-year, and next full fiscal year. Dollar amounts and owners for each.
+
+    ## Phase 3: Report
+
+    Professional executive report with tables, charts, emoji indicators. Include year-over-year variance, fiscal timeline, forecast scenarios, grade card, and planning recommendations.
+
+    Do not stop or yield until the report is complete and ready for the FinOps team.
+
+    ## Phase 4: Deliver
+
+
+    **Visualizations:** Before delivery, `finops-practitioner` generates charts for key findings using `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation`; for capacity evidence, `azure-capacity-manager` generates the charts and may use `ExecutePythonCode` only as a fallback. If visualization tools are unavailable, provide chart-ready tables. Include at minimum one trend chart and one comparison chart where the data supports it. Verify each chart file non-visually by checking that it exists, has non-zero size, opens as an image, and has the expected dimensions and metadata. Regenerate or omit a chart that fails these checks and state why. Embed chart images inline in the Microsoft Teams message alongside text tables.
+
+    **Microsoft Teams (financial results only):** Post the final report to our Teams channel using `PostMessageToConversation` when configured. Do not post intermediate results. If Teams delivery is not configured or available, return the completed report in the run output with a note stating that Teams delivery was skipped. If a configured Teams final delivery attempt fails, do not retry or probe alternate delivery paths; mark the task/run failed.
+
+    **Knowledge base (operational learnings only):** Save any new operational insights to the knowledge base — tool errors encountered, workarounds discovered, data quality observations, query patterns that worked or failed. Never save financial figures, cost amounts, savings numbers, or any customer financial data to the knowledge base. Financial detail goes to configured Microsoft Teams delivery only.

@@ -1,0 +1,38 @@
+metadata:
+  name: azure-cost-management
+  description: Azure cost optimization and financial governance. Use for Advisor recommendations, commitment discounts (reservations and savings plans), budgets, cost exports, anomaly alerts, credit and MACC tracking, orphaned resource detection, VM rightsizing, and retail price lookup.
+  spec:
+    tools:
+      - benefit-recommendations
+      - deploy-anomaly-alert
+      - deploy-budget
+      - deploy-bulk-anomaly-alerts
+      - deploy-bulk-budgets
+      - resource-graph-query
+      - suppress-advisor-recommendations
+skillContent: skills/azure-cost-management.md
+additionalFiles:
+  - filePath: references/azure-advisor.md
+    content: skills/azure-cost-management/references/azure-advisor.md
+  - filePath: references/azure-anomaly-alerts.md
+    content: skills/azure-cost-management/references/azure-anomaly-alerts.md
+  - filePath: references/azure-budgets.md
+    content: skills/azure-cost-management/references/azure-budgets.md
+  - filePath: references/azure-commitment-discount-decision.md
+    content: skills/azure-cost-management/references/azure-commitment-discount-decision.md
+  - filePath: references/azure-cost-exports.md
+    content: skills/azure-cost-management/references/azure-cost-exports.md
+  - filePath: references/azure-credits.md
+    content: skills/azure-cost-management/references/azure-credits.md
+  - filePath: references/azure-macc.md
+    content: skills/azure-cost-management/references/azure-macc.md
+  - filePath: references/azure-orphaned-resources.md
+    content: skills/azure-cost-management/references/azure-orphaned-resources.md
+  - filePath: references/azure-reservations.md
+    content: skills/azure-cost-management/references/azure-reservations.md
+  - filePath: references/azure-retail-prices.md
+    content: skills/azure-cost-management/references/azure-retail-prices.md
+  - filePath: references/azure-savings-plans.md
+    content: skills/azure-cost-management/references/azure-savings-plans.md
+  - filePath: references/azure-vm-rightsizing.md
+    content: skills/azure-cost-management/references/azure-vm-rightsizing.md

@@ -1,0 +1,76 @@
+{
+  "_scenario": "cost-management",
+  "agent": {
+    "accessLevel": "Low",
+    "actionMode": "Review",
+    "upgradeChannel": "Preview",
+    "defaultModelProvider": "MicrosoftFoundry",
+    "incidentPlatform": "None"
+  },
+  "connectors": [
+    {
+      "name": "azure-resource-manager-mcp",
+      "type": "Mcp"
+    }
+  ],
+  "allowAdditionalConnectors": true,
+  "knowledgeItems": [
+    "well-architected-capacity-planning",
+    "well-architected-regions-and-zones",
+    "well-architected-disaster-recovery",
+    "azure-quotas-overview",
+    "azure-capacity-reservations",
+    "azure-check-zone-peers",
+    "aks-upgrade-capacity-planning"
+  ],
+  "tools": 13,
+  "enabledTools": [
+    "PlotAreaChartWithCorrelation",
+    "PlotBarChart",
+    "PlotHeatmap",
+    "PlotPieChart",
+    "PlotScatter",
+    "QueryAppInsightsByAppId",
+    "QueryAppInsightsByResourceId",
+    "QueryLogAnalyticsByResourceId",
+    "QueryLogAnalyticsByWorkspaceId"
+  ],
+  "skills": [
+    "azure-cost-management"
+  ],
+  "pluginSkills": [
+    "azure-capacity-management"
+  ],
+  "allowAdditionalSkills": true,
+  "subagents": [
+    "azure-capacity-manager",
+    "chief-financial-officer",
+    "finops-practitioner"
+  ],
+  "hooks": [],
+  "commonPrompts": [
+    "safety-rules"
+  ],
+  "scheduledTasks": [
+    "AdvisorSuppressionReview",
+    "AIWorkloadCostAnalysis",
+    "AlertCoverageAudit",
+    "BenefitRecommendationReview",
+    "BudgetCoverageAudit",
+    "CapacityDailyMonitor",
+    "CapacityMonthlyPlanning",
+    "CapacityQuarterlyStrategy",
+    "CapacityWeeklySupplyReview",
+    "ComputeUtilizationTrend",
+    "CostOptimization",
+    "DbQuotaAudit",
+    "Monthly",
+    "NonComputeQuotaAudit",
+    "Semiannual",
+    "SkuAvailabilityAudit",
+    "StoragePaasGrowthForecast"
+  ],
+  "responsePlans": [],
+  "allowAdditionalRepos": true,
+  "repos": []
+}

@@ -1,0 +1,115 @@
+api_version: azuresre.ai/v2
+kind: ScheduledTask
+metadata:
+  name: AIWorkloadCostAnalysis
+spec:
+  name: AIWorkloadCostAnalysis
+  description: Monthly AI workload cost analysis — token economics, model efficiency, and cost allocation for Azure OpenAI
+  schedule: 0 10 1 * *
+  mode: Review
+  agent: finops-practitioner
+  prompt: |-
+    # AI Workload Cost Analysis
+
+    ## Phase 0: Preparation
+
+    Before starting, search available knowledge and prior memory for relevant context, known issues, and previous findings.
+    Output style: Label measured, derived, and estimated evidence; cite each source or derivation; state exact scope and time period; organize findings by FinOps capability; include risk thresholds, confidence, caveats, and required disclaimers.
+    Tool routing and delivery guard: This scheduled task is owned by `finops-practitioner`, which has `SearchMemory`, its assigned `azure-resource-manager-mcp_*` Cost Management and Pricing tools, its assigned Python ARM tools (`resource-graph-query`, `benefit-recommendations`, `deploy-budget`, `deploy-bulk-budgets`, `deploy-anomaly-alert`, `deploy-bulk-anomaly-alerts`, and `suppress-advisor-recommendations`), its visualization tools (`PlotBarChart`, `PlotPieChart`, `PlotAreaChartWithCorrelation`), and its Microsoft Teams delivery tools (`GetMessagesFromChannel`, `PostMessageToConversation`, `PostCardToConversation`, `ReplyWithMessageToConversation`, `ReplyWithCardToConversation`, `UpdateCardInConversation`). Use the `Task` system tool to invoke `azure-capacity-manager` for quota, capacity reservation group, SKU availability, zone mapping, database service quota, and benefit recommendation Python tools (`vm-quota-usage`, `non-compute-quotas`, `db-service-quotas`, `capacity-reservation-groups`, `zone-mapping`, `sku-availability`, `benefit-recommendations`), and invoke `chief-financial-officer` for executive finance framing. Pass the full task scope, evidence already collected, open questions, and desired output shape with each `Task` invocation. Check available visualization tools once per run and use `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation` to generate charts for key findings; if no visualization tool is available, provide the data as a chart-ready table. Complete the report and chart artifacts before delivery. When a Microsoft Teams connector/channel is configured, `finops-practitioner` makes one final `PostMessageToConversation` attempt to the configured Teams channel. If a configured Teams delivery attempt fails, mark the task/run failed instead of degrading to local output or probing alternate paths. If Teams delivery is not configured or available, render the completed report in the run output and state that Teams delivery was skipped.
+
+
+    Lead the analysis as the FinOps practitioner. Collect AI cost, pricing, and resource inventory evidence directly; delegate GPU and regional capacity checks to `azure-capacity-manager` and consult `chief-financial-officer` for executive framing.
+
+    Azure OpenAI charges based on token usage — a fundamentally different cost model from traditional compute. This analysis tracks token economics, model efficiency, and AI cost allocation aligned with the FinOps Foundation AI Working Group guidance and FOCUS specification.
+    ## Evidence requests for this task
+
+    Run `azure-resource-manager-mcp_query_costs` directly, filtered to Azure OpenAI, Cognitive Services, and AI Foundry meters and grouped by `MeterSubCategory`, `Meter`, `ResourceId`, `ResourceGroup`, and application, team, and environment tags for the current 30-day and prior 30-day windows. Use daily granularity for the 30-day trend. Run `azure-resource-manager-mcp_get_retail_prices` for model unit-price comparison and `resource-graph-query` for AI resource and tag discovery. Ask `azure-capacity-manager` to run `vm-quota-usage` with `subscription_id` and `location` for relevant GPU-capable VM families.
+
+    Token quantities and per-token measures depend on meter units and available evidence. Convert units only when supported by the returned data; otherwise report the limitation and do not infer token counts.
+
+    ## FOCUS Alignment
+
+    Where FOCUS-aligned data is available, review `ConsumedQuantity`, `ConsumedUnit`, `x_SkuMeterCategory`, `x_SkuMeterSubcategory`, and `EffectiveCost` to derive unit economics. Map returned meter fields and units explicitly, and report any unavailable fields or conversions.
+
+    ## Phase 1: Token Economics
+
+    Use the current 30-day cost results and available meter quantities as the evidence set. Identify the source, unit, and any conversion for each metric.
+
+    ### 1.1 Token Usage Breakdown
+    Use the current 30-day cost query grouped by model meter and direction. Where meter units support it, record per-model, per-direction (input/output):
+    - Total tokens consumed
+    - Effective cost
+    - Unit cost per token
+    - Cost per 1K tokens
+
+    ### 1.2 Model Cost Comparison
+    Use the cost query and `azure-resource-manager-mcp_get_retail_prices` for the same period. Compare cost per 1K tokens where units permit. Identify:
+    - Which models are most expensive per token
+    - Which models have the best discount (list vs effective)
+    - Opportunities to switch to cheaper models for equivalent tasks
+
+    ### 1.3 Daily Trend
+    Use the daily-granularity cost query for the current 30-day window. Look for:
+    - Usage pattern (weekday vs weekend)
+    - Cost spikes (any day > 2x the 7-day rolling average)
+    - Growth trajectory (are AI costs accelerating?)
+    - If spikes detected, use deep investigation to hypothesize causes
+
+    ### 1.4 Cost Allocation
+    Use `resource-graph-query` to discover Azure OpenAI, AI Foundry, Machine Learning, and GPU compute resources, and the grouped cost query for the same period. Break down by:
+    - Application tag — which apps consume the most tokens?
+    - Team/CostCenter — who should be charged?
+    - Environment — production vs dev/test ratio
+    - ResourceName — which Azure OpenAI deployments are driving cost?
+
+    **Checkpoint:** Token economics collected. Proceed to month-over-month comparison.
+
+    ## Phase 2: Month-over-Month AI Analysis
+
+    ### 2.1 Prior Month Comparison
+    Compare the prior 30-day cost query with the current 30-day window:
+    - Token volume change (% growth)
+    - Cost change (% growth)
+    - Unit cost change (are we getting cheaper or more expensive per token?)
+    - Model mix shift (are we using more expensive models?)
+
+    ### 2.2 Input/Output Ratio
+    Calculate the input-to-output token ratio for each model. Long prompts with short responses indicate potential prompt optimization. Flag any model where input tokens > 10x output tokens.
+
+    ## Phase 3: Optimization Recommendations
+
+    ### 3.1 Model Substitution
+    For each high-cost model, check if a cheaper model could handle the same workload. Reference the model cost comparison data. Calculate potential savings from model downgrades.
+
+    ### 3.2 Prompt Engineering Impact
+    If input tokens are disproportionately high, recommend prompt optimization. Shorter context windows = fewer tokens = lower cost.
+
+    ### 3.3 Environment Rightsizing
+    If dev/test environments are using production-tier models, recommend cheaper models for non-production.
+
+    ### 3.4 Commitment Coverage
+    Check if Azure OpenAI Provisioned Throughput Units (PTUs) would be cheaper than pay-as-you-go for high-volume workloads.
+    Ask `azure-capacity-manager` to run `vm-quota-usage` with `subscription_id` and `location` for relevant GPU-capable regions and VM families. Identify constraints for VM-hosted inference or training.
+
+    ## Phase 4: Report
+
+    Format as a professional AI cost report:
+    - Executive summary with total AI spend, token volume, and cost per 1K tokens
+    - Model efficiency table (cost per 1K tokens by model, input vs output)
+    - Application allocation table (cost by app/team/environment)
+    - Month-over-month trend chart description
+    - Top 3 optimization recommendations with dollar savings estimates
+    - Meter units, data limitations, and assumptions
+
+    Use 🤖 for AI metrics, 💰 for savings, 📊 for trends, 🎯 for recommendations.
+
+    Do not stop until the report is complete.
+
+    ## Phase 5: Deliver
+
+
+    **Visualizations:** Before delivery, `finops-practitioner` generates charts for key findings using `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation`; for capacity evidence, `azure-capacity-manager` generates the charts and may use `ExecutePythonCode` only as a fallback. If visualization tools are unavailable, provide chart-ready tables. Include at minimum one trend chart and one comparison chart where the data supports it. Verify each chart file non-visually by checking that it exists, has non-zero size, opens as an image, and has the expected dimensions and metadata. Regenerate or omit a chart that fails these checks and state why. Embed chart images inline in the Microsoft Teams message alongside text tables.
+
+    **Microsoft Teams (financial results only):** Post the final report to our Teams channel using `PostMessageToConversation` when configured. Do not post intermediate results. If Teams delivery is not configured or available, return the completed report in the run output with a note stating that Teams delivery was skipped. If a configured Teams final delivery attempt fails, do not retry or probe alternate delivery paths; mark the task/run failed.
+
+    **Knowledge base (operational learnings only):** Save any new operational insights to the knowledge base — model availability changes, query patterns for AI billing data, FOCUS column mappings discovered, tool errors encountered. Never save financial figures, cost amounts, token costs, or any customer financial data to the knowledge base. Financial detail goes to configured Microsoft Teams delivery only.

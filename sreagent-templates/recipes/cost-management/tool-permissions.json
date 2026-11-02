@@ -1,0 +1,21 @@
+{
+  "allow": [
+    "PlotAreaChartWithCorrelation",
+    "PlotBarChart",
+    "PlotHeatmap",
+    "PlotPieChart",
+    "PlotScatter",
+    "QueryAppInsightsByAppId",
+    "QueryAppInsightsByResourceId",
+    "QueryLogAnalyticsByResourceId",
+    "QueryLogAnalyticsByWorkspaceId",
+    "PostMessageToConversation",
+    "PostCardToConversation",
+    "ReplyWithMessageToConversation",
+    "ReplyWithCardToConversation",
+    "UpdateCardInConversation",
+    "GetMessagesFromChannel"
+  ],
+  "ask": [],
+  "deny": []
+}

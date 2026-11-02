@@ -1,0 +1,145 @@
+api_version: azuresre.ai/v2
+kind: ScheduledTask
+metadata:
+  name: CapacityWeeklySupplyReview
+spec:
+  name: CapacityWeeklySupplyReview
+  description: Weekly FinOps capacity management review — quota headroom, CRG cost optimization, SKU availability, benefit recommendations
+  schedule: 0 8 * * 1
+  mode: Review
+  agent: finops-practitioner
+  prompt: '# Weekly FinOps Capacity Management Review
+
+
+    ## Phase 0: Preparation
+
+
+    Before starting, search available knowledge and prior memory for relevant context, known issues, and previous findings.
+
+    Output style: Label measured, derived, and estimated evidence; cite each source or derivation; state exact scope and time period; organize findings by FinOps capability; include risk thresholds, confidence, caveats, and required disclaimers.
+
+    Tool routing and delivery guard: This scheduled task is owned by `finops-practitioner`, which has `SearchMemory`, its assigned `azure-resource-manager-mcp_*` Cost Management and Pricing tools, its assigned Python ARM tools (`resource-graph-query`, `benefit-recommendations`, `deploy-budget`, `deploy-bulk-budgets`, `deploy-anomaly-alert`, `deploy-bulk-anomaly-alerts`, and `suppress-advisor-recommendations`), its visualization tools (`PlotBarChart`, `PlotPieChart`, `PlotAreaChartWithCorrelation`), and its Microsoft Teams delivery tools (`GetMessagesFromChannel`, `PostMessageToConversation`, `PostCardToConversation`, `ReplyWithMessageToConversation`, `ReplyWithCardToConversation`, `UpdateCardInConversation`). Use the `Task` system tool to invoke `azure-capacity-manager` for quota, capacity reservation group, SKU availability, zone mapping, database service quota, and benefit recommendation Python tools (`vm-quota-usage`, `non-compute-quotas`, `db-service-quotas`, `capacity-reservation-groups`, `zone-mapping`, `sku-availability`, `benefit-recommendations`), and invoke `chief-financial-officer` for executive finance framing. Pass the full task scope, evidence already collected, open questions, and desired output shape with each `Task` invocation. Check available visualization tools once per run and use `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation` to generate charts for key findings; if no visualization tool is available, provide the data as a chart-ready table. Complete the report and chart artifacts before delivery. When a Microsoft Teams connector/channel is configured, `finops-practitioner` makes one final `PostMessageToConversation` attempt to the configured Teams channel. If a configured Teams delivery attempt fails, mark the task/run failed instead of degrading to local output or probing alternate paths. If Teams delivery is not configured or available, render the completed report in the run output and state that Teams delivery was skipped.
+
+
+
+    Orchestration rule: This scheduled task is owned by `finops-practitioner`. Delegate capacity evidence collection and specialist analysis to `azure-capacity-manager`; do not try to run capacity tools directly from the practitioner. When the specialist returns evidence, assemble the final FinOps report, apply the reporting requirements in this task, generate supported visualizations, and deliver the completed output through configured connectors.
+
+    Ask `azure-capacity-manager` to apply its capacity-management guidance during the `Task` invocation.
+
+
+    Weekly review mapping Azure capacity signals into FinOps Planning & Estimating, Forecasting, Architecting & Workload Placement, Usage Optimization, Rate Optimization support, Governance, Policy & Risk, and Automation, Tools, & Services.
+
+    ## Specialist tools to request from `azure-capacity-manager`
+
+    - Ask `azure-capacity-manager` to run `vm-quota-usage`, `non-compute-quotas`, `capacity-reservation-groups`, `zone-mapping`, `sku-availability`, and `benefit-recommendations` for the relevant scopes.
+
+
+    ## 1. Quota Headroom Analysis
+
+
+    Ask `azure-capacity-manager` to run `vm-quota-usage` and `non-compute-quotas` across the scoped subscriptions and regions:
+
+    - Aggregate quota usage by VM family across subscriptions
+
+    - Identify families with <20% headroom across the estate
+
+    - Check quota group balances — any group near its limit?
+
+    - Identify quota transfer opportunities between subscriptions
+
+    - Flag subscriptions not yet added to quota groups
+
+    - Report primary headroom and recovery-region or recovery-zone headroom separately, measured in complete workload scale units where workload definitions are available
+
+
+
+
+    ## 2. CRG Cost-Waste Audit
+
+
+    Ask `azure-capacity-manager` to run `capacity-reservation-groups` to enumerate capacity reservation groups and their instanceView utilization:
+
+    - Calculate weekly cost of unused reserved capacity (reserved minus allocated × pay-as-you-go rate)
+
+    - Calculate net CRG carry cost only after applicable Azure Reservation or savings plan offsets are known
+
+    - Identify CRGs that could be rightsized (reduce reservation quantity)
+
+    - Label reserved-available, consumed, and overallocated states; flag overallocated instances as outside the reserved-capacity SLA
+
+    - Check for CRGs without matching Azure Reservations (paying both capacity guarantee AND full price)
+
+
+    Key distinction: Capacity reservations guarantee supply. Azure Reservations reduce cost. Best practice is to pair both.
+
+
+
+
+    ## 3. SKU and Zone Availability Validation
+
+
+    Ask `azure-capacity-manager` to run `sku-availability` for Compute SKUs and zones to validate availability for shared CRGs and upcoming deployments:
+
+    - Verify that planned SKUs are available in the required locations and zones
+
+    - Flag any SKU restrictions that could block planned scaling
+
+    - Require a structured fallback SKU, zone, or region with compatibility and deployment-test status for critical workloads
+
+    - Ask `azure-capacity-manager` to run `zone-mapping` for every cross-subscription zonal or shared-CRG scenario. If mappings are unavailable or stale, report INSUFFICIENT EVIDENCE and do not approve placement.
+
+
+
+    ## 4. Benefit Recommendations
+
+
+    Ask `azure-capacity-manager` to run `benefit-recommendations`. Have `finops-practitioner` run `azure-resource-manager-mcp_list_benefit_utilization`, `azure-resource-manager-mcp_get_benefit_recommendations`, and `azure-resource-manager-mcp_query_costs` for benefit, commitment, coverage, and cost evidence.
+
+    Cross-reference with capacity reservation strategy:
+
+    - Do recommended reservations overlap with existing CRGs? (Good — pair pricing with capacity)
+
+    - Are there high-savings recommendations in regions without CRGs? (May need capacity too)
+
+
+    ## 5. Region and SKU Availability
+
+
+    Ask `azure-capacity-manager` to run `sku-availability` for Compute SKUs and zones to check for any new region access or zonal enablement needs:
+
+    - Upcoming deployments that need new regions?
+
+    - SKU restrictions blocking planned scaling?
+
+
+
+
+    ## Output
+
+
+    Produce a weekly FinOps capacity management briefing with:
+
+    - Quota headroom scorecard (🔴🟡🟢 by VM family)
+
+    - CRG utilization and waste summary with dollar amounts
+
+    - Benefit recommendation highlights
+
+    - Action items for platform, engineering, and finance stakeholders
+
+    - Evidence timestamps, freshness, owner, escalation deadline, and any required post-change validation
+
+
+    Use #remember to note key FinOps capacity findings. Use deep investigation if any quota is critically low.
+
+
+    ## Deliver
+
+
+
+    **Visualizations:** Before delivery, `azure-capacity-manager` or `finops-practitioner` generates charts for key findings using `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation`. Only `azure-capacity-manager` may use `ExecutePythonCode` as a fallback for capacity evidence. If no visualization tool is available, provide the data as a chart-ready table. Include at minimum one trend chart and one comparison chart where the data supports it. Verify each generated chart non-visually before embedding by checking the output file exists, has non-zero size, opens as an image, and reports expected dimensions and metadata through code interpreter filesystem or image-library checks. Do not use visual inspection as the verification gate; regenerate or omit any chart that fails these checks and state why. Embed chart images inline in the Microsoft Teams message alongside text tables. Charts make the report immediately actionable for stakeholders who scan rather than read.
+
+    **Microsoft Teams (capacity results only):** Post the final report to our Teams channel using `PostMessageToConversation` when configured. Do not post intermediate results. If Teams delivery is not configured or available, return the completed report in the run output with a note stating that Teams delivery was skipped. If a configured Teams final delivery attempt fails, do not retry or probe alternate delivery paths; mark the task/run failed.
+
+
+    **Knowledge base (operational learnings only):** Save any new operational insights to the knowledge base — quota API failures, SKU availability discoveries, CRG query patterns, Python tool workarounds. Never save financial figures, cost amounts, or any customer financial data to the knowledge base. Financial detail goes to configured Microsoft Teams delivery only.'

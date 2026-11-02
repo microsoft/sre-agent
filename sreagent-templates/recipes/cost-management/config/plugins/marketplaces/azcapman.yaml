@@ -1,0 +1,6 @@
+name: azcapman
+spec:
+  sourceType: github
+  sourceUrl: microsoft/azcapman
+  owner:
+    name: Microsoft

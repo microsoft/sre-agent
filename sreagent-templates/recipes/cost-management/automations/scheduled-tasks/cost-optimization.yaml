@@ -1,0 +1,190 @@
+api_version: azuresre.ai/v2
+kind: ScheduledTask
+metadata:
+  name: CostOptimization
+spec:
+  name: CostOptimization
+  description: Comprehensive cost optimization report with orphaned resources, rightsizing, and commitment analysis
+  schedule: 0 8 * * 1
+  mode: Review
+  agent: finops-practitioner
+  prompt: |-
+    # Cost optimization report
+
+    ## Phase 0: Preparation
+
+    Before starting, search available knowledge and prior memory for relevant context, known issues, and previous findings.
+    Output style: Label measured, derived, and estimated evidence; cite each source or derivation; state exact scope and time period; organize findings by FinOps capability; include risk thresholds, confidence, caveats, and required disclaimers.
+    Tool routing and delivery guard: This scheduled task is owned by `finops-practitioner`, which has `SearchMemory`, its assigned `azure-resource-manager-mcp_*` Cost Management and Pricing tools, its assigned Python ARM tools (`resource-graph-query`, `benefit-recommendations`, `deploy-budget`, `deploy-bulk-budgets`, `deploy-anomaly-alert`, `deploy-bulk-anomaly-alerts`, and `suppress-advisor-recommendations`), its visualization tools (`PlotBarChart`, `PlotPieChart`, `PlotAreaChartWithCorrelation`), and its Microsoft Teams delivery tools (`GetMessagesFromChannel`, `PostMessageToConversation`, `PostCardToConversation`, `ReplyWithMessageToConversation`, `ReplyWithCardToConversation`, `UpdateCardInConversation`). Use the `Task` system tool to invoke `azure-capacity-manager` for quota, capacity reservation group, SKU availability, zone mapping, database service quota, and benefit recommendation Python tools (`vm-quota-usage`, `non-compute-quotas`, `db-service-quotas`, `capacity-reservation-groups`, `zone-mapping`, `sku-availability`, `benefit-recommendations`), and invoke `chief-financial-officer` for executive finance framing. Pass the full task scope, evidence already collected, open questions, and desired output shape with each `Task` invocation. Check available visualization tools once per run and use `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation` to generate charts for key findings; if no visualization tool is available, provide the data as a chart-ready table. Complete the report and chart artifacts before delivery. When a Microsoft Teams connector/channel is configured, `finops-practitioner` makes one final `PostMessageToConversation` attempt to the configured Teams channel. If a configured Teams delivery attempt fails, mark the task/run failed instead of degrading to local output or probing alternate paths. If Teams delivery is not configured or available, render the completed report in the run output and state that Teams delivery was skipped.
+
+
+    Generate a comprehensive cost optimization report for the current Azure environment.
+    ## Specialist tools to request for this task
+    The following Python tools provide real Azure data via ARM REST API. Always use these instead of `az` CLI commands when available. Specialist tools use their configured authentication and the agent system-managed identity where required.
+    - `finops-practitioner`: Run `resource-graph-query` for orphaned resources and Advisor recommendations; run `benefit-recommendations`, `azure-resource-manager-mcp_get_benefit_recommendations`, and `azure-resource-manager-mcp_list_benefit_utilization` for commitment evidence; and run `azure-resource-manager-mcp_query_costs` for three-month monthly trends, top services, and regional cost trends.
+    - `azure-capacity-manager`: Run `benefit-recommendations` for capacity-related commitment evidence where needed.
+
+    ## Phase 1: Discovery
+
+    1. Determine scope from the configured scheduled-task scope, documented knowledge-base scope, or current authenticated context. Do not wait for user input during this scheduled run. If scope cannot be determined, report the missing scope as a blocking configuration issue.
+    2. Verify authentication: confirm Python tools are using DefaultAzureCredential with the agent system-managed identity.
+    3. Check permissions: Reader role is sufficient for all detection queries. Note if elevated permissions are available.
+
+    ## Phase 2: Data collection
+
+    Run these data collection steps in parallel where possible. Use #remember to note key intermediate findings as you go.
+
+    ### 2a: Orphaned resources
+
+    Detect unused resources generating waste with zero workload value.
+
+    Run `resource-graph-query` to scan for:
+    - Unattached managed disks
+    - Unused network interfaces
+    - Orphaned public IP addresses
+    - Idle NAT gateways
+    - Orphaned snapshots (source disk deleted, age > 30 days)
+    - Idle load balancers (empty backend pools)
+    - Empty availability sets
+    - Orphaned NSGs
+
+    For each category, capture: count, estimated monthly cost, resource list.
+
+    ### 2b: Advisor cost recommendations
+
+    Query Azure Advisor for all cost recommendations. Run `resource-graph-query` for Advisor recommendation inventory.
+
+    Categorize recommendations by type: right-size VMs, shutdown idle VMs, reserved instances, delete unused disks, and other.
+
+    Calculate total potential monthly savings from Advisor.
+
+    ### 2c: Commitment discount status
+
+    Analyze current commitment discount coverage and opportunities. Run `benefit-recommendations`, `azure-resource-manager-mcp_get_benefit_recommendations`, and `azure-resource-manager-mcp_list_benefit_utilization` directly for recommendations and utilization.
+
+    Collect:
+    - Current savings plan coverage and utilization
+    - Current reservation coverage and utilization
+    - New purchase recommendations from the Benefit Recommendations API
+    - Gap analysis: what percentage of eligible compute spend is covered
+
+    Evaluate new purchases by expected savings, utilization risk, commitment term, workload stability, flexibility, and business plans.
+
+    Run `azure-resource-manager-mcp_query_costs` directly for three-month monthly cost trends, top services, and regional cost trends. Use the results to prioritize optimization and report data gaps.
+
+    ## Phase 3: Analysis
+
+    ### 3a: Validate top rightsizing recommendations
+
+    For the top 5 Advisor right-size VM recommendations (by savings amount), validate with the Retail Prices API.
+
+    Run `azure-resource-manager-mcp_get_retail_prices` to look up current and target SKU prices. Compare Advisor's estimated savings against actual retail price deltas.
+
+    ### 3b: VM utilization deep dive (if VM Insights available)
+
+    For the top rightsizing candidates, check actual utilization metrics if VM Insights is enabled.
+
+    Evaluate:
+    - 14-day CPU P95 analysis
+    - Memory utilization (if VM Insights agent deployed)
+    - Burst pattern detection (P99 check)
+
+    Skip this step if VM Insights is not available — note it as a recommendation for future optimization maturity.
+
+    ### 3c: Categorize by effort and risk
+    Before categorizing, ask `azure-capacity-manager` to run `non-compute-quotas` for relevant subscriptions and regions to identify Storage and Network quota pressure that may affect optimization feasibility.
+
+    Organize all findings into four categories:
+
+    | Category | Effort | Risk | Examples |
+    |----------|--------|------|----------|
+    | **Quick wins** | Low | Zero | Delete orphaned resources, remove unused IPs |
+    | **Rightsizing** | Medium | Low | Resize underutilized VMs (requires restart) |
+    | **Commitment optimization** | Medium | Medium | Purchase savings plans or reservations |
+    | **Architecture changes** | High | Variable | Redesign for cost efficiency, migrate to PaaS |
+
+    ## Phase 4: Report
+
+    Generate a markdown report with the following structure:
+
+    ### Report template
+
+    ```markdown
+    # Cost Optimization Report — {subscription/environment name}
+    **Generated:** {date}
+    **Scope:** {subscription(s) or management group}
+
+    ## Executive summary
+
+    - **Total identified monthly savings:** ${amount}
+    - **Quick wins (zero risk):** ${amount} across {count} resources
+    - **Rightsizing opportunities:** ${amount} across {count} VMs
+    - **Commitment discount opportunities:** ${amount} estimated
+    - **Current commitment coverage:** {percentage}%
+
+    ## Quick wins — orphaned resources
+
+    | Resource Type | Count | Est. Monthly Cost | Action |
+    |--------------|-------|-------------------|--------|
+    | Unattached disks | {n} | ${cost} | Delete |
+    | Orphaned public IPs | {n} | ${cost} | Delete |
+    | ... | ... | ... | ... |
+    | **Total** | **{n}** | **${cost}** | |
+
+    ## Rightsizing recommendations
+
+    ### Top VM recommendations (validated)
+
+    | VM | Current SKU | Target SKU | CPU P95 | Savings/mo | Risk |
+    |----|-------------|------------|---------|------------|------|
+    | {name} | {current} | {target} | {%} | ${savings} | Low |
+    | ... | ... | ... | ... | ... | ... |
+
+    {Include notes on burst patterns, memory utilization where available}
+
+    ## Commitment discount opportunities
+
+    ### Current coverage
+    - Savings plan utilization: {%}
+    - Reservation utilization: {%}
+    - Total eligible compute covered: {%}
+
+    ### Recommendations
+    {Summarize Benefit Recommendations API findings}
+    {Reference azure-commitment-discount-decision.md framework for purchase guidance}
+
+    ## Cost trends
+
+    {Summarize three-month, service, and regional cost trends}
+
+    ## Next steps
+
+    1. **Immediate (this week):** Delete orphaned resources — ${amount}/mo savings
+    2. **Short-term (this month):** Resize top {n} VMs — ${amount}/mo savings
+    3. **Medium-term (this quarter):** Evaluate commitment discount purchases
+    4. **Ongoing:** Deploy VM Insights for memory-aware rightsizing
+
+    ## Audit trail
+
+    | Data Source | Query Time | Records |
+    |-------------|-----------|---------|
+    | Resource Graph (orphaned) | {timestamp} | {count} |
+    | Advisor recommendations | {timestamp} | {count} |
+    | Benefit Recommendations API | {timestamp} | {count} |
+    ```
+
+    ### Report guidance
+
+    - Format all currency values with the appropriate billing currency
+    - Include resource IDs or names for actionable items
+    - Flag any data gaps (e.g., "Memory metrics unavailable — VM Insights not deployed")
+    - Do not save task reports or financial data to the git repository — use #remember for key operational findings instead
+
+    ## Phase 5: Deliver
+
+
+    **Visualizations:** Before delivery, `finops-practitioner` generates charts for key findings using `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation`; for capacity evidence, `azure-capacity-manager` generates the charts and may use `ExecutePythonCode` only as a fallback. If visualization tools are unavailable, provide chart-ready tables. Include at minimum one trend chart and one comparison chart where the data supports it. Verify each chart file non-visually by checking that it exists, has non-zero size, opens as an image, and has the expected dimensions and metadata. Regenerate or omit a chart that fails these checks and state why. Embed chart images inline in the Microsoft Teams message alongside text tables.
+
+    **Microsoft Teams (financial results only):** Post the final report to our Teams channel using `PostMessageToConversation` when configured. Do not post intermediate results. If Teams delivery is not configured or available, return the completed report in the run output with a note stating that Teams delivery was skipped. If a configured Teams final delivery attempt fails, do not retry or probe alternate delivery paths; mark the task/run failed.
+
+    **Knowledge base (operational learnings only):** Save any new operational insights to the knowledge base — query failures, Resource Graph workarounds, Advisor API patterns, tool errors encountered. Never save financial figures, cost amounts, savings numbers, or any customer financial data to the knowledge base. Financial detail goes to configured Microsoft Teams delivery only.

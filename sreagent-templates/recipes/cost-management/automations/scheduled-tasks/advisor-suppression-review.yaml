@@ -1,0 +1,57 @@
+api_version: azuresre.ai/v2
+kind: ScheduledTask
+metadata:
+  name: AdvisorSuppressionReview
+spec:
+  name: AdvisorSuppressionReview
+  description: Monthly review of active Advisor recommendation suppressions for stale or expired decisions
+  schedule: 0 9 1 * *
+  mode: Review
+  agent: finops-practitioner
+  prompt: |-
+    # Advisor Suppression Review
+
+    ## Phase 0: Preparation
+
+    Before starting, read all documents in the knowledge base. Pay special attention to Advisor suppression governance, prior suppression decisions, and exception review cadence.
+    Output style: Label measured, derived, and estimated evidence; cite each source or derivation; state exact scope and time period; organize findings by FinOps capability; include risk thresholds, confidence, caveats, and required disclaimers.
+    Tool routing and delivery guard: This scheduled task is owned by `finops-practitioner`, which has `SearchMemory`, its assigned `azure-resource-manager-mcp_*` Cost Management and Pricing tools, its assigned Python ARM tools (`resource-graph-query`, `benefit-recommendations`, `deploy-budget`, `deploy-bulk-budgets`, `deploy-anomaly-alert`, `deploy-bulk-anomaly-alerts`, and `suppress-advisor-recommendations`), its visualization tools (`PlotBarChart`, `PlotPieChart`, `PlotAreaChartWithCorrelation`), and its Microsoft Teams delivery tools (`GetMessagesFromChannel`, `PostMessageToConversation`, `PostCardToConversation`, `ReplyWithMessageToConversation`, `ReplyWithCardToConversation`, `UpdateCardInConversation`). Use the `Task` system tool to invoke `azure-capacity-manager` for quota, capacity reservation group, SKU availability, zone mapping, database service quota, and benefit recommendation Python tools (`vm-quota-usage`, `non-compute-quotas`, `db-service-quotas`, `capacity-reservation-groups`, `zone-mapping`, `sku-availability`, `benefit-recommendations`), and invoke `chief-financial-officer` for executive finance framing. Pass the full task scope, evidence already collected, open questions, and desired output shape with each `Task` invocation. Check available visualization tools once per run and use `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation` to generate charts for key findings; if no visualization tool is available, provide the data as a chart-ready table. Complete the report and chart artifacts before delivery. When a Microsoft Teams connector/channel is configured, `finops-practitioner` makes one final `PostMessageToConversation` attempt to the configured Teams channel. If a configured Teams delivery attempt fails, mark the task/run failed instead of degrading to local output or probing alternate paths. If Teams delivery is not configured or available, render the completed report in the run output and state that Teams delivery was skipped.
+
+
+    Apply the FinOps practitioner guidance in this task. Run `resource-graph-query` directly to collect active Advisor recommendation suppressions across in-scope subscriptions.
+
+    ## Specialist tools to request
+
+    Specialist tools use their configured authentication and the agent system-managed identity where required.
+
+    - `finops-practitioner`: Run `resource-graph-query` with `query`, optional `subscription_ids` to find active Advisor recommendation suppressions, suppression metadata, owners, expiration dates, and related resources.
+
+    ## 1. Establish suppression inventory
+
+    Run `resource-graph-query` to find active Advisor recommendation suppressions across in-scope subscriptions. Capture suppression name, subscription, resource, recommendation category, owner metadata, creation date, expiration date, and justification where available.
+
+    ## 2. Classify suppression status
+
+    Classify suppressions as active and current, expired, stale without expiration, missing owner, missing justification, or no longer linked to an active recommendation or resource.
+
+    ## 3. Review stale or expired suppressions
+
+    Flag suppressions that should be reconsidered because they are expired, older than the governance review window, missing justification, suppressing high-value recommendations, or attached to resources that changed materially.
+
+    ## 4. Recommend actions
+
+    Recommend renew, remove, update justification, assign owner, or validate recommendation state for each flagged suppression. Prioritize suppressions that hide optimization, reliability, or security recommendations.
+
+    ## Report format
+
+    Produce a markdown report with an executive summary, an active suppression table, a stale or expired suppression table, missing metadata findings, and recommended owner actions.
+
+    ## Persistence
+
+    **Microsoft Teams (results only):** Post the final report to our Teams channel using `PostMessageToConversation` when configured. Do not post intermediate results. If Teams delivery is not configured or available, return the completed report in the run output with a note stating that Teams delivery was skipped. If a configured Teams final delivery attempt fails, do not retry or probe alternate delivery paths; mark the task/run failed.
+
+    **Knowledge (#remember):** Save operational findings using #remember for future reference. Do not commit task reports, financial figures, cost amounts, recommendation savings amounts, or customer financial data to git or the knowledge base. Financial detail goes to configured Microsoft Teams delivery only.
+
+    ## Visualizations
+
+    Before delivery, `finops-practitioner` generates charts for key findings using `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation`; for capacity evidence, `azure-capacity-manager` generates the charts and may use `ExecutePythonCode` only as a fallback. If visualization tools are unavailable, provide chart-ready tables. Include at minimum a suppression status chart and a stale suppression age chart where the data supports it. Verify each chart file non-visually by checking that it exists, has non-zero size, opens as an image, and has the expected dimensions and metadata. Regenerate or omit a chart that fails these checks and state why. Embed chart images inline in the Microsoft Teams message alongside text tables.
