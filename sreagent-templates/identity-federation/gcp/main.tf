@@ -55,18 +55,18 @@ locals {
   principal_id       = "principal://iam.googleapis.com/projects/${var.project_number}/locations/global/workloadIdentityPools/sre-agent-pool/subject/${lower(var.azure_tenant_id)}::${lower(var.uami_object_id)}"
   organization_scope = var.assignment_scope == "organization"
   role_definitions = {
-    readSRE  = jsondecode(file("${path.module}/readSRE.json"))
-    writeSRE = jsondecode(file("${path.module}/writeSRE.json"))
+    SREAgentReadOnlyAccess = jsondecode(file("${path.module}/SREAgentReadOnlyAccess.json"))
+    SREAgentWriteAccess    = jsondecode(file("${path.module}/SREAgentWriteAccess.json"))
   }
   role_permissions = {
     for id, definition in local.role_definitions : id => setunion(
       lookup(var.existing_role_permissions, id, toset([])),
       toset(definition.includedPermissions),
       # Project listing on a parent is only applicable to organization-level roles.
-      id == "readSRE" && local.organization_scope ? toset(["resourcemanager.projects.list"]) : toset([]),
+      id == "SREAgentReadOnlyAccess" && local.organization_scope ? toset(["resourcemanager.projects.list"]) : toset([]),
     )
   }
-  assigned_role_ids = var.access_mode == "read-write" ? toset(["readSRE", "writeSRE"]) : toset(["readSRE"])
+  assigned_role_ids = var.access_mode == "read-write" ? toset(["SREAgentReadOnlyAccess", "SREAgentWriteAccess"]) : toset(["SREAgentReadOnlyAccess"])
 }
 
 resource "google_project_iam_custom_role" "sre_agent" {

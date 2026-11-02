@@ -49,13 +49,13 @@ variable "existing_role_permissions" {
   default     = {}
 
   validation {
-    condition     = alltrue([for id in keys(var.existing_role_permissions) : contains(["readSRE", "writeSRE"], id)])
-    error_message = "existing_role_permissions keys must be readSRE or writeSRE."
+    condition     = alltrue([for id in keys(var.existing_role_permissions) : contains(["SREAgentReadOnlyAccess", "SREAgentWriteAccess"], id)])
+    error_message = "existing_role_permissions keys must be SREAgentReadOnlyAccess or SREAgentWriteAccess."
   }
 }
 
 variable "access_mode" {
-  description = "Assign readSRE for read-only access, or readSRE and writeSRE separately for read-write access."
+  description = "Assign SREAgentReadOnlyAccess for read-only access, or SREAgentReadOnlyAccess and SREAgentWriteAccess separately for read-write access."
   type        = string
   default     = "read-only"
 

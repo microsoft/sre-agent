@@ -4,7 +4,7 @@ set -euo pipefail
 setup_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 pool_id="sre-agent-pool"
 provider_id="sre-agent-provider"
-role_ids=(readSRE writeSRE)
+role_ids=(SREAgentReadOnlyAccess SREAgentWriteAccess)
 audience="59f0a04a-b322-4310-adc9-39ac41e9631e"
 uuid_pattern='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
 
@@ -211,9 +211,9 @@ main() {
 
   local pool_name provider_name pool_import_id role_name role_id principal pools pool providers provider roles role details
   local imports="" trust condition policy has_assignment has_conditional_assignment service
-  local assigned_role_ids=(readSRE) revoked_roles='{}'
+  local assigned_role_ids=(SREAgentReadOnlyAccess) revoked_roles='{}'
   if [[ "$access_mode" == "read-write" ]]; then
-    assigned_role_ids+=(writeSRE)
+    assigned_role_ids+=(SREAgentWriteAccess)
   fi
   pool_name="projects/$project_number/locations/global/workloadIdentityPools/$pool_id"
   provider_name="$pool_name/providers/$provider_id"
@@ -268,7 +268,7 @@ main() {
     has_assignment="$(jq -r --arg role "$role_name" --arg member "$principal" '
       any(.bindings[]?; .role == $role and (has("condition") | not) and
         (.members | index($member) != null))' <<<"$policy")"
-    if [[ "$role_id" == writeSRE && "$access_mode" == read-only ]]; then
+    if [[ "$role_id" == SREAgentWriteAccess && "$access_mode" == read-only ]]; then
       has_conditional_assignment="$(jq -r --arg role "$role_name" --arg member "$principal" '
         any(.bindings[]?; .role == $role and has("condition") and
           (.members | index($member) != null))' <<<"$policy")"
@@ -307,7 +307,7 @@ main() {
   trap 'exit 130' INT
   trap 'exit 143' TERM
   cp "$setup_root"/*.tf "$run_directory/"
-  cp "$setup_root/readSRE.json" "$setup_root/writeSRE.json" "$run_directory/"
+  cp "$setup_root/SREAgentReadOnlyAccess.json" "$setup_root/SREAgentWriteAccess.json" "$run_directory/"
   jq -n --arg project_id "$project_id" --arg project_number "$project_number" \
     --arg tenant "$tenant_id" --arg object "$object_id" --arg mode "$access_mode" \
     --arg scope "$scope" --arg organization "$organization_id" --arg condition "$condition" \
@@ -337,9 +337,9 @@ main() {
   terraform workspace new "$workspace"
   workspace_created=true
   if [[ "$revoked_roles" != '{}' ]]; then
-    role_name="$(jq -er '.writeSRE' <<<"$revoked_roles")"
-    terraform import -input=false -no-color "google_${scope}_iam_member.revoked[\"writeSRE\"]" \
-      "$scope_id $role_name $principal" || fail "Unable to import the writeSRE assignment for removal."
+    role_name="$(jq -er '.SREAgentWriteAccess' <<<"$revoked_roles")"
+    terraform import -input=false -no-color "google_${scope}_iam_member.revoked[\"SREAgentWriteAccess\"]" \
+      "$scope_id $role_name $principal" || fail "Unable to import the SREAgentWriteAccess assignment for removal."
     # Removing configuration schedules only these memberships for deletion in the reviewed apply.
     rm -- revocations.tf.json
   fi

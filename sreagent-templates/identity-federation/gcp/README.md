@@ -1,7 +1,8 @@
 # SRE Agent GCP connector setup
 
 This package uses Terraform to configure the GCP Workload Identity pool,
-OIDC provider, `readSRE` and `writeSRE` custom IAM roles, and separate role assignments required by
+OIDC provider, `SREAgentReadOnlyAccess` and `SREAgentWriteAccess` custom IAM roles,
+and separate role assignments required by
 the SRE Agent GCP connector.
 
 Provide the user-assigned managed identity's ARM resource ID, not the SRE Agent
@@ -129,7 +130,7 @@ The Bash parameters match the PowerShell parameters above. Omit
   each role without removing its existing permissions.
 - Ensures IAM, Resource Manager, Service Account Credentials and STS APIs are
   enabled; applies an additive IAM member without replacing other bindings.
-- Removes the selected identity's `writeSRE` assignment when `read-only` is requested.
+- Removes the selected identity's `SREAgentWriteAccess` assignment when `read-only` is requested.
 - Runs `terraform init` and `apply` in a unique temporary CLI workspace, then
   deletes the workspace and local files without running `terraform destroy`.
 
@@ -139,8 +140,8 @@ The Bash parameters match the PowerShell parameters above. Omit
 | --- | --- | --- |
 | Workload Identity pool | `sre-agent-pool` | `SREAgentPool` |
 | OIDC provider | `sre-agent-provider` | `SREAgentProvider` |
-| Read custom IAM role | `readSRE` | `readSRE` |
-| Write custom IAM role | `writeSRE` | `writeSRE` |
+| Read custom IAM role | `SREAgentReadOnlyAccess` | `SREAgentReadOnlyAccess` |
+| Write custom IAM role | `SREAgentWriteAccess` | `SREAgentWriteAccess` |
 
 | OIDC field | Value |
 | --- | --- |
@@ -164,9 +165,9 @@ retention still applies.
 
 Existing role permissions and metadata are preserved; only missing catalog
 permissions are added. Manual additions apply to all assignees, including
-write permissions added to `readSRE`.
+write permissions added to `SREAgentReadOnlyAccess`.
 
-`read-only` assigns `readSRE` and removes the selected identity's `writeSRE`
+`read-only` assigns `SREAgentReadOnlyAccess` and removes the selected identity's `SREAgentWriteAccess`
 assignment; `read-write` assigns both. Conditional grants requiring removal
 block setup; other identities and unrelated or inherited access are unchanged.
 

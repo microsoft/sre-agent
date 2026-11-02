@@ -1,5 +1,5 @@
 {
-  "title": "readSRE",
+  "title": "SREAgentReadOnlyAccess",
   "description": "SRE Agent resource discovery, metadata, logs, and metrics access.",
   "stage": "GA",
   "includedPermissions": [

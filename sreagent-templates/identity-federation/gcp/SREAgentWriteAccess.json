@@ -1,6 +1,6 @@
 {
-  "title": "writeSRE",
-  "description": "SRE Agent workload changes; assign together with readSRE.",
+  "title": "SREAgentWriteAccess",
+  "description": "SRE Agent workload changes; assign together with SREAgentReadOnlyAccess.",
   "stage": "GA",
   "includedPermissions": [
     "storage.buckets.create",

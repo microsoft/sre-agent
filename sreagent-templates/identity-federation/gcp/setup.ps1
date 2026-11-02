@@ -14,7 +14,7 @@ Set-StrictMode -Version Latest
 $SetupRoot = $PSScriptRoot
 $PoolId = 'sre-agent-pool'
 $ProviderId = 'sre-agent-provider'
-$RoleIds = @('readSRE', 'writeSRE')
+$RoleIds = @('SREAgentReadOnlyAccess', 'SREAgentWriteAccess')
 $Audience = '59f0a04a-b322-4310-adc9-39ac41e9631e'
 $UuidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
 
@@ -305,9 +305,9 @@ function Invoke-GcpSetup {
         }
     }
 
-    $assignedRoleIds = @('readSRE')
+    $assignedRoleIds = @('SREAgentReadOnlyAccess')
     if ($accessMode -eq 'read-write') {
-        $assignedRoleIds += 'writeSRE'
+        $assignedRoleIds += 'SREAgentWriteAccess'
     }
     $revokedRoles = @{}
     $policy = Invoke-SetupJson gcloud @(
@@ -324,7 +324,7 @@ function Invoke-GcpSetup {
             if ($binding.role -cne $roleName) {
                 continue
             }
-            $remove = $roleId -eq 'writeSRE' -and $accessMode -eq 'read-only'
+            $remove = $roleId -eq 'SREAgentWriteAccess' -and $accessMode -eq 'read-only'
             if ($binding.Contains('condition')) {
                 if ($remove) {
                     throw "The selected identity has a conditional $roleId assignment. Remove it through your approved process before rerunning; setup cannot safely downgrade it."
@@ -382,7 +382,7 @@ function Invoke-GcpSetup {
         [void](New-Item -ItemType Directory -Path $runDirectory)
         $directoryCreated = $true
         Copy-Item -Path (Join-Path $SetupRoot '*.tf') -Destination $runDirectory
-        Copy-Item -LiteralPath (Join-Path $SetupRoot 'readSRE.json'), (Join-Path $SetupRoot 'writeSRE.json') -Destination $runDirectory
+        Copy-Item -LiteralPath (Join-Path $SetupRoot 'SREAgentReadOnlyAccess.json'), (Join-Path $SetupRoot 'SREAgentWriteAccess.json') -Destination $runDirectory
         [IO.File]::WriteAllText((Join-Path $runDirectory 'guided.auto.tfvars.json'), ($variables | ConvertTo-Json -Depth 20))
         [IO.File]::WriteAllText((Join-Path $runDirectory 'imports.tf'), ($imports -join "`n"))
         if ($revokedRoles.Count -gt 0) {
