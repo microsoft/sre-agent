@@ -1041,18 +1041,31 @@ for i in $(seq 0 $((CONNECTOR_COUNT - 1))); do
   ctype=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.dataConnectorType')
   case "$ctype" in
     AppInsights)
-      # Only capture the FIRST AppInsights connector for the toggle
+      # Only capture the FIRST AppInsights connector for the toggle.
+      # ARM does not return dataSource on read, so this can come back empty. Enabling the
+      # connector without one makes the deployment fail with "DataSource is required", so
+      # the toggle is only set when a resource id was actually resolved.
       if [[ "$ENABLE_AI" == "false" ]]; then
-        ENABLE_AI=true
-        AI_RESOURCE_ID=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""')
-        AI_APP_ID=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.extendedProperties.appId // ""')
+        _ai_id=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""')
+        if [[ -n "$_ai_id" ]]; then
+          ENABLE_AI=true
+          AI_RESOURCE_ID="$_ai_id"
+          AI_APP_ID=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.extendedProperties.appId // ""')
+        else
+          _warn "AppInsights connector has no resolvable resource id — not enabling it on the clone"
+        fi
       fi
       ;;
     LogAnalytics)
-      # Only capture the FIRST LogAnalytics connector for the toggle
+      # Only capture the FIRST LogAnalytics connector for the toggle. See the note above.
       if [[ "$ENABLE_LAW" == "false" ]]; then
-        ENABLE_LAW=true
-        LAW_RESOURCE_ID=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""')
+        _law_id=$(echo "$CONNECTORS" | jq -r --argjson i "$i" '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""')
+        if [[ -n "$_law_id" ]]; then
+          ENABLE_LAW=true
+          LAW_RESOURCE_ID="$_law_id"
+        else
+          _warn "LogAnalytics connector has no resolvable workspace id — not enabling it on the clone"
+        fi
       fi
       ;;
     AzureMonitor)

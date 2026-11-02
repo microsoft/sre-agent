@@ -298,8 +298,15 @@ for i in $(seq 0 $((CONNECTOR_COUNT - 1))); do
     else
       _ok "Connector '${cname}' (${ctype}): ${dsrc}"
     fi
+  elif [[ -z "$dsrc" ]]; then
+    # ARM does not return dataSource on read -- neither does the data plane -- so an
+    # exported connector of a type that requires one always arrives empty. Deploying it
+    # fails from inside the ARM operation, one connector at a time, long after validation
+    # passed. Naming it here lets the operator supply it with --override first.
+    _warn "Connector '${cname}' (${ctype}): no dataSource; supply one before deploying, e.g."
+    _warn "    --override connectors.${i}.properties.dataSource=<value>"
   else
-    _ok "Connector '${cname}' (${ctype})"
+    _ok "Connector '${cname}' (${ctype}): ${dsrc}"
   fi
 done
 
@@ -543,6 +550,7 @@ if [[ -n "$EXTRAS" ]]; then
   if [[ "$MCP_COUNT" -gt 0 ]]; then
     _warn "${MCP_COUNT} MCP connector(s) need data-plane overlay (ARM strips bearer tokens)"
   fi
+
 
   # Knowledge & memories
   KNOWLEDGE_COUNT=$(jq '(.knowledge // []) | length' "$EXTRAS")
