@@ -20,22 +20,6 @@ On Linux or macOS, use `cd sre-agent/sreagent-templates/identity-federation/gcp`
 Follow the steps below from that folder. Keep the setup scripts, all `.tf`
 files, and both role JSON files together.
 
-## Permission catalogs
-
-Review the two custom roles independently:
-
-| Role / file | Access | Assigned for |
-| --- | --- | --- |
-| [`readSRE`](./readSRE.json) | Resource discovery, metadata, logs, metrics, and Storage object reads | `read-only` and `read-write` |
-| [`writeSRE`](./writeSRE.json) | Workload changes and operation-status reads needed by those changes | `read-write` only, separately from `readSRE` |
-
-Both custom roles are created at the selected scope. The supplied managed
-identity receives only `readSRE` for `read-only`, or two separate IAM memberships
-for `read-write`. The write catalog does not duplicate the read catalog. At
-organization scope, Terraform additionally includes
-`resourcemanager.projects.list` in `readSRE`; that permission is not applicable
-to a project-level custom role.
-
 ## Prerequisites
 
 - [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli),
@@ -141,18 +125,11 @@ The Bash parameters match the PowerShell parameters above. Omit
   and enabled APIs; imports the role assignment only if it has no IAM condition.
   Pool/provider imports use the configured project ID to avoid replacement;
   discovery and federated principal names use the project number.
-- Extends compatible provider trust and fetches each existing role's
-  `includedPermissions`. Each role receives the union of its own existing
-  permissions and its own JSON catalog; missing catalog permissions are added,
-  and manual additions are retained. Permissions are never copied between roles.
-  If an existing role's permissions cannot be read as an array of nonempty
-  strings, setup fails before applying changes.
+- Extends compatible provider trust and adds missing catalog permissions to
+  each role without removing its existing permissions.
 - Ensures IAM, Resource Manager, Service Account Credentials and STS APIs are
   enabled; applies an additive IAM member without replacing other bindings.
-- Imports obsolete memberships for the selected identity into temporary
-  Terraform resources, then removes their configuration so their deletion
-  appears in the same approval plan as the new assignments. Import itself
-  does not change remote IAM policy.
+- Removes the selected identity's `writeSRE` assignment when `read-only` is requested.
 - Runs `terraform init` and `apply` in a unique temporary CLI workspace, then
   deletes the workspace and local files without running `terraform destroy`.
 
@@ -164,13 +141,6 @@ The Bash parameters match the PowerShell parameters above. Omit
 | OIDC provider | `sre-agent-provider` | `SREAgentProvider` |
 | Read custom IAM role | `readSRE` | `readSRE` |
 | Write custom IAM role | `writeSRE` | `writeSRE` |
-
-Project scope is the default. For organization-wide roles and assignments,
-use `-AssignmentScope organization -OrganizationId <ID>` in PowerShell, or
-`--assignment-scope organization --organization-id <ID>` in Bash. This requires
-organization-level custom-role and IAM administration permissions; grants are
-inherited by descendant resources. The workload identity pool remains in the
-configured project.
 
 | OIDC field | Value |
 | --- | --- |
@@ -192,36 +162,13 @@ Terraform can delete or replace the pool, provider and role during apply.
 With approval skipped, these changes run without confirmation; GCP soft-delete
 retention still applies.
 
-**Shared role definitions, additive permissions:** each named role retains
-its existing permissions and adds missing permissions from its own catalog
-(plus organization-only project listing for `readSRE`). Existing titles,
-descriptions, and launch stages are also left unchanged. Removing a permission
-from a catalog does not revoke it from an existing role.
+Existing role permissions and metadata are preserved; only missing catalog
+permissions are added. Manual additions apply to all assignees, including
+write permissions added to `readSRE`.
 
-Manual additions affect all assignees of that role. In particular, if you
-manually add a write permission to `readSRE`, it remains available to identities
-assigned only that role; the `read-only` selection does not sanitize custom
-permissions. Review existing permissions and the plan before applying.
-
-### Downgrades and migration from `SREAgentRole`
-
-Rerunning with `read-only` removes the selected identity's unconditional
-`writeSRE` membership at the selected scope. Other identities' memberships
-are preserved. Rerunning with `read-write` ensures both memberships exist.
-
-For either mode, setup replaces the selected identity's unconditional legacy
-`SREAgentRole` membership with the requested new memberships. The legacy role
-and its other assignees are left unchanged. If a conditional `writeSRE` grant
-must be removed, or a conditional legacy grant must be migrated, setup stops
-before applying changes and asks you to resolve that grant through your
-approved process.
-
-**Boundary:** setup does not revoke unrelated roles, grants at other scopes,
-or access inherited from an organization, folder, or group. A `read-only`
-selection therefore guarantees only the assignments managed here, not the
-identity's total effective access. Review inherited and external grants
-separately. No running workload is changed by setup, but write permissions
-allow workload changes; use your production approval and rollout process.
+`read-only` assigns `readSRE` and removes the selected identity's `writeSRE`
+assignment; `read-write` assigns both. Conditional grants requiring removal
+block setup; other identities and unrelated or inherited access are unchanged.
 
 ## State and reruns
 
@@ -230,27 +177,7 @@ Workspace cleanup runs on success, cancellation and apply failure.
 retains the local directory/state and reports its path. Failed applies can leave
 partial cloud changes; rerun to rediscover/import them.
 
-Terraform now returns `assigned_role_names` (a list) instead of the legacy
-single `role_name` output. Direct Terraform users with retained legacy state
-must migrate the selected membership and retire its old state/configuration
-through their normal reviewed workflow; do not apply this configuration over
-an old shared-role state without reviewing deletions.
-
-The scripts pass a per-role `existing_role_permissions` map into Terraform.
-Direct Terraform users must populate this map from the live roles before each
-apply to preserve manual permission additions. Run setup sequentially and do
-not edit roles between discovery and apply: the union uses the discovery
-snapshot, not a transaction that merges concurrent role edits.
-
-## Local regression checks
-
-`terraform init` followed by `terraform test` runs the mocked project and
-organization role/assignment tests without changing cloud resources.
-`python tests/test_setup.py` exercises both setup entry points using local
-CLI doubles, including per-role permission preservation, invalid permission
-responses, legacy migration, downgrades, conditional grants, and import
-failures. The script tests require Python, PowerShell 7, Bash, and `jq`
-on `PATH`; they do not require Azure or GCP credentials.
+Run setups sequentially; do not edit roles between discovery and apply.
 
 ## References
 
@@ -258,6 +185,5 @@ on `PATH`; they do not require Azure or GCP credentials.
 - [gcloud configured project](https://cloud.google.com/sdk/gcloud/reference/config/get)
 - [Google Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation-with-other-clouds)
 - [Additive Terraform IAM members](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_project_iam)
-- [Terraform import and subsequent deletion of resources absent from configuration](https://developer.hashicorp.com/terraform/cli/import/usage)
 - [Terraform Google provider authentication](https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/provider_reference)
 - [Terraform workspace deletion semantics](https://developer.hashicorp.com/terraform/cli/commands/workspace/delete)

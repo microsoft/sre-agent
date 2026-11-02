@@ -319,15 +319,15 @@ function Invoke-GcpSetup {
         if ($null -eq $binding -or @($binding.members) -cnotcontains $principal) {
             continue
         }
-        foreach ($roleId in @('readSRE', 'writeSRE', 'SREAgentRole')) {
+        foreach ($roleId in $RoleIds) {
             $roleName = "$scopeParent/roles/$roleId"
             if ($binding.role -cne $roleName) {
                 continue
             }
-            $remove = $roleId -eq 'SREAgentRole' -or ($roleId -eq 'writeSRE' -and $accessMode -eq 'read-only')
+            $remove = $roleId -eq 'writeSRE' -and $accessMode -eq 'read-only'
             if ($binding.Contains('condition')) {
                 if ($remove) {
-                    throw "The selected identity has a conditional $roleId assignment. Remove it through your approved process before rerunning; setup cannot safely downgrade or migrate it."
+                    throw "The selected identity has a conditional $roleId assignment. Remove it through your approved process before rerunning; setup cannot safely downgrade it."
                 }
                 continue
             }
@@ -362,7 +362,7 @@ function Invoke-GcpSetup {
     Write-Host "Provider: $providerName"
     Write-Host "Roles to assign: $(($assignedRoleIds | ForEach-Object { "$scopeParent/roles/$_" }) -join ', ')"
     if ($revokedRoles.Count -gt 0) {
-        Write-Warning "Removing only this identity's assignments to: $($revokedRoles.Values -join ', '). Other identities and the legacy role definition are preserved."
+        Write-Warning "Removing only this identity's assignments to: $($revokedRoles.Values -join ', '). Other identities' assignments are preserved."
     }
     Write-Warning 'Each role retains its existing permissions and adds missing permissions from its own JSON catalog. Manual additions apply to all assignees of that role, even in read-only mode. Unrelated or inherited IAM grants are not removed.'
     Write-Warning 'Run setups sequentially. Do not adopt resources concurrently managed by another Terraform state. The temporary named workspace will be deleted WITHOUT destroying GCP resources.'

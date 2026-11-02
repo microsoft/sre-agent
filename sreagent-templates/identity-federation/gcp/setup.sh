@@ -263,17 +263,17 @@ main() {
     fi
   done
   policy="$(run_json gcloud "$policy_kind" get-iam-policy "$scope_id" --format=json --quiet)"
-  for role_id in readSRE writeSRE SREAgentRole; do
+  for role_id in "${role_ids[@]}"; do
     role_name="$scope_parent/roles/$role_id"
     has_assignment="$(jq -r --arg role "$role_name" --arg member "$principal" '
       any(.bindings[]?; .role == $role and (has("condition") | not) and
         (.members | index($member) != null))' <<<"$policy")"
-    if [[ "$role_id" == SREAgentRole || ( "$role_id" == writeSRE && "$access_mode" == read-only ) ]]; then
+    if [[ "$role_id" == writeSRE && "$access_mode" == read-only ]]; then
       has_conditional_assignment="$(jq -r --arg role "$role_name" --arg member "$principal" '
         any(.bindings[]?; .role == $role and has("condition") and
           (.members | index($member) != null))' <<<"$policy")"
       [[ "$has_conditional_assignment" == false ]] \
-        || fail "The selected identity has a conditional $role_id assignment. Remove it through your approved process before rerunning; setup cannot safely downgrade or migrate it."
+        || fail "The selected identity has a conditional $role_id assignment. Remove it through your approved process before rerunning; setup cannot safely downgrade it."
       if [[ "$has_assignment" == true ]]; then
         revoked_roles="$(jq -c --arg id "$role_id" --arg name "$role_name" '. + {($id): $name}' <<<"$revoked_roles")"
       fi
@@ -294,7 +294,7 @@ main() {
     printf 'Role to assign: %s/roles/%s\n' "$scope_parent" "${assigned_role_ids[1]}"
   fi
   if [[ "$revoked_roles" != '{}' ]]; then
-    warn "Removing only this identity's assignments to: $(jq -r '[.[]] | join(", ")' <<<"$revoked_roles"). Other identities and the legacy role definition are preserved."
+    warn "Removing only this identity's assignments to: $(jq -r '[.[]] | join(", ")' <<<"$revoked_roles"). Other identities' assignments are preserved."
   fi
   warn "Each role retains its existing permissions and adds missing permissions from its own JSON catalog. Manual additions apply to all assignees of that role, even in read-only mode. Unrelated or inherited IAM grants are not removed."
   warn "Run setups sequentially. Do not concurrently manage these resources from another Terraform state. The temporary workspace is deleted WITHOUT destroying GCP resources."
@@ -337,13 +337,9 @@ main() {
   terraform workspace new "$workspace"
   workspace_created=true
   if [[ "$revoked_roles" != '{}' ]]; then
-    for role_id in SREAgentRole writeSRE; do
-      role_name="$(jq -r --arg id "$role_id" '.[$id] // empty' <<<"$revoked_roles")"
-      if [[ -n "$role_name" ]]; then
-        terraform import -input=false -no-color "google_${scope}_iam_member.revoked[\"$role_id\"]" \
-          "$scope_id $role_name $principal" || fail "Unable to import the $role_id assignment for removal."
-      fi
-    done
+    role_name="$(jq -er '.writeSRE' <<<"$revoked_roles")"
+    terraform import -input=false -no-color "google_${scope}_iam_member.revoked[\"writeSRE\"]" \
+      "$scope_id $role_name $principal" || fail "Unable to import the writeSRE assignment for removal."
     # Removing configuration schedules only these memberships for deletion in the reviewed apply.
     rm -- revocations.tf.json
   fi
