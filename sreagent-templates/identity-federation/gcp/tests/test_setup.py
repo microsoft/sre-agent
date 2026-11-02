@@ -20,6 +20,10 @@ RESOURCE = (
 PROJECT = "sre-test-project"
 POOL = "projects/123456789012/locations/global/workloadIdentityPools/sre-agent-pool"
 PRINCIPAL = f"principal://iam.googleapis.com/{POOL}/subject/{TENANT}::{OBJECT}"
+EXISTING_PERMISSIONS = {
+    "readSRE": ["compute.projects.get", "compute.instances.get"],
+    "writeSRE": ["compute.instances.delete", "compute.instances.update"],
+}
 
 
 def cli_double(command, args):
@@ -54,7 +58,12 @@ def cli_double(command, args):
                 else []
             )
         if args[:3] == ["iam", "roles", "describe"]:
-            return {"name": f"{parent}/roles/{args[3]}", "stage": "GA"}
+            details = {"name": f"{parent}/roles/{args[3]}", "stage": "GA"}
+            if not case.get("missing_permissions"):
+                details["includedPermissions"] = case.get(
+                    "permissions", EXISTING_PERMISSIONS[args[3]],
+                )
+            return details
         if args[1:2] == ["get-iam-policy"]:
             bindings = []
             if case["existing"]:
@@ -177,7 +186,10 @@ class SetupTests(unittest.TestCase):
                             self.assertEqual(variables["access_mode"], mode)
                             self.assertEqual(variables["assignment_scope"], scope)
                             self.assertEqual(variables["uami_object_id"], OBJECT)
-                            self.assertNotIn("existing_role_permissions", variables)
+                            self.assertEqual(
+                                variables["existing_role_permissions"],
+                                EXISTING_PERMISSIONS if existing else {},
+                            )
                             for role in ("readSRE", "writeSRE"):
                                 self.assertEqual(
                                     json.loads(files[f"{role}.json"]),
@@ -235,6 +247,23 @@ class SetupTests(unittest.TestCase):
                 )
                 self.assertNotEqual(result.returncode, 0)
                 self.assertNotIn("guided.auto.tfvars.json", files)
+
+    def test_unknown_permissions_stop_apply(self):
+        for shell in ("pwsh", "bash"):
+            for invalid in (
+                {"missing_permissions": True},
+                {"permissions": None},
+                {"permissions": "compute.projects.get"},
+                {"permissions": [None]},
+                {"permissions": [" "]},
+            ):
+                with self.subTest(shell=shell, invalid=invalid):
+                    result, files = self.run_setup(
+                        shell, scope="project", mode="read-only", existing=True, **invalid,
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("refusing to replace unknown permissions", result.stdout + result.stderr)
+                    self.assertNotIn("guided.auto.tfvars.json", files)
 
 
 if __name__ == "__main__":

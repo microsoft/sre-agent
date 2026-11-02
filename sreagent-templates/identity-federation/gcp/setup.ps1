@@ -287,6 +287,7 @@ function Invoke-GcpSetup {
     }
 
     $roles = Invoke-SetupJson gcloud @('iam', 'roles', 'list', $scopeFlag, '--show-deleted', '--format=json', '--quiet')
+    $existingRolePermissions = @{}
     foreach ($roleId in $RoleIds) {
         $roleName = "$scopeParent/roles/$roleId"
         $role = @($roles | Where-Object { $_.name -ceq $roleName })
@@ -294,6 +295,12 @@ function Invoke-GcpSetup {
             Assert-ActiveResource $role[0] $roleId
             $details = Invoke-SetupJson gcloud @('iam', 'roles', 'describe', $roleId, $scopeFlag, '--format=json', '--quiet')
             Assert-ActiveResource $details $roleId
+            if (-not $details.Contains('includedPermissions') -or
+                $details.includedPermissions -isnot [array] -or
+                @($details.includedPermissions | Where-Object { $_ -isnot [string] -or [string]::IsNullOrWhiteSpace($_) }).Count -gt 0) {
+                throw "The existing $roleId response has no valid includedPermissions array; refusing to replace unknown permissions."
+            }
+            $existingRolePermissions[$roleId] = @($details.includedPermissions)
             $imports.Add((New-ImportBlock "google_${scope}_iam_custom_role.sre_agent[`"$roleId`"]" $roleName))
         }
     }
@@ -340,14 +347,15 @@ function Invoke-GcpSetup {
     }
 
     $variables = [ordered]@{
-        project_id          = $projectId
-        project_number      = $projectNumber
-        azure_tenant_id     = $tenantId
-        uami_object_id      = $objectId
-        access_mode         = $accessMode
-        assignment_scope    = $scope
-        organization_id     = $organizationId
-        attribute_condition = $trust.Condition
+        project_id                = $projectId
+        project_number            = $projectNumber
+        azure_tenant_id           = $tenantId
+        uami_object_id            = $objectId
+        access_mode               = $accessMode
+        assignment_scope          = $scope
+        organization_id           = $organizationId
+        attribute_condition       = $trust.Condition
+        existing_role_permissions = $existingRolePermissions
     }
     Write-Host "Azure tenant: $tenantId"
     Write-Host "Managed identity object ID: $objectId"
@@ -356,7 +364,7 @@ function Invoke-GcpSetup {
     if ($revokedRoles.Count -gt 0) {
         Write-Warning "Removing only this identity's assignments to: $($revokedRoles.Values -join ', '). Other identities and the legacy role definition are preserved."
     }
-    Write-Warning 'readSRE and writeSRE permissions are reconciled to their JSON catalogs for all assignees. Unrelated or inherited IAM grants are not removed.'
+    Write-Warning 'Each role retains its existing permissions and adds missing permissions from its own JSON catalog. Manual additions apply to all assignees of that role, even in read-only mode. Unrelated or inherited IAM grants are not removed.'
     Write-Warning 'Run setups sequentially. Do not adopt resources concurrently managed by another Terraform state. The temporary named workspace will be deleted WITHOUT destroying GCP resources.'
 
     $workspace = "sre-agent-gcp-$([Guid]::NewGuid().ToString('N'))"

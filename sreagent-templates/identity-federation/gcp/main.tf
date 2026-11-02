@@ -60,6 +60,7 @@ locals {
   }
   role_permissions = {
     for id, definition in local.role_definitions : id => setunion(
+      lookup(var.existing_role_permissions, id, toset([])),
       toset(definition.includedPermissions),
       # Project listing on a parent is only applicable to organization-level roles.
       id == "readSRE" && local.organization_scope ? toset(["resourcemanager.projects.list"]) : toset([]),
@@ -80,6 +81,10 @@ resource "google_project_iam_custom_role" "sre_agent" {
   permissions = local.role_permissions[each.key]
 
   depends_on = [google_project_service.required]
+
+  lifecycle {
+    ignore_changes = [title, description, stage]
+  }
 }
 
 resource "google_organization_iam_custom_role" "sre_agent" {
@@ -95,6 +100,8 @@ resource "google_organization_iam_custom_role" "sre_agent" {
   depends_on = [google_project_service.required]
 
   lifecycle {
+    ignore_changes = [title, description, stage]
+
     precondition {
       condition     = var.organization_id != ""
       error_message = "organization_id is required when assignment_scope is organization."

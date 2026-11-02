@@ -43,6 +43,17 @@ variable "attribute_condition" {
   }
 }
 
+variable "existing_role_permissions" {
+  description = "Live permissions fetched separately for each existing custom role by the setup scripts; preserved when adding catalog permissions."
+  type        = map(set(string))
+  default     = {}
+
+  validation {
+    condition     = alltrue([for id in keys(var.existing_role_permissions) : contains(["readSRE", "writeSRE"], id)])
+    error_message = "existing_role_permissions keys must be readSRE or writeSRE."
+  }
+}
+
 variable "access_mode" {
   description = "Assign readSRE for read-only access, or readSRE and writeSRE separately for read-write access."
   type        = string

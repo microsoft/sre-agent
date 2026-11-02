@@ -31,7 +31,7 @@ Review the two custom roles independently:
 
 Both custom roles are created at the selected scope. The supplied managed
 identity receives only `readSRE` for `read-only`, or two separate IAM memberships
-for `read-write`. The write role does not duplicate the read catalog. At
+for `read-write`. The write catalog does not duplicate the read catalog. At
 organization scope, Terraform additionally includes
 `resourcemanager.projects.list` in `readSRE`; that permission is not applicable
 to a project-level custom role.
@@ -141,9 +141,12 @@ The Bash parameters match the PowerShell parameters above. Omit
   and enabled APIs; imports the role assignment only if it has no IAM condition.
   Pool/provider imports use the configured project ID to avoid replacement;
   discovery and federated principal names use the project number.
-- Extends compatible provider trust and reconciles each custom role to its
-  separate JSON permission catalog. Existing permissions are not unioned across
-  roles or access modes.
+- Extends compatible provider trust and fetches each existing role's
+  `includedPermissions`. Each role receives the union of its own existing
+  permissions and its own JSON catalog; missing catalog permissions are added,
+  and manual additions are retained. Permissions are never copied between roles.
+  If an existing role's permissions cannot be read as an array of nonempty
+  strings, setup fails before applying changes.
 - Ensures IAM, Resource Manager, Service Account Credentials and STS APIs are
   enabled; applies an additive IAM member without replacing other bindings.
 - Imports obsolete memberships for the selected identity into temporary
@@ -189,11 +192,16 @@ Terraform can delete or replace the pool, provider and role during apply.
 With approval skipped, these changes run without confirmation; GCP soft-delete
 retention still applies.
 
-**Shared role definitions, separate grants:** permissions in each named role
-are reconciled exactly to its catalog (plus organization-only project listing
-for `readSRE`). Updating a catalog affects all assignees of that role; it does
-not add write access to `readSRE`. Review the plan before applying, especially
-if roles with these IDs already exist.
+**Shared role definitions, additive permissions:** each named role retains
+its existing permissions and adds missing permissions from its own catalog
+(plus organization-only project listing for `readSRE`). Existing titles,
+descriptions, and launch stages are also left unchanged. Removing a permission
+from a catalog does not revoke it from an existing role.
+
+Manual additions affect all assignees of that role. In particular, if you
+manually add a write permission to `readSRE`, it remains available to identities
+assigned only that role; the `read-only` selection does not sanitize custom
+permissions. Review existing permissions and the plan before applying.
 
 ### Downgrades and migration from `SREAgentRole`
 
@@ -228,13 +236,20 @@ must migrate the selected membership and retire its old state/configuration
 through their normal reviewed workflow; do not apply this configuration over
 an old shared-role state without reviewing deletions.
 
+The scripts pass a per-role `existing_role_permissions` map into Terraform.
+Direct Terraform users must populate this map from the live roles before each
+apply to preserve manual permission additions. Run setup sequentially and do
+not edit roles between discovery and apply: the union uses the discovery
+snapshot, not a transaction that merges concurrent role edits.
+
 ## Local regression checks
 
 `terraform init` followed by `terraform test` runs the mocked project and
 organization role/assignment tests without changing cloud resources.
 `python tests/test_setup.py` exercises both setup entry points using local
-CLI doubles, including legacy migration, downgrades, conditional grants, and
-import failures. The script tests require Python, PowerShell 7, Bash, and `jq`
+CLI doubles, including per-role permission preservation, invalid permission
+responses, legacy migration, downgrades, conditional grants, and import
+failures. The script tests require Python, PowerShell 7, Bash, and `jq`
 on `PATH`; they do not require Azure or GCP credentials.
 
 ## References

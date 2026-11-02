@@ -245,6 +245,7 @@ main() {
   fi
 
   roles="$(run_json gcloud iam roles list "$scope_flag" --show-deleted --format=json --quiet)"
+  local existing_role_permissions='{}'
   for role_id in "${role_ids[@]}"; do
     role_name="$scope_parent/roles/$role_id"
     role="$(jq -c --arg name "$role_name" 'map(select(.name == $name)) | .[0] // null' <<<"$roles")"
@@ -252,6 +253,12 @@ main() {
       assert_active_resource "$role" "$role_id"
       details="$(run_json gcloud iam roles describe "$role_id" "$scope_flag" --format=json --quiet)"
       assert_active_resource "$details" "$role_id"
+      jq -e '.includedPermissions | if type == "array" then
+        all(.[]; if type == "string" then test("\\S") else false end)
+        else false end' >/dev/null <<<"$details" \
+        || fail "The existing $role_id response has no valid includedPermissions array; refusing to replace unknown permissions."
+      existing_role_permissions="$(jq -c --arg id "$role_id" --argjson role "$details" \
+        '. + {($id): $role.includedPermissions}' <<<"$existing_role_permissions")"
       append_import "google_${scope}_iam_custom_role.sre_agent[\"$role_id\"]" "$role_name"
     fi
   done
@@ -289,7 +296,7 @@ main() {
   if [[ "$revoked_roles" != '{}' ]]; then
     warn "Removing only this identity's assignments to: $(jq -r '[.[]] | join(", ")' <<<"$revoked_roles"). Other identities and the legacy role definition are preserved."
   fi
-  warn "readSRE and writeSRE permissions are reconciled to their JSON catalogs for all assignees. Unrelated or inherited IAM grants are not removed."
+  warn "Each role retains its existing permissions and adds missing permissions from its own JSON catalog. Manual additions apply to all assignees of that role, even in read-only mode. Unrelated or inherited IAM grants are not removed."
   warn "Run setups sequentially. Do not concurrently manage these resources from another Terraform state. The temporary workspace is deleted WITHOUT destroying GCP resources."
 
   umask 077
@@ -303,11 +310,12 @@ main() {
   cp "$setup_root/readSRE.json" "$setup_root/writeSRE.json" "$run_directory/"
   jq -n --arg project_id "$project_id" --arg project_number "$project_number" \
     --arg tenant "$tenant_id" --arg object "$object_id" --arg mode "$access_mode" \
-    --arg scope "$scope" --arg organization "$organization_id" --arg condition "$condition" '{
+    --arg scope "$scope" --arg organization "$organization_id" --arg condition "$condition" \
+    --argjson permissions "$existing_role_permissions" '{
       project_id: $project_id, project_number: $project_number,
       azure_tenant_id: $tenant, uami_object_id: $object, access_mode: $mode,
       assignment_scope: $scope, organization_id: $organization,
-      attribute_condition: $condition
+      attribute_condition: $condition, existing_role_permissions: $permissions
     }' >"$run_directory/guided.auto.tfvars.json"
   printf '%s' "$imports" >"$run_directory/imports.tf"
   if [[ "$revoked_roles" != '{}' ]]; then
