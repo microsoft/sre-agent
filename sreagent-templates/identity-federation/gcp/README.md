@@ -1,7 +1,8 @@
 # SRE Agent GCP connector setup
 
 This package uses Terraform to configure the GCP Workload Identity pool,
-OIDC provider, `SREAgentRole` custom IAM role, and role assignment required by
+OIDC provider, `SREAgentReadOnlyAccess` and `SREAgentWriteAccess` custom IAM roles,
+and separate role assignments required by
 the SRE Agent GCP connector.
 
 Provide the user-assigned managed identity's ARM resource ID, not the SRE Agent
@@ -17,8 +18,8 @@ cd sre-agent\sreagent-templates\identity-federation\gcp
 ```
 
 On Linux or macOS, use `cd sre-agent/sreagent-templates/identity-federation/gcp`.
-Follow the steps below from that folder. Keep the setup scripts and all `.tf`
-files together.
+Follow the steps below from that folder. Keep the setup scripts, all `.tf`
+files, and both role JSON files together.
 
 ## Prerequisites
 
@@ -70,7 +71,7 @@ inaccessible project fails.
 
 ### 2. Run setup
 
-Keep `setup.ps1` and all `.tf` files together. Replace the example resource ID:
+Keep `setup.ps1`, all `.tf` files, and both role JSON files together. Replace the example resource ID:
 
 ```powershell
 .\setup.ps1 `
@@ -103,7 +104,7 @@ gcloud config get project
 
 ### 2. Run setup
 
-Keep `setup.sh` and all `.tf` files together. Replace the example resource ID:
+Keep `setup.sh`, all `.tf` files, and both role JSON files together. Replace the example resource ID:
 
 ```bash
 chmod +x setup.sh
@@ -120,15 +121,16 @@ The Bash parameters match the PowerShell parameters above. Omit
 
 - Resolves the tenant and principal/object IDs with `az identity show --ids`;
   resolves the project ID/number from `gcloud`.
-- Discovers the existing pool, provider, custom role, and role assignment for
+- Discovers the existing pool, provider, custom roles, and role assignments for
   the selected identity. Generates Terraform import blocks for these resources
   and enabled APIs; imports the role assignment only if it has no IAM condition.
   Pool/provider imports use the configured project ID to avoid replacement;
   discovery and federated principal names use the project number.
-- Extends compatible provider trust and unions existing role permissions with
-  the requested [permission catalogs](./main.tf).
+- Extends compatible provider trust and adds missing catalog permissions to
+  each role without removing its existing permissions.
 - Ensures IAM, Resource Manager, Service Account Credentials and STS APIs are
   enabled; applies an additive IAM member without replacing other bindings.
+- Removes the selected identity's `SREAgentWriteAccess` assignment when `read-only` is requested.
 - Runs `terraform init` and `apply` in a unique temporary CLI workspace, then
   deletes the workspace and local files without running `terraform destroy`.
 
@@ -138,7 +140,8 @@ The Bash parameters match the PowerShell parameters above. Omit
 | --- | --- | --- |
 | Workload Identity pool | `sre-agent-pool` | `SREAgentPool` |
 | OIDC provider | `sre-agent-provider` | `SREAgentProvider` |
-| Custom IAM role | `SREAgentRole` | `SREAgentRole` |
+| Read custom IAM role | `SREAgentReadOnlyAccess` | `SREAgentReadOnlyAccess` |
+| Write custom IAM role | `SREAgentWriteAccess` | `SREAgentWriteAccess` |
 
 | OIDC field | Value |
 | --- | --- |
@@ -160,9 +163,13 @@ Terraform can delete or replace the pool, provider and role during apply.
 With approval skipped, these changes run without confirmation; GCP soft-delete
 retention still applies.
 
-**Shared permissions:** `existing UNION read UNION write` (write only for
-`read-write`). All role assignees receive the union; `read-only` never downgrades
-existing write access. The catalogs are not administrator roles.
+Existing role permissions and metadata are preserved; only missing catalog
+permissions are added. Manual additions apply to all assignees, including
+write permissions added to `SREAgentReadOnlyAccess`.
+
+`read-only` assigns `SREAgentReadOnlyAccess` and removes the selected identity's `SREAgentWriteAccess`
+assignment; `read-write` assigns both. Conditional grants requiring removal
+block setup; other identities and unrelated or inherited access are unchanged.
 
 ## State and reruns
 
@@ -170,6 +177,8 @@ Workspace cleanup runs on success, cancellation and apply failure.
 `workspace delete -force` discards state, not cloud resources. Cleanup failure
 retains the local directory/state and reports its path. Failed applies can leave
 partial cloud changes; rerun to rediscover/import them.
+
+Run setups sequentially; do not edit roles between discovery and apply.
 
 ## References
 

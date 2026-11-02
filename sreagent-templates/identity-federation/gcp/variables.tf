@@ -44,13 +44,18 @@ variable "attribute_condition" {
 }
 
 variable "existing_role_permissions" {
-  description = "Live role permissions to preserve when adding the requested access mode."
-  type        = set(string)
-  default     = []
+  description = "Live permissions fetched separately for each existing custom role by the setup scripts; preserved when adding catalog permissions."
+  type        = map(set(string))
+  default     = {}
+
+  validation {
+    condition     = alltrue([for id in keys(var.existing_role_permissions) : contains(["SREAgentReadOnlyAccess", "SREAgentWriteAccess"], id)])
+    error_message = "existing_role_permissions keys must be SREAgentReadOnlyAccess or SREAgentWriteAccess."
+  }
 }
 
 variable "access_mode" {
-  description = "Permissions to add; read-only never removes existing write permissions."
+  description = "Assign SREAgentReadOnlyAccess for read-only access, or SREAgentReadOnlyAccess and SREAgentWriteAccess separately for read-write access."
   type        = string
   default     = "read-only"
 
