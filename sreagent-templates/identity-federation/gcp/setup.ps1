@@ -14,7 +14,7 @@ Set-StrictMode -Version Latest
 $SetupRoot = $PSScriptRoot
 $PoolId = 'sre-agent-pool'
 $ProviderId = 'sre-agent-provider'
-$RoleId = 'SREAgentRole'
+$RoleIds = @('readSRE', 'writeSRE')
 $Audience = '59f0a04a-b322-4310-adc9-39ac41e9631e'
 $UuidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
 
@@ -256,7 +256,6 @@ function Invoke-GcpSetup {
     $providerName = "$poolName/providers/$ProviderId"
     # Import stores this project segment in the replacement-only project field.
     $poolImportId = "projects/$projectId/locations/global/workloadIdentityPools/$PoolId"
-    $roleName = "$scopeParent/roles/$RoleId"
     $principal = "principal://iam.googleapis.com/$poolName/subject/${tenantId}::$objectId"
     $pools = Invoke-SetupJson gcloud @(
         'iam', 'workload-identity-pools', 'list', '--location=global',
@@ -288,30 +287,50 @@ function Invoke-GcpSetup {
     }
 
     $roles = Invoke-SetupJson gcloud @('iam', 'roles', 'list', $scopeFlag, '--show-deleted', '--format=json', '--quiet')
-    $role = @($roles | Where-Object { $_.name -ceq $roleName })
-    $existingPermissions = @()
-    if ($role.Count -gt 0) {
-        Assert-ActiveResource $role[0] $RoleId
-        $details = Invoke-SetupJson gcloud @('iam', 'roles', 'describe', $RoleId, $scopeFlag, '--format=json', '--quiet')
-        Assert-ActiveResource $details $RoleId
-        if (-not $details.Contains('includedPermissions')) {
-            throw 'The existing custom role response has no includedPermissions; refusing to replace unknown permissions.'
+    foreach ($roleId in $RoleIds) {
+        $roleName = "$scopeParent/roles/$roleId"
+        $role = @($roles | Where-Object { $_.name -ceq $roleName })
+        if ($role.Count -gt 0) {
+            Assert-ActiveResource $role[0] $roleId
+            $details = Invoke-SetupJson gcloud @('iam', 'roles', 'describe', $roleId, $scopeFlag, '--format=json', '--quiet')
+            Assert-ActiveResource $details $roleId
+            $imports.Add((New-ImportBlock "google_${scope}_iam_custom_role.sre_agent[`"$roleId`"]" $roleName))
         }
-        $existingPermissions = @($details.includedPermissions)
-        $imports.Add((New-ImportBlock "google_${scope}_iam_custom_role.sre_agent_role[0]" $roleName))
     }
 
+    $assignedRoleIds = @('readSRE')
+    if ($accessMode -eq 'read-write') {
+        $assignedRoleIds += 'writeSRE'
+    }
+    $revokedRoles = @{}
     $policy = Invoke-SetupJson gcloud @(
         $(if ($scope -eq 'project') { 'projects' } else { 'organizations' }),
         'get-iam-policy', $(if ($scope -eq 'project') { $projectId } else { $organizationId }),
         '--format=json', '--quiet'
     )
     foreach ($binding in @($policy['bindings'])) {
-        if ($null -ne $binding -and $binding.role -ceq $roleName -and
-            -not $binding.Contains('condition') -and @($binding.members) -ccontains $principal) {
-            $scopeId = if ($scope -eq 'project') { $projectId } else { $organizationId }
-            $imports.Add((New-ImportBlock "google_${scope}_iam_member.sre_agent_role_assignment[0]" "$scopeId $roleName $principal"))
-            break
+        if ($null -eq $binding -or @($binding.members) -cnotcontains $principal) {
+            continue
+        }
+        foreach ($roleId in @('readSRE', 'writeSRE', 'SREAgentRole')) {
+            $roleName = "$scopeParent/roles/$roleId"
+            if ($binding.role -cne $roleName) {
+                continue
+            }
+            $remove = $roleId -eq 'SREAgentRole' -or ($roleId -eq 'writeSRE' -and $accessMode -eq 'read-only')
+            if ($binding.Contains('condition')) {
+                if ($remove) {
+                    throw "The selected identity has a conditional $roleId assignment. Remove it through your approved process before rerunning; setup cannot safely downgrade or migrate it."
+                }
+                continue
+            }
+            if ($remove) {
+                $revokedRoles[$roleId] = $roleName
+            }
+            else {
+                $scopeId = if ($scope -eq 'project') { $projectId } else { $organizationId }
+                $imports.Add((New-ImportBlock "google_${scope}_iam_member.sre_agent[`"$roleId`"]" "$scopeId $roleName $principal"))
+            }
         }
     }
     foreach ($service in @('iam.googleapis.com', 'cloudresourcemanager.googleapis.com', 'iamcredentials.googleapis.com', 'sts.googleapis.com')) {
@@ -321,22 +340,23 @@ function Invoke-GcpSetup {
     }
 
     $variables = [ordered]@{
-        project_id                = $projectId
-        project_number            = $projectNumber
-        azure_tenant_id           = $tenantId
-        uami_object_id            = $objectId
-        access_mode               = $accessMode
-        assignment_scope          = $scope
-        organization_id           = $organizationId
-        attribute_condition       = $trust.Condition
-        existing_role_permissions = $existingPermissions
+        project_id          = $projectId
+        project_number      = $projectNumber
+        azure_tenant_id     = $tenantId
+        uami_object_id      = $objectId
+        access_mode         = $accessMode
+        assignment_scope    = $scope
+        organization_id     = $organizationId
+        attribute_condition = $trust.Condition
     }
     Write-Host "Azure tenant: $tenantId"
     Write-Host "Managed identity object ID: $objectId"
     Write-Host "Provider: $providerName"
-    Write-Host "Role: $roleName"
-    Write-Host "Permissions to add: $accessMode; preserve $($existingPermissions.Count) existing permissions."
-    Write-Warning 'All SREAgentRole assignees share the merged permissions. Read-only does not downgrade an existing read-write role.'
+    Write-Host "Roles to assign: $(($assignedRoleIds | ForEach-Object { "$scopeParent/roles/$_" }) -join ', ')"
+    if ($revokedRoles.Count -gt 0) {
+        Write-Warning "Removing only this identity's assignments to: $($revokedRoles.Values -join ', '). Other identities and the legacy role definition are preserved."
+    }
+    Write-Warning 'readSRE and writeSRE permissions are reconciled to their JSON catalogs for all assignees. Unrelated or inherited IAM grants are not removed.'
     Write-Warning 'Run setups sequentially. Do not adopt resources concurrently managed by another Terraform state. The temporary named workspace will be deleted WITHOUT destroying GCP resources.'
 
     $workspace = "sre-agent-gcp-$([Guid]::NewGuid().ToString('N'))"
@@ -354,8 +374,20 @@ function Invoke-GcpSetup {
         [void](New-Item -ItemType Directory -Path $runDirectory)
         $directoryCreated = $true
         Copy-Item -Path (Join-Path $SetupRoot '*.tf') -Destination $runDirectory
+        Copy-Item -LiteralPath (Join-Path $SetupRoot 'readSRE.json'), (Join-Path $SetupRoot 'writeSRE.json') -Destination $runDirectory
         [IO.File]::WriteAllText((Join-Path $runDirectory 'guided.auto.tfvars.json'), ($variables | ConvertTo-Json -Depth 20))
         [IO.File]::WriteAllText((Join-Path $runDirectory 'imports.tf'), ($imports -join "`n"))
+        if ($revokedRoles.Count -gt 0) {
+            $revocationResource = @{
+                for_each = $revokedRoles
+                role     = '${each.value}'
+                member   = $principal
+            }
+            $revocationResource[$(if ($scope -eq 'project') { 'project' } else { 'org_id' })] =
+                $(if ($scope -eq 'project') { $projectId } else { $organizationId })
+            $revocations = @{ resource = @{ "google_${scope}_iam_member" = @{ revoked = $revocationResource } } }
+            [IO.File]::WriteAllText((Join-Path $runDirectory 'revocations.tf.json'), ($revocations | ConvertTo-Json -Depth 20))
+        }
         foreach ($name in $environmentNames) {
             [Environment]::SetEnvironmentVariable($name, $null, 'Process')
         }
@@ -371,14 +403,25 @@ function Invoke-GcpSetup {
         Write-Host (Invoke-SetupCommand terraform @('init', '-input=false', '-no-color'))
         Write-Host (Invoke-SetupCommand terraform @('workspace', 'new', $workspace))
         $workspaceCreated = $true
+        if ($revokedRoles.Count -gt 0) {
+            $scopeId = if ($scope -eq 'project') { $projectId } else { $organizationId }
+            foreach ($roleId in $revokedRoles.Keys) {
+                Write-Host (Invoke-SetupCommand terraform @(
+                    'import', '-input=false', '-no-color',
+                    "google_${scope}_iam_member.revoked[`"$roleId`"]", "$scopeId $($revokedRoles[$roleId]) $principal"
+                ))
+            }
+            # Removing configuration after import schedules only these memberships for deletion in the reviewed apply.
+            Remove-Item -LiteralPath (Join-Path $runDirectory 'revocations.tf.json')
+        }
         if ([bool]::Parse($SkipApproval)) {
-            Write-Warning 'Approval is explicitly skipped. Terraform will apply all proposed changes without confirmation, including any provider trust reset or shared-role permission expansion.'
+            Write-Warning 'Approval is explicitly skipped. Terraform will apply all proposed changes without confirmation, including trust resets, role permission changes, and selected identity assignment removals.'
         }
         Invoke-TerraformApply -SkipApproval ([bool]::Parse($SkipApproval))
         $outputs = Invoke-SetupJson terraform @('output', '-json')
         Write-Host "`nCopy this Workload Identity Provider into the SRE Agent GCP connector:" -ForegroundColor Green
         Write-Host $outputs.workload_identity_provider.value
-        Write-Host "Role: $($outputs.role_name.value)"
+        Write-Host "Assigned roles: $($outputs.assigned_role_names.value -join ', ')"
         Write-Host "Principal: $($outputs.principal_id.value)"
     }
     finally {

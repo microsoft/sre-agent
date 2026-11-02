@@ -43,14 +43,8 @@ variable "attribute_condition" {
   }
 }
 
-variable "existing_role_permissions" {
-  description = "Live role permissions to preserve when adding the requested access mode."
-  type        = set(string)
-  default     = []
-}
-
 variable "access_mode" {
-  description = "Permissions to add; read-only never removes existing write permissions."
+  description = "Assign readSRE for read-only access, or readSRE and writeSRE separately for read-write access."
   type        = string
   default     = "read-only"
 

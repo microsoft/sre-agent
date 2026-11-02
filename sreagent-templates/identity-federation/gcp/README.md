@@ -1,7 +1,7 @@
 # SRE Agent GCP connector setup
 
 This package uses Terraform to configure the GCP Workload Identity pool,
-OIDC provider, `SREAgentRole` custom IAM role, and role assignment required by
+OIDC provider, `readSRE` and `writeSRE` custom IAM roles, and separate role assignments required by
 the SRE Agent GCP connector.
 
 Provide the user-assigned managed identity's ARM resource ID, not the SRE Agent
@@ -17,8 +17,24 @@ cd sre-agent\sreagent-templates\identity-federation\gcp
 ```
 
 On Linux or macOS, use `cd sre-agent/sreagent-templates/identity-federation/gcp`.
-Follow the steps below from that folder. Keep the setup scripts and all `.tf`
-files together.
+Follow the steps below from that folder. Keep the setup scripts, all `.tf`
+files, and both role JSON files together.
+
+## Permission catalogs
+
+Review the two custom roles independently:
+
+| Role / file | Access | Assigned for |
+| --- | --- | --- |
+| [`readSRE`](./readSRE.json) | Resource discovery, metadata, logs, metrics, and Storage object reads | `read-only` and `read-write` |
+| [`writeSRE`](./writeSRE.json) | Workload changes and operation-status reads needed by those changes | `read-write` only, separately from `readSRE` |
+
+Both custom roles are created at the selected scope. The supplied managed
+identity receives only `readSRE` for `read-only`, or two separate IAM memberships
+for `read-write`. The write role does not duplicate the read catalog. At
+organization scope, Terraform additionally includes
+`resourcemanager.projects.list` in `readSRE`; that permission is not applicable
+to a project-level custom role.
 
 ## Prerequisites
 
@@ -70,7 +86,7 @@ inaccessible project fails.
 
 ### 2. Run setup
 
-Keep `setup.ps1` and all `.tf` files together. Replace the example resource ID:
+Keep `setup.ps1`, all `.tf` files, and both role JSON files together. Replace the example resource ID:
 
 ```powershell
 .\setup.ps1 `
@@ -103,7 +119,7 @@ gcloud config get project
 
 ### 2. Run setup
 
-Keep `setup.sh` and all `.tf` files together. Replace the example resource ID:
+Keep `setup.sh`, all `.tf` files, and both role JSON files together. Replace the example resource ID:
 
 ```bash
 chmod +x setup.sh
@@ -120,15 +136,20 @@ The Bash parameters match the PowerShell parameters above. Omit
 
 - Resolves the tenant and principal/object IDs with `az identity show --ids`;
   resolves the project ID/number from `gcloud`.
-- Discovers the existing pool, provider, custom role, and role assignment for
+- Discovers the existing pool, provider, custom roles, and role assignments for
   the selected identity. Generates Terraform import blocks for these resources
   and enabled APIs; imports the role assignment only if it has no IAM condition.
   Pool/provider imports use the configured project ID to avoid replacement;
   discovery and federated principal names use the project number.
-- Extends compatible provider trust and unions existing role permissions with
-  the requested [permission catalogs](./main.tf).
+- Extends compatible provider trust and reconciles each custom role to its
+  separate JSON permission catalog. Existing permissions are not unioned across
+  roles or access modes.
 - Ensures IAM, Resource Manager, Service Account Credentials and STS APIs are
   enabled; applies an additive IAM member without replacing other bindings.
+- Imports obsolete memberships for the selected identity into temporary
+  Terraform resources, then removes their configuration so their deletion
+  appears in the same approval plan as the new assignments. Import itself
+  does not change remote IAM policy.
 - Runs `terraform init` and `apply` in a unique temporary CLI workspace, then
   deletes the workspace and local files without running `terraform destroy`.
 
@@ -138,7 +159,15 @@ The Bash parameters match the PowerShell parameters above. Omit
 | --- | --- | --- |
 | Workload Identity pool | `sre-agent-pool` | `SREAgentPool` |
 | OIDC provider | `sre-agent-provider` | `SREAgentProvider` |
-| Custom IAM role | `SREAgentRole` | `SREAgentRole` |
+| Read custom IAM role | `readSRE` | `readSRE` |
+| Write custom IAM role | `writeSRE` | `writeSRE` |
+
+Project scope is the default. For organization-wide roles and assignments,
+use `-AssignmentScope organization -OrganizationId <ID>` in PowerShell, or
+`--assignment-scope organization --organization-id <ID>` in Bash. This requires
+organization-level custom-role and IAM administration permissions; grants are
+inherited by descendant resources. The workload identity pool remains in the
+configured project.
 
 | OIDC field | Value |
 | --- | --- |
@@ -160,9 +189,31 @@ Terraform can delete or replace the pool, provider and role during apply.
 With approval skipped, these changes run without confirmation; GCP soft-delete
 retention still applies.
 
-**Shared permissions:** `existing UNION read UNION write` (write only for
-`read-write`). All role assignees receive the union; `read-only` never downgrades
-existing write access. The catalogs are not administrator roles.
+**Shared role definitions, separate grants:** permissions in each named role
+are reconciled exactly to its catalog (plus organization-only project listing
+for `readSRE`). Updating a catalog affects all assignees of that role; it does
+not add write access to `readSRE`. Review the plan before applying, especially
+if roles with these IDs already exist.
+
+### Downgrades and migration from `SREAgentRole`
+
+Rerunning with `read-only` removes the selected identity's unconditional
+`writeSRE` membership at the selected scope. Other identities' memberships
+are preserved. Rerunning with `read-write` ensures both memberships exist.
+
+For either mode, setup replaces the selected identity's unconditional legacy
+`SREAgentRole` membership with the requested new memberships. The legacy role
+and its other assignees are left unchanged. If a conditional `writeSRE` grant
+must be removed, or a conditional legacy grant must be migrated, setup stops
+before applying changes and asks you to resolve that grant through your
+approved process.
+
+**Boundary:** setup does not revoke unrelated roles, grants at other scopes,
+or access inherited from an organization, folder, or group. A `read-only`
+selection therefore guarantees only the assignments managed here, not the
+identity's total effective access. Review inherited and external grants
+separately. No running workload is changed by setup, but write permissions
+allow workload changes; use your production approval and rollout process.
 
 ## State and reruns
 
@@ -171,11 +222,27 @@ Workspace cleanup runs on success, cancellation and apply failure.
 retains the local directory/state and reports its path. Failed applies can leave
 partial cloud changes; rerun to rediscover/import them.
 
+Terraform now returns `assigned_role_names` (a list) instead of the legacy
+single `role_name` output. Direct Terraform users with retained legacy state
+must migrate the selected membership and retire its old state/configuration
+through their normal reviewed workflow; do not apply this configuration over
+an old shared-role state without reviewing deletions.
+
+## Local regression checks
+
+`terraform init` followed by `terraform test` runs the mocked project and
+organization role/assignment tests without changing cloud resources.
+`python tests/test_setup.py` exercises both setup entry points using local
+CLI doubles, including legacy migration, downgrades, conditional grants, and
+import failures. The script tests require Python, PowerShell 7, Bash, and `jq`
+on `PATH`; they do not require Azure or GCP credentials.
+
 ## References
 
 - [Azure CLI identity lookup](https://learn.microsoft.com/cli/azure/identity#az-identity-show)
 - [gcloud configured project](https://cloud.google.com/sdk/gcloud/reference/config/get)
 - [Google Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation-with-other-clouds)
 - [Additive Terraform IAM members](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_project_iam)
+- [Terraform import and subsequent deletion of resources absent from configuration](https://developer.hashicorp.com/terraform/cli/import/usage)
 - [Terraform Google provider authentication](https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/provider_reference)
 - [Terraform workspace deletion semantics](https://developer.hashicorp.com/terraform/cli/commands/workspace/delete)

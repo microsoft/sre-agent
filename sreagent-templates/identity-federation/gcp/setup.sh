@@ -4,7 +4,7 @@ set -euo pipefail
 setup_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 pool_id="sre-agent-pool"
 provider_id="sre-agent-provider"
-role_id="SREAgentRole"
+role_ids=(readSRE writeSRE)
 audience="59f0a04a-b322-4310-adc9-39ac41e9631e"
 uuid_pattern='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
 
@@ -209,13 +209,16 @@ main() {
     warn "Organization-level access is inherited by descendant resources."
   fi
 
-  local pool_name provider_name pool_import_id role_name principal pools pool providers provider roles role details
-  local imports="" existing_permissions="[]" trust condition policy has_assignment service
+  local pool_name provider_name pool_import_id role_name role_id principal pools pool providers provider roles role details
+  local imports="" trust condition policy has_assignment has_conditional_assignment service
+  local assigned_role_ids=(readSRE) revoked_roles='{}'
+  if [[ "$access_mode" == "read-write" ]]; then
+    assigned_role_ids+=(writeSRE)
+  fi
   pool_name="projects/$project_number/locations/global/workloadIdentityPools/$pool_id"
   provider_name="$pool_name/providers/$provider_id"
   # Import stores this project segment in the replacement-only project field.
   pool_import_id="projects/$project_id/locations/global/workloadIdentityPools/$pool_id"
-  role_name="$scope_parent/roles/$role_id"
   principal="principal://iam.googleapis.com/$pool_name/subject/$tenant_id::$object_id"
   pools="$(run_json gcloud iam workload-identity-pools list --location=global \
     --show-deleted "$project_flag" --format=json --quiet)"
@@ -242,32 +245,51 @@ main() {
   fi
 
   roles="$(run_json gcloud iam roles list "$scope_flag" --show-deleted --format=json --quiet)"
-  role="$(jq -c --arg name "$role_name" 'map(select(.name == $name)) | .[0] // null' <<<"$roles")"
-  if [[ "$role" != "null" ]]; then
-    assert_active_resource "$role" "$role_id"
-    details="$(run_json gcloud iam roles describe "$role_id" "$scope_flag" --format=json --quiet)"
-    assert_active_resource "$details" "$role_id"
-    jq -e '.includedPermissions | type == "array"' >/dev/null <<<"$details" \
-      || fail "The existing role has no includedPermissions array; refusing to replace unknown permissions."
-    existing_permissions="$(jq -c '.includedPermissions' <<<"$details")"
-    append_import "google_${scope}_iam_custom_role.sre_agent_role[0]" "$role_name"
-  fi
+  for role_id in "${role_ids[@]}"; do
+    role_name="$scope_parent/roles/$role_id"
+    role="$(jq -c --arg name "$role_name" 'map(select(.name == $name)) | .[0] // null' <<<"$roles")"
+    if [[ "$role" != "null" ]]; then
+      assert_active_resource "$role" "$role_id"
+      details="$(run_json gcloud iam roles describe "$role_id" "$scope_flag" --format=json --quiet)"
+      assert_active_resource "$details" "$role_id"
+      append_import "google_${scope}_iam_custom_role.sre_agent[\"$role_id\"]" "$role_name"
+    fi
+  done
   policy="$(run_json gcloud "$policy_kind" get-iam-policy "$scope_id" --format=json --quiet)"
-  has_assignment="$(jq -r --arg role "$role_name" --arg member "$principal" '
-    any(.bindings[]?; .role == $role and (has("condition") | not) and
-      (.members | index($member) != null))' <<<"$policy")"
-  if [[ "$has_assignment" == true ]]; then
-    append_import "google_${scope}_iam_member.sre_agent_role_assignment[0]" "$scope_id $role_name $principal"
-  fi
+  for role_id in readSRE writeSRE SREAgentRole; do
+    role_name="$scope_parent/roles/$role_id"
+    has_assignment="$(jq -r --arg role "$role_name" --arg member "$principal" '
+      any(.bindings[]?; .role == $role and (has("condition") | not) and
+        (.members | index($member) != null))' <<<"$policy")"
+    if [[ "$role_id" == SREAgentRole || ( "$role_id" == writeSRE && "$access_mode" == read-only ) ]]; then
+      has_conditional_assignment="$(jq -r --arg role "$role_name" --arg member "$principal" '
+        any(.bindings[]?; .role == $role and has("condition") and
+          (.members | index($member) != null))' <<<"$policy")"
+      [[ "$has_conditional_assignment" == false ]] \
+        || fail "The selected identity has a conditional $role_id assignment. Remove it through your approved process before rerunning; setup cannot safely downgrade or migrate it."
+      if [[ "$has_assignment" == true ]]; then
+        revoked_roles="$(jq -c --arg id "$role_id" --arg name "$role_name" '. + {($id): $name}' <<<"$revoked_roles")"
+      fi
+    elif [[ "$has_assignment" == true ]]; then
+      append_import "google_${scope}_iam_member.sre_agent[\"$role_id\"]" "$scope_id $role_name $principal"
+    fi
+  done
   for service in iam.googleapis.com cloudresourcemanager.googleapis.com iamcredentials.googleapis.com sts.googleapis.com; do
     if jq -e --arg service "$service" 'index($service) != null' >/dev/null <<<"$enabled_services"; then
       append_import "google_project_service.required[\"$service\"]" "$project_id/$service"
     fi
   done
 
-  printf 'Azure tenant: %s\nManaged identity object ID: %s\nProvider: %s\nRole: %s\nPermissions to add: %s; preserve %s existing permissions.\n' \
-    "$tenant_id" "$object_id" "$provider_name" "$role_name" "$access_mode" "$(jq length <<<"$existing_permissions")"
-  warn "All SREAgentRole assignees share merged permissions. Read-only does not downgrade an existing read-write role."
+  printf 'Azure tenant: %s\nManaged identity object ID: %s\nProvider: %s\n' \
+    "$tenant_id" "$object_id" "$provider_name"
+  printf 'Role to assign: %s/roles/%s\n' "$scope_parent" "${assigned_role_ids[0]}"
+  if [[ "$access_mode" == read-write ]]; then
+    printf 'Role to assign: %s/roles/%s\n' "$scope_parent" "${assigned_role_ids[1]}"
+  fi
+  if [[ "$revoked_roles" != '{}' ]]; then
+    warn "Removing only this identity's assignments to: $(jq -r '[.[]] | join(", ")' <<<"$revoked_roles"). Other identities and the legacy role definition are preserved."
+  fi
+  warn "readSRE and writeSRE permissions are reconciled to their JSON catalogs for all assignees. Unrelated or inherited IAM grants are not removed."
   warn "Run setups sequentially. Do not concurrently manage these resources from another Terraform state. The temporary workspace is deleted WITHOUT destroying GCP resources."
 
   umask 077
@@ -278,16 +300,25 @@ main() {
   trap 'exit 130' INT
   trap 'exit 143' TERM
   cp "$setup_root"/*.tf "$run_directory/"
+  cp "$setup_root/readSRE.json" "$setup_root/writeSRE.json" "$run_directory/"
   jq -n --arg project_id "$project_id" --arg project_number "$project_number" \
     --arg tenant "$tenant_id" --arg object "$object_id" --arg mode "$access_mode" \
-    --arg scope "$scope" --arg organization "$organization_id" --arg condition "$condition" \
-    --argjson permissions "$existing_permissions" '{
+    --arg scope "$scope" --arg organization "$organization_id" --arg condition "$condition" '{
       project_id: $project_id, project_number: $project_number,
       azure_tenant_id: $tenant, uami_object_id: $object, access_mode: $mode,
       assignment_scope: $scope, organization_id: $organization,
-      attribute_condition: $condition, existing_role_permissions: $permissions
+      attribute_condition: $condition
     }' >"$run_directory/guided.auto.tfvars.json"
   printf '%s' "$imports" >"$run_directory/imports.tf"
+  if [[ "$revoked_roles" != '{}' ]]; then
+    jq -n --arg scope "$scope" --arg scope_id "$scope_id" --arg member "$principal" \
+      --argjson roles "$revoked_roles" '{
+        resource: {("google_" + $scope + "_iam_member"): {revoked: {
+          for_each: $roles, role: "${each.value}", member: $member,
+          (if $scope == "project" then "project" else "org_id" end): $scope_id
+        }}}
+      }' >"$run_directory/revocations.tf.json"
+  fi
   unset TF_WORKSPACE TF_DATA_DIR GOOGLE_OAUTH_ACCESS_TOKEN GOOGLE_CREDENTIALS \
     GOOGLE_CLOUD_KEYFILE_JSON GCLOUD_KEYFILE_JSON GOOGLE_IMPERSONATE_SERVICE_ACCOUNT
   GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token --quiet)" || fail "Unable to obtain the gcloud access token."
@@ -297,8 +328,19 @@ main() {
   terraform init -input=false -no-color
   terraform workspace new "$workspace"
   workspace_created=true
+  if [[ "$revoked_roles" != '{}' ]]; then
+    for role_id in SREAgentRole writeSRE; do
+      role_name="$(jq -r --arg id "$role_id" '.[$id] // empty' <<<"$revoked_roles")"
+      if [[ -n "$role_name" ]]; then
+        terraform import -input=false -no-color "google_${scope}_iam_member.revoked[\"$role_id\"]" \
+          "$scope_id $role_name $principal" || fail "Unable to import the $role_id assignment for removal."
+      fi
+    done
+    # Removing configuration schedules only these memberships for deletion in the reviewed apply.
+    rm -- revocations.tf.json
+  fi
   if [[ "$skip_approval" == true ]]; then
-    warn "Approval is explicitly skipped, including any provider trust reset or shared-role permission expansion."
+    warn "Approval is explicitly skipped, including trust resets, role permission changes, and selected identity assignment removals."
     terraform apply -no-color -input=false -auto-approve=true \
       || fail "Terraform apply failed. No destroy is run; inspect the output before rerunning."
   else
@@ -309,9 +351,9 @@ main() {
   outputs="$(run_json terraform output -json)"
   provider_output="$(jq -er '.workload_identity_provider.value' <<<"$outputs")" \
     || fail "Terraform output is missing workload_identity_provider."
-  role_output="$(jq -er '.role_name.value' <<<"$outputs")" || fail "Terraform output is missing role_name."
+  role_output="$(jq -er '.assigned_role_names.value | join(", ")' <<<"$outputs")" || fail "Terraform output is missing assigned_role_names."
   principal_output="$(jq -er '.principal_id.value' <<<"$outputs")" || fail "Terraform output is missing principal_id."
-  printf '\nCopy this Workload Identity Provider into the SRE Agent GCP connector:\n%s\nRole: %s\nPrincipal: %s\n' \
+  printf '\nCopy this Workload Identity Provider into the SRE Agent GCP connector:\n%s\nAssigned roles: %s\nPrincipal: %s\n' \
     "$provider_output" "$role_output" "$principal_output"
 }
 
