@@ -461,6 +461,12 @@ jq -n \
     "connectorV2": $connectorV2
   }' > "$EXTRAS_FILE"
 
+if [[ -f "${DIR}/custom-instructions.md" ]]; then
+  EXTRAS_WITH_INSTRUCTIONS=$(jq --rawfile instructions "${DIR}/custom-instructions.md" \
+    '.customInstructions = $instructions' "$EXTRAS_FILE")
+  printf '%s\n' "$EXTRAS_WITH_INSTRUCTIONS" > "$EXTRAS_FILE"
+fi
+
 # Merge admin settings if present (adminUsers for cross-tenant access)
 if [[ -f "${DIR}/admin-settings.json" ]]; then
   _log "Merging admin-settings.json (adminUsers) into extras"

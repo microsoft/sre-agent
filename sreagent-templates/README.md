@@ -71,6 +71,7 @@ cd sre-agent/sreagent-templates
 | [azmon-lawappinsights](recipes/azmon-lawappinsights/) | Azure Monitor | Alert response with AppInsights + Log Analytics, skills, subagents, scheduled tasks |
 | [pagerduty-law-vmcosmos](recipes/pagerduty-law-vmcosmos/) | PagerDuty | VM + CosmosDB + HTTP error investigation with knowledge files and skills |
 | [dynatrace-mcp](recipes/dynatrace-mcp/) | Dynatrace | Dynatrace MCP connector for investigating application errors |
+| [cost-management](recipes/cost-management/) | (none) | Azure cost management and FinOps governance with Microsoft Teams |
 | [minimal](recipes/minimal/) | (none) | Minimal agent — just infra + RBAC, add your own connectors and skills |
 
 Each recipe README has the full parameter list, example values, and post-deploy steps.

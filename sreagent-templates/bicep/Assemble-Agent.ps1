@@ -623,6 +623,11 @@ $extrasObj = [ordered]@{
     connectors             = $extrasConnectors
 }
 
+$customInstructionsFile = Join-Path $ConfigDir 'custom-instructions.md'
+if (Test-Path $customInstructionsFile -PathType Leaf) {
+    $extrasObj['customInstructions'] = [System.IO.File]::ReadAllText((Resolve-Path $customInstructionsFile).Path)
+}
+
 $extrasObj | ConvertTo-Json -Depth 32 | Out-File -FilePath $ExtrasFile -Encoding utf8NoBOM
 
 # Merge admin settings if present (adminUsers for cross-tenant access)

@@ -287,6 +287,25 @@ Add-Check 'Upgrade channel'    ($Props | Invoke-Jq -Raw -Filter '.upgradeChannel
 Add-Check 'Model provider'     ($Props | Invoke-Jq -Raw -Filter '.modelProvider')   (Get-Exp '.agent.defaultModelProvider')
 Add-Check 'Incident platform'  ($Props | Invoke-Jq -Raw -Filter '.incidentPlatform') (Get-Exp '.agent.incidentPlatform')
 
+if ($ExpectedConfig) {
+    $customExpected = $ExpectedConfig | ConvertFrom-Json
+    if ($customExpected.PSObject.Properties['customInstructions']) {
+        $customStatus = 'mismatch'
+        try {
+            $customResponse = Invoke-RestMethod -Uri "$Endpoint/api/v2/agent/customInstructions" `
+                -Headers @{ Authorization = "Bearer $Token" } -TimeoutSec 30
+            if ($customExpected.customInstructions -is [string] -and $customResponse.instructions -is [string] -and
+                (($customExpected.customInstructions -replace "\r\n?", "`n").Trim() -ceq
+                 ($customResponse.instructions -replace "\r\n?", "`n").Trim())) {
+                $customStatus = 'match'
+            }
+        } catch {
+            $customStatus = 'unavailable'
+        }
+        Add-Check 'Custom instructions' $customStatus 'match'
+    }
+}
+
 # ─────────────────────────── Connectors (ARM) ───────────────────────────
 
 $Connectors   = Invoke-Arm '/DataConnectors'
@@ -329,6 +348,27 @@ if ($ExpManagedConnNames) {
     Add-Check 'Managed connector names' $ManagedConnNames $ExpManagedConnNames $CollectionNameMode
 } else {
     Add-InfoRow 'Managed connector names' $ManagedConnNames
+}
+
+# ─────────────────────────── Custom tools ───────────────────────────
+
+$HasExpectedTools = $false
+$ExpToolCount = '-'
+if ($ExpectedConfig) {
+    $expectedTools = ($ExpectedConfig | ConvertFrom-Json).PSObject.Properties['tools']
+    $HasExpectedTools = $null -ne $expectedTools -and $null -ne $expectedTools.Value
+}
+if (-not $HasExpectedTools -and $Expected) {
+    $toolsDir = Join-Path $Expected 'config/tools'
+    if (Test-Path $toolsDir -PathType Container) {
+        $HasExpectedTools = $true
+        $ExpToolCount = [string]@(Get-ChildItem -Path $toolsDir -Filter '*.yaml' -File).Count
+    }
+}
+if ($HasExpectedTools) {
+    $Tools = Invoke-Dp '/api/v2/extendedAgent/tools' -Collection
+    $ToolCt = $Tools | Invoke-Jq -Filter '.value | length'
+    Add-Check 'Custom tools' $ToolCt (Get-Exp '.tools' $ExpToolCount) $CollectionCountMode
 }
 
 # ─────────────────────────── Skills ───────────────────────────

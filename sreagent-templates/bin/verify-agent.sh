@@ -148,6 +148,20 @@ check "Upgrade channel" "$(echo "$PROPS" | jq -r '.upgradeChannel')" "$(exp '.ag
 check "Model provider" "$(echo "$PROPS" | jq -r '.modelProvider')" "$(exp '.agent.defaultModelProvider')"
 check "Incident platform" "$(echo "$PROPS" | jq -r '.incidentPlatform')" "$(exp '.agent.incidentPlatform')"
 
+if [[ -n "$EXPECTED_CONFIG" ]] && printf '%s' "$EXPECTED_CONFIG" | jq -e 'has("customInstructions")' >/dev/null; then
+  CUSTOM_STATUS="mismatch"
+  if CUSTOM_RESPONSE=$(curl -fsS "$ENDPOINT/api/v2/agent/customInstructions" -H "Authorization: Bearer ${TOKEN}" 2>/dev/null) &&
+      jq -en --argjson expected "$EXPECTED_CONFIG" --argjson actual "$CUSTOM_RESPONSE" '
+        def normalize: gsub("\r\n?"; "\n") | gsub("^\\s+|\\s+$"; "");
+        ($expected.customInstructions | type) == "string" and
+        ($actual.instructions | type) == "string" and
+        (($expected.customInstructions | normalize) == ($actual.instructions | normalize))
+      ' >/dev/null 2>&1; then
+    CUSTOM_STATUS="match"
+  fi
+  check "Custom instructions" "$CUSTOM_STATUS" "match"
+fi
+
 # ── Connectors (ARM) ──
 CONNECTORS=$(arm_get "/DataConnectors")
 CONN_CT=$(echo "$CONNECTORS" | jq '[.value[] | select((.properties.dataConnectorType // "") | startswith("Knowledge") | not)] | length')
@@ -183,6 +197,30 @@ EXP_MANAGED_CONN_CT=$(exp '.managedConnectors | length' "-")
 EXP_MANAGED_CONN_NAMES=$(exp_list '.managedConnectors')
 check "Managed connectors" "$MANAGED_CONN_CT" "$EXP_MANAGED_CONN_CT" "$COLLECTION_COUNT_MODE"
 [[ -n "$EXP_MANAGED_CONN_NAMES" ]] && check "Managed connector names" "$MANAGED_CONN_NAMES" "$EXP_MANAGED_CONN_NAMES" "$COLLECTION_NAME_MODE" || RESULTS="${RESULTS}\n  Managed connector names|${MANAGED_CONN_NAMES}|—|"
+
+# ── Custom tools ──
+HAS_EXPECTED_TOOLS=false
+EXP_TOOL_COUNT="-"
+if [[ -n "$EXPECTED_CONFIG" ]] && printf '%s' "$EXPECTED_CONFIG" | jq -e 'has("tools") and .tools != null' >/dev/null 2>&1; then
+  HAS_EXPECTED_TOOLS=true
+elif [[ -n "$EXPECTED_DIR" && -d "$EXPECTED_DIR/config/tools" ]]; then
+  HAS_EXPECTED_TOOLS=true
+  EXP_TOOL_COUNT=0
+  for tool_file in "$EXPECTED_DIR"/config/tools/*.yaml; do
+    if [[ -f "$tool_file" ]]; then
+      EXP_TOOL_COUNT=$((EXP_TOOL_COUNT + 1))
+    fi
+  done
+fi
+if [[ "$HAS_EXPECTED_TOOLS" == "true" ]]; then
+  TOOLS=$(curl -fsS "$ENDPOINT/api/v2/extendedAgent/tools" -H "Authorization: Bearer $TOKEN" 2>/dev/null) || TOOLS=""
+  TOOL_CT=$(printf '%s' "$TOOLS" | jq -er 'if type == "array" then length elif (.value | type) == "array" then (.value | length) else error("invalid tools response") end' 2>/dev/null) || TOOL_CT=""
+  if [[ -n "$TOOL_CT" ]]; then
+    check "Custom tools" "$TOOL_CT" "$(exp '.tools' "$EXP_TOOL_COUNT")" "$COLLECTION_COUNT_MODE"
+  else
+    check "Custom tools API" "unavailable" "available"
+  fi
+fi
 
 # ── Skills ──
 SKILLS=$(dp_get "/api/v1/extendedAgent/skills")

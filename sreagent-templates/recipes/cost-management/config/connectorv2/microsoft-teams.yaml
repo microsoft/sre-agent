@@ -8,6 +8,12 @@ spec:
   connectionName: cost-management-teams
   requireApprovalTools: []
   operations:
+    - name: GetUnifiedActionSchema
+      displayName: Get unified action input metadata
+      description: Get the schema information for unified actions
+      requiresApproval: false
+      userParameters: []
+      agentParameters: []
     - name: PostMessageToConversation
       displayName: Post message in a chat or channel
       description: Posts a message to a chat or a channel

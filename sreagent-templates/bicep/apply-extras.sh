@@ -217,6 +217,25 @@ dataplane_post_json() {
 # Reusable: get a data-plane bearer (defined here so multipart helper can use it)
 _dp_token() { az account get-access-token --resource https://azuresre.dev --query accessToken -o tsv 2>/dev/null; }
 
+CUSTOM_BODY=$(jq -c '.customInstructions | select(type == "string") | {instructions: .}' "$FILE")
+if [[ -n "$CUSTOM_BODY" ]]; then
+  if [[ "$DP_TOKEN_AVAILABLE" == true ]]; then
+    TOKEN=$(_dp_token)
+    result=$(curl -sS -w "\n%{http_code}" -X PUT "${AGENT_ENDPOINT}/api/v2/agent/customInstructions" \
+      -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" \
+      --data-binary "$CUSTOM_BODY" 2>&1)
+    http_code=$(echo "$result" | tail -1)
+    if [[ "$http_code" =~ ^(200|201|202|204)$ ]]; then
+      echo "  ok custom instructions"
+    else
+      echo "  FAILED — PUT custom instructions (HTTP ${http_code})"
+    fi
+  else
+    echo "  ⚠ Custom instructions skipped (no data-plane token)"
+    DP_SKIPPED_ITEMS+=("customInstructions")
+  fi
+fi
+
 # ---------------------------------------------------------------------------
 # Helper: PUT to v2 extendedAgent dataplane (skills/subagents/hooks/commonprompts/etc.).
 # Body shape (from Agent.Web/ApiResources/ApiRequestEnvelope.cs):
@@ -815,6 +834,7 @@ if [[ "$count" -gt 0 ]]; then
       cv2_pvs=$(echo "$cv2_spec" | jq -c '.parameterValueSet // null')
       cv2_pv=$(echo "$cv2_spec" | jq -c '.parameterValues // null')
       cv2_rat=$(echo "$cv2_spec" | jq -c '.requireApprovalTools // null')
+      cv2_ops=$(echo "$cv2_spec" | jq -c '.operations // null')
 
       TOKEN=$(_dp_token)
 
@@ -851,8 +871,8 @@ if [[ "$count" -gt 0 ]]; then
 
       # Step 3: Create MCP server config (links connection to MCP tools)
       mcp_body=$(jq -nc --arg desc "$cv2_display" --arg cn "$cv2_conn" --arg api "$cv2_api" \
-        --argjson rat "$cv2_rat" \
-        '{properties: {description: $desc, connectors: [{name: $api, connectionName: $cn}]}} + (if $rat != null then {runtimeMcpConfiguration: {requireApprovalTools: $rat}} else {} end)')
+        --argjson rat "$cv2_rat" --argjson ops "$cv2_ops" \
+        '{properties: {description: $desc, connectors: [{name: $api, connectionName: $cn} + (if $ops != null then {operations: $ops} else {} end)]}} + (if $rat != null then {runtimeMcpConfiguration: {requireApprovalTools: $rat}} else {} end)')
       TOKEN=$(_dp_token)
       mcp_result=$(curl -sS -w "\n%{http_code}" -X PUT \
         "${AGENT_ENDPOINT}/api/v2/connectorV2/mcpservers/${cv2_conn}" \
@@ -948,7 +968,30 @@ if [[ "$count" -gt 0 ]]; then
   done
 fi
 
-# 4i-1. skills — data-plane PUT
+# 4i-1. tools — data-plane PUT
+# Route: PUT /api/v2/extendedAgent/tools/{name}
+# Body: { name, type: <declared kind>, tags: [], properties: { ... tool spec } }
+count=$(jq '.tools // [] | length' "$FILE")
+if [[ "$count" -gt 0 ]]; then
+  if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
+    echo "tools: ${count}"
+    EXTRAS_FILE="$FILE"
+    for i in $(seq 0 $((count - 1))); do
+      name=$(jq -r --argjson i "$i" '.tools[$i].metadata.name' "$FILE")
+      props=$(jq -c --argjson i "$i" '.tools[$i].spec' "$FILE")
+      object_type=$(jq -r ".tools[$i].kind // \"Tool\"" "$EXTRAS_FILE")
+      dataplane_put_extended "tools" "$name" "$object_type" "[]" "$props"
+    done
+  else
+    echo "tools: ${count} — ⚠ skipped (no data-plane token)"
+    for i in $(seq 0 $((count - 1))); do
+      tname=$(jq -r --argjson i "$i" '.tools[$i].metadata.name' "$FILE")
+      DP_SKIPPED_ITEMS+=("tool/${tname}")
+    done
+  fi
+fi
+
+# 4i-2. skills — data-plane PUT
 # Route: PUT /api/v2/extendedAgent/skills/{name}
 # Body: { name, type: "Skill", tags: [], properties: { name, description, tools, skillContent, additionalFiles } }
 count=$(jq '.skills // [] | length' "$FILE")
@@ -975,7 +1018,7 @@ if [[ "$count" -gt 0 ]]; then
   fi
 fi
 
-# 4i-2. subagents — data-plane PUT
+# 4i-3. subagents — data-plane PUT
 # Route: PUT /api/v2/extendedAgent/agents/{name}
 # Body: { name, type: "ExtendedAgent", tags: [], properties: { instructions, handoffDescription, tools, ... } }
 count=$(jq '.subagents // [] | length' "$FILE")
@@ -992,27 +1035,6 @@ if [[ "$count" -gt 0 ]]; then
     for i in $(seq 0 $((count - 1))); do
       saname=$(jq -r --argjson i "$i" '.subagents[$i].metadata.name' "$FILE")
       DP_SKIPPED_ITEMS+=("subagent/${saname}")
-    done
-  fi
-fi
-
-# 4i-3. tools — data-plane PUT
-# Route: PUT /api/v2/extendedAgent/tools/{name}
-# Body: { name, type: "Tool", tags: [], properties: { ... tool spec } }
-count=$(jq '.tools // [] | length' "$FILE")
-if [[ "$count" -gt 0 ]]; then
-  if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
-    echo "tools: ${count}"
-    for i in $(seq 0 $((count - 1))); do
-      name=$(jq -r --argjson i "$i" '.tools[$i].metadata.name' "$FILE")
-      props=$(jq -c --argjson i "$i" '.tools[$i].spec' "$FILE")
-      dataplane_put_extended "tools" "$name" "Tool" "[]" "$props"
-    done
-  else
-    echo "tools: ${count} — ⚠ skipped (no data-plane token)"
-    for i in $(seq 0 $((count - 1))); do
-      tname=$(jq -r --argjson i "$i" '.tools[$i].metadata.name' "$FILE")
-      DP_SKIPPED_ITEMS+=("tool/${tname}")
     done
   fi
 fi

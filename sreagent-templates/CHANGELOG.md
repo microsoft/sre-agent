@@ -11,7 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added the `cost-management` recipe for native Azure Cost Management, Resource Graph, Advisor, Pricing, Quota, and Microsoft Teams FinOps governance without FinOps Hubs or ADX.
+
 ### Fixed
+- Updated `apply-extras.sh` and `Apply-Extras.ps1` to upload `PythonFunctionTool` and `KustoTool` as `ExtendedAgentTool`, upload tools before skills and subagents, propagate ConnectorV2 `spec.operations`, and deploy custom instructions to `/api/v2/agent/customInstructions`.
+- Updated `assemble-agent.sh` and `Assemble-Agent.ps1` to bundle `custom-instructions.md`, and `verify-agent.sh` and `Verify-Agent.ps1` to verify custom instructions and tools.
 - Discover available Azure SRE Agent regions from the selected subscription in Bash and PowerShell workflows, with all 20 live regions as the offline fallback.
 - Made `export-agent.sh` detect and install PyYAML before export, with an isolated-environment fallback and actionable failure guidance.
 

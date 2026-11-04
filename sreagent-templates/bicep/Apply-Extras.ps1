@@ -157,6 +157,24 @@ function Get-DpToken {
     return $tok
 }
 
+if ($extras.PSObject.Properties['customInstructions'] -and $extras.customInstructions -is [string]) {
+    if ($DpTokenAvailable) {
+        try {
+            $headers = @{ Authorization = "Bearer $(Get-DpToken)" }
+            $body = ConvertTo-Json -InputObject @{ instructions = $extras.customInstructions } -Compress
+            $url = "$AgentEndpoint/api/v2/agent/customInstructions"
+            $null = Invoke-RestMethod -TimeoutSec 30 -Uri $url -Method Put -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) -ContentType 'application/json'
+            Write-Host '  ok custom instructions'
+        } catch {
+            Write-Host "  FAILED - PUT custom instructions: $($_.Exception.Message)" -ForegroundColor Red
+        }
+    } else {
+        Write-Host "  ⚠ Custom instructions skipped (no data-plane token)" -ForegroundColor Yellow
+        $DpSkippedItems += 'customInstructions'
+        $DpSkippedItems = [System.Collections.Generic.List[string]]$DpSkippedItems
+    }
+}
+
 function Get-SafeETag {
     param($Response)
 
@@ -937,7 +955,31 @@ if ($toolPermissions) {
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 4g-1. skills — data-plane PUT
+# 4g-1. tools — data-plane PUT
+# Route: PUT /api/v2/extendedAgent/tools/{name}
+# ═════════════════════════════════════════════════════════════════════════════
+$toolItems = if ($extras.PSObject.Properties['tools']) { $extras.tools } else { $null }
+$tlCount = ($toolItems | Measure-Object).Count
+if ($tlCount -gt 0) {
+    if ($DpTokenAvailable) {
+        Write-Host "tools: $tlCount"
+        foreach ($tool in $toolItems) {
+            $name = if ($tool.metadata) { $tool.metadata.name } else { $tool.name }
+            $props = if ($tool.spec) { $tool.spec } else { $tool.properties }
+            $toolType = if ($null -ne $tool.kind) { $tool.kind } else { 'Tool' }
+            DataPlane-PutExtended -Kind "tools" -Name $name -Type $toolType -Tags @() -Properties $props
+        }
+    } else {
+        Write-Host "tools: $tlCount - WARNING skipped (no data-plane token)"
+        foreach ($tl in $toolItems) {
+            $tlName = if ($tl.metadata) { $tl.metadata.name } else { $tl.name }
+            $DpSkippedItems.Add("tool/$tlName")
+        }
+    }
+}
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 4g-2. skills — data-plane PUT
 # Route: PUT /api/v2/extendedAgent/skills/{name}
 # ═════════════════════════════════════════════════════════════════════════════
 $skillItems = if ($extras.PSObject.Properties['skills']) { $extras.skills } else { $null }
@@ -966,7 +1008,7 @@ if ($skCount -gt 0) {
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 4g-2. subagents — data-plane PUT
+# 4g-3. subagents — data-plane PUT
 # Route: PUT /api/v2/extendedAgent/agents/{name}
 # ═════════════════════════════════════════════════════════════════════════════
 $subagentItems = if ($extras.PSObject.Properties['subagents']) { $extras.subagents } else { $null }
@@ -984,29 +1026,6 @@ if ($saCount -gt 0) {
         foreach ($sa in $subagentItems) {
             $saName = if ($sa.metadata) { $sa.metadata.name } else { $sa.name }
             $DpSkippedItems.Add("subagent/$saName")
-        }
-    }
-}
-
-# ═════════════════════════════════════════════════════════════════════════════
-# 4g-3. tools — data-plane PUT
-# Route: PUT /api/v2/extendedAgent/tools/{name}
-# ═════════════════════════════════════════════════════════════════════════════
-$toolItems = if ($extras.PSObject.Properties['tools']) { $extras.tools } else { $null }
-$tlCount = ($toolItems | Measure-Object).Count
-if ($tlCount -gt 0) {
-    if ($DpTokenAvailable) {
-        Write-Host "tools: $tlCount"
-        foreach ($tl in $toolItems) {
-            $name = if ($tl.metadata) { $tl.metadata.name } else { $tl.name }
-            $props = if ($tl.spec) { $tl.spec } else { $tl.properties }
-            DataPlane-PutExtended -Kind "tools" -Name $name -Type "Tool" -Tags @() -Properties $props
-        }
-    } else {
-        Write-Host "tools: $tlCount - WARNING skipped (no data-plane token)"
-        foreach ($tl in $toolItems) {
-            $tlName = if ($tl.metadata) { $tl.metadata.name } else { $tl.name }
-            $DpSkippedItems.Add("tool/$tlName")
         }
     }
 }
@@ -1058,10 +1077,17 @@ if ($cv2Count -gt 0) {
                 continue
             }
 
+            $connectorBinding = [ordered]@{
+                name           = $apiName
+                connectionName = $connectionName
+            }
+            if ($null -ne $spec.operations) {
+                $connectorBinding.operations = @($spec.operations)
+            }
             $mcpBody = [ordered]@{
                 properties = [ordered]@{
                     description = $displayName
-                    connectors  = @(@{ name = $apiName; connectionName = $connectionName })
+                    connectors  = @($connectorBinding)
                 }
             }
             if ($spec.requireApprovalTools) {
