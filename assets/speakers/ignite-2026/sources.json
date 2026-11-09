@@ -4,7 +4,9 @@
     "profile_url": "https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1789073902246001ak91?source=/sessions/1787858594736001SLBb-1791588331687001Clb0",
     "photo_url": "https://rainfocus-static.azure.rainfocus.com/microsoft/ignite27/att/1789073902246001ak91/attprofile/EBC%20Pic%201_1791047043745001pfNp.jpg",
     "initials_badge": false,
-    "note": "Official Microsoft Ignite 2026 session speaker portrait."
+    "note": "Official Microsoft Ignite 2026 session speaker portrait.",
+    "title": "Principal Product Manager",
+    "company": "Microsoft"
   },
   "Nish Anil": {
     "image": "nish-anil.png",
@@ -25,90 +27,122 @@
     "profile_url": "https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1768691145006001Si6c?source=/sessions/1787856636396001ETO1-1791588269572001Cvn5",
     "photo_url": "https://rainfocus-static.azure.rainfocus.com/microsoft/ignite27/att/1768691145006001Si6c/attprofile/Brendan%20Headshot_1792772139392001XfzZ.jpg",
     "initials_badge": false,
-    "note": "Official Microsoft Ignite 2026 session speaker portrait."
+    "note": "Official Microsoft Ignite 2026 session speaker portrait.",
+    "title": "Corporate Vice President and Technical Fellow",
+    "company": "Microsoft"
   },
   "Ruhiyyih Mahalati": {
     "image": "ruhiyyih-mahalati.png",
     "profile_url": "https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1788897034378001KXv8?source=/sessions/1787856636396001ETO1-1791588269572001Cvn5",
     "photo_url": "https://rainfocus-static.azure.rainfocus.com/microsoft/ignite27/att/1788897034378001KXv8/attprofile/Portrait17161_1789856117591001p348.jpg",
     "initials_badge": false,
-    "note": "Official Microsoft Ignite 2026 session speaker portrait."
+    "note": "Official Microsoft Ignite 2026 session speaker portrait.",
+    "title": "VP, Engineering Azure Exp & Platform",
+    "company": "Microsoft"
   },
   "Laurenz Frost": {
     "image": "laurenz-frost.png",
     "profile_url": "https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1790872963026001Lcel?source=/sessions/1787858594736001SLBb-1791588331687001Clb0",
     "photo_url": "https://rainfocus-static.azure.rainfocus.com/microsoft/ignite27/att/1790872963026001Lcel/attprofile/Unbenannt_1791127169488001ynuL.png?1794052868925",
     "initials_badge": false,
-    "note": "Official Microsoft Ignite 2026 session speaker portrait."
+    "note": "Official Microsoft Ignite 2026 session speaker portrait.",
+    "title": "Cloud Solution Architect, Director",
+    "company": "Commerzbank"
   },
   "Nir Mashkowski": {
     "image": "nir-mashkowski.png",
     "profile_url": "https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1780506654728001mkkG?source=/sessions/1787856637610001E284-1791587922010001F67f",
     "photo_url": "https://eventtools.event.microsoft.com/ignite2026-prod/w326_a49bd3e9-6264-40b5-9ddf-422eec174cc1.png?1793346590645",
     "initials_badge": false,
-    "note": "Official Microsoft Ignite 2026 session speaker portrait."
+    "note": "Official Microsoft Ignite 2026 session speaker portrait.",
+    "title": "Partner Director, Product Management",
+    "company": "Microsoft"
   },
   "Sanchit Mehta": {
     "image": "sanchit-mehta.png",
     "profile_url": "https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1788897460657001lOED?source=/sessions/1787856636701001ERm4-1791588336506001CinE",
     "photo_url": "https://rainfocus-static.azure.rainfocus.com/microsoft/ignite27/att/1788897460657001lOED/attprofile/Sanchit-Headshot-square-highres_1791262575393001haWZ.jpg?1793987572264",
     "initials_badge": false,
-    "note": "Official Microsoft Ignite 2026 session speaker portrait."
+    "note": "Official Microsoft Ignite 2026 session speaker portrait.",
+    "title": "Principal Software Engineering Manager",
+    "company": "Microsoft"
   },
   "Babji Talluri": {
     "image": "babji-talluri.png",
     "profile_url": "https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1790780771713001dP4Z?source=/sessions/1787856636701001ERm4-1791588336506001CinE",
     "photo_url": "https://rainfocus-static.azure.rainfocus.com/microsoft/ignite27/att/1790780771713001dP4Z/attprofile/Headshot_1791577560310001SmBS.png",
     "initials_badge": false,
-    "note": "Official Microsoft Ignite 2026 session speaker portrait."
+    "note": "Official Microsoft Ignite 2026 session speaker portrait.",
+    "title": "Senior DevOps Engineer",
+    "company": "InEight"
   },
   "Ashley Adams": {
     "image": "ashley-adams.png",
     "profile_url": "https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1788876321018001WYf3",
     "photo_url": null,
     "initials_badge": true,
-    "note": "The official session page shows an AA initials badge, not a headshot."
+    "note": "The official session page shows an AA initials badge, not a headshot.",
+    "title": "Principal Product Marketing Manager",
+    "company": "Dynatrace"
   },
   "Paul Yuknewicz": {
     "image": "paul-yuknewicz.png",
     "profile_url": "https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1769544269031001o6sa?source=/sessions/1787856637610001E284-1791587922010001F67f",
     "photo_url": "https://rainfocus-static.azure.rainfocus.com/microsoft/ignite27/att/1769544269031001o6sa/attprofile/Paulyuk_bio_400x400_1792089467391001YqKk.jpeg",
     "initials_badge": false,
-    "note": "Official Microsoft Ignite 2026 session speaker portrait."
+    "note": "Official Microsoft Ignite 2026 session speaker portrait.",
+    "title": "Member of Technical Staff",
+    "company": "Microsoft"
   },
   "Bijoy Boban": {
     "image": "bijoy-boban.png",
     "profile_url": "https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1791677596345001CmOx?source=/sessions/1787856637610001E284-1791587922010001F67f",
     "photo_url": "https://rainfocus-static.azure.rainfocus.com/microsoft/ignite27/att/1791677596345001CmOx/attprofile/BijoyBoban_Headshot_1792030256005001R4h0.jpeg?1792102299238",
     "initials_badge": false,
-    "note": "Official Microsoft Ignite 2026 session speaker portrait."
+    "note": "Official Microsoft Ignite 2026 session speaker portrait.",
+    "title": "Associate Director",
+    "company": "KPMG"
   },
   "Greg Homen": {
     "image": "greg-homen.png",
     "profile_url": "https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1790625875908001pZbw?source=/sessions/1787856637610001E284-1791587922010001F67f",
     "photo_url": "https://rainfocus-static.azure.rainfocus.com/microsoft/ignite27/att/1790625875908001pZbw/attprofile/DSCF8952%20%282%29_1791904093967001lNZL.jpg",
     "initials_badge": false,
-    "note": "Official Microsoft Ignite 2026 session speaker portrait."
+    "note": "Official Microsoft Ignite 2026 session speaker portrait.",
+    "title": "AI Transformation Program Leader - Tax",
+    "company": "KPMG LLP"
   },
   "Bilal Alam": {
     "image": "bilal-alam.png",
     "profile_url": "https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1788898920211001amdY",
     "photo_url": null,
     "initials_badge": true,
-    "note": "The official session page shows a BA initials badge, not a headshot."
+    "note": "The official session page shows a BA initials badge, not a headshot.",
+    "title": "Technical Fellow",
+    "company": "Microsoft"
   },
   "Matt Soucoup": {
     "image": "matt-soucoup.png",
     "profile_url": "https://dotnet.microsoft.com/en-us/conf/2026/speakers/matt-soucoup",
     "photo_url": "https://avatars.githubusercontent.com/u/2053639?v=4",
     "initials_badge": false,
-    "note": "User-confirmed PREL38 speaker; photo published on Microsoft's .NET Conf 2026 profile."
+    "note": "User-confirmed PREL38 speaker; photo published on Microsoft's .NET Conf 2026 profile.",
+    "title": "Principal DevRel Lead for .NET",
+    "company": "Microsoft"
   },
   "Ayan Gupta": {
     "image": "ayan-gupta.png",
     "profile_url": "https://build.microsoft.com/en-US/speakers/1768245294609build26-1767923733240001J5fY",
     "photo_url": "https://avatars.githubusercontent.com/u/74832088?v=4",
     "initials_badge": false,
-    "note": "User-confirmed PREL38 speaker; portrait from the GitHub account linked by his own speaker website."
+    "note": "User-confirmed PREL38 speaker; portrait from the GitHub account linked by his own speaker website.",
+    "title": "AI Advocate",
+    "company": "GitHub"
+  },
+  "Deepthi Chelupati": {
+    "profile_url": "https://build.microsoft.com/en-US/speakers/1768245294609build26-1778642541081001DHZz",
+    "note": "User-confirmed SRE Agent demo credit; title and company from the official Microsoft Build speaker profile. No portrait supplied.",
+    "title": "Principal Product Manager",
+    "company": "Microsoft"
   }
 }
