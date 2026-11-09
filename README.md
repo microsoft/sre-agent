@@ -27,21 +27,10 @@ Moscone West, San Francisco. **All times PT.** Labs fill fast, so reserve early!
 
 Stop by the Agentic Operations booth to meet the experts and see Azure SRE Agent demos.
 
-Scan a session's QR code on the left, or use its **Register** link on the right.
+Scan a session's QR code, or use its **Register** link below.
 
-<table>
-  <thead>
-    <tr>
-      <th>Scan to register</th>
-      <th>Session details</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td align="center" valign="top">
-        <a href="https://register.ignite.microsoft.com/flow/microsoft/ignite27/welcome/page/welcome"><img src="assets/qr/ignite-2026-prel38.png" width="180" alt="QR code for Ignite registration; add the PREL38 pre-day workshop"></a>
-      </td>
-      <td valign="top">
+<div>
+      <div>
         <h3>Plan, modernize, deploy, and operate with AI agents</h3>
         <p><em>Assess, modernize, deploy, then let Azure SRE Agent run production.</em></p>
         <strong>MON NOV 16 | PREL38 | Pre-Day Workshop</strong><br>
@@ -63,14 +52,11 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
           </tr>
         </table>
         <strong>Pre-Day add-on at registration.</strong><br>
-        <a href="https://register.ignite.microsoft.com/flow/microsoft/ignite27/welcome/page/welcome">Register</a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="top">
-        <a href="https://ignite.microsoft.com/en-US/sessions/1787856876073001h8ld-1791906446596001z4Up"><img src="assets/qr/ignite-2026-lab720.png" width="180" alt="QR code for LAB720 session registration"></a>
-      </td>
-      <td valign="top">
+        <p><a href="https://register.ignite.microsoft.com/flow/microsoft/ignite27/welcome/page/welcome">Register</a>
+        <a href="https://register.ignite.microsoft.com/flow/microsoft/ignite27/welcome/page/welcome"><img src="assets/qr/ignite-2026-prel38.png" width="160" height="160" alt="QR code for Ignite registration; add the PREL38 pre-day workshop"></a></p>
+      </div>
+      <hr>
+      <div>
         <h3>Hands-on: Modernize apps and databases and automate operations</h3>
         <p><em>Modernize an app, break it, and watch Azure SRE Agent fix it live.</em></p>
         <strong>TUE-THU NOV 17-19 | LAB720 | Hands-on Lab (75 min)</strong><br>
@@ -92,14 +78,11 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
             </td>
           </tr>
         </table>
-        <a href="https://ignite.microsoft.com/en-US/sessions/1787856876073001h8ld-1791906446596001z4Up">Register</a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="top">
-        <a href="https://ignite.microsoft.com/en-US/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/qr/ignite-2026-brk423.png" width="180" alt="QR code for BRK423 session registration"></a>
-      </td>
-      <td valign="top">
+        <p><a href="https://ignite.microsoft.com/en-US/sessions/1787856876073001h8ld-1791906446596001z4Up">Register</a>
+        <a href="https://ignite.microsoft.com/en-US/sessions/1787856876073001h8ld-1791906446596001z4Up"><img src="assets/qr/ignite-2026-lab720.png" width="160" height="160" alt="QR code for LAB720 session registration"></a></p>
+      </div>
+      <hr>
+      <div>
         <h3>Build AI-native with Azure's agentic application platform</h3>
         <p><em>Azure App Service, Azure Container Apps and Azure Functions for AI-native applications.</em></p>
         <strong>TUE NOV 17 | BRK423 | Breakout</strong><br>
@@ -131,14 +114,11 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
             <td></td>
           </tr>
         </table>
-        <a href="https://ignite.microsoft.com/en-US/sessions/1787856637610001E284-1791587922010001F67f">Register</a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="top">
-        <a href="https://ignite.microsoft.com/en-US/sessions/1787856636396001ETO1-1791588269572001Cvn5"><img src="assets/qr/ignite-2026-brk415.png" width="180" alt="QR code for BRK415 session registration"></a>
-      </td>
-      <td valign="top">
+        <p><a href="https://ignite.microsoft.com/en-US/sessions/1787856637610001E284-1791587922010001F67f">Register</a>
+        <a href="https://ignite.microsoft.com/en-US/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/qr/ignite-2026-brk423.png" width="160" height="160" alt="QR code for BRK423 session registration"></a></p>
+      </div>
+      <hr>
+      <div>
         <h3>Put AI agents to work in Azure cloud operations</h3>
         <p><em>Agents that investigate incidents, cut costs and take corrective action.</em></p>
         <strong>WED NOV 18 | BRK415 | Breakout</strong><br>
@@ -159,14 +139,11 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
             </td>
           </tr>
         </table>
-        <a href="https://ignite.microsoft.com/en-US/sessions/1787856636396001ETO1-1791588269572001Cvn5">Register</a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="top">
-        <a href="https://ignite.microsoft.com/en-US/sessions/1787858594736001SLBb-1791588331687001Clb0"><img src="assets/qr/ignite-2026-thrsp1109.png" width="180" alt="QR code for THRSP1109 session registration"></a>
-      </td>
-      <td valign="top">
+        <p><a href="https://ignite.microsoft.com/en-US/sessions/1787856636396001ETO1-1791588269572001Cvn5">Register</a>
+        <a href="https://ignite.microsoft.com/en-US/sessions/1787856636396001ETO1-1791588269572001Cvn5"><img src="assets/qr/ignite-2026-brk415.png" width="160" height="160" alt="QR code for BRK415 session registration"></a></p>
+      </div>
+      <hr>
+      <div>
         <h3>Deploy intelligent SRE for autonomous cloud ops</h3>
         <p><em>Dynatrace + Azure SRE Agent + MCP with Microsoft Copilot.</em></p>
         <strong>THU NOV 19 | THRSP1109 | Theater</strong><br>
@@ -187,14 +164,11 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
             </td>
           </tr>
         </table>
-        <a href="https://ignite.microsoft.com/en-US/sessions/1787858594736001SLBb-1791588331687001Clb0">Register</a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="top">
-        <a href="https://ignite.microsoft.com/en-US/sessions/1787856636701001ERm4-1791588336506001CinE"><img src="assets/qr/ignite-2026-brk417.png" width="180" alt="QR code for BRK417 session registration"></a>
-      </td>
-      <td valign="top">
+        <p><a href="https://ignite.microsoft.com/en-US/sessions/1787858594736001SLBb-1791588331687001Clb0">Register</a>
+        <a href="https://ignite.microsoft.com/en-US/sessions/1787858594736001SLBb-1791588331687001Clb0"><img src="assets/qr/ignite-2026-thrsp1109.png" width="160" height="160" alt="QR code for THRSP1109 session registration"></a></p>
+      </div>
+      <hr>
+      <div>
         <h3>Scale operations, not toil, with your AI SRE teammate</h3>
         <p><em>From reactive firefighting to proactive reliability.</em></p>
         <strong>THU NOV 19 | BRK417 | Breakout: the main SRE Agent session</strong><br>
@@ -215,11 +189,10 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
             </td>
           </tr>
         </table>
-        <a href="https://ignite.microsoft.com/en-US/sessions/1787856636701001ERm4-1791588336506001CinE">Register</a>
-      </td>
-    </tr>
-  </tbody>
-</table>
+        <p><a href="https://ignite.microsoft.com/en-US/sessions/1787856636701001ERm4-1791588336506001CinE">Register</a>
+        <a href="https://ignite.microsoft.com/en-US/sessions/1787856636701001ERm4-1791588336506001CinE"><img src="assets/qr/ignite-2026-brk417.png" width="160" height="160" alt="QR code for BRK417 session registration"></a></p>
+      </div>
+</div>
 
 Speaker names and images link to their published speaker profiles: Microsoft Ignite for most speakers, Microsoft .NET Conf for Matt Soucoup, and Microsoft Build for Ayan Gupta. Most portraits are from Microsoft Ignite; Matt's is from his Microsoft .NET Conf profile, and Ayan's is from the GitHub account linked by his speaker website. Ashley Adams and Bilal Alam use initials badges because their official session pages have no portrait. See [image sources and provenance](assets/speakers/ignite-2026/sources.json).
 
