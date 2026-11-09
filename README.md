@@ -13,7 +13,7 @@ This repository is the official community hub for Azure SRE Agent. Here you'll f
 Meet your AI teammate for cloud operations: investigate incidents, reduce operational toil, and move from reactive firefighting to proactive reliability.
 
 - **[Why Azure SRE Agent? Watch the pitch](https://aka.ms/sreagent/pitchvideo)**
-- **[See ZeroOps with Azure SRE Agent](https://aka.ms/sreagent/zerops-video)**
+- **[See ZeroOps with Azure SRE Agent](https://aka.ms/sreagent/zeroops-video)**
 
 ## Come catch us at Microsoft Ignite 2026
 
