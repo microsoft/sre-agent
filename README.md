@@ -58,9 +58,8 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
         <strong>Hands-on: Modernize apps and databases and automate operations</strong><br>
         Tue 2:00 PM; Wed 8:30 AM; Thu 9:00 AM; Thu 2:45 PM<br>
         Level 3, Room 3020<br>
-        <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1789073902246001ak91?source=/speakers"><img src="assets/speakers/ignite-2026/shamir-abdul-aziz.png" width="48" height="48" alt="Portrait of Shamir Abdul Aziz" title="Shamir Abdul Aziz"> Shamir Abdul Aziz</a><br>
-        <a href="https://ignite.microsoft.com/en-US/sessions/1787856876073001h8ld-1791906446596001z4Up"><img src="assets/speakers/ignite-2026/nish-anil.png" width="48" height="48" alt="Portrait of Nish Anil" title="Nish Anil"> Nish Anil</a><br>
-        <a href="https://ignite.microsoft.com/en-US/sessions/1787856876073001h8ld-1791906446596001z4Up"><img src="assets/speakers/ignite-2026/elizabeth-barnitt.png" width="48" height="48" alt="Portrait of Elizabeth Barnitt" title="Elizabeth Barnitt"> Elizabeth Barnitt</a><br>
+        <a href="https://dotnet.microsoft.com/en-us/conf/2026/speakers/matt-soucoup"><img src="assets/speakers/ignite-2026/matt-soucoup.png" width="48" height="48" alt="Portrait of Matt Soucoup" title="Matt Soucoup"> Matt Soucoup</a><br>
+        <a href="https://imayangupta.com/"><img src="assets/speakers/ignite-2026/ayan-gupta.png" width="48" height="48" alt="Portrait of Ayan Gupta" title="Ayan Gupta"> Ayan Gupta</a><br>
         Modernize an app, break it, and watch Azure SRE Agent fix it live.<br>
         <a href="https://ignite.microsoft.com/en-US/sessions/1787856876073001h8ld-1791906446596001z4Up">Register</a>
       </td>
