@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "GetAzCliHelp",
+      "RunAzCliReadCommands",
+      "ReadFile",
+      "ListDir",
+      "FileSearch",
+      "GrepSearch",
+      "Task",
+      "read_skill_file",
+      "ManageTodoList",
+      "system-mcp-monitor/*",
+      "FetchGithubIssue",
+      "FetchGithubIssues",
+      "CreateGithubIssue",
+      "ListOutlookEmails",
+      "SendOutlookEmail"
+    ],
+    "ask": [],
+    "deny": [
+      "RunAzCliWriteCommands",
+      "RunKubectlWriteCommand",
+      "RunInTerminal",
+      "Terminal",
+      "CreateFile",
+      "CreateDirectory",
+      "SaveFileToBlob",
+      "ReplaceStringInFile",
+      "MultiReplaceStringInFile"
+    ]
+  }
+}
