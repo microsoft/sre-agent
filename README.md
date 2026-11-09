@@ -39,8 +39,10 @@ Scan a session's QR code, or use the **Register** link below it.
       <td valign="top">
         <h3>Plan, modernize, deploy, and operate with AI agents</h3>
         <p><em>Assess, modernize, deploy, then let Azure SRE Agent run production.</em></p>
-        <strong>MON NOV 16 | PREL38 | Pre-Day Workshop</strong><br>
-        1:00-5:00 PM | Level 2, Room 2003<br>
+        <strong>PREL38 | Pre-Day Workshop</strong>
+        <p>📅 <strong>Date:</strong> Monday, November 16, 2026<br>
+        🕒 <strong>Time:</strong> 1:00-5:00 PM PT<br>
+        📍 <strong>Location:</strong> Level 2, Room 2003</p>
         <table>
           <tr>
             <td valign="top" width="33%">
@@ -68,10 +70,15 @@ Scan a session's QR code, or use the **Register** link below it.
       <td valign="top">
         <h3>Hands-on: Modernize apps and databases and automate operations</h3>
         <p><em>Modernize an app, break it, and watch Azure SRE Agent fix it live.</em></p>
-        <strong>TUE-THU NOV 17-19 | LAB720 | Hands-on Lab (75 min)</strong><br>
+        <strong>LAB720 | Hands-on Lab (75 min)</strong><br>
         <strong>Multiple sessions (4 total, 75 minutes each)</strong><br>
-        Tue 2:00 PM; Wed 8:30 AM; Thu 9:00 AM; Thu 2:45 PM<br>
-        Level 3, Room 3020<br>
+        <p>📅 <strong>Date:</strong> Tuesday-Thursday, November 17-19, 2026<br>
+        🕒 <strong>Times (PT):</strong><br>
+        Tuesday, November 17: 2:00 PM<br>
+        Wednesday, November 18: 8:30 AM<br>
+        Thursday, November 19: 9:00 AM<br>
+        Thursday, November 19: 2:45 PM<br>
+        📍 <strong>Location:</strong> Level 3, Room 3020</p>
         <table>
           <tr>
             <td valign="top" width="33%">
@@ -98,8 +105,9 @@ Scan a session's QR code, or use the **Register** link below it.
       <td valign="top">
         <h3>Build AI-native with Azure's agentic application platform</h3>
         <p><em>Azure App Service, Azure Container Apps and Azure Functions for AI-native applications.</em></p>
-        <strong>TUE NOV 17 | BRK423 | Breakout</strong><br>
-        3:15-4:00 PM<br>
+        <strong>BRK423 | Breakout</strong>
+        <p>📅 <strong>Date:</strong> Tuesday, November 17, 2026<br>
+        🕒 <strong>Time:</strong> 3:15-4:00 PM PT</p>
         <table>
           <tr>
             <td valign="top" width="33%">
@@ -137,8 +145,9 @@ Scan a session's QR code, or use the **Register** link below it.
       <td valign="top">
         <h3>Put AI agents to work in Azure cloud operations</h3>
         <p><em>Agents that investigate incidents, cut costs and take corrective action.</em></p>
-        <strong>WED NOV 18 | BRK415 | Breakout</strong><br>
-        11:30 AM-12:15 PM<br>
+        <strong>BRK415 | Breakout</strong>
+        <p>📅 <strong>Date:</strong> Wednesday, November 18, 2026<br>
+        🕒 <strong>Time:</strong> 11:30 AM-12:15 PM PT</p>
         <table>
           <tr>
             <td valign="top" width="33%">
@@ -165,8 +174,10 @@ Scan a session's QR code, or use the **Register** link below it.
       <td valign="top">
         <h3>Deploy intelligent SRE for autonomous cloud ops</h3>
         <p><em>Dynatrace + Azure SRE Agent + MCP with Microsoft Copilot.</em></p>
-        <strong>THU NOV 19 | THRSP1109 | Theater</strong><br>
-        9:35-10:00 AM | Level 3, Theater A<br>
+        <strong>THRSP1109 | Theater</strong>
+        <p>📅 <strong>Date:</strong> Thursday, November 19, 2026<br>
+        🕒 <strong>Time:</strong> 9:35-10:00 AM PT<br>
+        📍 <strong>Location:</strong> Level 3, Theater A</p>
         <table>
           <tr>
             <td valign="top" width="33%">
@@ -193,8 +204,9 @@ Scan a session's QR code, or use the **Register** link below it.
       <td valign="top">
         <h3>Scale operations, not toil, with your AI SRE teammate</h3>
         <p><em>From reactive firefighting to proactive reliability.</em></p>
-        <strong>THU NOV 19 | BRK417 | Breakout: the main SRE Agent session</strong><br>
-        4:00-4:45 PM<br>
+        <strong>BRK417 | Breakout: the main SRE Agent session</strong>
+        <p>📅 <strong>Date:</strong> Thursday, November 19, 2026<br>
+        🕒 <strong>Time:</strong> 4:00-4:45 PM PT</p>
         <table>
           <tr>
             <td valign="top" width="33%">
