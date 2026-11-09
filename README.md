@@ -105,14 +105,6 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
 
 **Not in SF?** The Digital pass is free, and breakouts are recorded. Come say hi!
 
-### Share the SRE Agent home page
-
-Use this QR code in your PPT deck to send people to <https://github.com/microsoft/sre-agent>.
-
-<a href="https://github.com/microsoft/sre-agent"><img src="assets/qr/sre-agent-homepage.png" width="180" alt="QR code for the Azure SRE Agent repository home page"></a>
-
-**Download for your deck:** [High-resolution PNG](assets/qr/sre-agent-homepage.png) | [Scalable SVG](assets/qr/sre-agent-homepage.svg).
-
 ---
 
 ## Quick Links
