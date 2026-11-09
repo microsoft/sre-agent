@@ -32,7 +32,7 @@ Scan a session's QR code, or use the **Register** link below it.
 <table>
   <tbody>
     <tr>
-      <td align="center" valign="top" width="190">
+      <td align="center" valign="middle" width="190">
         <a href="https://register.ignite.microsoft.com/flow/microsoft/ignite27/welcome/page/welcome"><img src="assets/qr/ignite-2026-prel38.png" width="160" height="160" alt="QR code for Ignite registration; add the PREL38 pre-day workshop"></a><br>
         <a href="https://register.ignite.microsoft.com/flow/microsoft/ignite27/welcome/page/welcome">Register</a>
       </td>
@@ -61,7 +61,7 @@ Scan a session's QR code, or use the **Register** link below it.
       </td>
     </tr>
     <tr>
-      <td align="center" valign="top" width="190">
+      <td align="center" valign="middle" width="190">
         <a href="https://ignite.microsoft.com/en-US/sessions/1787856876073001h8ld-1791906446596001z4Up"><img src="assets/qr/ignite-2026-lab720.png" width="160" height="160" alt="QR code for LAB720 session registration"></a><br>
         <a href="https://ignite.microsoft.com/en-US/sessions/1787856876073001h8ld-1791906446596001z4Up">Register</a>
       </td>
@@ -90,7 +90,7 @@ Scan a session's QR code, or use the **Register** link below it.
       </td>
     </tr>
     <tr>
-      <td align="center" valign="top" width="190">
+      <td align="center" valign="middle" width="190">
         <a href="https://ignite.microsoft.com/en-US/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/qr/ignite-2026-brk423.png" width="160" height="160" alt="QR code for BRK423 session registration"></a><br>
         <a href="https://ignite.microsoft.com/en-US/sessions/1787856637610001E284-1791587922010001F67f">Register</a>
       </td>
@@ -129,7 +129,7 @@ Scan a session's QR code, or use the **Register** link below it.
       </td>
     </tr>
     <tr>
-      <td align="center" valign="top" width="190">
+      <td align="center" valign="middle" width="190">
         <a href="https://ignite.microsoft.com/en-US/sessions/1787856636396001ETO1-1791588269572001Cvn5"><img src="assets/qr/ignite-2026-brk415.png" width="160" height="160" alt="QR code for BRK415 session registration"></a><br>
         <a href="https://ignite.microsoft.com/en-US/sessions/1787856636396001ETO1-1791588269572001Cvn5">Register</a>
       </td>
@@ -157,7 +157,7 @@ Scan a session's QR code, or use the **Register** link below it.
       </td>
     </tr>
     <tr>
-      <td align="center" valign="top" width="190">
+      <td align="center" valign="middle" width="190">
         <a href="https://ignite.microsoft.com/en-US/sessions/1787858594736001SLBb-1791588331687001Clb0"><img src="assets/qr/ignite-2026-thrsp1109.png" width="160" height="160" alt="QR code for THRSP1109 session registration"></a><br>
         <a href="https://ignite.microsoft.com/en-US/sessions/1787858594736001SLBb-1791588331687001Clb0">Register</a>
       </td>
@@ -185,7 +185,7 @@ Scan a session's QR code, or use the **Register** link below it.
       </td>
     </tr>
     <tr>
-      <td align="center" valign="top" width="190">
+      <td align="center" valign="middle" width="190">
         <a href="https://ignite.microsoft.com/en-US/sessions/1787856636701001ERm4-1791588336506001CinE"><img src="assets/qr/ignite-2026-brk417.png" width="160" height="160" alt="QR code for BRK417 session registration"></a><br>
         <a href="https://ignite.microsoft.com/en-US/sessions/1787856636701001ERm4-1791588336506001CinE">Register</a>
       </td>
