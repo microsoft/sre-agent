@@ -69,6 +69,7 @@ Scan a session's QR code, or use the **Register** link below it.
         <h3>Hands-on: Modernize apps and databases and automate operations</h3>
         <p><em>Modernize an app, break it, and watch Azure SRE Agent fix it live.</em></p>
         <strong>TUE-THU NOV 17-19 | LAB720 | Hands-on Lab (75 min)</strong><br>
+        <strong>Multiple sessions (4 total, 75 minutes each)</strong><br>
         Tue 2:00 PM; Wed 8:30 AM; Thu 9:00 AM; Thu 2:45 PM<br>
         Level 3, Room 3020<br>
         <table>
