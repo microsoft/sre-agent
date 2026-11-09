@@ -8,6 +8,113 @@ This repository is the official community hub for Azure SRE Agent. Here you'll f
 
 ---
 
+## Why SRE Agent, and what is it?
+
+Meet your AI teammate for cloud operations: investigate incidents, reduce operational toil, and move from reactive firefighting to proactive reliability.
+
+- **[Why Azure SRE Agent? Watch the pitch](https://aka.ms/sreagent/pitchvideo)**
+- **[See ZeroOps with Azure SRE Agent](https://aka.ms/sreagent/zerops-video)**
+
+## Come catch us at Microsoft Ignite 2026
+
+**Azure SRE Agent at Microsoft Ignite 2026: every session & lab in one place.**
+
+Moscone West, San Francisco. **All times PT.** Labs fill fast, so reserve early!
+
+**[Register](https://register.ignite.microsoft.com/flow/microsoft/ignite27/welcome/page/welcome)**
+
+Scan a session's QR code on the left, or use its **Register** link on the right.
+
+<table>
+  <thead>
+    <tr>
+      <th>Scan to register</th>
+      <th>Session details</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center" valign="top">
+        <a href="https://register.ignite.microsoft.com/flow/microsoft/ignite27/welcome/page/welcome"><img src="assets/qr/ignite-2026-prel38.png" width="180" alt="QR code for Ignite registration; add the PREL38 pre-day workshop"></a>
+      </td>
+      <td valign="top">
+        <strong>MON NOV 16 | PREL38 | Pre-Day Workshop</strong><br>
+        <strong>Plan, modernize, deploy, and operate with AI agents</strong><br>
+        1:00-5:00 PM | Level 2, Room 2003<br>
+        Shamir Abdul Aziz + modernization team<br>
+        Assess, modernize, deploy, then let Azure SRE Agent run production.<br>
+        <strong>Pre-Day add-on at registration.</strong><br>
+        <a href="https://register.ignite.microsoft.com/flow/microsoft/ignite27/welcome/page/welcome">Register</a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="top">
+        <a href="https://ignite.microsoft.com/en-US/sessions/1787856876073001h8ld-1791906446596001z4Up"><img src="assets/qr/ignite-2026-lab720.png" width="180" alt="QR code for LAB720 session registration"></a>
+      </td>
+      <td valign="top">
+        <strong>TUE-THU NOV 17-19 | LAB720 | Hands-on Lab (75 min)</strong><br>
+        <strong>Hands-on: Modernize apps and databases and automate operations</strong><br>
+        Tue 2:00 PM; Wed 8:30 AM; Thu 9:00 AM; Thu 2:45 PM<br>
+        Level 3, Room 3020<br>
+        Shamir Abdul Aziz + modernization team<br>
+        Modernize an app, break it, and watch Azure SRE Agent fix it live.<br>
+        <a href="https://ignite.microsoft.com/en-US/sessions/1787856876073001h8ld-1791906446596001z4Up">Register</a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="top">
+        <a href="https://ignite.microsoft.com/en-US/sessions/1787856636396001ETO1-1791588269572001Cvn5"><img src="assets/qr/ignite-2026-brk415.png" width="180" alt="QR code for BRK415 session registration"></a>
+      </td>
+      <td valign="top">
+        <strong>WED NOV 18 | BRK415 | Breakout</strong><br>
+        <strong>Put AI agents to work in Azure cloud operations</strong><br>
+        11:30 AM-12:15 PM<br>
+        Brendan, Ruhi + SRE Agent demo by Deepthi Chelupati<br>
+        Agents that investigate incidents, cut costs and take corrective action.<br>
+        <a href="https://ignite.microsoft.com/en-US/sessions/1787856636396001ETO1-1791588269572001Cvn5">Register</a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="top">
+        <a href="https://ignite.microsoft.com/en-US/sessions/1787858594736001SLBb-1791588331687001Clb0"><img src="assets/qr/ignite-2026-thrsp1109.png" width="180" alt="QR code for THRSP1109 session registration"></a>
+      </td>
+      <td valign="top">
+        <strong>THU NOV 19 | THRSP1109 | Theater</strong><br>
+        <strong>Deploy intelligent SRE for autonomous cloud ops</strong><br>
+        9:35-10:00 AM | Level 3, Theater A<br>
+        Shamir Abdul Aziz (Microsoft) &amp; Ashley Adams (Dynatrace)<br>
+        Dynatrace + Azure SRE Agent + MCP with Microsoft Copilot.<br>
+        <a href="https://ignite.microsoft.com/en-US/sessions/1787858594736001SLBb-1791588331687001Clb0">Register</a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="top">
+        <a href="https://ignite.microsoft.com/en-US/sessions/1787856636701001ERm4-1791588336506001CinE"><img src="assets/qr/ignite-2026-brk417.png" width="180" alt="QR code for BRK417 session registration"></a>
+      </td>
+      <td valign="top">
+        <strong>THU NOV 19 | BRK417 | Breakout: the main SRE Agent session</strong><br>
+        <strong>Scale operations, not toil, with your AI SRE teammate</strong><br>
+        4:00-4:45 PM<br>
+        Nir Mashkowski &amp; Sanchit Mehta<br>
+        From reactive firefighting to proactive reliability.<br>
+        <a href="https://ignite.microsoft.com/en-US/sessions/1787856636701001ERm4-1791588336506001CinE">Register</a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+**Not in SF?** The Digital pass is free, and breakouts are recorded. Come say hi!
+
+### Share the SRE Agent home page
+
+Use this QR code in your PPT deck to send people to <https://github.com/microsoft/sre-agent>.
+
+<a href="https://github.com/microsoft/sre-agent"><img src="assets/qr/sre-agent-homepage.png" width="180" alt="QR code for the Azure SRE Agent repository home page"></a>
+
+**Download for your deck:** [High-resolution PNG](assets/qr/sre-agent-homepage.png) | [Scalable SVG](assets/qr/sre-agent-homepage.svg).
+
+---
+
 ## Quick Links
 
 | Resource | Link |
