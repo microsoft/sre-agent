@@ -46,15 +46,15 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
           <tr>
             <td valign="top" width="33%">
               <a href="https://build.microsoft.com/en-US/speakers/1768245294609build26-1767923733240001J5fY"><img src="assets/speakers/ignite-2026/ayan-gupta.png" width="36" height="36" alt="Portrait of Ayan Gupta" title="Ayan Gupta"><br>Ayan Gupta</a><br>
-              <sub>AI Advocate, GitHub</sub>
+              <sub>AI Advocate,<br>GitHub</sub>
             </td>
             <td valign="top" width="33%">
               <a href="https://dotnet.microsoft.com/en-us/conf/2026/speakers/matt-soucoup"><img src="assets/speakers/ignite-2026/matt-soucoup.png" width="36" height="36" alt="Portrait of Matt Soucoup" title="Matt Soucoup"><br>Matt Soucoup</a><br>
-              <sub>Principal DevRel Lead for .NET, Microsoft</sub>
+              <sub>Principal DevRel Lead<br>for .NET, Microsoft</sub>
             </td>
             <td valign="top" width="33%">
               <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1789073902246001ak91?source=/sessions/1787858594736001SLBb-1791588331687001Clb0"><img src="assets/speakers/ignite-2026/shamir-abdul-aziz.png" width="36" height="36" alt="Portrait of Shamir Abdul Aziz" title="Shamir Abdul Aziz"><br>Shamir Abdul Aziz</a><br>
-              <sub>Principal Product Manager, Microsoft</sub>
+              <sub>Principal Product<br>Manager, Microsoft</sub>
             </td>
           </tr>
         </table>
@@ -76,15 +76,15 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
           <tr>
             <td valign="top" width="33%">
               <a href="https://build.microsoft.com/en-US/speakers/1768245294609build26-1767923733240001J5fY"><img src="assets/speakers/ignite-2026/ayan-gupta.png" width="36" height="36" alt="Portrait of Ayan Gupta" title="Ayan Gupta"><br>Ayan Gupta</a><br>
-              <sub>AI Advocate, GitHub</sub>
+              <sub>AI Advocate,<br>GitHub</sub>
             </td>
             <td valign="top" width="33%">
               <a href="https://dotnet.microsoft.com/en-us/conf/2026/speakers/matt-soucoup"><img src="assets/speakers/ignite-2026/matt-soucoup.png" width="36" height="36" alt="Portrait of Matt Soucoup" title="Matt Soucoup"><br>Matt Soucoup</a><br>
-              <sub>Principal DevRel Lead for .NET, Microsoft</sub>
+              <sub>Principal DevRel Lead<br>for .NET, Microsoft</sub>
             </td>
             <td valign="top" width="33%">
               <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1789073902246001ak91?source=/sessions/1787858594736001SLBb-1791588331687001Clb0"><img src="assets/speakers/ignite-2026/shamir-abdul-aziz.png" width="36" height="36" alt="Portrait of Shamir Abdul Aziz" title="Shamir Abdul Aziz"><br>Shamir Abdul Aziz</a><br>
-              <sub>Principal Product Manager, Microsoft</sub>
+              <sub>Principal Product<br>Manager, Microsoft</sub>
             </td>
           </tr>
         </table>
@@ -104,25 +104,25 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
           <tr>
             <td valign="top" width="33%">
               <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1788898920211001amdY"><img src="assets/speakers/ignite-2026/bilal-alam.png" width="36" height="36" alt="Initials badge for Bilal Alam; no official portrait available" title="Bilal Alam (initials badge)"><br>Bilal Alam</a><br>
-              <sub>Technical Fellow, Microsoft</sub>
+              <sub>Technical Fellow,<br>Microsoft</sub>
             </td>
             <td valign="top" width="33%">
               <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1780506654728001mkkG?source=/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/speakers/ignite-2026/nir-mashkowski.png" width="36" height="36" alt="Portrait of Nir Mashkowski" title="Nir Mashkowski"><br>Nir Mashkowski</a><br>
-              <sub>Partner Director, Product Management, Microsoft</sub>
+              <sub>Partner Director,<br>Product Management,<br>Microsoft</sub>
             </td>
             <td valign="top" width="33%">
               <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1769544269031001o6sa?source=/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/speakers/ignite-2026/paul-yuknewicz.png" width="36" height="36" alt="Portrait of Paul Yuknewicz" title="Paul Yuknewicz"><br>Paul Yuknewicz</a><br>
-              <sub>Member of Technical Staff, Microsoft</sub>
+              <sub>Member of Technical<br>Staff, Microsoft</sub>
             </td>
           </tr>
           <tr>
             <td valign="top" width="33%">
               <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1791677596345001CmOx?source=/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/speakers/ignite-2026/bijoy-boban.png" width="36" height="36" alt="Portrait of Bijoy Boban" title="Bijoy Boban"><br>Bijoy Boban</a><br>
-              <sub>Associate Director, KPMG</sub>
+              <sub>Associate Director,<br>KPMG</sub>
             </td>
             <td valign="top" width="33%">
               <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1790625875908001pZbw?source=/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/speakers/ignite-2026/greg-homen.png" width="36" height="36" alt="Portrait of Greg Homen" title="Greg Homen"><br>Greg Homen</a><br>
-              <sub>AI Transformation Program Leader - Tax, KPMG LLP</sub>
+              <sub>AI Transformation<br>Program Leader - Tax,<br>KPMG LLP</sub>
             </td>
             <td></td>
           </tr>
@@ -143,15 +143,15 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
           <tr>
             <td valign="top" width="33%">
               <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1768691145006001Si6c?source=/sessions/1787856636396001ETO1-1791588269572001Cvn5"><img src="assets/speakers/ignite-2026/brendan-burns.png" width="36" height="36" alt="Portrait of Brendan Burns" title="Brendan Burns"><br>Brendan Burns</a><br>
-              <sub>Corporate Vice President and Technical Fellow, Microsoft</sub>
+              <sub>Corporate Vice President<br>and Technical Fellow,<br>Microsoft</sub>
             </td>
             <td valign="top" width="33%">
               <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1788897034378001KXv8?source=/sessions/1787856636396001ETO1-1791588269572001Cvn5"><img src="assets/speakers/ignite-2026/ruhiyyih-mahalati.png" width="36" height="36" alt="Portrait of Ruhiyyih Mahalati" title="Ruhiyyih Mahalati"><br>Ruhiyyih Mahalati</a><br>
-              <sub>VP, Engineering Azure Exp &amp; Platform, Microsoft</sub>
+              <sub>VP, Engineering Azure<br>Exp &amp; Platform,<br>Microsoft</sub>
             </td>
             <td valign="top" width="33%">
-              SRE Agent demo by <a href="https://build.microsoft.com/en-US/speakers/1768245294609build26-1778642541081001DHZz">Deepthi Chelupati</a><br>
-              <sub>Principal Product Manager, Microsoft</sub>
+              SRE Agent demo by<br><a href="https://build.microsoft.com/en-US/speakers/1768245294609build26-1778642541081001DHZz">Deepthi Chelupati</a><br>
+              <sub>Principal Product<br>Manager, Microsoft</sub>
             </td>
           </tr>
         </table>
@@ -171,15 +171,15 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
           <tr>
             <td valign="top" width="33%">
               <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1789073902246001ak91?source=/sessions/1787858594736001SLBb-1791588331687001Clb0"><img src="assets/speakers/ignite-2026/shamir-abdul-aziz.png" width="36" height="36" alt="Portrait of Shamir Abdul Aziz" title="Shamir Abdul Aziz"><br>Shamir Abdul Aziz</a><br>
-              <sub>Principal Product Manager, Microsoft</sub>
+              <sub>Principal Product<br>Manager, Microsoft</sub>
             </td>
             <td valign="top" width="33%">
               <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1788876321018001WYf3"><img src="assets/speakers/ignite-2026/ashley-adams.png" width="36" height="36" alt="Initials badge for Ashley Adams; no official portrait available" title="Ashley Adams (initials badge)"><br>Ashley Adams</a><br>
-              <sub>Principal Product Marketing Manager, Dynatrace</sub>
+              <sub>Principal Product<br>Marketing Manager,<br>Dynatrace</sub>
             </td>
             <td valign="top" width="33%">
               <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1790872963026001Lcel?source=/sessions/1787858594736001SLBb-1791588331687001Clb0"><img src="assets/speakers/ignite-2026/laurenz-frost.png" width="36" height="36" alt="Portrait of Laurenz Frost" title="Laurenz Frost"><br>Laurenz Frost</a><br>
-              <sub>Cloud Solution Architect, Director, Commerzbank</sub>
+              <sub>Cloud Solution Architect,<br>Director, Commerzbank</sub>
             </td>
           </tr>
         </table>
@@ -199,15 +199,15 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
           <tr>
             <td valign="top" width="33%">
               <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1780506654728001mkkG?source=/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/speakers/ignite-2026/nir-mashkowski.png" width="36" height="36" alt="Portrait of Nir Mashkowski" title="Nir Mashkowski"><br>Nir Mashkowski</a><br>
-              <sub>Partner Director, Product Management, Microsoft</sub>
+              <sub>Partner Director,<br>Product Management,<br>Microsoft</sub>
             </td>
             <td valign="top" width="33%">
               <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1788897460657001lOED?source=/sessions/1787856636701001ERm4-1791588336506001CinE"><img src="assets/speakers/ignite-2026/sanchit-mehta.png" width="36" height="36" alt="Portrait of Sanchit Mehta" title="Sanchit Mehta"><br>Sanchit Mehta</a><br>
-              <sub>Principal Software Engineering Manager, Microsoft</sub>
+              <sub>Principal Software<br>Engineering Manager,<br>Microsoft</sub>
             </td>
             <td valign="top" width="33%">
               <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1790780771713001dP4Z?source=/sessions/1787856636701001ERm4-1791588336506001CinE"><img src="assets/speakers/ignite-2026/babji-talluri.png" width="36" height="36" alt="Portrait of Babji Talluri" title="Babji Talluri"><br>Babji Talluri</a><br>
-              <sub>Senior DevOps Engineer, InEight</sub>
+              <sub>Senior DevOps Engineer,<br>InEight</sub>
             </td>
           </tr>
         </table>
