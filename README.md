@@ -63,6 +63,19 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
     </tr>
     <tr>
       <td align="center" valign="top">
+        <a href="https://ignite.microsoft.com/en-US/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/qr/ignite-2026-brk423.png" width="180" alt="QR code for BRK423 session registration"></a>
+      </td>
+      <td valign="top">
+        <strong>TUE NOV 17 | BRK423 | Breakout</strong><br>
+        <strong>Build AI-native with Azure's agentic application platform</strong><br>
+        3:15-4:00 PM<br>
+        Bilal Alam, Nir Mashkowski &amp; Paul Yuknewicz (Microsoft); Bijoy Boban &amp; Greg Homen (KPMG)<br>
+        Azure App Service, Azure Container Apps and Azure Functions for AI-native applications.<br>
+        <a href="https://ignite.microsoft.com/en-US/sessions/1787856637610001E284-1791587922010001F67f">Register</a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="top">
         <a href="https://ignite.microsoft.com/en-US/sessions/1787856636396001ETO1-1791588269572001Cvn5"><img src="assets/qr/ignite-2026-brk415.png" width="180" alt="QR code for BRK415 session registration"></a>
       </td>
       <td valign="top">
