@@ -23,6 +23,10 @@ Moscone West, San Francisco. **All times PT.** Labs fill fast, so reserve early!
 
 **[Register](https://register.ignite.microsoft.com/flow/microsoft/ignite27/welcome/page/welcome)**
 
+### Visit the Agentic Operations booth
+
+Stop by the Agentic Operations booth to meet the experts and see Azure SRE Agent demos.
+
 Scan a session's QR code on the left, or use its **Register** link on the right.
 
 <table>
