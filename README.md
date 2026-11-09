@@ -228,8 +228,6 @@ Scan a session's QR code, or use the **Register** link below it.
   </tbody>
 </table>
 
-Speaker names and images link to their published speaker profiles: Microsoft Ignite for most speakers, Microsoft .NET Conf for Matt Soucoup, and Microsoft Build for Ayan Gupta. Most portraits are from Microsoft Ignite; Matt's is from his Microsoft .NET Conf profile, and Ayan's is from the GitHub account linked by his speaker website. Ashley Adams and Bilal Alam use initials badges because their official session pages have no portrait. See [image sources and provenance](assets/speakers/ignite-2026/sources.json).
-
 **Not in SF?** The Digital pass is free, and breakouts are recorded. Come say hi!
 
 ---
