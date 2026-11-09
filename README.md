@@ -39,15 +39,25 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
       </td>
       <td valign="top">
         <h3>Plan, modernize, deploy, and operate with AI agents</h3>
-        <p>Assess, modernize, deploy, then let Azure SRE Agent run production.</p>
+        <p><em>Assess, modernize, deploy, then let Azure SRE Agent run production.</em></p>
         <strong>MON NOV 16 | PREL38 | Pre-Day Workshop</strong><br>
         1:00-5:00 PM | Level 2, Room 2003<br>
-        <a href="https://build.microsoft.com/en-US/speakers/1768245294609build26-1767923733240001J5fY"><img src="assets/speakers/ignite-2026/ayan-gupta.png" width="48" height="48" alt="Portrait of Ayan Gupta" title="Ayan Gupta"> Ayan Gupta</a><br>
-        <sub>AI Advocate, GitHub</sub><br>
-        <a href="https://dotnet.microsoft.com/en-us/conf/2026/speakers/matt-soucoup"><img src="assets/speakers/ignite-2026/matt-soucoup.png" width="48" height="48" alt="Portrait of Matt Soucoup" title="Matt Soucoup"> Matt Soucoup</a><br>
-        <sub>Principal DevRel Lead for .NET, Microsoft</sub><br>
-        <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1789073902246001ak91?source=/sessions/1787858594736001SLBb-1791588331687001Clb0"><img src="assets/speakers/ignite-2026/shamir-abdul-aziz.png" width="48" height="48" alt="Portrait of Shamir Abdul Aziz" title="Shamir Abdul Aziz"> Shamir Abdul Aziz</a><br>
-        <sub>Principal Product Manager, Microsoft</sub><br>
+        <table>
+          <tr>
+            <td valign="top" width="33%">
+              <a href="https://build.microsoft.com/en-US/speakers/1768245294609build26-1767923733240001J5fY"><img src="assets/speakers/ignite-2026/ayan-gupta.png" width="36" height="36" alt="Portrait of Ayan Gupta" title="Ayan Gupta"><br>Ayan Gupta</a><br>
+              <sub>AI Advocate, GitHub</sub>
+            </td>
+            <td valign="top" width="33%">
+              <a href="https://dotnet.microsoft.com/en-us/conf/2026/speakers/matt-soucoup"><img src="assets/speakers/ignite-2026/matt-soucoup.png" width="36" height="36" alt="Portrait of Matt Soucoup" title="Matt Soucoup"><br>Matt Soucoup</a><br>
+              <sub>Principal DevRel Lead for .NET, Microsoft</sub>
+            </td>
+            <td valign="top" width="33%">
+              <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1789073902246001ak91?source=/sessions/1787858594736001SLBb-1791588331687001Clb0"><img src="assets/speakers/ignite-2026/shamir-abdul-aziz.png" width="36" height="36" alt="Portrait of Shamir Abdul Aziz" title="Shamir Abdul Aziz"><br>Shamir Abdul Aziz</a><br>
+              <sub>Principal Product Manager, Microsoft</sub>
+            </td>
+          </tr>
+        </table>
         <strong>Pre-Day add-on at registration.</strong><br>
         <a href="https://register.ignite.microsoft.com/flow/microsoft/ignite27/welcome/page/welcome">Register</a>
       </td>
@@ -58,16 +68,26 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
       </td>
       <td valign="top">
         <h3>Hands-on: Modernize apps and databases and automate operations</h3>
-        <p>Modernize an app, break it, and watch Azure SRE Agent fix it live.</p>
+        <p><em>Modernize an app, break it, and watch Azure SRE Agent fix it live.</em></p>
         <strong>TUE-THU NOV 17-19 | LAB720 | Hands-on Lab (75 min)</strong><br>
         Tue 2:00 PM; Wed 8:30 AM; Thu 9:00 AM; Thu 2:45 PM<br>
         Level 3, Room 3020<br>
-        <a href="https://build.microsoft.com/en-US/speakers/1768245294609build26-1767923733240001J5fY"><img src="assets/speakers/ignite-2026/ayan-gupta.png" width="48" height="48" alt="Portrait of Ayan Gupta" title="Ayan Gupta"> Ayan Gupta</a><br>
-        <sub>AI Advocate, GitHub</sub><br>
-        <a href="https://dotnet.microsoft.com/en-us/conf/2026/speakers/matt-soucoup"><img src="assets/speakers/ignite-2026/matt-soucoup.png" width="48" height="48" alt="Portrait of Matt Soucoup" title="Matt Soucoup"> Matt Soucoup</a><br>
-        <sub>Principal DevRel Lead for .NET, Microsoft</sub><br>
-        <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1789073902246001ak91?source=/sessions/1787858594736001SLBb-1791588331687001Clb0"><img src="assets/speakers/ignite-2026/shamir-abdul-aziz.png" width="48" height="48" alt="Portrait of Shamir Abdul Aziz" title="Shamir Abdul Aziz"> Shamir Abdul Aziz</a><br>
-        <sub>Principal Product Manager, Microsoft</sub><br>
+        <table>
+          <tr>
+            <td valign="top" width="33%">
+              <a href="https://build.microsoft.com/en-US/speakers/1768245294609build26-1767923733240001J5fY"><img src="assets/speakers/ignite-2026/ayan-gupta.png" width="36" height="36" alt="Portrait of Ayan Gupta" title="Ayan Gupta"><br>Ayan Gupta</a><br>
+              <sub>AI Advocate, GitHub</sub>
+            </td>
+            <td valign="top" width="33%">
+              <a href="https://dotnet.microsoft.com/en-us/conf/2026/speakers/matt-soucoup"><img src="assets/speakers/ignite-2026/matt-soucoup.png" width="36" height="36" alt="Portrait of Matt Soucoup" title="Matt Soucoup"><br>Matt Soucoup</a><br>
+              <sub>Principal DevRel Lead for .NET, Microsoft</sub>
+            </td>
+            <td valign="top" width="33%">
+              <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1789073902246001ak91?source=/sessions/1787858594736001SLBb-1791588331687001Clb0"><img src="assets/speakers/ignite-2026/shamir-abdul-aziz.png" width="36" height="36" alt="Portrait of Shamir Abdul Aziz" title="Shamir Abdul Aziz"><br>Shamir Abdul Aziz</a><br>
+              <sub>Principal Product Manager, Microsoft</sub>
+            </td>
+          </tr>
+        </table>
         <a href="https://ignite.microsoft.com/en-US/sessions/1787856876073001h8ld-1791906446596001z4Up">Register</a>
       </td>
     </tr>
@@ -77,19 +97,36 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
       </td>
       <td valign="top">
         <h3>Build AI-native with Azure's agentic application platform</h3>
-        <p>Azure App Service, Azure Container Apps and Azure Functions for AI-native applications.</p>
+        <p><em>Azure App Service, Azure Container Apps and Azure Functions for AI-native applications.</em></p>
         <strong>TUE NOV 17 | BRK423 | Breakout</strong><br>
         3:15-4:00 PM<br>
-        <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1788898920211001amdY"><img src="assets/speakers/ignite-2026/bilal-alam.png" width="48" height="48" alt="Initials badge for Bilal Alam; no official portrait available" title="Bilal Alam (initials badge)"> Bilal Alam</a><br>
-        <sub>Technical Fellow, Microsoft</sub><br>
-        <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1780506654728001mkkG?source=/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/speakers/ignite-2026/nir-mashkowski.png" width="48" height="48" alt="Portrait of Nir Mashkowski" title="Nir Mashkowski"> Nir Mashkowski</a><br>
-        <sub>Partner Director, Product Management, Microsoft</sub><br>
-        <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1769544269031001o6sa?source=/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/speakers/ignite-2026/paul-yuknewicz.png" width="48" height="48" alt="Portrait of Paul Yuknewicz" title="Paul Yuknewicz"> Paul Yuknewicz</a><br>
-        <sub>Member of Technical Staff, Microsoft</sub><br>
-        <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1791677596345001CmOx?source=/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/speakers/ignite-2026/bijoy-boban.png" width="48" height="48" alt="Portrait of Bijoy Boban" title="Bijoy Boban"> Bijoy Boban</a><br>
-        <sub>Associate Director, KPMG</sub><br>
-        <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1790625875908001pZbw?source=/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/speakers/ignite-2026/greg-homen.png" width="48" height="48" alt="Portrait of Greg Homen" title="Greg Homen"> Greg Homen</a><br>
-        <sub>AI Transformation Program Leader - Tax, KPMG LLP</sub><br>
+        <table>
+          <tr>
+            <td valign="top" width="33%">
+              <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1788898920211001amdY"><img src="assets/speakers/ignite-2026/bilal-alam.png" width="36" height="36" alt="Initials badge for Bilal Alam; no official portrait available" title="Bilal Alam (initials badge)"><br>Bilal Alam</a><br>
+              <sub>Technical Fellow, Microsoft</sub>
+            </td>
+            <td valign="top" width="33%">
+              <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1780506654728001mkkG?source=/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/speakers/ignite-2026/nir-mashkowski.png" width="36" height="36" alt="Portrait of Nir Mashkowski" title="Nir Mashkowski"><br>Nir Mashkowski</a><br>
+              <sub>Partner Director, Product Management, Microsoft</sub>
+            </td>
+            <td valign="top" width="33%">
+              <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1769544269031001o6sa?source=/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/speakers/ignite-2026/paul-yuknewicz.png" width="36" height="36" alt="Portrait of Paul Yuknewicz" title="Paul Yuknewicz"><br>Paul Yuknewicz</a><br>
+              <sub>Member of Technical Staff, Microsoft</sub>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top" width="33%">
+              <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1791677596345001CmOx?source=/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/speakers/ignite-2026/bijoy-boban.png" width="36" height="36" alt="Portrait of Bijoy Boban" title="Bijoy Boban"><br>Bijoy Boban</a><br>
+              <sub>Associate Director, KPMG</sub>
+            </td>
+            <td valign="top" width="33%">
+              <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1790625875908001pZbw?source=/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/speakers/ignite-2026/greg-homen.png" width="36" height="36" alt="Portrait of Greg Homen" title="Greg Homen"><br>Greg Homen</a><br>
+              <sub>AI Transformation Program Leader - Tax, KPMG LLP</sub>
+            </td>
+            <td></td>
+          </tr>
+        </table>
         <a href="https://ignite.microsoft.com/en-US/sessions/1787856637610001E284-1791587922010001F67f">Register</a>
       </td>
     </tr>
@@ -99,15 +136,25 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
       </td>
       <td valign="top">
         <h3>Put AI agents to work in Azure cloud operations</h3>
-        <p>Agents that investigate incidents, cut costs and take corrective action.</p>
+        <p><em>Agents that investigate incidents, cut costs and take corrective action.</em></p>
         <strong>WED NOV 18 | BRK415 | Breakout</strong><br>
         11:30 AM-12:15 PM<br>
-        <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1768691145006001Si6c?source=/sessions/1787856636396001ETO1-1791588269572001Cvn5"><img src="assets/speakers/ignite-2026/brendan-burns.png" width="48" height="48" alt="Portrait of Brendan Burns" title="Brendan Burns"> Brendan Burns</a><br>
-        <sub>Corporate Vice President and Technical Fellow, Microsoft</sub><br>
-        <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1788897034378001KXv8?source=/sessions/1787856636396001ETO1-1791588269572001Cvn5"><img src="assets/speakers/ignite-2026/ruhiyyih-mahalati.png" width="48" height="48" alt="Portrait of Ruhiyyih Mahalati" title="Ruhiyyih Mahalati"> Ruhiyyih Mahalati</a><br>
-        <sub>VP, Engineering Azure Exp &amp; Platform, Microsoft</sub><br>
-        SRE Agent demo by <a href="https://build.microsoft.com/en-US/speakers/1768245294609build26-1778642541081001DHZz">Deepthi Chelupati</a><br>
-        <sub>Principal Product Manager, Microsoft</sub><br>
+        <table>
+          <tr>
+            <td valign="top" width="33%">
+              <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1768691145006001Si6c?source=/sessions/1787856636396001ETO1-1791588269572001Cvn5"><img src="assets/speakers/ignite-2026/brendan-burns.png" width="36" height="36" alt="Portrait of Brendan Burns" title="Brendan Burns"><br>Brendan Burns</a><br>
+              <sub>Corporate Vice President and Technical Fellow, Microsoft</sub>
+            </td>
+            <td valign="top" width="33%">
+              <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1788897034378001KXv8?source=/sessions/1787856636396001ETO1-1791588269572001Cvn5"><img src="assets/speakers/ignite-2026/ruhiyyih-mahalati.png" width="36" height="36" alt="Portrait of Ruhiyyih Mahalati" title="Ruhiyyih Mahalati"><br>Ruhiyyih Mahalati</a><br>
+              <sub>VP, Engineering Azure Exp &amp; Platform, Microsoft</sub>
+            </td>
+            <td valign="top" width="33%">
+              SRE Agent demo by <a href="https://build.microsoft.com/en-US/speakers/1768245294609build26-1778642541081001DHZz">Deepthi Chelupati</a><br>
+              <sub>Principal Product Manager, Microsoft</sub>
+            </td>
+          </tr>
+        </table>
         <a href="https://ignite.microsoft.com/en-US/sessions/1787856636396001ETO1-1791588269572001Cvn5">Register</a>
       </td>
     </tr>
@@ -117,15 +164,25 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
       </td>
       <td valign="top">
         <h3>Deploy intelligent SRE for autonomous cloud ops</h3>
-        <p>Dynatrace + Azure SRE Agent + MCP with Microsoft Copilot.</p>
+        <p><em>Dynatrace + Azure SRE Agent + MCP with Microsoft Copilot.</em></p>
         <strong>THU NOV 19 | THRSP1109 | Theater</strong><br>
         9:35-10:00 AM | Level 3, Theater A<br>
-        <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1789073902246001ak91?source=/sessions/1787858594736001SLBb-1791588331687001Clb0"><img src="assets/speakers/ignite-2026/shamir-abdul-aziz.png" width="48" height="48" alt="Portrait of Shamir Abdul Aziz" title="Shamir Abdul Aziz"> Shamir Abdul Aziz</a><br>
-        <sub>Principal Product Manager, Microsoft</sub><br>
-        <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1788876321018001WYf3"><img src="assets/speakers/ignite-2026/ashley-adams.png" width="48" height="48" alt="Initials badge for Ashley Adams; no official portrait available" title="Ashley Adams (initials badge)"> Ashley Adams</a><br>
-        <sub>Principal Product Marketing Manager, Dynatrace</sub><br>
-        <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1790872963026001Lcel?source=/sessions/1787858594736001SLBb-1791588331687001Clb0"><img src="assets/speakers/ignite-2026/laurenz-frost.png" width="48" height="48" alt="Portrait of Laurenz Frost" title="Laurenz Frost"> Laurenz Frost</a><br>
-        <sub>Cloud Solution Architect, Director, Commerzbank</sub><br>
+        <table>
+          <tr>
+            <td valign="top" width="33%">
+              <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1789073902246001ak91?source=/sessions/1787858594736001SLBb-1791588331687001Clb0"><img src="assets/speakers/ignite-2026/shamir-abdul-aziz.png" width="36" height="36" alt="Portrait of Shamir Abdul Aziz" title="Shamir Abdul Aziz"><br>Shamir Abdul Aziz</a><br>
+              <sub>Principal Product Manager, Microsoft</sub>
+            </td>
+            <td valign="top" width="33%">
+              <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1788876321018001WYf3"><img src="assets/speakers/ignite-2026/ashley-adams.png" width="36" height="36" alt="Initials badge for Ashley Adams; no official portrait available" title="Ashley Adams (initials badge)"><br>Ashley Adams</a><br>
+              <sub>Principal Product Marketing Manager, Dynatrace</sub>
+            </td>
+            <td valign="top" width="33%">
+              <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1790872963026001Lcel?source=/sessions/1787858594736001SLBb-1791588331687001Clb0"><img src="assets/speakers/ignite-2026/laurenz-frost.png" width="36" height="36" alt="Portrait of Laurenz Frost" title="Laurenz Frost"><br>Laurenz Frost</a><br>
+              <sub>Cloud Solution Architect, Director, Commerzbank</sub>
+            </td>
+          </tr>
+        </table>
         <a href="https://ignite.microsoft.com/en-US/sessions/1787858594736001SLBb-1791588331687001Clb0">Register</a>
       </td>
     </tr>
@@ -135,15 +192,25 @@ Scan a session's QR code on the left, or use its **Register** link on the right.
       </td>
       <td valign="top">
         <h3>Scale operations, not toil, with your AI SRE teammate</h3>
-        <p>From reactive firefighting to proactive reliability.</p>
+        <p><em>From reactive firefighting to proactive reliability.</em></p>
         <strong>THU NOV 19 | BRK417 | Breakout: the main SRE Agent session</strong><br>
         4:00-4:45 PM<br>
-        <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1780506654728001mkkG?source=/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/speakers/ignite-2026/nir-mashkowski.png" width="48" height="48" alt="Portrait of Nir Mashkowski" title="Nir Mashkowski"> Nir Mashkowski</a><br>
-        <sub>Partner Director, Product Management, Microsoft</sub><br>
-        <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1788897460657001lOED?source=/sessions/1787856636701001ERm4-1791588336506001CinE"><img src="assets/speakers/ignite-2026/sanchit-mehta.png" width="48" height="48" alt="Portrait of Sanchit Mehta" title="Sanchit Mehta"> Sanchit Mehta</a><br>
-        <sub>Principal Software Engineering Manager, Microsoft</sub><br>
-        <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1790780771713001dP4Z?source=/sessions/1787856636701001ERm4-1791588336506001CinE"><img src="assets/speakers/ignite-2026/babji-talluri.png" width="48" height="48" alt="Portrait of Babji Talluri" title="Babji Talluri"> Babji Talluri</a><br>
-        <sub>Senior DevOps Engineer, InEight</sub><br>
+        <table>
+          <tr>
+            <td valign="top" width="33%">
+              <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1780506654728001mkkG?source=/sessions/1787856637610001E284-1791587922010001F67f"><img src="assets/speakers/ignite-2026/nir-mashkowski.png" width="36" height="36" alt="Portrait of Nir Mashkowski" title="Nir Mashkowski"><br>Nir Mashkowski</a><br>
+              <sub>Partner Director, Product Management, Microsoft</sub>
+            </td>
+            <td valign="top" width="33%">
+              <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1788897460657001lOED?source=/sessions/1787856636701001ERm4-1791588336506001CinE"><img src="assets/speakers/ignite-2026/sanchit-mehta.png" width="36" height="36" alt="Portrait of Sanchit Mehta" title="Sanchit Mehta"><br>Sanchit Mehta</a><br>
+              <sub>Principal Software Engineering Manager, Microsoft</sub>
+            </td>
+            <td valign="top" width="33%">
+              <a href="https://ignite.microsoft.com/en-US/speakers/177730559163ignite27-1790780771713001dP4Z?source=/sessions/1787856636701001ERm4-1791588336506001CinE"><img src="assets/speakers/ignite-2026/babji-talluri.png" width="36" height="36" alt="Portrait of Babji Talluri" title="Babji Talluri"><br>Babji Talluri</a><br>
+              <sub>Senior DevOps Engineer, InEight</sub>
+            </td>
+          </tr>
+        </table>
         <a href="https://ignite.microsoft.com/en-US/sessions/1787856636701001ERm4-1791588336506001CinE">Register</a>
       </td>
     </tr>
