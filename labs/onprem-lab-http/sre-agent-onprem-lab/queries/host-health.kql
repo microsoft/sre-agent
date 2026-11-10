@@ -1,0 +1,4 @@
+Heartbeat
+| where Computer == "sre-onprem-01"
+| where TimeGenerated > ago(1h)
+| summarize LastHeartbeat=max(TimeGenerated), Heartbeats=count()

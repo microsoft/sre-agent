@@ -1,0 +1,4 @@
+Syslog
+| where TimeGenerated > ago(30m)
+| where SyslogMessage has "sre-lab pipeline test"
+| order by TimeGenerated desc

@@ -4,6 +4,10 @@ Deploy an Azure SRE Agent connected to a sample application with a single `azd u
 
 **Learn more:** [What is Azure SRE Agent?](https://sre.azure.com/docs/overview)
 
+## Additional Labs
+
+- [On-prem VM HTTP telemetry lab](onprem-lab-http/sre-agent-onprem-lab/README.md) — run a fault-injectable application on an Azure Arc-enabled Ubuntu VM and use Azure Monitor telemetry to investigate HTTP failures.
+
 ## Architecture
 
 <p align="center">
