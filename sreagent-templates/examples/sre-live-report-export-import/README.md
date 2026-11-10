@@ -89,7 +89,7 @@ python3 livereportclone.py import \
   --target /subscriptions/<subscription>/resourceGroups/<resource-group>/providers/Microsoft.App/agents/<target-agent> \
   --name "New report name" \
   --set "subscription=SUBSCRIPTION_ID" \
-  --set "workspaceId=WORKSPACE_ID" \
+  --set "workspace=WORKSPACE_ID" \
   --set "resourceGroup=WORKSPACE_RESOURCE_GROUP"
 ```
 

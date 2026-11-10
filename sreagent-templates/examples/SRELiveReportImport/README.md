@@ -14,10 +14,10 @@ clone utility:
 
 ```bash
 python3 sreagent-templates/examples/sre-live-report-export-import/livereportclone.py import \
-  --bundle ./Third-Party-Software-Update-Tracker-<hash>.livereport.json \
+  --bundle ./sreagent-templates/examples/SRELiveReportImport/third-party-software-update-tracker.livereport.json \
   --target /subscriptions/<subscription>/resourceGroups/<resource-group>/providers/Microsoft.App/agents/<agent-name> \
   --set "subscription=00000000-0000-0000-0000-000000000000" \
-  --set "workspaceId=11111111-1111-1111-1111-111111111111" \
+  --set "workspace=11111111-1111-1111-1111-111111111111" \
   --set "resourceGroup=your-workspace-resource-group"
 ```
 
