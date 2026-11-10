@@ -69,34 +69,49 @@ fi
 # This function reads the file and inlines its content.
 resolve_file_refs() {
   local json="$1" base_dir="$2"
-  python3 -c "
+  # The payload is piped in rather than interpolated into the Python source. Embedding it
+  # in a triple-quoted literal corrupts any document containing a quote or backslash
+  # sequence, which every real skill description does, and the resulting JSONDecodeError
+  # used to be discarded -- leaving every file reference unresolved and the clone carrying
+  # paths where it should carry content.
+  local resolved
+  if resolved=$(printf '%s' "$json" | python3 -c "
 import json, sys, os
-base = '$base_dir'
-data = json.loads('''$json''') if isinstance('''$json''', str) else json.load(sys.stdin)
+base = sys.argv[1]
+data = json.load(sys.stdin)
+unresolved = []
 def resolve(obj):
     if isinstance(obj, str):
-        # Check if it's a relative path to a file in config/
-        for prefix in ['skills/', 'subagents/', 'common-prompts/']:
+        for prefix in ('skills/', 'subagents/', 'common-prompts/'):
             if obj.startswith(prefix) and obj.endswith(('.md', '.txt')):
-                for config_base in ['config']:
-                    path = os.path.join(base, config_base, obj)
-                    if os.path.isfile(path):
-                        with open(path) as f:
-                            return f.read()
-        # Also handle _file: prefix (legacy)
+                path = os.path.join(base, 'config', obj)
+                if os.path.isfile(path):
+                    with open(path, encoding='utf-8') as f:
+                        return f.read()
         if obj.startswith('_file:'):
             path = os.path.join(base, obj[6:])
             if os.path.isfile(path):
-                with open(path) as f:
+                with open(path, encoding='utf-8') as f:
                     return f.read()
+        if obj.startswith(('skills/', 'subagents/', 'common-prompts/')) and obj.endswith(('.md', '.txt')):
+            unresolved.append(obj)
         return obj
-    elif isinstance(obj, dict):
+    if isinstance(obj, dict):
         return {k: resolve(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
+    if isinstance(obj, list):
         return [resolve(v) for v in obj]
     return obj
-print(json.dumps(resolve(data)))
-" 2>/dev/null || echo "$json"
+out = resolve(data)
+for ref in unresolved:
+    print('  warning: %s not found under %s/config -- it will deploy as a path, not content'
+          % (ref, base), file=sys.stderr)
+json.dump(out, sys.stdout)
+" "$base_dir"); then
+    printf '%s' "$resolved"
+  else
+    echo "  warning: could not resolve file references; emitting paths unchanged" >&2
+    printf '%s' "$json"
+  fi
 }
 
 # ── Helper: collect all YAML (or JSON) files from a config subdirectory into a JSON array ──
