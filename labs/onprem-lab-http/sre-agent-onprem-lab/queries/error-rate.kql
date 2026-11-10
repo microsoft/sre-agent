@@ -1,0 +1,7 @@
+SreLabApp_CL
+| where TimeGenerated > ago(1h)
+| where RawData has "Request GET /api/orders"
+| extend Status = toint(extract(@"status=(\d+)", 1, RawData))
+| summarize Requests=count(), Failures=countif(Status >= 500) by bin(TimeGenerated, 1m)
+| extend ErrorRatePct = round(100.0 * Failures / Requests, 1)
+| order by TimeGenerated asc

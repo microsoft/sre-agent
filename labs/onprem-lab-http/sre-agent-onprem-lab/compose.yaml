@@ -1,0 +1,23 @@
+services:
+  app:
+    build: ./app
+    container_name: sre-lab-app
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - /var/log/sre-lab:/var/log/sre-lab
+    restart: unless-stopped
+  loadgen:
+    image: curlimages/curl:latest
+    container_name: sre-lab-loadgen
+    depends_on:
+      - app
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          code=$$(curl -s -m 10 -o /dev/null -w '%{http_code}' http://app:8080/api/orders)
+          echo "$$(date -u +%Y-%m-%dT%H:%M:%SZ) GET /api/orders -> $$code"
+          sleep 5
+        done
