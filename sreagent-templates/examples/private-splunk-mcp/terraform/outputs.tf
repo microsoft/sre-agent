@@ -1,0 +1,10 @@
+output "resource_group_name" { value = azurerm_resource_group.lab.name }
+output "resource_group_id" { value = azurerm_resource_group.lab.id }
+output "agent_subnet_id" { value = local.agent_subnet_id }
+output "agent_vnet_id" { value = local.agent_vnet_id }
+output "splunk_vnet_id" { value = local.splunk_vnet_id }
+output "splunk_vm_id" { value = module.workload.splunk_vm_id }
+output "splunk_vm_name" { value = module.workload.splunk_vm_name }
+output "splunk_private_ip" { value = module.workload.splunk_private_ip }
+output "splunk_hostname" { value = module.workload.splunk_hostname }
+output "splunk_endpoint_candidates" { value = module.workload.splunk_endpoint_candidates }
