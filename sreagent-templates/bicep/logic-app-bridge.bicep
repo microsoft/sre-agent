@@ -82,4 +82,6 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 
 output logicAppName string = logicApp.name
 output logicAppPrincipalId string = logicApp.identity.principalId
-output logicAppCallbackUrl string = listCallbackUrl(resourceId('Microsoft.Logic/workflows/triggers', logicApp.name, 'incoming_webhook'), '2019-05-01').value
+// Callback URLs contain credentials. Retrieve them explicitly with the
+// Microsoft.Logic/workflows/triggers/listCallbackUrl/action permission,
+// never through deployment outputs.
