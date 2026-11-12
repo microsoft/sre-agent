@@ -114,7 +114,7 @@ ContainerAppConsoleLogs_CL
 
 A single alert keeps things clean — the SRE Agent investigates the root cause (memory leak, OOM, code bug, etc.) regardless of which symptom triggered it.
 
-These alerts flow automatically to the SRE Agent via the managed resource group configuration.
+The agent monitors alerts in its managed resource group. The enabled `grubify-http-errors` response plan matches the deployed rule name, `alert-http-5xx-<AZURE_ENV_NAME>`, and routes matching Sev3 alerts to `incident-handler` in Autonomous mode. Managed resource scope alone does not start an investigation when the response plan's title filter does not match.
 
 ---
 

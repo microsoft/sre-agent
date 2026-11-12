@@ -83,6 +83,8 @@ echo ""
 AGENT_ENDPOINT=$(azd env get-value SRE_AGENT_ENDPOINT 2>/dev/null || echo "")
 AGENT_NAME=$(azd env get-value SRE_AGENT_NAME 2>/dev/null || echo "")
 RESOURCE_GROUP=$(azd env get-value AZURE_RESOURCE_GROUP 2>/dev/null || echo "")
+ENVIRONMENT_NAME=$(azd env get-value AZURE_ENV_NAME 2>/dev/null || echo "")
+HTTP_ALERT_NAME="alert-http-5xx-${ENVIRONMENT_NAME}"
 CONTAINER_APP_URL=$(azd env get-value CONTAINER_APP_URL 2>/dev/null || echo "")
 CONTAINER_APP_NAME=$(azd env get-value CONTAINER_APP_NAME 2>/dev/null || echo "")
 FRONTEND_APP_NAME=$(azd env get-value FRONTEND_APP_NAME 2>/dev/null || echo "")
@@ -104,8 +106,8 @@ else
   export GITHUB_REPO=""
 fi
 
-if [ -z "$AGENT_ENDPOINT" ] || [ -z "$AGENT_NAME" ]; then
-  echo "❌ ERROR: Could not read agent details from azd environment."
+if [ -z "$AGENT_ENDPOINT" ] || [ -z "$AGENT_NAME" ] || [ -z "$ENVIRONMENT_NAME" ]; then
+  echo "❌ ERROR: Could not read agent details or AZURE_ENV_NAME from azd environment."
   exit 1
 fi
 
@@ -323,19 +325,44 @@ print(json.dumps({
 }))
 PY
 )
-  HTTP_CODE=$(printf '%s' "$body" | curl -sS -o "${TEMP_DIR}/knowledge-response.txt" -w "%{http_code}" \
-    -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/${connector_name}" \
-    -H "Authorization: Bearer ${TOKEN}" \
-    -H "Content-Type: application/json" \
-    --data-binary @-)
-  if [[ "$HTTP_CODE" =~ ^2 ]]; then
-    echo "   ✅ ${file_name}"
-  else
-    echo "   ❌ ${file_name} returned HTTP ${HTTP_CODE}"
+  KNOWLEDGE_UPLOADED=false
+  for attempt in 1 2 3 4 5; do
+    CURL_EXIT=0
+    : > "${TEMP_DIR}/knowledge-response.txt"
+    HTTP_CODE=$(printf '%s' "$body" | curl -sS --connect-timeout 10 --max-time 60 \
+      -o "${TEMP_DIR}/knowledge-response.txt" -w "%{http_code}" \
+      -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/${connector_name}" \
+      -H "Authorization: Bearer ${TOKEN}" \
+      -H "Content-Type: application/json" \
+      --data-binary @-) || CURL_EXIT=$?
+    if [ "$CURL_EXIT" -eq 0 ] && [[ "$HTTP_CODE" =~ ^2[0-9][0-9]$ ]]; then
+      echo "   ✅ ${file_name}"
+      KNOWLEDGE_UPLOADED=true
+      break
+    fi
+
+    # The connector endpoint can transiently return 405 during initialization.
+    SHOULD_RETRY=false
+    case "$CURL_EXIT:$HTTP_CODE" in
+      0:405|0:408|0:429|0:5[0-9][0-9]|6:*|7:*|18:*|28:*|35:*|52:*|55:*|56:*)
+        SHOULD_RETRY=true ;;
+    esac
+    if [ "$SHOULD_RETRY" = false ] || [ "$attempt" -eq 5 ]; then
+      echo "   ❌ ${file_name} returned HTTP ${HTTP_CODE} (curl exit ${CURL_EXIT}, attempt ${attempt}/5)"
+      if [ -s "${TEMP_DIR}/knowledge-response.txt" ]; then
+        echo "   API response: $(cat "${TEMP_DIR}/knowledge-response.txt")"
+      fi
+      break
+    fi
+    echo "   ⏳ ${file_name}: attempt ${attempt}/5 returned HTTP ${HTTP_CODE} (curl exit ${CURL_EXIT}); retrying in 15s..."
+    sleep 15
+  done
+  if [ "$KNOWLEDGE_UPLOADED" = false ]; then
     KNOWLEDGE_FAILED=1
   fi
 done
 if [ "$KNOWLEDGE_FAILED" -ne 0 ]; then
+  echo "   Retry configuration without rebuilding images: bash scripts/post-provision.sh --retry"
   exit 1
 fi
 echo ""
@@ -372,6 +399,31 @@ API_VERSION="2025-05-01-preview"
   sleep 30
 
 # Create response plan with retry (Azure Monitor needs time to be ready)
+RESPONSE_PLAN_BODY=$($PYTHON - "$HTTP_ALERT_NAME" <<'PY'
+import json
+import sys
+
+print(json.dumps({
+    "name": "grubify-http-errors",
+    "type": "IncidentFilter",
+    "tags": [],
+    "properties": {
+        "incidentPlatform": "AzMonitor",
+        "priorities": ["Sev0", "Sev1", "Sev2", "Sev3", "Sev4"],
+        "titleContains": sys.argv[1],
+        "titleContainsAll": [],
+        "titleContainsAny": [],
+        "titleNotContains": [],
+        "handlingAgent": "incident-handler",
+        "agentMode": "Autonomous",
+        "maxAutomatedInvestigationAttempts": 3,
+        "mergeEnabled": True,
+        "mergeWindowHours": 3,
+        "isEnabled": True,
+    },
+}))
+PY
+) || exit 1
 FILTER_CREATED=false
 for attempt in 1 2 3 4 5; do
   TOKEN=$(get_token)
@@ -379,10 +431,10 @@ for attempt in 1 2 3 4 5; do
     -X PUT "${AGENT_ENDPOINT}/api/v2/extendedAgent/incidentFilters/grubify-http-errors" \
     -H "Authorization: Bearer ${TOKEN}" \
     -H "Content-Type: application/json" \
-    --data-binary '{"name":"grubify-http-errors","type":"IncidentFilter","tags":[],"properties":{"incidentPlatform":"AzMonitor","priorities":["Sev0","Sev1","Sev2","Sev3","Sev4"],"titleContains":"alert-http-5xx-sre-lab","titleContainsAll":[],"titleContainsAny":[],"titleNotContains":[],"handlingAgent":"incident-handler","agentMode":"Autonomous","maxAutomatedInvestigationAttempts":3,"mergeEnabled":true,"mergeWindowHours":3,"isEnabled":true}}')
+    --data-binary "$RESPONSE_PLAN_BODY")
 
   if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "202" ] || [ "$HTTP_CODE" = "204" ]; then
-    echo "   ✅ Response plan → incident-handler"
+    echo "   ✅ Response plan: ${HTTP_ALERT_NAME} → incident-handler"
     FILTER_CREATED=true
     break
   else
@@ -599,12 +651,12 @@ echo "$FILTERS" | $PYTHON -c "
 import sys,json
 try:
     d=json.load(sys.stdin)
-  filters=d.get('value', d if isinstance(d, list) else [])
-  for f in filters:
-    agent=f.get('properties',{}).get('handlingAgent','(none)')
-    name=f.get('name','?')
+    filters=d.get('value', d if isinstance(d, list) else [])
+    for f in filters:
+        agent=f.get('properties',{}).get('handlingAgent','(none)')
+        name=f.get('name','?')
         print(f'     ✅ {name} → subagent: {agent}')
-  if not filters: print('     (none)')
+    if not filters: print('     (none)')
 except: print('     (could not retrieve)')
 " 2>/dev/null
 echo ""
@@ -639,11 +691,21 @@ echo ""
 VERIFY_FAILURES=0
 KNOWLEDGE_COUNT=$(echo "$KNOWLEDGE_SOURCES" | $PYTHON -c "import sys,json; d=json.load(sys.stdin); items=d.get('value', d if isinstance(d,list) else []); print(len([x for x in items if x.get('properties',{}).get('dataConnectorType','').startswith('Knowledge')]))" 2>/dev/null || echo 0)
 INCIDENT_HANDLER_COUNT=$(echo "$AGENTS" | $PYTHON -c "import sys,json; d=json.load(sys.stdin); print(len([x for x in d.get('value',[]) if x.get('name')=='incident-handler']))" 2>/dev/null || echo 0)
-RESPONSE_PLAN_COUNT=$(echo "$FILTERS" | $PYTHON -c "import sys,json; d=json.load(sys.stdin); items=d.get('value', d if isinstance(d,list) else []); print(len([x for x in items if x.get('name')=='grubify-http-errors']))" 2>/dev/null || echo 0)
+RESPONSE_PLAN_COUNT=$(echo "$FILTERS" | $PYTHON -c "
+import json, sys
+d = json.load(sys.stdin)
+items = d if isinstance(d, list) else d.get('value', [])
+expected = json.loads(sys.argv[1])['properties']
+print(sum(
+    x.get('name') == 'grubify-http-errors'
+    and all(x.get('properties', {}).get(key) == value for key, value in expected.items())
+    for x in items
+))
+" "$RESPONSE_PLAN_BODY" 2>/dev/null || echo 0)
 
 [ "$KNOWLEDGE_COUNT" -ge 4 ] || { echo "   ❌ Expected 4 knowledge sources, found $KNOWLEDGE_COUNT"; VERIFY_FAILURES=$((VERIFY_FAILURES + 1)); }
 [ "$INCIDENT_HANDLER_COUNT" -eq 1 ] || { echo "   ❌ incident-handler is missing"; VERIFY_FAILURES=$((VERIFY_FAILURES + 1)); }
-[ "$RESPONSE_PLAN_COUNT" -eq 1 ] || { echo "   ❌ grubify-http-errors response plan is missing"; VERIFY_FAILURES=$((VERIFY_FAILURES + 1)); }
+[ "$RESPONSE_PLAN_COUNT" -eq 1 ] || { echo "   ❌ grubify-http-errors must be enabled and route ${HTTP_ALERT_NAME} to incident-handler autonomously with the expected settings"; VERIFY_FAILURES=$((VERIFY_FAILURES + 1)); }
 [ "$PLATFORM_TYPE" = "AzMonitor" ] || { echo "   ❌ Azure Monitor incident platform is not connected"; VERIFY_FAILURES=$((VERIFY_FAILURES + 1)); }
 
 if [ -n "$GITHUB_REPO" ]; then
