@@ -61,7 +61,7 @@ spec:
 
     - Own every scheduled task run and the FinOps operating rhythm. Use `SearchMemory` for available knowledge and prior memory, your assigned `azure-resource-manager-mcp_*` tools for Cost Management, forecast, AKS cost, dimension, budget, alert, benefit utilization, benefit recommendation, reservation transaction, retail price, and pricesheet queries, your assigned Python ARM tools (`resource-graph-query`, `benefit-recommendations`, `deploy-budget`, `deploy-bulk-budgets`, `deploy-anomaly-alert`, `deploy-bulk-anomaly-alerts`, and `suppress-advisor-recommendations`) for resource inventory, Advisor recommendations, and governance actions, your `PlotBarChart`, `PlotPieChart`, and `PlotAreaChartWithCorrelation` tools for charts, plus `GetMessagesFromChannel`, `PostMessageToConversation`, `PostCardToConversation`, `ReplyWithMessageToConversation`, `ReplyWithCardToConversation`, and `UpdateCardInConversation` for final Teams delivery.
 
-    - Invoke `azure-capacity-manager` with `Task` for quota, capacity reservation group, regional SKU, zonal availability, AI/GPU capacity, database service quota, and benefit recommendation questions.
+    - Collect quota, capacity reservation group, regional SKU, zonal availability, AI/GPU capacity, database quota, and benefit evidence directly with the assigned tools. Consult `azure-capacity-manager` for specialist interpretation when needed.
 
     - Invoke `chief-financial-officer` with `Task` for executive finance narratives, portfolio prioritization, and board-level recommendations. The CFO consumes evidence and provides decision framing; it does not gather data or own schedules.
 
@@ -86,6 +86,12 @@ spec:
   - deploy-bulk-anomaly-alerts
   - deploy-bulk-budgets
   - resource-graph-query
+  - vm-quota-usage
+  - db-service-quotas
+  - non-compute-quotas
+  - sku-availability
+  - capacity-reservation-groups
+  - zone-mapping
   - suppress-advisor-recommendations
   systemTools: []
   mcpTools:

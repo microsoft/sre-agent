@@ -13,8 +13,13 @@ spec:
     with clearly marked estimated limits for services without a direct usages API.
     Network Watcher 1/1 entries are returned as suppressed Azure defaults, not
     actionable quota risk.
+    By default, returns active, high-utilization, and flagged quotas. Quota rows
+    use quota_columns; provider_index refers to summary.providers_checked.
+    Percentage is 100*current/limit when limit is positive; estimated_providers
+    identifies estimates rather than API-reported limits. Repeat with next_offset.
   functionCode: |-
     def main(**kwargs):
+        import json
         import requests
 
         ARM_ENDPOINT = "https://management.azure.com"
@@ -484,10 +489,63 @@ spec:
                 limit_note=service["limit_note"],
             )
 
-        if errors:
-            result["errors"] = errors
+        rows = []
+        include_zero = str(kwargs.get("include_zero_usage", False)).lower() in ("true", "1", "yes")
+        providers = set()
+        active_count = warning_count = critical_count = omitted = 0
 
-        return result
+        for quota in result["quotas"]:
+            pct = quota["utilization_pct"]
+            providers.add(quota["service_name"])
+            active_count += int((quota["current"] or 0) > 0)
+            warning_count += int((pct or 0) >= 80)
+            critical_count += int((pct or 0) >= 95)
+            if quota.get("suppressed_from_risk_summary"):
+                flag = "suppressed_network_watcher_default"
+            elif quota["current"] is None:
+                flag = "unknown_read_error"
+            elif pct is not None and pct >= 95:
+                flag = "critical"
+            elif pct is not None and pct >= 80:
+                flag = "warning"
+            else:
+                flag = None
+            if not include_zero and not ((quota["current"] or 0) > 0 or (pct or 0) >= 80 or flag not in (None, "ok")):
+                omitted += 1
+                continue
+            metric = quota["quota_name"].replace(" estimated subscription limit", "")
+            row = [quota["service_name"], metric, quota["current"], quota["limit"]]
+            if len(service_locations) > 1 and quota["location"]:
+                row.extend([pct, flag, quota["location"]])
+            elif flag and flag not in ("warning", "critical"):
+                row.extend([pct, flag])
+            rows.append(row)
+        provider_list = sorted(providers)
+        for row in rows:
+            row[0] = provider_list.index(row[0])
+        compact = {
+            "summary": {"total_checked": len(result["quotas"]), "active_count": active_count,
+                        "warning_count_ge_80pct": warning_count, "critical_count_ge_95pct": critical_count,
+                        "zero_usage_omitted_count": omitted, "providers_checked": provider_list},
+            "quota_columns": ["provider_index", "metric", "current", "limit", "pct?", "flag?", "region?"],
+            "estimated_providers": [provider_list.index(q["service_name"]) for q in result["quotas"] if q["limit_type"] != "api_reported"],
+            "quotas": rows,
+            "errors": [{k: e[k] for k in ("service_name", "location", "source", "error") if e.get(k) is not None}
+                       for e in errors],
+        }
+        try:
+            offset = int(kwargs.get("offset") or 0)
+            if offset < 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            return json.dumps({"error": "offset must be a nonnegative integer"}, separators=(",", ":"))
+        compact["quotas"] = rows[offset:]
+        while compact["quotas"] and len(json.dumps(compact, separators=(",", ":"))) >= 880:
+            compact["quotas"].pop()
+            compact["next_offset"] = offset + len(compact["quotas"])
+        if compact.get("next_offset") == offset:
+            compact["error"] = "One quota row exceeds the telemetry limit"
+        return json.dumps(compact, separators=(",", ":"))
   timeoutSeconds: 300
   dependencies:
     - azure-identity
@@ -502,4 +560,12 @@ spec:
     - name: location
       type: string
       description: Optional Azure region or comma-separated regions for Storage and Network usages. If omitted, all subscription locations are queried.
+      required: false
+    - name: include_zero_usage
+      type: boolean
+      description: Include zero-usage quota rows.
+      required: false
+    - name: offset
+      type: integer
+      description: Continue from the previous result's next_offset.
       required: false

@@ -18,18 +18,18 @@ spec:
 
     Output style: Label measured, derived, and estimated evidence; cite each source or derivation; state exact scope and time period; organize findings by FinOps capability; include risk thresholds, confidence, caveats, and required disclaimers.
 
-    Tool routing and delivery guard: This scheduled task is owned by `finops-practitioner`, which has `SearchMemory`, its assigned `azure-resource-manager-mcp_*` Cost Management and Pricing tools, its assigned Python ARM tools (`resource-graph-query`, `benefit-recommendations`, `deploy-budget`, `deploy-bulk-budgets`, `deploy-anomaly-alert`, `deploy-bulk-anomaly-alerts`, and `suppress-advisor-recommendations`), its visualization tools (`PlotBarChart`, `PlotPieChart`, `PlotAreaChartWithCorrelation`), and its Microsoft Teams delivery tools (`GetMessagesFromChannel`, `PostMessageToConversation`, `PostCardToConversation`, `ReplyWithMessageToConversation`, `ReplyWithCardToConversation`, `UpdateCardInConversation`). Use the `Task` system tool to invoke `azure-capacity-manager` for quota, capacity reservation group, SKU availability, zone mapping, database service quota, and benefit recommendation Python tools (`vm-quota-usage`, `non-compute-quotas`, `db-service-quotas`, `capacity-reservation-groups`, `zone-mapping`, `sku-availability`, `benefit-recommendations`), and invoke `chief-financial-officer` for executive finance framing. Pass the full task scope, evidence already collected, open questions, and desired output shape with each `Task` invocation. Check available visualization tools once per run and use `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation` to generate charts for key findings; if no visualization tool is available, provide the data as a chart-ready table. Complete the report and chart artifacts before delivery. When a Microsoft Teams connector/channel is configured, `finops-practitioner` makes one final `PostMessageToConversation` attempt to the configured Teams channel. If a configured Teams delivery attempt fails, mark the task/run failed instead of degrading to local output or probing alternate paths. If Teams delivery is not configured or available, render the completed report in the run output and state that Teams delivery was skipped.
+    Tool execution: Call `vm-quota-usage`, `db-service-quotas`, `non-compute-quotas`, `sku-availability`, `capacity-reservation-groups`, `zone-mapping`, `resource-graph-query`, `benefit-recommendations`, and `azure-resource-manager-mcp_*` directly as relevant. Do not use `Explore`, `kubectl`, slow `az vm skus list`, or interactive REST calls that trigger PendingApproval. Check available visualization tools once per run and use `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation` to generate charts for key findings; if no visualization tool is available, provide the data as a chart-ready table. Complete the report and chart artifacts before delivery. When a Microsoft Teams connector/channel is configured, `finops-practitioner` makes one final `PostMessageToConversation` attempt to the configured Teams channel. If a configured Teams delivery attempt fails, mark the task/run failed instead of degrading to local output or probing alternate paths. If Teams delivery is not configured or available, render the completed report in the run output and state that Teams delivery was skipped.
 
 
 
-    Orchestration rule: This scheduled task is owned by `finops-practitioner`. Delegate capacity evidence collection and specialist analysis to `azure-capacity-manager`; do not try to run capacity tools directly from the practitioner. When the specialist returns evidence, assemble the final FinOps report, apply the reporting requirements in this task, generate supported visualizations, and deliver the completed output through configured connectors.
+    Orchestration rule: `finops-practitioner` collects evidence directly, assembles the report, and delivers through configured connectors.
 
-    Ask `azure-capacity-manager` to load its capacity-management guidance and use the agent system-managed identity for Python tool authentication.
+    Apply capacity-management guidance and use the configured identity for Python tool authentication.
 
 
-    ## Specialist tools to request from `azure-capacity-manager`
+    ## Tools to call directly
 
-    - `finops-practitioner` runs `resource-graph-query` directly to identify subscriptions, resources, regions, and ownership. Ask `azure-capacity-manager` to run `vm-quota-usage` with `subscription_id` and `location`.
+    - `finops-practitioner` runs `resource-graph-query` directly to identify subscriptions, resources, regions, and ownership. run `vm-quota-usage` with `subscription_id` and `location`.
 
 
     ## 1. Establish scope
@@ -41,7 +41,7 @@ spec:
     ## 2. Collect quota utilization
 
 
-    Ask `azure-capacity-manager` to run `vm-quota-usage` with `subscription_id` and `location` for each scoped subscription and region. Capture VM family current usage, limit, and utilization percentage, then compare against the thresholds below.
+    run `vm-quota-usage` with `subscription_id` and `location` for each scoped subscription and region. Capture VM family current usage, limit, and utilization percentage, then compare against the thresholds below.
 
 
     ## 3. Compare to prior week

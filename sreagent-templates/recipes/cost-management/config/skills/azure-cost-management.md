@@ -44,7 +44,7 @@ For detailed documentation: `references/azure-advisor.md`
 
 ### Orphaned resources
 
-Detect unused resources generating waste with zero workload value. Immediate savings, zero risk.
+Identify potentially unused resources. Validate owner and dependency status before deleting unattached resources.
 
 ```bash
 az graph query -q "resources | where type == 'microsoft.compute/disks' | where properties.diskState == 'Unattached' | project name, resourceGroup, sizeGb = properties.diskSizeGB"

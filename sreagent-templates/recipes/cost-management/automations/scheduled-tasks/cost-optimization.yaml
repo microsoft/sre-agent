@@ -28,7 +28,7 @@ spec:
 
     1. Determine scope from the configured scheduled-task scope, documented knowledge-base scope, or current authenticated context. Do not wait for user input during this scheduled run. If scope cannot be determined, report the missing scope as a blocking configuration issue.
     2. Verify authentication: confirm Python tools are using DefaultAzureCredential with the agent system-managed identity.
-    3. Check permissions: Reader role is sufficient for all detection queries. Note if elevated permissions are available.
+    3. Check permissions: `Reader` is needed for resource inventory and `Cost Management Reader` for cost data. Note missing permissions.
 
     ## Phase 2: Data collection
 
@@ -98,7 +98,7 @@ spec:
 
     | Category | Effort | Risk | Examples |
     |----------|--------|------|----------|
-    | **Quick wins** | Low | Zero | Delete orphaned resources, remove unused IPs |
+    | **Candidate savings** | Validate | Assess dependencies | Validate owner and dependency status before deleting unattached resources |
     | **Rightsizing** | Medium | Low | Resize underutilized VMs (requires restart) |
     | **Commitment optimization** | Medium | Medium | Purchase savings plans or reservations |
     | **Architecture changes** | High | Variable | Redesign for cost efficiency, migrate to PaaS |
@@ -117,7 +117,7 @@ spec:
     ## Executive summary
 
     - **Total identified monthly savings:** ${amount}
-    - **Quick wins (zero risk):** ${amount} across {count} resources
+    - **Candidate savings (risk requires validation):** ${amount} across {count} resources
     - **Rightsizing opportunities:** ${amount} across {count} VMs
     - **Commitment discount opportunities:** ${amount} estimated
     - **Current commitment coverage:** {percentage}%
@@ -126,8 +126,8 @@ spec:
 
     | Resource Type | Count | Est. Monthly Cost | Action |
     |--------------|-------|-------------------|--------|
-    | Unattached disks | {n} | ${cost} | Delete |
-    | Orphaned public IPs | {n} | ${cost} | Delete |
+    | Unattached disks | {n} | ${cost} | Validate owner and dependencies |
+    | Orphaned public IPs | {n} | ${cost} | Validate owner and dependencies |
     | ... | ... | ... | ... |
     | **Total** | **{n}** | **${cost}** | |
 
@@ -159,7 +159,7 @@ spec:
 
     ## Next steps
 
-    1. **Immediate (this week):** Delete orphaned resources — ${amount}/mo savings
+    1. **Immediate (this week):** Validate owner and dependency status before deleting unattached resources — ${amount}/mo savings
     2. **Short-term (this month):** Resize top {n} VMs — ${amount}/mo savings
     3. **Medium-term (this quarter):** Evaluate commitment discount purchases
     4. **Ongoing:** Deploy VM Insights for memory-aware rightsizing

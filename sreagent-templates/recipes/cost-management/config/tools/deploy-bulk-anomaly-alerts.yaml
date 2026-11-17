@@ -143,6 +143,10 @@ spec:
   authScopes:
     - ARM
   parameters:
+    - name: scheduled_action_name
+      type: string
+      description: Optional scheduled action name. Defaults to cost-anomaly-alert.
+      required: false
     - name: management_group
       type: string
       description: Management group ID used to discover enabled subscriptions.

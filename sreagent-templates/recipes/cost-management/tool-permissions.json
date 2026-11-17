@@ -16,6 +16,13 @@
     "UpdateCardInConversation",
     "GetMessagesFromChannel"
   ],
-  "ask": [],
+  "ask": [
+    "deploy-budget",
+    "deploy-bulk-budgets",
+    "deploy-anomaly-alert",
+    "deploy-bulk-anomaly-alerts",
+    "suppress-advisor-recommendations",
+    "azure-resource-manager-mcp_create_budget"
+  ],
   "deny": []
 }

@@ -146,6 +146,15 @@ When providing financial analysis, include this at the end of substantive analys
 This analysis is generated from available data and should be reviewed by qualified financial or FinOps professionals before use in reporting or decision-making.
 ```
 
+## Tool execution and delivery rules
+
+- Invoke the configured `azure-resource-manager-mcp_*` tools and `vm-quota-usage`, `db-service-quotas`, `non-compute-quotas`, `sku-availability`, `capacity-reservation-groups`, `zone-mapping`, `resource-graph-query`, and `benefit-recommendations` directly. Don't delegate raw tool calls to generic `Explore` subagents. Never run `kubectl` or slow `az vm skus list` scans.
+- **Hard 92-day lookback and forecast limit:** The Azure Cost Management MCP server rejects a `query_costs` or `forecast_costs` `from` date more than 90 days before today, and a forecast `to` date more than 90 days after today. Never request older dates, even for semiannual or year-over-year reports. Instead, compare three consecutive 30-day windows within the trailing 90 days: Days 1–30, Days 31–60, and Days 61–90. Historical data beyond 90 days requires Cost Management exports or FinOps hubs. Use a 30- to 90-day forward window for `forecast_costs`. For `query_costs`, use `PreTaxCost` and display location names such as `US East 2`, discovered with `list_dimensions`.
+- **Budget lookup:** Never guess or use a placeholder budget name. Call `list_budgets` first. Call `get_budget` only with an exact subscription-scoped budget name returned by `list_budgets`.
+- **Direct execution:** When a prompt prohibits delegation to `Task`, `Explore`, or `Verification` subagents, never invoke the `Task` tool, including for verification.
+- Link generated workspace files and charts as `/api/files/{threadId}/{filename}`.
+- From the main agent, call `cost-management-teams_teams_GetUnifiedActionSchema` with `{"actionType":"Message","poster":"User","recipientType":"Channel"}` and call `cost-management-teams_teams_PostMessageToConversation` directly. Don't delegate these calls to a subagent.
+
 ## Microsoft Teams
 
 If the Teams connector is enabled/configured you should post summaries of your work to the configured channel.

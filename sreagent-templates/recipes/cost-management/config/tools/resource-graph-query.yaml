@@ -12,6 +12,8 @@ spec:
     resource graph tables when troubleshooting subscription-scale issues.
   functionCode: |-
     def main(**kwargs):
+        import json
+        import re
         import requests
 
         ARM_ENDPOINT = "https://management.azure.com"
@@ -29,6 +31,7 @@ spec:
         if not isinstance(query, str) or not query.strip():
             result["errors"].append({"error": "query is required"})
             return result
+        query = re.sub(r",\s*project\s*=", ", projectName=", query, flags=re.IGNORECASE)
 
         if subscription_ids:
             if isinstance(subscription_ids, str):
@@ -63,14 +66,19 @@ spec:
         if not subscriptions:
             try:
                 list_url = f"{ARM_ENDPOINT}/subscriptions?api-version=2022-12-01"
-                list_response = requests.get(list_url, headers=headers, timeout=60)
-                list_response.raise_for_status()
-                list_payload = list_response.json()
-                subscriptions = [
-                    sub.get("subscriptionId")
-                    for sub in list_payload.get("value", [])
-                    if sub.get("subscriptionId")
-                ]
+                for _ in range(5):
+                    list_response = requests.get(list_url, headers=headers, timeout=60)
+                    list_response.raise_for_status()
+                    list_payload = list_response.json()
+                    subscriptions.extend(
+                        sub["subscriptionId"] for sub in list_payload.get("value", [])
+                        if sub.get("subscriptionId")
+                    )
+                    list_url = list_payload.get("nextLink")
+                    if not list_url:
+                        break
+                if list_url:
+                    result["subscription_list_truncated"] = True
             except Exception as exc:
                 result["errors"].append({"error": f"Failed to list Azure subscriptions: {exc}"})
                 return result
@@ -84,34 +92,64 @@ spec:
                 f"{ARM_ENDPOINT}/providers/Microsoft.ResourceGraph/resources"
                 "?api-version=2022-10-01"
             )
-            response = requests.post(
-                graph_url,
-                headers=headers,
-                json={"subscriptions": subscriptions, "query": query},
-                timeout=120,
-            )
-            response.raise_for_status()
-            payload = response.json()
-            data = payload.get("data")
-
-            if isinstance(data, list):
-                rows = data
-            elif isinstance(data, dict):
-                rows = data.get("rows") or data.get("data") or data.get("value") or [data]
-            elif data is None:
-                rows = []
-            else:
-                rows = list(data)
+            rows = []
+            skip_token = None
+            for _ in range(5):
+                body = {"subscriptions": subscriptions, "query": query}
+                if skip_token:
+                    body["options"] = {"$skipToken": skip_token}
+                response = requests.post(graph_url, headers=headers, json=body, timeout=120)
+                if response.status_code == 400 and not result.get("kql_fallback_applied"):
+                    try:
+                        error_payload = response.json()
+                        detail = json.dumps(error_payload, separators=(",", ":"))
+                        details = (error_payload.get("error") or {}).get("details") or []
+                        diagnostic = next((d.get("message") for d in details if isinstance(d, dict) and
+                                           any(term in str(d.get("code", "")).lower() for term in
+                                               ("operator", "resolve", "parser", "syntax", "semantic", "column"))),
+                                          (error_payload.get("error") or {}).get("message") or detail)
+                    except ValueError:
+                        detail = response.text
+                        diagnostic = detail
+                    if any(term in detail.lower() for term in
+                           ("invalidquery", "queryparser", "parserfailure", "syntax", "semantic",
+                            "failedtoresolve", "operator", "column")):
+                        result["kql_fallback_applied"] = True
+                        result["original_kql_error"] = str(diagnostic)[:220]
+                        query = "Resources | project name, type, resourceGroup, location, sku.name, tags | limit 100"
+                        body = {"subscriptions": subscriptions, "query": query}
+                        rows = []
+                        response = requests.post(graph_url, headers=headers, json=body, timeout=120)
+                response.raise_for_status()
+                payload = response.json()
+                data = payload.get("data")
+                if isinstance(data, list):
+                    rows.extend(data)
+                elif isinstance(data, dict):
+                    rows.extend(data.get("rows") or data.get("data") or data.get("value") or [data])
+                elif data is not None:
+                    rows.extend(data)
+                skip_token = payload.get("$skipToken")
+                if not skip_token:
+                    break
 
             result["rows"] = rows
-            result["count"] = payload.get("count") or len(rows)
+            result["count"] = len(rows)
             result["total_records"] = payload.get("totalRecords")
-            result["result_truncated"] = payload.get("resultTruncated")
+            result["result_truncated"] = bool(skip_token) or str(payload.get("resultTruncated", "")).lower() == "true"
+            if skip_token:
+                result["continuation_token"] = skip_token
             result["subscriptions"] = subscriptions
+            result["row_count"] = len(rows)
+            if len(json.dumps(rows, separators=(",", ":"))) > 850 or len(json.dumps(result, separators=(",", ":"))) >= 900:
+                result["rows"] = rows[:10]
+                result["truncated_for_telemetry_limit"] = True
+                while result["rows"] and len(json.dumps(result, separators=(",", ":"))) >= 900:
+                    result["rows"].pop()
         except Exception as exc:
             result["errors"].append({"error": f"Failed to run Azure Resource Graph query: {exc}"})
 
-        return result
+        return json.dumps(result, separators=(",", ":"))
   timeoutSeconds: 300
   dependencies:
     - azure-identity

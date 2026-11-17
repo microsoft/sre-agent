@@ -718,7 +718,7 @@ if [[ "$tp_has" == "true" ]]; then
     echo "toolPermissions: configuring"
     TOKEN=$(_dp_token)
     # GET current to capture etag
-    tp_resp=$(curl -sS -D- -o /tmp/tp_body.json "${AGENT_ENDPOINT}/api/v2/agent/settings/global" \
+    tp_resp=$(curl -sS -D- -o /dev/null "${AGENT_ENDPOINT}/api/v2/agent/settings/global" \
       -H "Authorization: Bearer ${TOKEN}" 2>/dev/null)
     tp_etag=$(echo "$tp_resp" | grep -i '^etag:' | tr -d '\r' | awk '{print $2}' || true)
     if [[ -z "$tp_etag" ]]; then
@@ -739,7 +739,6 @@ if [[ "$tp_has" == "true" ]]; then
     else
       echo "  FAILED — PUT settings/global (HTTP ${tp_code})"
     fi
-    rm -f /tmp/tp_body.json
   else
     echo "toolPermissions — ⚠ skipped (no data-plane token)"
     DP_SKIPPED_ITEMS+=("toolPermissions")

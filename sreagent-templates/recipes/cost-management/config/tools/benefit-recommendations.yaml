@@ -12,26 +12,24 @@ spec:
     term, and break-even details. Available parameters: billing_scope, lookback_period, term.
   functionCode: |-
     def main(**kwargs):
+        import json
         from urllib.parse import quote
 
         import requests
 
         billing_scope = kwargs.get("billing_scope")
+        subscription_id = kwargs.get("subscription_id")
         lookback_period = kwargs.get("lookback_period") or "Last7Days"
         term = kwargs.get("term") or "P3Y"
 
-        result = {
-            "billing_scope": billing_scope,
-            "lookback_period": lookback_period,
-            "term": term,
-            "recommendations": [],
-        }
+        result = {"lookback": lookback_period, "term": term, "recommendations": []}
 
-        if not billing_scope:
-            result["error"] = "billing_scope is required"
+        if not billing_scope and not subscription_id:
+            result["error"] = "billing_scope or subscription_id is required"
             return result
 
-        scope = str(billing_scope).strip().strip("/")
+        scope = str(billing_scope or f"/subscriptions/{subscription_id}").strip().strip("/")
+        result["scope_used"] = f"/{scope}"
         filter_expression = (
             f"properties/lookBackPeriod eq '{lookback_period}' "
             f"and properties/term eq '{term}'"
@@ -46,21 +44,63 @@ spec:
             from azure.identity import DefaultAzureCredential
             credential = DefaultAzureCredential()
             token = credential.get_token("https://management.azure.com/.default")
-            payload_items = []
-            next_url = url
-            while next_url:
-                response = requests.get(
-                    next_url,
-                    headers={"Authorization": f"Bearer {token.token}"},
-                    timeout=300,
+            def fetch(start_url):
+                items = []
+                next_url = start_url
+                while next_url:
+                    response = requests.get(
+                        next_url,
+                        headers={"Authorization": f"Bearer {token.token}"},
+                        timeout=300,
+                    )
+                    response.raise_for_status()
+                    payload = response.json()
+                    items.extend(payload.get("value", []))
+                    next_url = payload.get("nextLink")
+                return items
+            def discover_subscription():
+                next_url = "https://management.azure.com/subscriptions?api-version=2022-12-01"
+                while next_url:
+                    response = requests.get(next_url, headers={"Authorization": f"Bearer {token.token}"}, timeout=120)
+                    response.raise_for_status()
+                    payload = response.json()
+                    for sub in payload.get("value", []):
+                        if str(sub.get("state", "")).lower() == "enabled" and sub.get("subscriptionId"):
+                            return sub["subscriptionId"]
+                    next_url = payload.get("nextLink")
+                raise ValueError("No enabled subscription is accessible to the managed identity")
+            try:
+                payload_items = fetch(url)
+            except requests.HTTPError as exc:
+                if not (billing_scope and scope.lower().startswith("providers/microsoft.billing/") and
+                        exc.response is not None and exc.response.status_code in (401, 403)):
+                    raise
+                if not subscription_id:
+                    subscription_id = discover_subscription()
+                scope = f"subscriptions/{subscription_id}"
+                result["scope_used"] = f"/{scope}"
+                result["billing_scope_fallback_reason"] = "Billing scope denied; used subscription scope"
+                url = (
+                    f"https://management.azure.com/{scope}"
+                    "/providers/Microsoft.CostManagement/benefitRecommendations"
+                    f"?api-version=2025-03-01&$filter={quote(filter_expression, safe='')}"
                 )
-                response.raise_for_status()
-                payload = response.json()
-                payload_items.extend(payload.get("value", []))
-                next_url = payload.get("nextLink")
+                payload_items = fetch(url)
+            else:
+                if billing_scope and not subscription_id:
+                    subscription_id = discover_subscription()
+                    scope = f"subscriptions/{subscription_id}"
+                    result["scope_used"] = f"/{scope}"
+                    result["billing_scope_fallback_reason"] = "No subscription specified; used discovered subscription"
+                    url = (
+                        f"https://management.azure.com/{scope}"
+                        "/providers/Microsoft.CostManagement/benefitRecommendations"
+                        f"?api-version=2025-03-01&$filter={quote(filter_expression, safe='')}"
+                    )
+                    payload_items = fetch(url)
         except Exception as exc:
             result["error"] = f"Failed to get Cost Management benefit recommendations: {exc}"
-            return result
+            return json.dumps(result, separators=(",", ":"))
 
         def _first(*values):
             for value in values:
@@ -149,22 +189,39 @@ spec:
                 _nested(recommendation_details, "breakEvenPeriod"),
             )
 
-            result["recommendations"].append(
-                {
-                    "type": _recommendation_type(item, properties),
-                    "savings": savings,
-                    "cost": cost,
-                    "total_cost": total_cost,
-                    "cost_without_benefit": cost_without_benefit,
-                    "term": recommendation_term,
-                    "break_even": break_even,
-                    "id": item.get("id"),
-                    "name": item.get("name"),
-                }
-            )
+            row = {
+                "sku": _first(properties.get("armSkuName"), properties.get("skuName"), _nested(properties, "sku", "name")),
+                "scope": _first(properties.get("scope"), properties.get("scopeType")),
+                "term": recommendation_term,
+                "commit_hr": _first(properties.get("recommendedHourlyCommitment"), recommendation_details.get("recommendedHourlyCommitment"),
+                                    recommendation_details.get("commitmentAmount") if properties.get("commitmentGranularity") == "Hourly" else None),
+                "savings_30d": _first(properties.get("estimatedSavingsAmount"), recommendation_details.get("savingsAmount"),
+                                      recommendation_details.get("averageSavingsAmount")) if lookback_period == "Last30Days" else None,
+                "savings_pct": _first(properties.get("estimatedSavingsPercentage"), recommendation_details.get("savingsPercentage")),
+                "util_pct": _first(properties.get("utilizationPercentage"), recommendation_details.get("utilizationPercentage"),
+                                   recommendation_details.get("averageUtilizationPercentage")),
+                "cov_pct": _first(properties.get("coveragePercentage"), recommendation_details.get("coveragePercentage")),
+                "cost_without": cost_without_benefit,
+                "total_cost": total_cost,
+                "hours": _first(properties.get("totalHours"), properties.get("usageHours"), recommendation_details.get("usageHours")),
+            }
+            result["recommendations"].append({k: v for k, v in row.items() if v is not None})
 
         result["count"] = len(result["recommendations"])
-        return result
+        try:
+            offset = int(kwargs.get("offset") or 0)
+            if offset < 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            return json.dumps({"error": "offset must be a nonnegative integer"}, separators=(",", ":"))
+        result["recommendations"] = result["recommendations"][offset:]
+        while result["recommendations"] and len(json.dumps(result, separators=(",", ":"))) >= 900:
+            result["recommendations"].pop()
+            result["truncated_for_telemetry_limit"] = True
+            result["next_offset"] = offset + len(result["recommendations"])
+        if result.get("next_offset") == offset:
+            result["error"] = "One recommendation exceeds the telemetry limit"
+        return json.dumps(result, separators=(",", ":"))
   timeoutSeconds: 300
   dependencies:
     - azure-identity
@@ -175,7 +232,11 @@ spec:
     - name: billing_scope
       type: string
       description: Azure billing scope or subscription scope to query for benefit recommendations.
-      required: true
+      required: false
+    - name: subscription_id
+      type: string
+      description: Subscription ID to use when the billing scope is omitted or inaccessible.
+      required: false
     - name: lookback_period
       type: string
       description: Optional lookback period for benefit recommendations. Defaults to Last7Days.
@@ -183,4 +244,8 @@ spec:
     - name: term
       type: string
       description: Optional commitment term for benefit recommendations. Defaults to P3Y.
+      required: false
+    - name: offset
+      type: integer
+      description: Continue from the previous result's next_offset.
       required: false

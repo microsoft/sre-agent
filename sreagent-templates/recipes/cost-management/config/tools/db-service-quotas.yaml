@@ -19,6 +19,7 @@ spec:
     Inspired by https://github.com/naspinall-MS/az-quota-helper (MIT).
   functionCode: |-
     def main(**kwargs):
+        import json
         import re
         import requests
 
@@ -161,7 +162,7 @@ spec:
                     add_error("service_not_in_region", service, location, url, body[:1000], response.status_code, response.reason, True)
                     return None
                 if suppress_cosmos_locations_5xx and response.status_code >= 500:
-                    add_error("service_not_in_region", service, location, url, body[:1000], response.status_code, response.reason, True)
+                    add_error("upstream_5xx", service, location, url, body[:1000], response.status_code, response.reason)
                     return None
                 add_error("http_error", service, location, url, body[:1000], response.status_code, response.reason)
                 return None
@@ -178,7 +179,7 @@ spec:
             while next_url:
                 payload = arm_get(next_url, service, location)
                 if payload is None:
-                    return rows
+                    return None
                 rows.extend(payload.get("value", []))
                 next_url = payload.get("nextLink")
             return rows
@@ -226,8 +227,8 @@ spec:
                 available = int(limit_number - current_number)
                 if limit_number > 0:
                     utilization_pct = round((current_number / limit_number) * 100, 2)
-            at_risk_80 = bool(utilization_pct is not None and utilization_pct > 80)
-            at_risk_95 = bool(utilization_pct is not None and utilization_pct > 95)
+            at_risk_80 = bool(utilization_pct is not None and utilization_pct >= 80)
+            at_risk_95 = bool(utilization_pct is not None and utilization_pct >= 95)
             if at_risk_80:
                 result["at_risk_count"] += 1
             if at_risk_80 and not at_risk_95:
@@ -370,6 +371,7 @@ spec:
 
         cosmos_locations_cache = None
         cosmos_accounts_cache = None
+        cosmos_accounts_loaded = False
 
         def get_cosmos_locations():
             nonlocal cosmos_locations_cache
@@ -377,21 +379,25 @@ spec:
                 return cosmos_locations_cache
             path = f"/subscriptions/{subscription_id}/providers/Microsoft.DocumentDB/locations?api-version={COSMOS_API_VERSION}"
             payload = arm_get(path, "Cosmos DB", suppress_cosmos_locations_5xx=True)
-            cosmos_locations_cache = payload.get("value", []) if payload else []
+            cosmos_locations_cache = payload.get("value", []) if payload is not None else None
             return cosmos_locations_cache
 
         def get_cosmos_accounts():
-            nonlocal cosmos_accounts_cache
-            if cosmos_accounts_cache is not None:
+            nonlocal cosmos_accounts_cache, cosmos_accounts_loaded
+            if cosmos_accounts_loaded:
                 return cosmos_accounts_cache
             path = f"/subscriptions/{subscription_id}/providers/Microsoft.DocumentDB/databaseAccounts?api-version={COSMOS_API_VERSION}"
             cosmos_accounts_cache = arm_get_paged(path, "Cosmos DB")
+            cosmos_accounts_loaded = True
             return cosmos_accounts_cache
 
         def collect_cosmos(location):
             loc_endpoint = endpoint(f"/subscriptions/{subscription_id}/providers/Microsoft.DocumentDB/locations?api-version={COSMOS_API_VERSION}")
             matched = None
-            for item in get_cosmos_locations():
+            cosmos_locations = get_cosmos_locations()
+            if cosmos_locations is None:
+                return
+            for item in cosmos_locations:
                 item_id = item.get("id", "")
                 item_loc = item_id.split("/locations/")[-1] if "/locations/" in item_id else item.get("name")
                 if normalize_location(item_loc) == normalize_location(location):
@@ -419,8 +425,15 @@ spec:
         def collect_cosmos_quotas():
             accounts = get_cosmos_accounts()
             accounts_endpoint = endpoint(f"/subscriptions/{subscription_id}/providers/Microsoft.DocumentDB/databaseAccounts?api-version={COSMOS_API_VERSION}")
-            add_quota("Cosmos DB", "Subscription", "Total Database Accounts (default soft limit: 50)", len(accounts), 50, "Count", None, accounts_endpoint)
+            add_quota("Cosmos DB", "Subscription", "Total Database Accounts", len(accounts) if accounts is not None else None, 250, "Count", None, accounts_endpoint)
+            result["quotas"][-1]["limit_source"] = "reference_default_250_verify_subscription_limit"
+            if accounts is None:
+                result["quotas"][-1]["flag"] = "unknown_read_error"
             for location in locations:
+                if accounts is None:
+                    add_quota("Cosmos DB", f"Region ({normalize_location(location)})", "Database Accounts in Region", None, None, "Count", location, accounts_endpoint)
+                    result["quotas"][-1]["flag"] = "unknown_read_error"
+                    continue
                 count = 0
                 for account in accounts:
                     props = account.get("properties", {})
@@ -472,7 +485,7 @@ spec:
         def collect_postgresql_quotas(location):
             path = f"/subscriptions/{subscription_id}/providers/Microsoft.DBforPostgreSQL/locations/{location}/resourceType/flexibleServers/usages?api-version={PG_USAGES_API_VERSION}"
             url = endpoint(path)
-            for item in arm_get_paged(path, "PostgreSQL Flex", location):
+            for item in arm_get_paged(path, "PostgreSQL Flex", location) or []:
                 metric = name_value(item.get("name"))
                 add_quota("PostgreSQL Flex", f"Region ({normalize_location(location)})", metric, item.get("currentValue"), item.get("limit"), item.get("unit"), location, url)
 
@@ -536,7 +549,60 @@ spec:
         if "COSMOSDB" in selected_services:
             collect_cosmos_quotas()
 
-        return result
+        include_zero = str(kwargs.get("include_zero_usage", False)).lower() in ("true", "1", "yes")
+        compact_quotas = []
+        for quota in result["quotas"]:
+            flag = quota.get("flag")
+            if not include_zero and not ((quota.get("current_value") or 0) > 0 or
+                                         (quota.get("utilization_pct") or 0) >= 80 or
+                                         flag not in (None, "ok")):
+                continue
+            row = {
+                "service": quota["service"],
+                "metric": quota["metric"],
+                "current_value": quota["current_value"],
+                "limit": quota["limit"],
+                "utilization_pct": quota["utilization_pct"],
+            }
+            if len(locations) > 1:
+                row["location"] = quota["location"]
+            if quota.get("limit_source"):
+                row["limit_source"] = quota["limit_source"]
+            if flag:
+                row["flag"] = flag
+            compact_quotas.append(row)
+        compact_access = {}
+        for access in result["region_access"]:
+            key = access["service"] if len(locations) == 1 else f'{access["service"]}@{access["location"]}'
+            compact_access[key] = "allowed" if access["access_allowed_for_region"] else "restricted"
+        compact = {
+            "summary": {
+                "total_checked": len(result["quotas"]),
+                "zero_usage_count": sum(1 for q in result["quotas"] if (q.get("current_value") or 0) == 0),
+                "warning_count_ge_80pct": result["at_risk_count"],
+                "critical_count_ge_95pct": result["critical_count"],
+            },
+            "quotas": compact_quotas,
+            "region_access": compact_access,
+            "errors": [{k: e[k] for k in ("kind", "service", "location", "status_code", "message") if e.get(k) is not None}
+                       for e in result["errors"]],
+        }
+        if include_capabilities:
+            compact["capabilities"] = result["capabilities"]
+        try:
+            offset = int(kwargs.get("offset") or 0)
+            if offset < 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            return json.dumps({"error": "offset must be a nonnegative integer"}, separators=(",", ":"))
+        compact["quotas"] = compact_quotas[offset:]
+        if not include_zero and not include_capabilities:
+            while compact["quotas"] and len(json.dumps(compact, separators=(",", ":"))) >= 880:
+                compact["quotas"].pop()
+                compact["next_offset"] = offset + len(compact["quotas"])
+            if compact.get("next_offset") == offset:
+                compact["error"] = "One quota row exceeds the telemetry limit"
+        return json.dumps(compact, separators=(",", ":"))
   timeoutSeconds: 300
   dependencies:
     - azure-identity
@@ -559,4 +625,12 @@ spec:
     - name: include_capabilities
       type: boolean
       description: Include SQL MI hardware-family ZR detail, PostgreSQL/MySQL HA modes, and geo-backup capability rows.
+      required: false
+    - name: include_zero_usage
+      type: boolean
+      description: Include zero-usage quota rows.
+      required: false
+    - name: offset
+      type: integer
+      description: Continue from the previous result's next_offset.
       required: false

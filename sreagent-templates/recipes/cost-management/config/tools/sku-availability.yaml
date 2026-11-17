@@ -8,9 +8,11 @@ spec:
   toolMode: Auto
   description: |-
     Lists regional Azure Compute SKU availability, including available zones
-    and SKU availability restrictions with reason codes.
+    and SKU availability restrictions with reason codes. Repeat with
+    pagination.next_offset until it is null to retrieve all matching SKUs.
   functionCode: |-
     def main(**kwargs):
+        import json
         import requests
 
         ARM_ENDPOINT = "https://management.azure.com"
@@ -27,13 +29,8 @@ spec:
             "location": location,
             "sku_filter": sku_filter,
             "resource_provider": resource_provider,
-            "skus": [],
-            "restriction_summary": {
-                "total_skus": 0,
-                "restricted_skus": 0,
-                "restriction_count": 0,
-                "reason_codes": {},
-            },
+            "unrestricted_skus": [],
+            "restricted_skus": [],
         }
 
         if not subscription_id:
@@ -65,10 +62,6 @@ spec:
                 "api-version": COMPUTE_API_VERSION,
                 "$filter": f"location eq '{location}'",
             }
-            result["service"] = "Azure Compute"
-            result["source_endpoint"] = (
-                f"{url}?api-version={COMPUTE_API_VERSION}&$filter=location eq '{location}'"
-            )
             while url:
                 response = requests.get(
                     url,
@@ -104,11 +97,6 @@ spec:
                         }
 
                     restrictions.append(restriction_item)
-                    result["restriction_summary"]["restriction_count"] += 1
-
-                    reason_key = str(reason_code or "Unknown")
-                    reason_codes = result["restriction_summary"]["reason_codes"]
-                    reason_codes[reason_key] = reason_codes.get(reason_key, 0) + 1
 
                 zones = set()
                 for location_info in sku.get("locationInfo", sku.get("location_info", [])) or []:
@@ -116,23 +104,52 @@ spec:
                     if not info_location or str(info_location).lower() == str(location).lower():
                         zones.update(str(zone) for zone in (location_info.get("zones") or []))
 
-                result["skus"].append({
-                    "name": name,
-                    "family": sku.get("family"),
-                    "size": sku.get("size"),
-                    "zones_available": sorted(zones),
-                    "restrictions": restrictions,
-                })
+                capabilities = {entry.get("name"): entry.get("value") for entry in sku.get("capabilities", [])}
+                row = {"sku": name, "vcpus": capabilities.get("vCPUs"),
+                       "gpus": capabilities.get("GPUs"), "zones": ",".join(sorted(zones)),
+                       "restricted": bool(restrictions)}
+                if restrictions:
+                    row["reason"] = ",".join(sorted({str(r.get("reason_code") or r.get("type") or "unknown") for r in restrictions}))
+                result["restricted_skus" if restrictions else "unrestricted_skus"].append(row)
 
-            result["restriction_summary"]["total_skus"] = len(result["skus"])
-            result["restriction_summary"]["restricted_skus"] = sum(
-                1 for sku in result["skus"] if sku["restrictions"]
+            unrestricted_count = len(result["unrestricted_skus"])
+            restricted_count = len(result["restricted_skus"])
+            result["summary"] = {
+                "total_matching_skus": unrestricted_count + restricted_count,
+                "unrestricted_count": unrestricted_count,
+                "restricted_count": restricted_count,
+            }
+            all_rows = (
+                [("unrestricted_skus", row) for row in result["unrestricted_skus"]]
+                + [("restricted_skus", row) for row in result["restricted_skus"]]
             )
+            try:
+                offset = int(kwargs.get("offset") or 0)
+                if offset < 0:
+                    raise ValueError()
+            except (TypeError, ValueError):
+                result["error"] = "offset must be a nonnegative integer"
+                result["unrestricted_skus"] = []
+                result["restricted_skus"] = []
+                return json.dumps(result, separators=(",", ":"))
+            result["unrestricted_skus"] = []
+            result["restricted_skus"] = []
+            result["pagination"] = {"offset": offset, "next_offset": None}
+            for index in range(offset, len(all_rows)):
+                category, row = all_rows[index]
+                result[category].append(row)
+                result["pagination"]["next_offset"] = index + 1 if index + 1 < len(all_rows) else None
+                if len(json.dumps(result, separators=(",", ":"))) > 880:
+                    result[category].pop()
+                    result["pagination"]["next_offset"] = index
+                    if index == offset:
+                        result["error"] = "A single SKU exceeds the output limit; narrow sku_filter."
+                    break
 
         except Exception as exc:
             result["error"] = f"Failed to list Azure {resource_provider} resource SKUs: {exc}"
 
-        return result
+        return json.dumps(result, separators=(",", ":"))
   timeoutSeconds: 240
   dependencies:
     - azure-identity
@@ -152,4 +169,8 @@ spec:
       type: string
       description: |-
         Optional case-insensitive SKU name substring filter.
+      required: false
+    - name: offset
+      type: integer
+      description: Optional continuation offset from the previous result's pagination.next_offset.
       required: false

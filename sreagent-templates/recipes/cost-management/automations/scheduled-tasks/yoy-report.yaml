@@ -25,7 +25,7 @@ spec:
 
     Lead this as the FinOps practitioner. Collect fiscal cost, pricing, savings, recommendation, and transaction evidence directly; delegate capacity-risk evidence to `azure-capacity-manager` and consult `chief-financial-officer` for fiscal planning and executive framing.
 
-    **Fiscal period assumptions (default: July–June fiscal year):** This task runs at mid-year and year-end close checkpoints. For a July–June fiscal year, that means January 5 and July 5. On the January checkpoint, compare the completed first-half period (July–December) against the same period in the prior fiscal year and forecast through the fiscal year end (June 30). On the July checkpoint, compare the just-completed fiscal year (July–June) against the previous fiscal year and prepare the next fiscal year planning view. Adjust these month references if your organization uses a different fiscal calendar (see configuration note above).
+    **Fiscal period assumptions (default: July–June fiscal year):** This task runs at mid-year and year-end close checkpoints. For a July–June fiscal year, those are January 5 and July 5. Use exports or FinOps hubs for fiscal-period and prior-year comparisons. For MCP cost queries, compare the three trailing 30-day windows only. Limit MCP forecasts to 30–90 days ahead; do not forecast through fiscal year end unless it falls within that range.
     ## Specialist evidence requests for this task
 
     `finops-practitioner` runs the Azure Cost Management and ARM tools below directly. Ask `azure-capacity-manager` to run `benefit-recommendations` for capacity-related commitment evidence where needed.
@@ -36,11 +36,11 @@ spec:
 
     ### 1.1 Fiscal cost comparisons
 
-    Run `azure-resource-manager-mcp_query_costs` across current and prior-year fiscal comparison periods by month, service, resource group, region, resource type, and tags. Compare quarterly resource-group patterns, monthly volatility, anomalies, and charge-type or publisher breakdowns where available.
+    Run `azure-resource-manager-mcp_query_costs` for three consecutive 30-day windows within the trailing 90 days (Days 1–30, Days 31–60, and Days 61–90), by service, resource group, region, resource type, and tags. Never use a `from` date older than 90 days. Compare resource-group patterns, volatility, anomalies, and charge-type or publisher breakdowns. Historical data beyond 90 days and year-over-year comparisons require Cost Management exports or FinOps hubs; report them as unavailable without those sources.
 
     ### 1.2 Forecast, alerts, and budgets
 
-    Run `azure-resource-manager-mcp_forecast_costs` for the next fiscal checkpoint, `azure-resource-manager-mcp_list_alerts` for alert evidence, and `azure-resource-manager-mcp_list_budgets` for budget comparisons. At mid-year forecast through fiscal year end; at year-end prepare the next fiscal year planning baseline.
+    Run `azure-resource-manager-mcp_forecast_costs` for a 30- to 90-day forward window, `azure-resource-manager-mcp_list_alerts` for alert evidence, and `azure-resource-manager-mcp_list_budgets` for budget comparisons. Treat longer-term projections as separate estimates, not MCP forecasts.
 
     ### 1.3 Commitments, savings, and transactions
 
@@ -59,7 +59,7 @@ spec:
     ## Phase 2: Strategic Analysis
 
     ### 2.1 Year-over-year scorecard
-    Grade year-over-year performance (A+ to F) across: cost management, savings realization, commitment coverage, tag compliance, forecast accuracy, and forecast risk.
+    Report data-backed year-over-year variance and KPI status against documented targets for cost management, savings realization, commitment coverage, tag compliance, forecast accuracy, and forecast risk.
 
     ### 2.2 Forecast
     For mid-year checkpoint runs, project total fiscal year spend with Conservative/Expected/Optimistic scenarios and compare to annual budget. For year-end checkpoint runs, create the next fiscal year planning baseline.
@@ -78,7 +78,7 @@ spec:
 
     ## Phase 3: Report
 
-    Professional executive report with tables, charts, emoji indicators. Include year-over-year variance, fiscal timeline, forecast scenarios, grade card, and planning recommendations.
+    Professional executive report with tables, charts, emoji indicators. Include year-over-year variance, fiscal timeline, forecast scenarios, KPI status, and planning recommendations.
 
     Do not stop or yield until the report is complete and ready for the FinOps team.
 

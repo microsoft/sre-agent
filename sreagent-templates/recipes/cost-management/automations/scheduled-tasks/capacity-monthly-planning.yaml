@@ -18,26 +18,26 @@ spec:
 
     Output style: Label measured, derived, and estimated evidence; cite each source or derivation; state exact scope and time period; organize findings by FinOps capability; include risk thresholds, confidence, caveats, and required disclaimers.
 
-    Tool routing and delivery guard: This scheduled task is owned by `finops-practitioner`, which has `SearchMemory`, its assigned `azure-resource-manager-mcp_*` Cost Management and Pricing tools, its assigned Python ARM tools (`resource-graph-query`, `benefit-recommendations`, `deploy-budget`, `deploy-bulk-budgets`, `deploy-anomaly-alert`, `deploy-bulk-anomaly-alerts`, and `suppress-advisor-recommendations`), its visualization tools (`PlotBarChart`, `PlotPieChart`, `PlotAreaChartWithCorrelation`), and its Microsoft Teams delivery tools (`GetMessagesFromChannel`, `PostMessageToConversation`, `PostCardToConversation`, `ReplyWithMessageToConversation`, `ReplyWithCardToConversation`, `UpdateCardInConversation`). Use the `Task` system tool to invoke `azure-capacity-manager` for quota, capacity reservation group, SKU availability, zone mapping, database service quota, and benefit recommendation Python tools (`vm-quota-usage`, `non-compute-quotas`, `db-service-quotas`, `capacity-reservation-groups`, `zone-mapping`, `sku-availability`, `benefit-recommendations`), and invoke `chief-financial-officer` for executive finance framing. Pass the full task scope, evidence already collected, open questions, and desired output shape with each `Task` invocation. Check available visualization tools once per run and use `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation` to generate charts for key findings; if no visualization tool is available, provide the data as a chart-ready table. Complete the report and chart artifacts before delivery. When a Microsoft Teams connector/channel is configured, `finops-practitioner` makes one final `PostMessageToConversation` attempt to the configured Teams channel. If a configured Teams delivery attempt fails, mark the task/run failed instead of degrading to local output or probing alternate paths. If Teams delivery is not configured or available, render the completed report in the run output and state that Teams delivery was skipped.
+    Tool execution: Call `vm-quota-usage`, `db-service-quotas`, `non-compute-quotas`, `sku-availability`, `capacity-reservation-groups`, `zone-mapping`, `resource-graph-query`, `benefit-recommendations`, and `azure-resource-manager-mcp_*` directly as relevant. Do not use `Explore`, `kubectl`, slow `az vm skus list`, or interactive REST calls that trigger PendingApproval. Check available visualization tools once per run and use `PlotBarChart`, `PlotPieChart`, or `PlotAreaChartWithCorrelation` to generate charts for key findings; if no visualization tool is available, provide the data as a chart-ready table. Complete the report and chart artifacts before delivery. When a Microsoft Teams connector/channel is configured, `finops-practitioner` makes one final `PostMessageToConversation` attempt to the configured Teams channel. If a configured Teams delivery attempt fails, mark the task/run failed instead of degrading to local output or probing alternate paths. If Teams delivery is not configured or available, render the completed report in the run output and state that Teams delivery was skipped.
 
 
 
-    Orchestration rule: This scheduled task is owned by `finops-practitioner`. Delegate capacity evidence collection and specialist analysis to `azure-capacity-manager`; do not try to run capacity tools directly from the practitioner. When the specialist returns evidence, assemble the final FinOps report, apply the reporting requirements in this task, generate supported visualizations, and deliver the completed output through configured connectors.
+    Orchestration rule: `finops-practitioner` collects evidence directly, assembles the report, and delivers through configured connectors.
 
-    Ask `azure-capacity-manager` to apply its capacity-management guidance during the `Task` invocation.
+    Apply capacity-management guidance to the directly collected evidence.
 
 
     Monthly planning maps Azure capacity signals into FinOps Planning & Estimating, Forecasting, Architecting & Workload Placement, Usage Optimization, Rate Optimization support, Budgeting support, and Governance, Policy & Risk.
 
-    ## Specialist tools to request from `azure-capacity-manager`
+    ## Tools to call directly
 
-    - Ask `azure-capacity-manager` to run `vm-quota-usage`, `capacity-reservation-groups`, and `benefit-recommendations` for the relevant scopes.
+    - run `vm-quota-usage`, `capacity-reservation-groups`, and `benefit-recommendations` for the relevant scopes.
 
 
     ## 1. Demand Forecast
 
 
-    Have `finops-practitioner` run `azure-resource-manager-mcp_forecast_costs` and `azure-resource-manager-mcp_query_costs` filtered to compute services, using 180 days of history and a 90-day forecast where supported.
+    Have `finops-practitioner` run `azure-resource-manager-mcp_query_costs` filtered to compute services for three consecutive 30-day windows within the trailing 90 days (Days 1–30, Days 31–60, and Days 61–90), and `azure-resource-manager-mcp_forecast_costs` for a 30- to 90-day forward window. Never use a `from` date older than 90 days or forecast beyond 90 days from today. Historical data beyond 90 days requires Cost Management exports or FinOps hubs.
 
     Filter to compute services. Project:
 
@@ -62,7 +62,7 @@ spec:
     ## 2. Capacity Request Pipeline
 
 
-    Based on the demand forecast, ask `azure-capacity-manager` to run `vm-quota-usage` for each scoped subscription and location, and build a capacity request pipeline:
+    Based on the demand forecast, run `vm-quota-usage` for each scoped subscription and location, and build a capacity request pipeline:
 
     - Quota increases needed (by subscription, region, family)
 
@@ -82,7 +82,7 @@ spec:
     ## 3. Allocation Review
 
 
-    Ask `azure-capacity-manager` to run `capacity-reservation-groups` to enumerate the current CRG portfolio and review instanceView utilization:
+    run `capacity-reservation-groups` to enumerate the current CRG portfolio and review instanceView utilization:
 
     - Utilization trends over the past month (from daily checks)
 
@@ -104,7 +104,7 @@ spec:
     ## 4. Cost Impact
 
 
-    Ask `azure-capacity-manager` to run `benefit-recommendations`. Have `finops-practitioner` run `azure-resource-manager-mcp_list_benefit_utilization`, `azure-resource-manager-mcp_get_benefit_recommendations`, and `azure-resource-manager-mcp_query_costs` for rate optimization and capacity cost evidence.
+    run `benefit-recommendations`. Have `finops-practitioner` run `azure-resource-manager-mcp_list_benefit_utilization`, `azure-resource-manager-mcp_get_benefit_recommendations`, and `azure-resource-manager-mcp_query_costs` for rate optimization and capacity cost evidence.
 
     Calculate:
 
@@ -126,7 +126,7 @@ spec:
 
     - Are anomaly alerts deployed across all subscriptions?
 
-    - Are budget alerts configured?
+    - Call `azure-resource-manager-mcp_list_budgets` first, then `azure-resource-manager-mcp_get_budget` with the returned budget name. Are budget alerts configured?
 
     - Any post-incident reviews needed from scaling failures?
 

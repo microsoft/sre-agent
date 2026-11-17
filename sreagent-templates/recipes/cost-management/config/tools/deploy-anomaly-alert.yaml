@@ -104,6 +104,10 @@ spec:
   authScopes:
     - ARM
   parameters:
+    - name: scheduled_action_name
+      type: string
+      description: Optional scheduled action name. Defaults to cost-anomaly-alert.
+      required: false
     - name: subscription_id
       type: string
       description: Azure subscription ID where the anomaly alert scheduled action will be created.

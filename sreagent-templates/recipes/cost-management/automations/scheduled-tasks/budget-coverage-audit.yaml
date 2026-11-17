@@ -32,7 +32,7 @@ spec:
 
     ## 2. Find configured budgets
 
-    Run `resource-graph-query` against budget resource types and related policy or governance metadata. Run `azure-resource-manager-mcp_list_budgets` and `azure-resource-manager-mcp_get_budget` directly to inventory budgets and inspect their details. Identify subscription-level budgets and any documented management-group or shared budget coverage that should count as coverage.
+    Run `resource-graph-query` against budget resource types and related policy or governance metadata. Run `azure-resource-manager-mcp_list_budgets` first, then `azure-resource-manager-mcp_get_budget` with the returned `--budget-name` directly to inventory budgets and inspect their details. Identify subscription-level budgets and any documented management-group or shared budget coverage that should count as coverage.
 
     ## 3. Identify coverage gaps
 
