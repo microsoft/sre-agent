@@ -201,21 +201,45 @@ dataplane_upload_multipart() {
 # ---------------------------------------------------------------------------
 dataplane_post_json() {
   local label="$1" url="$2" body_json="$3"
-  local token
+  local token body_file
   token=$(_dp_token) || { echo "    FAILED — could not get data-plane token"; return 1; }
+  body_file=$(mktemp)
+  printf '%s' "$body_json" > "$body_file"
   echo "  data-plane POST ${label}"
   if curl -sS -f -X POST "$url" \
        -H "Authorization: Bearer ${token}" \
        -H "Content-Type: application/json" \
-       --data "$body_json" >/dev/null; then
+       --data-binary "@${body_file}" >/dev/null; then
     echo "    ok"
   else
     echo "    FAILED — POST ${url}"
   fi
+  rm -f "$body_file"
 }
 
 # Reusable: get a data-plane bearer (defined here so multipart helper can use it)
 _dp_token() { az account get-access-token --resource https://azuresre.dev --query accessToken -o tsv 2>/dev/null; }
+
+CUSTOM_BODY_FILE=$(mktemp)
+jq -c '.customInstructions | select(type == "string") | {instructions: .}' "$FILE" > "$CUSTOM_BODY_FILE"
+if [[ -s "$CUSTOM_BODY_FILE" ]]; then
+  if [[ "$DP_TOKEN_AVAILABLE" == true ]]; then
+    TOKEN=$(_dp_token)
+    result=$(curl -sS -w "\n%{http_code}" -X PUT "${AGENT_ENDPOINT}/api/v2/agent/customInstructions" \
+      -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" \
+      --data-binary "@${CUSTOM_BODY_FILE}" 2>&1)
+    http_code=$(echo "$result" | tail -1)
+    if [[ "$http_code" =~ ^(200|201|202|204)$ ]]; then
+      echo "  ok custom instructions"
+    else
+      echo "  FAILED — PUT custom instructions (HTTP ${http_code})"
+    fi
+  else
+    echo "  ⚠ Custom instructions skipped (no data-plane token)"
+    DP_SKIPPED_ITEMS+=("customInstructions")
+  fi
+fi
+rm -f "$CUSTOM_BODY_FILE"
 
 # ---------------------------------------------------------------------------
 # Helper: PUT to v2 extendedAgent dataplane (skills/subagents/hooks/commonprompts/etc.).
@@ -226,10 +250,11 @@ _dp_token() { az account get-access-token --resource https://azuresre.dev --quer
 # ---------------------------------------------------------------------------
 dataplane_put_extended() {
   local kind="$1" name="$2" type="$3" tags_json="$4" props_json="$5"
-  local TOKEN body url
+  local TOKEN body_file url
   TOKEN=$(_dp_token)
-  body=$(jq -nc --arg n "$name" --arg t "$type" --argjson tags "$tags_json" --argjson props "$props_json" \
-    '{name:$n, type:$t, tags:$tags, properties:$props}')
+  body_file=$(mktemp)
+  printf '%s\n%s\n' "$tags_json" "$props_json" | jq -sc --arg n "$name" --arg t "$type" \
+    'if length == 2 then {name:$n, type:$t, tags:.[0], properties:.[1]} else error("expected tags and properties") end' > "$body_file"
   url="${AGENT_ENDPOINT}/api/v2/extendedAgent/${kind}/$(printf %s "$name" | jq -sRr @uri)"
   # Try PUT first. If the resource exists and the API doesn't update immutable
   # fields (e.g. hook type), fall back to DELETE + PUT.
@@ -237,13 +262,13 @@ dataplane_put_extended() {
   put_result=$(curl -sS -w "\n%{http_code}" -X PUT "$url" \
        -H "Authorization: Bearer ${TOKEN}" \
        -H "Content-Type: application/json" \
-       --data "$body" 2>&1)
+       --data-binary "@${body_file}" 2>&1)
   local http_code
   http_code=$(echo "$put_result" | tail -1)
   if [[ "$http_code" =~ ^2 ]]; then
     # PUT succeeded — verify the update actually took effect for hooks
     if [[ "$kind" == "hooks" ]]; then
-      desired_type=$(echo "$props_json" | jq -r '.hook.type // empty')
+      desired_type=$(printf '%s' "$props_json" | jq -r '.hook.type // empty')
       if [[ -n "$desired_type" ]]; then
         existing_type=$(curl -sS "$url" -H "Authorization: Bearer ${TOKEN}" 2>/dev/null \
           | jq -r '.properties.hook.type // empty')
@@ -254,11 +279,12 @@ dataplane_put_extended() {
           if curl -sS -f -X PUT "$url" \
                -H "Authorization: Bearer ${TOKEN}" \
                -H "Content-Type: application/json" \
-               --data "$body" >/dev/null 2>&1; then
+               --data-binary "@${body_file}" >/dev/null 2>&1; then
             echo "  ok ${kind}/${name} (recreated as ${desired_type})"
           else
             echo "  FAILED — recreate ${kind}/${name}"
           fi
+          rm -f "$body_file"
           return
         fi
       fi
@@ -267,6 +293,7 @@ dataplane_put_extended() {
   else
     echo "  FAILED — PUT ${kind}/${name} (HTTP ${http_code})"
   fi
+  rm -f "$body_file"
 }
 
 # Generic processor for hooks / commonPrompts / pluginConfigs entries.
@@ -351,15 +378,16 @@ if [[ "$count" -gt 0 ]]; then
 
       # Data-plane PUT with retry — platform init may still be in progress after PATCH
       filter_ok=false
+      filter_body_file=$(mktemp)
+      printf '%s' "$props" | jq -c --arg n "$name" \
+        '{name:$n, type:"IncidentFilter", tags:[], properties:.}' > "$filter_body_file"
       for attempt in 1 2 3 4; do
         TOKEN=$(_dp_token)
-        body=$(jq -nc --arg n "$name" --argjson props "$props" \
-          '{name:$n, type:"IncidentFilter", tags:[], properties:$props}')
         url="${AGENT_ENDPOINT}/api/v2/extendedAgent/incidentFilters/$(printf %s "$name" | jq -sRr @uri)"
         if curl -sS -f -X PUT "$url" \
              -H "Authorization: Bearer ${TOKEN}" \
              -H "Content-Type: application/json" \
-             --data "$body" >/dev/null 2>&1; then
+             --data-binary "@${filter_body_file}" >/dev/null 2>&1; then
           echo "  ok incidentFilters/${name}"
           filter_ok=true
           break
@@ -372,6 +400,7 @@ if [[ "$count" -gt 0 ]]; then
           fi
         fi
       done
+      rm -f "$filter_body_file"
     done
   else
     echo "incidentFilters: ${count} — ⚠ skipped (no data-plane token)"
@@ -505,7 +534,6 @@ if [[ "$count" -gt 0 ]]; then
     echo "knowledgeItems: ${count} file(s) → Knowledge Sources (data-plane)"
     for i in $(seq 0 $((count - 1))); do
       fname=$(jq -r --argjson i "$i" '.knowledgeItems[$i].name' "$FILE")
-      content=$(jq -r --argjson i "$i" '.knowledgeItems[$i].content' "$FILE")
       sanitized=$(echo "$fname" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
       if [[ ${#sanitized} -gt 32 ]]; then
         if command -v sha256sum >/dev/null 2>&1; then
@@ -515,7 +543,8 @@ if [[ "$count" -gt 0 ]]; then
         fi
         sanitized="${sanitized:0:24}-${name_hash}"
       fi
-      b64=$(echo "$content" | base64)
+      b64_file=$(mktemp)
+      jq -r --argjson i "$i" '.knowledgeItems[$i].content' "$FILE" | base64 | tr -d '\r\n' > "$b64_file"
       case "$fname" in
         *.md)   ctype="text/markdown" ;;
         *.txt)  ctype="text/plain" ;;
@@ -523,11 +552,12 @@ if [[ "$count" -gt 0 ]]; then
         *.json) ctype="application/json" ;;
         *)      ctype="application/octet-stream" ;;
       esac
-      body=$(jq -nc \
+      body_file=$(mktemp)
+      jq -nc \
         --arg name "$sanitized" \
         --arg displayName "$fname" \
         --arg fileName "$fname" \
-        --arg fileContent "$b64" \
+        --rawfile fileContent "$b64_file" \
         --arg contentType "$ctype" \
         '{
           name: $name,
@@ -543,13 +573,15 @@ if [[ "$count" -gt 0 ]]; then
               contentType: $contentType
             }
           }
-        }')
+        }' > "$body_file"
+      rm -f "$b64_file"
       TOKEN=$(_dp_token)
       url="${AGENT_ENDPOINT}/api/v2/extendedAgent/connectors/$(printf %s "$sanitized" | jq -sRr @uri)"
       result=$(curl -sS -w "\n%{http_code}" -X PUT "$url" \
         -H "Authorization: Bearer ${TOKEN}" \
         -H "Content-Type: application/json" \
-        --data "$body" 2>&1)
+        --data-binary "@${body_file}" 2>&1)
+      rm -f "$body_file"
       http_code=$(echo "$result" | tail -1)
       if [[ "$http_code" =~ ^2 ]]; then
         echo "  ok knowledgeItems/${sanitized}"
@@ -686,26 +718,27 @@ if [[ "$tp_has" == "true" ]]; then
     echo "toolPermissions: configuring"
     TOKEN=$(_dp_token)
     # GET current to capture etag
-    tp_resp=$(curl -sS -D- -o /tmp/tp_body.json "${AGENT_ENDPOINT}/api/v2/agent/settings/global" \
+    tp_resp=$(curl -sS -D- -o /dev/null "${AGENT_ENDPOINT}/api/v2/agent/settings/global" \
       -H "Authorization: Bearer ${TOKEN}" 2>/dev/null)
     tp_etag=$(echo "$tp_resp" | grep -i '^etag:' | tr -d '\r' | awk '{print $2}' || true)
     if [[ -z "$tp_etag" ]]; then
       tp_etag="*"  # bootstrap: no doc exists yet
     fi
     # Build body
-    tp_body=$(jq -c '{permissions: .toolPermissions}' "$FILE")
+    tp_body_file=$(mktemp)
+    jq -c '{permissions: .toolPermissions}' "$FILE" > "$tp_body_file"
     tp_result=$(curl -sS -w "\n%{http_code}" -X PUT "${AGENT_ENDPOINT}/api/v2/agent/settings/global" \
       -H "Authorization: Bearer ${TOKEN}" \
       -H "Content-Type: application/json" \
       -H "If-Match: ${tp_etag}" \
-      --data "$tp_body" 2>&1)
+      --data-binary "@${tp_body_file}" 2>&1)
+    rm -f "$tp_body_file"
     tp_code=$(echo "$tp_result" | tail -1)
     if [[ "$tp_code" =~ ^2 ]]; then
       echo "  ok toolPermissions"
     else
       echo "  FAILED — PUT settings/global (HTTP ${tp_code})"
     fi
-    rm -f /tmp/tp_body.json
   else
     echo "toolPermissions — ⚠ skipped (no data-plane token)"
     DP_SKIPPED_ITEMS+=("toolPermissions")
@@ -815,6 +848,7 @@ if [[ "$count" -gt 0 ]]; then
       cv2_pvs=$(echo "$cv2_spec" | jq -c '.parameterValueSet // null')
       cv2_pv=$(echo "$cv2_spec" | jq -c '.parameterValues // null')
       cv2_rat=$(echo "$cv2_spec" | jq -c '.requireApprovalTools // null')
+      cv2_ops=$(echo "$cv2_spec" | jq -c '.operations // null')
 
       TOKEN=$(_dp_token)
 
@@ -851,8 +885,8 @@ if [[ "$count" -gt 0 ]]; then
 
       # Step 3: Create MCP server config (links connection to MCP tools)
       mcp_body=$(jq -nc --arg desc "$cv2_display" --arg cn "$cv2_conn" --arg api "$cv2_api" \
-        --argjson rat "$cv2_rat" \
-        '{properties: {description: $desc, connectors: [{name: $api, connectionName: $cn}]}} + (if $rat != null then {runtimeMcpConfiguration: {requireApprovalTools: $rat}} else {} end)')
+        --argjson rat "$cv2_rat" --argjson ops "$cv2_ops" \
+        '{properties: {description: $desc, connectors: [{name: $api, connectionName: $cn} + (if $ops != null then {operations: $ops} else {} end)]}} + (if $rat != null then {runtimeMcpConfiguration: {requireApprovalTools: $rat}} else {} end)')
       TOKEN=$(_dp_token)
       mcp_result=$(curl -sS -w "\n%{http_code}" -X PUT \
         "${AGENT_ENDPOINT}/api/v2/connectorV2/mcpservers/${cv2_conn}" \
@@ -896,17 +930,18 @@ if [[ "$count" -gt 0 ]]; then
       name=$(jq -r --argjson i "$i" '.httpTriggers[$i].name' "$FILE")
       spec=$(jq -c --argjson i "$i" '.httpTriggers[$i].spec // .httpTriggers[$i]' "$FILE")
       # Map YAML field names to API field names: prompt→agentPrompt, handlingAgent→agent
-      body=$(jq -n --arg name "$name" --argjson spec "$spec" '
-        {name: $name} + $spec
+      ht_body_file=$(mktemp)
+      printf '%s' "$spec" | jq -c --arg name "$name" '
+        {name: $name} + .
         | if .prompt then .agentPrompt = .prompt | del(.prompt) else . end
         | if .handlingAgent then .agent = .handlingAgent | del(.handlingAgent) else . end
-      ')
+      ' > "$ht_body_file"
       existing_id=$(echo "$EXISTING_TRIGGERS" | jq -r --arg n "$name" '[.[] | select(.name == $n)] | first | .id // empty')
       if [[ -n "$existing_id" ]]; then
         # PUT to update existing trigger (preserves trigger ID, threads, execution history)
         existing_url="${AGENT_ENDPOINT}/api/v1/httptriggers/trigger/${existing_id}"
         resp=$(curl -sS -w "\n%{http_code}" -X PUT "${AGENT_ENDPOINT}/api/v1/httptriggers/${existing_id}" \
-          -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" -d "$body" 2>&1)
+          -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" --data-binary "@${ht_body_file}" 2>&1)
         http_code=$(echo "$resp" | tail -1)
         if [[ "$http_code" =~ ^2 ]]; then
           echo "  httpTrigger/${name}: ${existing_url} (updated)"
@@ -916,7 +951,7 @@ if [[ "$count" -gt 0 ]]; then
         fi
       else
         resp=$(curl -sS -w "\n%{http_code}" -X POST "${AGENT_ENDPOINT}/api/v1/httptriggers/create" \
-          -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" -d "$body" 2>&1)
+          -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" --data-binary "@${ht_body_file}" 2>&1)
         http_code=$(echo "$resp" | tail -1)
         if [[ "$http_code" =~ ^2 ]]; then
           trigger_url=$(echo "$resp" | sed '$d' | jq -r '.triggerUrl // "created"')
@@ -926,6 +961,7 @@ if [[ "$count" -gt 0 ]]; then
           echo "  httpTrigger/${name}: FAILED (HTTP ${http_code})"
         fi
       fi
+      rm -f "$ht_body_file"
     done
   else
     echo "httpTriggers: ${count} — ⚠ skipped (no data-plane token)"
@@ -948,7 +984,30 @@ if [[ "$count" -gt 0 ]]; then
   done
 fi
 
-# 4i-1. skills — data-plane PUT
+# 4i-1. tools — data-plane PUT
+# Route: PUT /api/v2/extendedAgent/tools/{name}
+# Body: { name, type: <declared kind>, tags: [], properties: { ... tool spec } }
+count=$(jq '.tools // [] | length' "$FILE")
+if [[ "$count" -gt 0 ]]; then
+  if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
+    echo "tools: ${count}"
+    EXTRAS_FILE="$FILE"
+    for i in $(seq 0 $((count - 1))); do
+      name=$(jq -r --argjson i "$i" '.tools[$i].metadata.name' "$FILE")
+      props=$(jq -c --argjson i "$i" '.tools[$i].spec' "$FILE")
+      object_type=$(jq -r ".tools[$i].kind // \"Tool\"" "$EXTRAS_FILE")
+      dataplane_put_extended "tools" "$name" "$object_type" "[]" "$props"
+    done
+  else
+    echo "tools: ${count} — ⚠ skipped (no data-plane token)"
+    for i in $(seq 0 $((count - 1))); do
+      tname=$(jq -r --argjson i "$i" '.tools[$i].metadata.name' "$FILE")
+      DP_SKIPPED_ITEMS+=("tool/${tname}")
+    done
+  fi
+fi
+
+# 4i-2. skills — data-plane PUT
 # Route: PUT /api/v2/extendedAgent/skills/{name}
 # Body: { name, type: "Skill", tags: [], properties: { name, description, tools, skillContent, additionalFiles } }
 count=$(jq '.skills // [] | length' "$FILE")
@@ -957,13 +1016,13 @@ if [[ "$count" -gt 0 ]]; then
     echo "skills: ${count}"
     for i in $(seq 0 $((count - 1))); do
       name=$(jq -r --argjson i "$i" '.skills[$i].metadata.name' "$FILE")
-      desc=$(jq -r --argjson i "$i" '.skills[$i].metadata.description // ""' "$FILE")
-      skill_tools=$(jq -c --argjson i "$i" '.skills[$i].metadata.spec.tools // []' "$FILE")
-      skill_content=$(jq -r --argjson i "$i" '.skills[$i].skillContent // ""' "$FILE")
-      additional_files=$(jq -c --argjson i "$i" '.skills[$i].additionalFiles // []' "$FILE")
-      props=$(jq -nc --arg n "$name" --arg d "$desc" --argjson t "$skill_tools" \
-        --arg c "$skill_content" --argjson af "$additional_files" \
-        '{name:$n, description:$d, tools:$t, skillContent:$c, additionalFiles:$af}')
+      props=$(jq -c --argjson i "$i" '{
+        name: .skills[$i].metadata.name,
+        description: (.skills[$i].metadata.description // ""),
+        tools: (.skills[$i].metadata.spec.tools // []),
+        skillContent: (.skills[$i].skillContent // ""),
+        additionalFiles: (.skills[$i].additionalFiles // [])
+      }' "$FILE")
       dataplane_put_extended "skills" "$name" "Skill" "[]" "$props"
     done
   else
@@ -975,7 +1034,7 @@ if [[ "$count" -gt 0 ]]; then
   fi
 fi
 
-# 4i-2. subagents — data-plane PUT
+# 4i-3. subagents — data-plane PUT
 # Route: PUT /api/v2/extendedAgent/agents/{name}
 # Body: { name, type: "ExtendedAgent", tags: [], properties: { instructions, handoffDescription, tools, ... } }
 count=$(jq '.subagents // [] | length' "$FILE")
@@ -992,27 +1051,6 @@ if [[ "$count" -gt 0 ]]; then
     for i in $(seq 0 $((count - 1))); do
       saname=$(jq -r --argjson i "$i" '.subagents[$i].metadata.name' "$FILE")
       DP_SKIPPED_ITEMS+=("subagent/${saname}")
-    done
-  fi
-fi
-
-# 4i-3. tools — data-plane PUT
-# Route: PUT /api/v2/extendedAgent/tools/{name}
-# Body: { name, type: "Tool", tags: [], properties: { ... tool spec } }
-count=$(jq '.tools // [] | length' "$FILE")
-if [[ "$count" -gt 0 ]]; then
-  if [[ "$DP_TOKEN_AVAILABLE" == "true" ]]; then
-    echo "tools: ${count}"
-    for i in $(seq 0 $((count - 1))); do
-      name=$(jq -r --argjson i "$i" '.tools[$i].metadata.name' "$FILE")
-      props=$(jq -c --argjson i "$i" '.tools[$i].spec' "$FILE")
-      dataplane_put_extended "tools" "$name" "Tool" "[]" "$props"
-    done
-  else
-    echo "tools: ${count} — ⚠ skipped (no data-plane token)"
-    for i in $(seq 0 $((count - 1))); do
-      tname=$(jq -r --argjson i "$i" '.tools[$i].metadata.name' "$FILE")
-      DP_SKIPPED_ITEMS+=("tool/${tname}")
     done
   fi
 fi

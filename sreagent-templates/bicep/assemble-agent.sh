@@ -52,6 +52,12 @@ command -v jq >/dev/null || { echo "Error: jq is required" >&2; exit 1; }
 PARAMS_FILE="${OUT_PREFIX}.parameters.json"
 EXTRAS_FILE="${OUT_PREFIX}.extras.json"
 
+ASSEMBLE_SCRATCH=$(mktemp -d)
+trap 'rm -rf "$ASSEMBLE_SCRATCH"' EXIT
+_stage_json() {
+  printf '%s' "$2" > "${ASSEMBLE_SCRATCH}/$1.json"
+}
+
 _log()  { echo "  $*"; }
 _info() { echo "── $* ──"; }
 
@@ -69,22 +75,22 @@ fi
 # This function reads the file and inlines its content.
 resolve_file_refs() {
   local json="$1" base_dir="$2"
-  python3 -c "
+  printf '%s' "$json" | python3 -c '
 import json, sys, os
-base = '$base_dir'
-data = json.loads('''$json''') if isinstance('''$json''', str) else json.load(sys.stdin)
+base = sys.argv[1]
+data = json.load(sys.stdin)
 def resolve(obj):
     if isinstance(obj, str):
-        # Check if it's a relative path to a file in config/
-        for prefix in ['skills/', 'subagents/', 'common-prompts/']:
-            if obj.startswith(prefix) and obj.endswith(('.md', '.txt')):
-                for config_base in ['config']:
+        # Check if it is a relative path to a file in config/
+        for prefix in ["skills/", "subagents/", "common-prompts/"]:
+            if obj.startswith(prefix) and obj.endswith((".md", ".txt")):
+                for config_base in ["config"]:
                     path = os.path.join(base, config_base, obj)
                     if os.path.isfile(path):
                         with open(path) as f:
                             return f.read()
         # Also handle _file: prefix (legacy)
-        if obj.startswith('_file:'):
+        if obj.startswith("_file:"):
             path = os.path.join(base, obj[6:])
             if os.path.isfile(path):
                 with open(path) as f:
@@ -96,7 +102,7 @@ def resolve(obj):
         return [resolve(v) for v in obj]
     return obj
 print(json.dumps(resolve(data)))
-" 2>/dev/null || echo "$json"
+' "$base_dir" 2>/dev/null || printf '%s' "$json"
 }
 
 # ── Helper: collect all YAML (or JSON) files from a config subdirectory into a JSON array ──
@@ -112,31 +118,31 @@ collect_config() {
       for f in "${full}"/*.yaml "${full}"/*.yml; do
         [[ -f "$f" ]] || continue
         local item
-        item=$(python3 -c "
+        item=$(python3 -c '
 import sys, yaml, json
-with open('$f') as fh:
+with open(sys.argv[1]) as fh:
     data = yaml.safe_load(fh)
 print(json.dumps(data))
-" 2>/dev/null) || continue
-        items=$(echo "$items" | jq -c --argjson i "$item" '. + [$i]')
+' "$f" 2>/dev/null) || continue
+        items=$(printf '%s\n%s\n' "$items" "$item" | jq -sc 'if length == 2 then .[0] + [.[1]] else error("expected single JSON value") end')
       done
       # Also read JSON files (for backward compat)
       for f in "${full}"/*.json; do
         [[ -f "$f" ]] || continue
         local item
         item=$(cat "$f") || continue
-        items=$(echo "$items" | jq -c --argjson i "$item" '. + [$i]' 2>/dev/null) || continue
+        items=$(printf '%s\n%s\n' "$items" "$item" | jq -sc 'if length == 2 then .[0] + [.[1]] else error("expected single JSON value") end' 2>/dev/null) || continue
       done
-      result=$(echo "$result" "$items" | jq -sc 'add // []')
+      result=$(printf '%s\n%s\n' "$result" "$items" | jq -sc 'add // []')
     fi
   done
-  echo "$result"
+  printf '%s\n' "$result"
 }
 
 # ── Helper: substitute env vars in connector JSON ──
 resolve_env_vars() {
   local json="$1"
-  echo "$json" | python3 -c "
+  printf '%s' "$json" | python3 -c "
 import json, sys, os, re
 data = json.load(sys.stdin)
 def sub(obj):
@@ -148,7 +154,7 @@ def sub(obj):
         return [sub(v) for v in obj]
     return obj
 print(json.dumps(sub(data)))
-" 2>/dev/null || echo "$json"
+" 2>/dev/null || printf '%s' "$json"
 }
 
 # ═══════ Read agent.json ═══════
@@ -317,13 +323,43 @@ if [[ -n "$MD_FILES" ]]; then
   _log "Found ${MD_COUNT} knowledge .md file(s) in data/"
   for mdf in $MD_FILES; do
     fname=$(basename "$mdf")
-    content=$(cat "$mdf")
-    KNOWLEDGE_ITEMS=$(echo "$KNOWLEDGE_ITEMS" | jq --arg name "$fname" --arg content "$content" \
-      '. + [{"name": $name, "type": "KnowledgeText", "content": $content}]')
+    KNOWLEDGE_ITEMS=$(printf '%s' "$KNOWLEDGE_ITEMS" | jq --arg name "$fname" --rawfile content "$mdf" \
+      '. + [{"name": $name, "type": "KnowledgeText", "content": ($content | sub("\\n+$"; ""))}]')
   done
 fi
 
-_log "knowledge: $(echo "$KNOWLEDGE" | jq 'length'), items: $(echo "$KNOWLEDGE_ITEMS" | jq 'length')"
+_log "knowledge: $(printf '%s' "$KNOWLEDGE" | jq 'length'), items: $(printf '%s' "$KNOWLEDGE_ITEMS" | jq 'length')"
+
+# Stage JSON collections on disk so jq reads via --slurpfile instead of hitting
+# Linux MAX_ARG_STRLEN (131,071 bytes) on large --argjson payloads.
+_stage_json tags "$TAGS"
+_stage_json allowedHosts "$NET_ALLOWED_HOSTS"
+_stage_json allowedRegistries "$NET_ALLOWED_REGISTRIES"
+_stage_json allowedCodeRepositories "$NET_ALLOWED_CODE_REPOS"
+_stage_json targetRgs "$TARGET_RGS"
+_stage_json toggles "$TOGGLES"
+_stage_json ctog "$CONNECTOR_TOGGLES"
+_stage_json connectors "$CONNECTORS"
+_stage_json repos "$REPOS"
+_stage_json incidentPlatforms "$INCIDENT_PLATFORMS"
+_stage_json incidentFilters "$INCIDENT_FILTERS"
+_stage_json scheduledTasks "$SCHEDULED_TASKS"
+_stage_json hooks "$HOOKS"
+_stage_json commonPrompts "$COMMON_PROMPTS"
+_stage_json httpTriggers "$HTTP_TRIGGERS"
+_stage_json knowledge "$KNOWLEDGE"
+_stage_json knowledgeItems "$KNOWLEDGE_ITEMS"
+_stage_json synthesizedKnowledge "$SYNTH_KNOWLEDGE"
+_stage_json repoInstructions "$REPO_INSTRUCTIONS"
+_stage_json marketplaces "$MARKETPLACES"
+_stage_json installations "$INSTALLATIONS"
+_stage_json skills "$SKILLS"
+_stage_json subagents "$SUBAGENTS"
+_stage_json tools "$TOOLS"
+_stage_json pluginConfigs "$PLUGIN_CONFIGS"
+_stage_json toolPermissions "$TOOL_PERMISSIONS"
+_stage_json githubDomains "$GITHUB_DOMAINS"
+_stage_json connectorV2 "$CONNECTORV2"
 
 # ═══════ Write parameters.json (Bicep) ═══════
 
@@ -338,63 +374,66 @@ jq -n \
   --arg upgradeChannel "$UPGRADE_CHANNEL" \
   --arg modelProvider "$MODEL_PROVIDER" \
   --argjson monthlyLimit "$MONTHLY_LIMIT" \
-  --argjson tags "$TAGS" \
+  --slurpfile tags "${ASSEMBLE_SCRATCH}/tags.json" \
   --arg existingUami "$EXISTING_UAMI" \
   --arg existingAi "$EXISTING_AI" \
   --arg vnetSubnetId "$NET_SUBNET_ID" \
   --arg egressMode "$EGRESS_MODE" \
-  --argjson allowedHosts "$NET_ALLOWED_HOSTS" \
-  --argjson allowedRegistries "$NET_ALLOWED_REGISTRIES" \
-  --argjson allowedCodeRepositories "$NET_ALLOWED_CODE_REPOS" \
+  --slurpfile allowedHosts "${ASSEMBLE_SCRATCH}/allowedHosts.json" \
+  --slurpfile allowedRegistries "${ASSEMBLE_SCRATCH}/allowedRegistries.json" \
+  --slurpfile allowedCodeRepositories "${ASSEMBLE_SCRATCH}/allowedCodeRepositories.json" \
   --argjson allowMcp "$NET_ALLOW_MCP" \
   --argjson privateDns "$NET_PRIVATE_DNS" \
-  --argjson targetRgs "$TARGET_RGS" \
-  --argjson toggles "$TOGGLES" \
-  --argjson ctog "$CONNECTOR_TOGGLES" \
-  --argjson connectors "$CONNECTORS" \
-  --argjson tools "$TOOLS" \
-  --argjson skills "$SKILLS" \
-  --argjson subagents "$SUBAGENTS" \
-  --argjson scheduledTasks "$SCHEDULED_TASKS" \
-  --argjson incidentFilters "$INCIDENT_FILTERS" \
-  --argjson commonPrompts "$COMMON_PROMPTS" \
-  --argjson pluginConfigs "$PLUGIN_CONFIGS" \
-  '{
+  --slurpfile targetRgs "${ASSEMBLE_SCRATCH}/targetRgs.json" \
+  --slurpfile toggles "${ASSEMBLE_SCRATCH}/toggles.json" \
+  --slurpfile ctog "${ASSEMBLE_SCRATCH}/ctog.json" \
+  --slurpfile connectors "${ASSEMBLE_SCRATCH}/connectors.json" \
+  '
+  def one($v): if ($v | length) == 1 then $v[0] else error("expected single JSON value") end;
+  (one($tags)) as $tags_val |
+  (one($allowedHosts)) as $allowed_hosts_val |
+  (one($allowedRegistries)) as $allowed_registries_val |
+  (one($allowedCodeRepositories)) as $allowed_code_repos_val |
+  (one($targetRgs)) as $target_rgs_val |
+  (one($toggles)) as $toggles_val |
+  (one($ctog)) as $ctog_val |
+  (one($connectors)) as $connectors_val |
+  {
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
       "agentName":                     { "value": $agent },
       "agentResourceGroupName":        { "value": $rg },
       "location":                      { "value": $loc },
-      "targetResourceGroups":          { "value": $targetRgs },
+      "targetResourceGroups":          { "value": $target_rgs_val },
       "accessLevel":                   { "value": $access },
       "actionMode":                    { "value": $action },
       "upgradeChannel":                { "value": $upgradeChannel },
       "defaultModelProvider":          { "value": $modelProvider },
       "monthlyAgentUnitLimit":         { "value": $monthlyLimit },
-      "tags":                            { "value": $tags },
+      "tags":                            { "value": $tags_val },
       "existingManagedIdentityId":     { "value": $existingUami },
       "existingAgentAppInsightsId":    { "value": $existingAi },
       "vnetSubnetId":                  { "value": $vnetSubnetId },
       "egressMode":                    { "value": $egressMode },
-      "allowedHosts":                  { "value": $allowedHosts },
-      "allowedRegistries":             { "value": $allowedRegistries },
-      "allowedCodeRepositories":       { "value": $allowedCodeRepositories },
+      "allowedHosts":                  { "value": $allowed_hosts_val },
+      "allowedRegistries":             { "value": $allowed_registries_val },
+      "allowedCodeRepositories":       { "value": $allowed_code_repos_val },
       "allowHttpMcpServerNetworkAccess": { "value": $allowMcp },
       "usePrivateDnsResolution":       { "value": $privateDns },
-      "enableAppInsightsConnector":    { "value": ($ctog.enableAppInsightsConnector // false) },
-      "appInsightsResourceId":         { "value": ($ctog.appInsightsResourceId // "") },
-      "appInsightsAppId":              { "value": ($ctog.appInsightsAppId // "") },
-      "enableLogAnalyticsConnector":   { "value": ($ctog.enableLogAnalyticsConnector // false) },
-      "lawResourceId":                 { "value": ($ctog.lawResourceId // "") },
-      "enableAzureMonitorConnector":   { "value": ($ctog.enableAzureMonitorConnector // false) },
-      "azureMonitorLookbackDays":      { "value": ($ctog.azureMonitorLookbackDays // 7) },
-      "enableDailyHealthCheckTask":    { "value": ($toggles.enableDailyHealthCheckTask // false) },
-      "enableDenyProdDeletesHook":     { "value": ($toggles.enableDenyProdDeletesHook // false) },
-      "enableSafetyRulesPrompt":       { "value": ($toggles.enableSafetyRulesPrompt // false) },
-      "enableWebhookBridge":           { "value": ($toggles.enableWebhookBridge // false) },
-      "webhookBridgeTriggerUrl":       { "value": ($toggles.webhookBridgeTriggerUrl // "") },
-      "connectors":                    { "value": [$connectors[] | select(.properties.dataConnectorType != "KnowledgeFile")] },
+      "enableAppInsightsConnector":    { "value": ($ctog_val.enableAppInsightsConnector // false) },
+      "appInsightsResourceId":         { "value": ($ctog_val.appInsightsResourceId // "") },
+      "appInsightsAppId":              { "value": ($ctog_val.appInsightsAppId // "") },
+      "enableLogAnalyticsConnector":   { "value": ($ctog_val.enableLogAnalyticsConnector // false) },
+      "lawResourceId":                 { "value": ($ctog_val.lawResourceId // "") },
+      "enableAzureMonitorConnector":   { "value": ($ctog_val.enableAzureMonitorConnector // false) },
+      "azureMonitorLookbackDays":      { "value": ($ctog_val.azureMonitorLookbackDays // 7) },
+      "enableDailyHealthCheckTask":    { "value": ($toggles_val.enableDailyHealthCheckTask // false) },
+      "enableDenyProdDeletesHook":     { "value": ($toggles_val.enableDenyProdDeletesHook // false) },
+      "enableSafetyRulesPrompt":       { "value": ($toggles_val.enableSafetyRulesPrompt // false) },
+      "enableWebhookBridge":           { "value": ($toggles_val.enableWebhookBridge // false) },
+      "webhookBridgeTriggerUrl":       { "value": ($toggles_val.webhookBridgeTriggerUrl // "") },
+      "connectors":                    { "value": [$connectors_val[] | select(.properties.dataConnectorType != "KnowledgeFile")] },
       "tools":                         { "value": [] },
       "skills":                        { "value": [] },
       "subagents":                     { "value": [] },
@@ -412,62 +451,74 @@ _log "Wrote $(wc -c < "$PARAMS_FILE" | tr -d ' ') bytes"
 _info "Writing ${EXTRAS_FILE}"
 
 jq -n \
-  --argjson repos "$REPOS" \
-  --argjson incidentPlatforms "$INCIDENT_PLATFORMS" \
-  --argjson incidentFilters "$INCIDENT_FILTERS" \
-  --argjson scheduledTasks "$SCHEDULED_TASKS" \
-  --argjson hooks "$HOOKS" \
-  --argjson commonPrompts "$COMMON_PROMPTS" \
-  --argjson httpTriggers "$HTTP_TRIGGERS" \
-  --argjson knowledge "$KNOWLEDGE" \
-  --argjson knowledgeItems "$KNOWLEDGE_ITEMS" \
-  --argjson synthesizedKnowledge "$SYNTH_KNOWLEDGE" \
+  --slurpfile repos "${ASSEMBLE_SCRATCH}/repos.json" \
+  --slurpfile incidentPlatforms "${ASSEMBLE_SCRATCH}/incidentPlatforms.json" \
+  --slurpfile incidentFilters "${ASSEMBLE_SCRATCH}/incidentFilters.json" \
+  --slurpfile scheduledTasks "${ASSEMBLE_SCRATCH}/scheduledTasks.json" \
+  --slurpfile hooks "${ASSEMBLE_SCRATCH}/hooks.json" \
+  --slurpfile commonPrompts "${ASSEMBLE_SCRATCH}/commonPrompts.json" \
+  --slurpfile httpTriggers "${ASSEMBLE_SCRATCH}/httpTriggers.json" \
+  --slurpfile knowledge "${ASSEMBLE_SCRATCH}/knowledge.json" \
+  --slurpfile knowledgeItems "${ASSEMBLE_SCRATCH}/knowledgeItems.json" \
+  --slurpfile synthesizedKnowledge "${ASSEMBLE_SCRATCH}/synthesizedKnowledge.json" \
   --arg synthesizedKnowledgeDir "$SYNTH_KNOWLEDGE_DIR" \
-  --argjson repoInstructions "$REPO_INSTRUCTIONS" \
-  --argjson marketplaces "$MARKETPLACES" \
-  --argjson installations "$INSTALLATIONS" \
-  --argjson connectors "$CONNECTORS" \
-  --argjson skills "$SKILLS" \
-  --argjson subagents "$SUBAGENTS" \
-  --argjson tools "$TOOLS" \
-  --argjson pluginConfigs "$PLUGIN_CONFIGS" \
-  --argjson toolPermissions "$TOOL_PERMISSIONS" \
-  --argjson githubDomains "$GITHUB_DOMAINS" \
-  --argjson connectorV2 "$CONNECTORV2" \
-  '{
-    "repos": $repos,
-    "incidentPlatforms": $incidentPlatforms,
-    "incidentFilters": $incidentFilters,
-    "scheduledTasks": $scheduledTasks,
-    "hooks": [($hooks // [])[] | {name: (.metadata.name // .name), type: (.type // "GlobalHook"), tags: (.tags // []), properties: (.spec // .properties // {})}],
-    "commonPrompts": [($commonPrompts // [])[] | {name: (.metadata.name // .name), type: (.type // "CommonPrompt"), tags: (.tags // []), properties: (.spec // .properties // {})}],
-    "httpTriggers": $httpTriggers,
-    "knowledge": $knowledge,
-    "knowledgeItems": $knowledgeItems,
-    "synthesizedKnowledge": $synthesizedKnowledge,
+  --slurpfile repoInstructions "${ASSEMBLE_SCRATCH}/repoInstructions.json" \
+  --slurpfile marketplaces "${ASSEMBLE_SCRATCH}/marketplaces.json" \
+  --slurpfile installations "${ASSEMBLE_SCRATCH}/installations.json" \
+  --slurpfile connectors "${ASSEMBLE_SCRATCH}/connectors.json" \
+  --slurpfile skills "${ASSEMBLE_SCRATCH}/skills.json" \
+  --slurpfile subagents "${ASSEMBLE_SCRATCH}/subagents.json" \
+  --slurpfile tools "${ASSEMBLE_SCRATCH}/tools.json" \
+  --slurpfile pluginConfigs "${ASSEMBLE_SCRATCH}/pluginConfigs.json" \
+  --slurpfile toolPermissions "${ASSEMBLE_SCRATCH}/toolPermissions.json" \
+  --slurpfile githubDomains "${ASSEMBLE_SCRATCH}/githubDomains.json" \
+  --slurpfile connectorV2 "${ASSEMBLE_SCRATCH}/connectorV2.json" \
+  '
+  def one($v): if ($v | length) == 1 then $v[0] else error("expected single JSON value") end;
+  (one($hooks)) as $hooks_val |
+  (one($commonPrompts)) as $common_prompts_val |
+  (one($connectors)) as $connectors_val |
+  (one($pluginConfigs)) as $plugin_configs_val |
+  {
+    "repos": one($repos),
+    "incidentPlatforms": one($incidentPlatforms),
+    "incidentFilters": one($incidentFilters),
+    "scheduledTasks": one($scheduledTasks),
+    "hooks": [($hooks_val // [])[] | {name: (.metadata.name // .name), type: (.type // "GlobalHook"), tags: (.tags // []), properties: (.spec // .properties // {})}],
+    "commonPrompts": [($common_prompts_val // [])[] | {name: (.metadata.name // .name), type: (.type // "CommonPrompt"), tags: (.tags // []), properties: (.spec // .properties // {})}],
+    "httpTriggers": one($httpTriggers),
+    "knowledge": one($knowledge),
+    "knowledgeItems": one($knowledgeItems),
+    "synthesizedKnowledge": one($synthesizedKnowledge),
     "synthesizedKnowledgeDir": $synthesizedKnowledgeDir,
-    "repoInstructions": $repoInstructions,
+    "repoInstructions": one($repoInstructions),
     "plugins": {
-      "marketplaces": $marketplaces,
-      "installations": $installations
+      "marketplaces": one($marketplaces),
+      "installations": one($installations)
     },
-    "connectors": [$connectors[] | select(.properties.dataConnectorType == "Mcp")],
-    "skills": $skills,
-    "subagents": $subagents,
-    "tools": $tools,
-    "pluginConfigs": [($pluginConfigs // [])[] | {name: (.metadata.name // .name), type: (.type // "Plugin"), tags: (.tags // []), properties: (.spec // .properties // {})}],
-    "toolPermissions": $toolPermissions,
-    "githubDomains": $githubDomains,
-    "connectorV2": $connectorV2
+    "connectors": [$connectors_val[] | select(.properties.dataConnectorType == "Mcp")],
+    "skills": one($skills),
+    "subagents": one($subagents),
+    "tools": one($tools),
+    "pluginConfigs": [($plugin_configs_val // [])[] | {name: (.metadata.name // .name), type: (.type // "Plugin"), tags: (.tags // []), properties: (.spec // .properties // {})}],
+    "toolPermissions": one($toolPermissions),
+    "githubDomains": one($githubDomains),
+    "connectorV2": one($connectorV2)
   }' > "$EXTRAS_FILE"
+
+if [[ -f "${DIR}/custom-instructions.md" ]]; then
+  jq --rawfile instructions "${DIR}/custom-instructions.md" \
+    '.customInstructions = $instructions' "$EXTRAS_FILE" > "${ASSEMBLE_SCRATCH}/extras.merged.json"
+  mv "${ASSEMBLE_SCRATCH}/extras.merged.json" "$EXTRAS_FILE"
+fi
 
 # Merge admin settings if present (adminUsers for cross-tenant access)
 if [[ -f "${DIR}/admin-settings.json" ]]; then
   _log "Merging admin-settings.json (adminUsers) into extras"
-  EXTRAS_WITH_ADMIN=$(jq -s '.[0] * {
-    "adminUsers": (.[1].adminUsers // []),
-  }' "$EXTRAS_FILE" "${DIR}/admin-settings.json")
-  echo "$EXTRAS_WITH_ADMIN" > "$EXTRAS_FILE"
+  jq -s '.[0] * {
+    "adminUsers": (.[1].adminUsers // [])
+  }' "$EXTRAS_FILE" "${DIR}/admin-settings.json" > "${ASSEMBLE_SCRATCH}/extras.merged.json"
+  mv "${ASSEMBLE_SCRATCH}/extras.merged.json" "$EXTRAS_FILE"
 fi
 
 _log "Wrote $(wc -c < "$EXTRAS_FILE" | tr -d ' ') bytes"
