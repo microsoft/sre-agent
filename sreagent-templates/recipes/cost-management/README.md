@@ -2,6 +2,14 @@
 
 Deploy an Azure SRE Agent for Azure Cost Management analytics and FinOps operations.
 
+## Use cases
+
+- Compare spend by service and review reservation or savings plan recommendations.
+- Investigate unexpected charges by identifying top cost drivers and checking anomaly alert coverage.
+- Review billed AI workload costs alongside GPU quota and regional SKU availability.
+  Quota and SKU availability don't measure GPU utilization or guarantee deployment
+  capacity. Billing data isn't per-request telemetry.
+
 ## Prerequisites
 
 - An Azure subscription and permission to assign roles at each target scope
@@ -185,6 +193,17 @@ doesn't replace the agent's approval policy. Scheduled tasks run in autonomous
 mode, where tools set to **Ask** execute without human approval. Review the
 enabled tools and permissions before you enable a scheduled task. See
 [Run modes](https://learn.microsoft.com/azure/sre-agent/run-modes).
+
+## Try a read-only cost review
+
+After you [assign subscription roles](#assign-subscription-roles), open an agent
+chat and replace `<subscription-id>` with one authorized subscription:
+
+> For subscription `<subscription-id>`, compare spend by service for the last
+> 30 days against the preceding 30 days. List the largest increases and cite
+> the sources. Flag missing evidence. Make no changes.
+
+For recurring reviews, see [scheduled tasks](#scheduled-tasks).
 
 ## Parameters
 
