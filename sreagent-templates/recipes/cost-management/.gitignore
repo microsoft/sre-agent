@@ -1,3 +1,5 @@
 connectors.secrets.env
 *.secrets.env
 live-reports/*.local.html
+/data/*
+!/data/knowledge-items.json
