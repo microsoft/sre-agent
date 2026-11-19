@@ -1,0 +1,16 @@
+apiVersion: azmonitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sample-app
+  namespace: sre-demo
+spec:
+  labelLimit: 63
+  labelNameLengthLimit: 511
+  labelValueLengthLimit: 1023
+  selector:
+    matchLabels:
+      app: sample-app
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s

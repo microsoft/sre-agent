@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-generator
+  namespace: sre-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: load-generator
+  template:
+    metadata:
+      labels:
+        app: load-generator
+    spec:
+      containers:
+      - name: load-generator
+        image: curlimages/curl
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          while true; do
+            TIMESTAMP=$(date -Iseconds)
+            RESULT=$(curl -s \
+              -o /dev/null \
+              -w "%{http_code}" \
+              http://sample-app/api/data)
+            echo "$TIMESTAMP status=$RESULT"
+            sleep 2
+          done

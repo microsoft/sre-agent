@@ -1,0 +1,122 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sample-app-code
+  namespace: sre-demo
+data:
+  app.py: |
+    from flask import Flask, Response, jsonify
+    import os
+    import time
+
+    app = Flask(__name__)
+
+    request_count = 0
+    error_count = 0
+
+    @app.route("/")
+    def root():
+        return "SRE Agent on-prem Kubernetes demo\n"
+
+    @app.route("/health")
+    def health():
+        return jsonify(status="healthy")
+
+    @app.route("/api/data")
+    def data():
+        global request_count, error_count
+        request_count += 1
+
+        if os.path.exists("/fault/fail"):
+            error_count += 1
+            return jsonify(
+                status="error",
+                message="Simulated application failure"
+            ), 500
+
+        return jsonify(
+            status="ok",
+            timestamp=time.time()
+        )
+
+    @app.route("/metrics")
+    def metrics():
+        body = f"""# HELP demo_requests_total Total requests
+    # TYPE demo_requests_total counter
+    demo_requests_total {request_count}
+
+    # HELP demo_errors_total Total errors
+    # TYPE demo_errors_total counter
+    demo_errors_total {error_count}
+    """
+        return Response(body, mimetype="text/plain")
+
+    app.run(host="0.0.0.0", port=8080)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-app
+  namespace: sre-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sample-app
+  template:
+    metadata:
+      labels:
+        app: sample-app
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+      - name: sample-app
+        image: python:3.12-slim
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          pip install --no-cache-dir flask &&
+          python /app/app.py
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: app-code
+          mountPath: /app
+        - name: fault
+          mountPath: /fault
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      volumes:
+      - name: app-code
+        configMap:
+          name: sample-app-code
+      - name: fault
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-app
+  namespace: sre-demo
+  labels:
+    app: sample-app
+spec:
+  selector:
+    app: sample-app
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
