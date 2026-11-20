@@ -64,6 +64,46 @@ cd sre-agent/sreagent-templates
 
 > **Cloud Shell**: Core deployment works with Cloud Shell's built-in auth. Some data-plane items (hooks, repos) require `az login --scope "https://azuresre.dev/.default"` first, or can be configured later in the [portal](https://sre.azure.com).
 
+### Webhook bridge credentials
+
+Logic App callback URLs contain signed credentials. Templates return only the
+Logic App name, and deployment scripts print a retrieval command instead of the
+URL. Run that command privately when configuring your external webhook sender,
+not in a CI job or a recorded terminal session:
+
+```bash
+az rest --method POST \
+  --url "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Logic/workflows/<agent-name>-webhook-bridge/triggers/incoming_webhook/listCallbackUrl?api-version=2019-05-01" \
+  --query value -o tsv
+```
+
+Retrieval requires
+`Microsoft.Logic/workflows/triggers/listCallbackUrl/action` on the Logic App;
+deployment read access is not sufficient. Pass the result directly to the
+external webhook configuration or an approved secret store. Do not log it or
+return it as a pipeline output.
+
+**Output compatibility:** `webhookBridgeName` replaces `webhookBridgeUrl` in
+[main.bicep](bicep/main.bicep). The standalone
+[logic-app-bridge.bicep](bicep/logic-app-bridge.bicep) keeps `logicAppName` but no
+longer returns `logicAppCallbackUrl`. Update pipelines that consumed either
+removed output to retrieve the credential explicitly with the permission above.
+
+**Existing deployments:** Updating templates does not invalidate previously
+exposed URLs or remove old deployment outputs. Rotate the affected Logic App
+access keys, update all webhook senders to use the new URLs, and remove affected
+deployment history entries (including nested deployments) and retained log or
+pipeline artifacts according to your retention requirements. Review both primary
+and secondary keys if either could have been exposed. Do not treat history
+deletion alone as credential revocation.
+
+Offline regressions for both script variants (no Azure resources are changed):
+
+```bash
+bash tests/test-webhook-credentials.sh
+pwsh -NoProfile -File tests/Test-WebhookCredentials.ps1
+```
+
 ## Recipes
 
 | Recipe | Platform | One-line |

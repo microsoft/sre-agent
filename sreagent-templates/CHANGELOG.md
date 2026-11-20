@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking Changes
+- `webhookBridgeName` replaces `webhookBridgeUrl` in the main Bicep template, and the standalone bridge template no longer returns `logicAppCallbackUrl`. Consumers must retrieve the callback URL explicitly with `listCallbackUrl`.
+- Webhook bridge lookup or deployment failures now stop Bash and PowerShell `apply-extras`, so later configuration steps do not run after a bridge failure.
+
+### Changed
+- Webhook bridge scripts print the Logic App name and a `listCallbackUrl` retrieval command instead of the callback URL.
+
 ### Fixed
 - Discover available Azure SRE Agent regions from the selected subscription in Bash and PowerShell workflows, with all 20 live regions as the offline fallback.
 - Made `export-agent.sh` detect and install PyYAML before export, with an isolated-environment fallback and actionable failure guidance.

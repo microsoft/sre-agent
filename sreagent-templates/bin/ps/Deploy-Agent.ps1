@@ -868,23 +868,13 @@ if ($IsDirectory) {
 
         switch ($Scenario) {
             'dynatrace-mcp' {
-                # Try to get the Logic App callback URL
-                $WhCallback = ''
-                try {
-                    $WhCallback = az rest --method POST `
-                        --url "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Logic/workflows/$AgentName-webhook-bridge/triggers/incoming_webhook/listCallbackUrl?api-version=2019-05-01" `
-                        --query value -o tsv 2>$null
-                } catch { }
-
                 Write-Host ''
                 Write-Header '── Dynatrace setup (required to receive alerts) ──'
                 Write-Host ''
-                if ($WhCallback) {
-                    Write-Host '  Webhook bridge URL (use this in Dynatrace):'
-                    Write-Host "     $WhCallback"
-                } else {
-                    Write-Host "  ⚠ Webhook bridge not found. Check Azure portal → $ResourceGroup → $AgentName-webhook-bridge"
-                }
+                Write-Host "  Webhook bridge Logic App: $AgentName-webhook-bridge"
+                Write-Host '  Retrieve the secret callback URL privately (do not run in CI logs):'
+                Write-Host "    az rest --method POST --url `"/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Logic/workflows/$AgentName-webhook-bridge/triggers/incoming_webhook/listCallbackUrl?api-version=2019-05-01`" --query value -o tsv"
+                Write-Host "  If the Logic App is missing, check Azure portal → $ResourceGroup → $AgentName-webhook-bridge."
                 Write-Host ''
                 Write-Host '  Option A: Dynatrace Workflow (recommended)'
                 Write-Host '  ─────────────────────────────────────────────'
@@ -894,11 +884,7 @@ if ($IsDirectory) {
                 Write-Host '       (fires once per problem, not on every status update)'
                 Write-Host '  3. Add action: ''Send HTTP request'''
                 Write-Host '     - Method: POST'
-                if ($WhCallback) {
-                    Write-Host "     - URL: $WhCallback"
-                } else {
-                    Write-Host '     - URL: <webhook bridge URL>'
-                }
+                Write-Host '     - URL: <privately retrieved webhook bridge URL>'
                 Write-Host '     - Headers: Content-Type: application/json'
                 Write-Host '     - Payload:'
                 Write-Host '       {'
@@ -918,11 +904,7 @@ if ($IsDirectory) {
                 Write-Host '  ────────────────────────────────────────────────────'
                 Write-Host '  1. Go to Settings → Integration → Problem notifications'
                 Write-Host '  2. Add ''Custom Integration'' webhook'
-                if ($WhCallback) {
-                    Write-Host "  3. URL: $WhCallback"
-                } else {
-                    Write-Host '  3. URL: <webhook bridge URL>'
-                }
+                Write-Host '  3. URL: <privately retrieved webhook bridge URL>'
                 Write-Host '  4. Send test notification to verify'
                 Write-Host ''
                 Write-Host '  Test: trigger a problem in Dynatrace (or use the test button)'

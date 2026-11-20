@@ -1200,14 +1200,14 @@ if ($HttpTriggerUrl) {
     if ($whEnabled) {
         # Check if Logic App already exists
         $existingLa = az resource list -g $ResourceGroup --resource-type Microsoft.Logic/workflows `
-            --query "[?name=='$AgentName-webhook-bridge'].name" -o tsv 2>$null
+            --query "[?name=='$AgentName-webhook-bridge'].name" -o tsv
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not check whether the webhook bridge exists (exit code $LASTEXITCODE)."
+        }
         if ($existingLa) {
-            $whCallback = az rest --method POST `
-                --url "/subscriptions/$Subscription/resourceGroups/$ResourceGroup/providers/Microsoft.Logic/workflows/$AgentName-webhook-bridge/triggers/incoming_webhook/listCallbackUrl?api-version=2019-05-01" `
-                --query value -o tsv 2>$null
+            $whLaName = $existingLa
             Write-Host ""
             Write-Host "webhook-bridge: already exists"
-            Write-Host "  Callback URL: $whCallback"
         } else {
             Write-Host ""
             Write-Host "-- Deploying webhook bridge Logic App --"
@@ -1222,25 +1222,32 @@ if ($HttpTriggerUrl) {
                     --parameters agentName=$AgentName location=$location triggerUrl=$HttpTriggerUrl `
                     --only-show-errors `
                     --output json 2>$stderrPath
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Logic App deployment command failed (exit code $LASTEXITCODE)."
+                }
                 $laResult = $laResultRaw | ConvertFrom-Json
                 $laState = $laResult.properties.provisioningState
                 if ($laState -eq "Succeeded") {
-                    $whCallback = $laResult.properties.outputs.logicAppCallbackUrl.value
+                    $whLaName = $laResult.properties.outputs.logicAppName.value
+                    if ([string]::IsNullOrWhiteSpace($whLaName)) {
+                        throw "Webhook bridge deployment returned no Logic App name."
+                    }
                     Write-Host "  Webhook bridge deployed"
-                    Write-Host "  Callback URL: $whCallback"
                 } else {
-                    Write-Host "  Webhook bridge deployment failed"
-                    $laResultRaw | Select-Object -First 10 | Write-Host
-                    Get-Content -LiteralPath $stderrPath -ErrorAction SilentlyContinue | Select-Object -First 10 | Write-Host
+                    throw "Logic App deployment did not succeed (state: $laState)."
                 }
             } catch {
                 Write-Host "  Webhook bridge deployment failed"
                 Write-Host "  $($_.Exception.Message)"
                 Get-Content -LiteralPath $stderrPath -ErrorAction SilentlyContinue | Select-Object -First 10 | Write-Host
+                throw
             } finally {
                 Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
             }
         }
+        Write-Host "  Logic App: $whLaName"
+        Write-Host "  Retrieve the secret callback URL privately (do not run in CI logs):"
+        Write-Host "    az rest --method POST --url `"/subscriptions/$Subscription/resourceGroups/$ResourceGroup/providers/Microsoft.Logic/workflows/$whLaName/triggers/incoming_webhook/listCallbackUrl?api-version=2019-05-01`" --query value -o tsv"
     }
 }
 

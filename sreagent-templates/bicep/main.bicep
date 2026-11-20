@@ -267,5 +267,6 @@ output resourceGroupPortalUrl string = 'https://portal.azure.com/#@/resource/sub
 output pendingHooks         array = extensions.outputs.pendingHooks
 output pendingPluginConfigs array = extensions.outputs.pendingPluginConfigs
 
-// Webhook bridge URL — give this to your external platform (Dynatrace, Grafana, etc.)
-output webhookBridgeUrl string = (enableWebhookBridge && !empty(webhookBridgeTriggerUrl)) ? webhookBridge.outputs.logicAppCallbackUrl : ''
+// Emit only the resource name, not the credential-bearing callback URL.
+// Retrieve the URL explicitly with the Logic App trigger's listCallbackUrl action.
+output webhookBridgeName string = (enableWebhookBridge && !empty(webhookBridgeTriggerUrl)) ? webhookBridge!.outputs.logicAppName : ''
