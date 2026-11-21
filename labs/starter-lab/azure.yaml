@@ -12,6 +12,10 @@ infra:
 # in the post-provision hook. No Docker Desktop needed on the lab machine.
 
 hooks:
+  preprovision:
+    shell: sh
+    run: bash scripts/preflight.sh
+    interactive: true
   postprovision:
     shell: sh
     run: bash scripts/post-provision.sh

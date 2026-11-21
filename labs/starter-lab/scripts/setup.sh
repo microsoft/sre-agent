@@ -122,18 +122,10 @@ azd env new "$ENV_NAME" 2>/dev/null || azd env select "$ENV_NAME" 2>/dev/null
 azd env set AZURE_LOCATION eastus2 2>/dev/null
 echo -e "  ${GREEN}✓${NC} Environment: $ENV_NAME (eastus2)"
 
-# GitHub (optional)
+# GitHub is checked by the shared azd pre-provision hook.
 echo ""
 echo -e "  ${BLUE}Optional: GitHub Integration${NC}"
-echo -e "  This enables source code analysis and issue triage."
-read -p "  Enter your GitHub username (or press Enter to skip): " GITHUB_USER
-
-if [ -n "$GITHUB_USER" ]; then
-  azd env set GITHUB_USER "$GITHUB_USER" 2>/dev/null
-  echo -e "  ${GREEN}✓${NC} GitHub user: $GITHUB_USER"
-else
-  echo -e "  ${YELLOW}⏭️${NC}  Skipped — core lab works without GitHub"
-fi
+echo -e "  The azd preflight will check your Grubify fork or let you skip GitHub."
 echo ""
 
 # ── Step 4: Deploy Infrastructure ────────────────────────────────────────────

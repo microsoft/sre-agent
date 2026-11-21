@@ -58,13 +58,13 @@ Deploy an Azure SRE Agent, break a sample app, and watch it diagnose and fix the
 
 ### Optional
 
-- [GitHub account](https://github.com) — fork [dm-chelupati/grubify](https://github.com/dm-chelupati/grubify/fork) for Scenarios 2 & 3
+- [GitHub account](https://github.com) and [GitHub CLI](https://cli.github.com) (`brew install gh` / `winget install GitHub.cli`) for Scenarios 2 & 3. Run `gh auth login --hostname github.com`; preflight checks or offers to create your [Grubify fork](https://github.com/dm-chelupati/grubify/fork).
 
 ## Quick Start
 
 ### One-Command Setup (Recommended)
 
-The `setup.sh` script handles prerequisites, login, and deployment. The `azd` post-provision hook configures the agent and fails the deployment if required agent components are missing.
+The `setup.sh` script handles prerequisites, login, and deployment. Before provisioning Azure resources, the `azd` pre-provision hook checks the optional GitHub fork. The post-provision hook configures the agent and fails the deployment if required agent components are missing.
 
 **macOS / Linux:**
 ```bash
@@ -106,6 +106,24 @@ azd up
 
 If browser sign-in is unavailable, run `az login --use-device-code` and `azd auth login --use-device-code` manually before `azd up`.
 
+### GitHub Fork Preflight
+
+On `azd up` or `azd provision`, preflight asks for your GitHub username (Enter skips GitHub), including when `GITHUB_USER` has not been added to the azd environment yet. If `GITHUB_USER` is already set, it uses that account. GitHub CLI must be signed in to the same account on github.com.
+
+- **Missing fork:** offers to fork `dm-chelupati/grubify` into your account, without cloning locally.
+- **Existing fork:** offers to keep it (default) or delete and recreate it. Only a verified Grubify fork can be deleted, and you must type its full `owner/grubify` name to confirm. **Deletion permanently removes its changes, issues, and pull requests.** If deletion fails because the OAuth token lacks `delete_repo`, preflight offers to run `gh auth refresh --hostname github.com -s delete_repo` and retry once. Complete the GitHub authorization prompt to grant permission, or decline to stop without deleting the fork. Other deletion errors stop recreation without requesting broader permissions.
+- **Issues:** enables GitHub Issues on the verified fork for source-analysis and triage scenarios.
+- **Noninteractive runs:** skip GitHub when no username is configured, keep an existing valid fork, or fail with instructions if it is missing. They never delete a repository.
+
+To explicitly request the recreation prompt before deployment:
+
+```bash
+bash scripts/preflight.sh --recreate-fork
+azd up
+```
+
+The fork check can also be run on its own with `bash scripts/preflight.sh`. GitHub API, authentication, and permission errors stop preflight rather than being treated as a missing fork.
+
 ## Verify Setup
 
 Open [sre.azure.com](https://sre.azure.com) → Full Setup → verify:
@@ -114,7 +132,7 @@ Open [sre.azure.com](https://sre.azure.com) → Full Setup → verify:
 - **Azure resources**: 1 resource group
 - **Knowledge sources**: runbook files indexed
 
-If you skipped GitHub during setup, fork the Grubify repository and add it later:
+If you skipped GitHub during setup, check or create your fork and add it later:
 
 ```bash
 bash scripts/setup-github.sh <your-github-username>
@@ -220,8 +238,9 @@ azd down --purge
 | Issue | Fix |
 |-------|-----|
 | Python not found (Windows) | Disable Store aliases, reopen CMD |
-| Agent configuration fails after infrastructure deployment | Run `bash scripts/post-provision.sh --retry`; the script exits nonzero and identifies any missing component. |
-| GitHub was skipped or is not connected | Fork `dm-chelupati/grubify`, then run `bash scripts/setup-github.sh <your-github-username>`. |
+| Agent configuration fails after infrastructure deployment | Run `bash scripts/post-provision.sh --retry` to resume configuration without rebuilding images. Knowledge uploads retry transient HTTP 405/408/429/5xx and connection failures up to five attempts, 15 seconds apart, with a 60-second timeout per request. Persistent failures report the HTTP status and API response and exit nonzero. |
+| OOM / HTTP 5xx alert fires but no automatic investigation starts | The `grubify-http-errors` response plan must match `alert-http-5xx-<AZURE_ENV_NAME>`, not the old hard-coded `alert-http-5xx-sre-lab`. Select the deployed environment with `azd env select <name>`, then run `bash scripts/post-provision.sh --retry` with the updated script. Setup verifies the enabled plan's title, platform, severity and autonomous handler settings. Run `bash scripts/break-app.sh` again for a new alert; an already-resolved alert is not an end-to-end verification. Future `azd up` deployments configure this automatically. |
+| GitHub was skipped or is not connected | Run `bash scripts/setup-github.sh <your-github-username>` to check/create the fork and configure integration. |
 | GitHub issue creation fails | Nudge: "Use the GitHub API to create the issue" |
 | `az login` uses wrong account | Run `az logout`, sign in again, and rerun setup. Use `az login --use-device-code` only when browser sign-in is unavailable. |
 

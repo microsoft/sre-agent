@@ -14,7 +14,7 @@ fi
 
 if [ -z "$GITHUB_USER" ]; then
   echo "Usage: bash scripts/setup-github.sh <github-username>"
-  echo "Fork https://github.com/dm-chelupati/grubify before running this command."
+  echo "The GitHub preflight will check or offer to create your Grubify fork."
   exit 1
 fi
 
@@ -23,5 +23,5 @@ if [ "$GITHUB_USER" = "dm-chelupati" ]; then
   exit 1
 fi
 
-azd env set GITHUB_USER "$GITHUB_USER"
+GITHUB_USER="$GITHUB_USER" bash "$SCRIPT_DIR/preflight.sh"
 bash "$SCRIPT_DIR/post-provision.sh" --retry
