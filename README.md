@@ -152,11 +152,6 @@ Scan a session's QR code, or use **Watch recording** below it. Each opens the fu
   </tbody>
 </table>
 
-### Keep learning: labs and workshop
-
-- **[LAB720: Hands-on: Modernize apps and databases and automate operations](https://ignite.microsoft.com/en-US/sessions/1787856876073001h8ld-1791906446596001z4Up)** — Modernize an app with GitHub Copilot, then use Azure SRE Agent for root-cause analysis and remediation. See the [hands-on lab](https://aka.ms/sreagent/lab) and [repository labs](labs/README.md) to keep practicing.
-- **PREL38: Plan, modernize, deploy, and operate with AI agents** — The pre-day workshop connected assessment, modernization, deployment, and production operations. Continue with the [repository labs](labs/README.md).
-
 Share this resource hub: [homepage QR PNG](assets/qr/sre-agent-homepage.png) · [SVG](assets/qr/sre-agent-homepage.svg).
 
 ---
