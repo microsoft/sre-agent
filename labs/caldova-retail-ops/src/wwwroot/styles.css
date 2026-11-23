@@ -1,0 +1,31 @@
+:root { color-scheme: light; font-family: Aptos, "Segoe UI", ui-sans-serif, system-ui, sans-serif; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #f4f7fb; color: #152238; }
+header { background: linear-gradient(120deg, #123d73, #0e7490); color: white; padding: 28px max(24px, calc((100vw - 1100px) / 2)); }
+header h1 { margin: 0 0 6px; font-size: 28px; }
+header p { margin: 0; color: #d9f2ff; }
+nav { display: flex; gap: 18px; margin-top: 16px; flex-wrap: wrap; }
+nav a { color: #d9f2ff; text-decoration: none; font-weight: 600; font-size: 14px; padding: 6px 0; border-bottom: 2px solid transparent; }
+nav a.active, nav a:hover { color: white; border-bottom-color: white; }
+main { max-width: 1100px; margin: 28px auto; padding: 0 24px 40px; }
+.status, .panel, .card, .feature { background: white; border: 1px solid #dce5ef; border-radius: 12px; box-shadow: 0 8px 24px rgba(21,34,56,.06); }
+.status { display: flex; gap: 24px; padding: 16px 20px; margin-bottom: 22px; flex-wrap: wrap; }
+.metric strong { display: block; font-size: 24px; color: #123d73; }
+.metric span { color: #607086; font-size: 13px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+.card { padding: 18px; }
+.card h2 { margin: 0 0 8px; font-size: 18px; }
+.meta { color: #607086; font-size: 13px; }
+.panel { margin-top: 20px; padding: 20px; }
+.error { color: #a51d2d; font-weight: 650; }
+code { background: #eef4f8; border-radius: 4px; padding: 2px 6px; }
+button { background: #0e7490; border: 0; border-radius: 7px; color: white; cursor: pointer; font-weight: 650; padding: 9px 13px; }
+button:disabled { cursor: wait; opacity: .65; }
+.data-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.data-table th, .data-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #dce5ef; font-size: 14px; }
+.data-table th { color: #607086; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.pagination { display: flex; gap: 6px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+.pagination a { color: #0e7490; text-decoration: none; font-weight: 600; padding: 5px 9px; border-radius: 6px; border: 1px solid #dce5ef; }
+.pagination a:hover { background: #eef4f8; }
+.pagination a.active { background: #0e7490; color: white; border-color: #0e7490; }
+.pagination .ellipsis { color: #607086; padding: 0 4px; }

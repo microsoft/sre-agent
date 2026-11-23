@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>CaldovaRetailOps</RootNamespace>
+    <!-- No NuGet package references are used anywhere in this project; only
+         the ASP.NET Core shared framework that ships with the SDK/runtime. -->
+    <UserSecretsId>0b034964-6cef-4463-b9b0-563adf5abef5</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Update="Data\catalog-waves.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Update="Data\products.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

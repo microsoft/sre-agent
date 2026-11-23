@@ -7,6 +7,7 @@ Deploy an Azure SRE Agent connected to a sample application with a single `azd u
 ## Additional Labs
 
 - [On-prem VM HTTP telemetry lab](onprem-lab-http/sre-agent-onprem-lab/README.md) — run a fault-injectable application on an Azure Arc-enabled Ubuntu VM and use Azure Monitor telemetry to investigate HTTP failures.
+- [Caldova Retail Ops lab](caldova-retail-ops/README.md) — deploy an App Service storefront with a built-in search failure and use Azure SRE Agent to investigate, verify recovery, and automate operational work.
 
 ## Architecture
 
