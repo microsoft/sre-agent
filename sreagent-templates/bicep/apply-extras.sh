@@ -1040,34 +1040,45 @@ if [[ -n "$HTTP_TRIGGER_URL" ]]; then
 
   if [[ "$WH_ENABLED" == "true" ]]; then
     # Check if Logic App already exists
-    EXISTING_LA=$(az resource list -g "$RG" --resource-type Microsoft.Logic/workflows --query "[?name=='${AGENT}-webhook-bridge'].name" -o tsv 2>/dev/null)
+    if ! EXISTING_LA=$(az resource list -g "$RG" --resource-type Microsoft.Logic/workflows --query "[?name=='${AGENT}-webhook-bridge'].name" -o tsv); then
+      echo "Could not check whether the webhook bridge exists." >&2
+      exit 1
+    fi
     if [[ -n "$EXISTING_LA" ]]; then
-      WH_CALLBACK=$(az rest --method POST \
-        --url "/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.Logic/workflows/${AGENT}-webhook-bridge/triggers/incoming_webhook/listCallbackUrl?api-version=2019-05-01" \
-        --query value -o tsv 2>/dev/null)
+      WH_LA_NAME="$EXISTING_LA"
       echo
       echo "webhook-bridge: already exists"
-      echo "  Callback URL: ${WH_CALLBACK}"
     else
       echo
       echo "── Deploying webhook bridge Logic App ──"
       echo "  Trigger URL: ${HTTP_TRIGGER_URL}"
       SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-      LA_RESULT=$(az deployment group create \
+      if ! LA_RESULT=$(az deployment group create \
         --resource-group "$RG" \
         --template-file "${SCRIPT_PATH}/logic-app-bridge.bicep" \
         --parameters agentName="$AGENT" location="$(az group show -n "$RG" --query location -o tsv)" triggerUrl="$HTTP_TRIGGER_URL" \
-        --output json 2>&1)
+        --output json 2>&1); then
+        echo "Webhook bridge deployment command failed." >&2
+        printf '%s\n' "$LA_RESULT" >&2
+        exit 1
+      fi
       LA_STATE=$(echo "$LA_RESULT" | jq -r '.properties.provisioningState // "?"' 2>/dev/null)
       if [[ "$LA_STATE" == "Succeeded" ]]; then
-        WH_CALLBACK=$(echo "$LA_RESULT" | jq -r '.properties.outputs.logicAppCallbackUrl.value // empty')
+        WH_LA_NAME=$(echo "$LA_RESULT" | jq -r '.properties.outputs.logicAppName.value // empty')
+        if [[ -z "${WH_LA_NAME//[[:space:]]/}" ]]; then
+          echo "Webhook bridge deployment returned no Logic App name." >&2
+          exit 1
+        fi
         echo "  ✅ Webhook bridge deployed"
-        echo "  Callback URL: ${WH_CALLBACK}"
       else
         echo "  ❌ Webhook bridge deployment failed"
         echo "$LA_RESULT" | head -10
+        exit 1
       fi
     fi
+    echo "  Logic App: ${WH_LA_NAME}"
+    echo "  Retrieve the secret callback URL privately (do not run in CI logs):"
+    echo "    az rest --method POST --url \"/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.Logic/workflows/${WH_LA_NAME}/triggers/incoming_webhook/listCallbackUrl?api-version=2019-05-01\" --query value -o tsv"
   fi
 fi
 

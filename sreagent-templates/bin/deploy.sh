@@ -590,19 +590,13 @@ if [[ -d "$INPUT" ]]; then
 
   case "$SCENARIO" in
     dynatrace-mcp)
-      # Try to get the Logic App callback URL
-      WH_CALLBACK=$(az rest --method POST \
-        --url "/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.Logic/workflows/${AG}-webhook-bridge/triggers/incoming_webhook/listCallbackUrl?api-version=2019-05-01" \
-        --query value -o tsv 2>/dev/null || echo "")
       echo
       echo "── Dynatrace setup (required to receive alerts) ──"
       echo
-      if [[ -n "$WH_CALLBACK" ]]; then
-        echo "  Webhook bridge URL (use this in Dynatrace):"
-        echo "     ${WH_CALLBACK}"
-      else
-        echo "  ⚠ Webhook bridge not found. Check Azure portal → ${RG} → ${AG}-webhook-bridge"
-      fi
+      echo "  Webhook bridge Logic App: ${AG}-webhook-bridge"
+      echo "  Retrieve the secret callback URL privately (do not run in CI logs):"
+      echo "    az rest --method POST --url \"/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.Logic/workflows/${AG}-webhook-bridge/triggers/incoming_webhook/listCallbackUrl?api-version=2019-05-01\" --query value -o tsv"
+      echo "  If the Logic App is missing, check Azure portal → ${RG} → ${AG}-webhook-bridge."
       echo
       echo "  Option A: Dynatrace Workflow (recommended)"
       echo "  ─────────────────────────────────────────────"
@@ -612,11 +606,7 @@ if [[ -d "$INPUT" ]]; then
       echo "       (fires once per problem, not on every status update)"
       echo "  3. Add action: 'Send HTTP request'"
       echo "     - Method: POST"
-      if [[ -n "$WH_CALLBACK" ]]; then
-        echo "     - URL: ${WH_CALLBACK}"
-      else
-        echo "     - URL: <webhook bridge URL>"
-      fi
+      echo "     - URL: <privately retrieved webhook bridge URL>"
       echo "     - Headers: Content-Type: application/json"
       echo "     - Payload:"
       echo '       {'
@@ -636,11 +626,7 @@ if [[ -d "$INPUT" ]]; then
       echo "  ────────────────────────────────────────────────────"
       echo "  1. Go to Settings → Integration → Problem notifications"
       echo "  2. Add 'Custom Integration' webhook"
-      if [[ -n "$WH_CALLBACK" ]]; then
-        echo "  3. URL: ${WH_CALLBACK}"
-      else
-        echo "  3. URL: <webhook bridge URL>"
-      fi
+      echo "  3. URL: <privately retrieved webhook bridge URL>"
       echo "  4. Send test notification to verify"
       echo
       echo "  Test: trigger a problem in Dynatrace (or use the test button)"
