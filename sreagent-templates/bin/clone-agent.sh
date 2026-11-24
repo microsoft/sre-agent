@@ -50,6 +50,7 @@ Optional:
                           --override connectors.0.properties.dataSource=/subscriptions/.../new-ai
   --backend             Deploy backend: bicep (default) or terraform
   --validate-only       Run all validation checks without deploying
+  -y, --yes, --force    Do not prompt before deploying (for unattended runs)
   --skip-extras         Deploy Bicep only, skip data-plane config
   -h, --help            Show this help
 EOF
@@ -57,7 +58,7 @@ EOF
 }
 
 SOURCE="" EXTRAS="" SECRETS="" NEW_AGENT="" NEW_RG="" NEW_LOC="" NEW_TARGET_RGS=""
-NEW_SUB="" NEW_ACCESS="" NEW_ACTION="" VALIDATE_ONLY=false SKIP_EXTRAS=false
+NEW_SUB="" NEW_ACCESS="" NEW_ACTION="" VALIDATE_ONLY=false SKIP_EXTRAS=false ASSUME_YES=false
 FROM_AGENT="" FROM_RG="" FROM_SUB="" BACKEND="bicep"
 declare -a OVERRIDES=()
 
@@ -79,6 +80,7 @@ while [[ $# -gt 0 ]]; do
     --override)                OVERRIDES+=("$2"); shift 2 ;;
     --backend)                 BACKEND="$2"; shift 2 ;;
     --validate-only)           VALIDATE_ONLY=true; shift ;;
+    -y|--yes|--force)          ASSUME_YES=true; shift ;;
     --skip-extras)             SKIP_EXTRAS=true; shift ;;
     -h|--help)                 usage 0 ;;
     *)                         echo "Unknown option: $1" >&2; usage 1 ;;
@@ -610,8 +612,16 @@ if [[ "$VALIDATE_ONLY" == "true" ]]; then
 fi
 
 echo
-read -rp "  Proceed with deployment? [y/N] " confirm
-[[ "$confirm" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 0; }
+# Clone-Agent.ps1 has -Force; this is the same thing. Without it the only way to drive the
+# script unattended is to pipe something into stdin, and that stdin is inherited by every
+# child process -- piping an endless stream (`yes |`) makes `az rest` hang indefinitely,
+# while piping a single line leaves `read` at EOF, which `set -e` turns into an exit.
+if [[ "$ASSUME_YES" == "true" ]]; then
+  echo "  Proceeding with deployment (--yes)."
+else
+  read -rp "  Proceed with deployment? [y/N] " confirm
+  [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 0; }
+fi
 
 echo
 
