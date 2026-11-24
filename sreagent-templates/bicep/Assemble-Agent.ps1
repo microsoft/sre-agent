@@ -228,6 +228,29 @@ print(json.dumps(sub(data)))
 Write-Info 'Reading agent.json'
 $agentJson = Get-Content (Join-Path $ConfigDir 'agent.json') -Raw
 
+# Sandbox egress, read from the same .networkConfiguration key assemble-agent.sh uses.
+# Properties are probed rather than dereferenced: the script runs under StrictMode and an
+# export predating this key would otherwise throw.
+$netObj = $null
+try { $netObj = ($agentJson | ConvertFrom-Json).networkConfiguration } catch { }
+function Get-NetProp {
+    param($Obj, [string]$Name, $Default)
+    if ($Obj -and $Obj.PSObject.Properties[$Name] -and $null -ne $Obj.$Name) { return $Obj.$Name }
+    return $Default
+}
+$netType = [string](Get-NetProp $netObj 'type' 'unrestricted')
+$egressMode = switch ($netType.ToLowerInvariant()) {
+    { $_ -in @('vnet', 'azurevnet') } { 'AzureVNet'; break }
+    'limited'                         { 'Limited'; break }
+    default                           { 'Unrestricted' }
+}
+$netAllowedHosts      = @(Get-NetProp $netObj 'allowedHosts'            @())
+$netAllowedRegistries = @(Get-NetProp $netObj 'allowedRegistries'       @())
+$netAllowedCodeRepos  = @(Get-NetProp $netObj 'allowedCodeRepositories' @())
+$netAllowMcp   = [bool](Get-NetProp $netObj 'allowHttpMcpServerNetworkAccess' $true)
+$netPrivateDns = [bool](Get-NetProp $netObj 'usePrivateDnsResolution'         $false)
+$netSubnetId   = [string](Get-NetProp $netObj 'vnetSubnetId'                  '')
+
 $agentName      = $agentJson | jq -r '.identity.agentName'
 $agentRg        = $agentJson | jq -r '.identity.resourceGroup'
 $agentSub       = $agentJson | Invoke-Jq -Raw -Filter '.identity.subscription // empty'
@@ -543,6 +566,16 @@ $paramsObj = [ordered]@{
         'enableSafetyRulesPrompt'     = @{ value = [bool](Get-Prop $togglesObj 'enableSafetyRulesPrompt'     $false) }
         'enableWebhookBridge'         = @{ value = [bool](Get-Prop $togglesObj 'enableWebhookBridge'         $false) }
         'webhookBridgeTriggerUrl'     = @{ value = [string](Get-Prop $togglesObj 'webhookBridgeTriggerUrl'   '') }
+        # Sandbox egress. assemble-agent.sh emits all seven of these; without them a
+        # PowerShell clone cannot inherit the source's egress at all and deploys with the
+        # template default, which is more permissive than a Limited source.
+        'egressMode'                  = @{ value = $egressMode }
+        'allowedHosts'                = @{ value = $netAllowedHosts }
+        'allowedRegistries'           = @{ value = $netAllowedRegistries }
+        'allowedCodeRepositories'     = @{ value = $netAllowedCodeRepos }
+        'allowHttpMcpServerNetworkAccess' = @{ value = $netAllowMcp }
+        'usePrivateDnsResolution'     = @{ value = $netPrivateDns }
+        'vnetSubnetId'                = @{ value = $netSubnetId }
         'connectors'                  = @{ value = $bicepConnectors }
         'tools'                       = @{ value = @() }  # deployed via data-plane (apply-extras)
         'skills'                      = @{ value = @() }  # deployed via data-plane (apply-extras)
