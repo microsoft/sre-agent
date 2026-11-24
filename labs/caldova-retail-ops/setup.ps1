@@ -54,8 +54,17 @@ if (Has-Dotnet8) {
 }
 
 Step '3/5' 'Git identity and GitHub sign-in'
-if (-not (git config --global user.name)) { git config --global user.name (Read-Host '  Your name for Git commits') }
-if (-not (git config --global user.email)) { git config --global user.email (Read-Host '  Your email for Git commits') }
+if (-not (git config --global user.name) -or -not (git config --global user.email)) {
+    Write-Host '  Git needs a name and email to label your commits (asked once, saved on this machine).'
+}
+while (-not (git config --global user.name)) {
+    $gname = Read-Host '  Your full name, e.g. Jane Doe'
+    if ($gname) { git config --global user.name $gname }
+}
+while (-not (git config --global user.email)) {
+    $gmail = Read-Host '  Your email, ideally the one on your GitHub account'
+    if ($gmail) { git config --global user.email $gmail }
+}
 Ok "Git identity: $(git config --global user.name) <$(git config --global user.email)>"
 gh auth status -h github.com *> $null
 if ($LASTEXITCODE -ne 0) {

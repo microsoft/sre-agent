@@ -70,12 +70,17 @@ else
 fi
 
 step 3/5 "Git identity and GitHub sign-in"
-if [ -z "$(git config --global user.name)" ]; then
-  read -rp "  Your name for Git commits: " gname; git config --global user.name "$gname"
+if [ -z "$(git config --global user.name)" ] || [ -z "$(git config --global user.email)" ]; then
+  echo "  Git needs a name and email to label your commits (asked once, saved on this machine)."
 fi
-if [ -z "$(git config --global user.email)" ]; then
-  read -rp "  Your email for Git commits: " gmail; git config --global user.email "$gmail"
-fi
+while [ -z "$(git config --global user.name)" ]; do
+  read -rp "  Your full name, e.g. Jane Doe: " gname
+  [ -n "$gname" ] && git config --global user.name "$gname"
+done
+while [ -z "$(git config --global user.email)" ]; do
+  read -rp "  Your email, ideally the one on your GitHub account: " gmail
+  [ -n "$gmail" ] && git config --global user.email "$gmail"
+done
 ok "Git identity: $(git config --global user.name) <$(git config --global user.email)>"
 if ! gh auth status -h github.com >/dev/null 2>&1; then
   doing "Signing in to GitHub (opens your browser)"
