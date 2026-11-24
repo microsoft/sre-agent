@@ -40,7 +40,7 @@ param location string
 param agentLocation string = 'eastus2'
 
 @description('App Service plan SKU. Must support Always On (Basic or higher).')
-param appServicePlanSku string = 'P0v3'
+param appServicePlanSku string = 'B1'
 
 var tags = {
   'azd-env-name': environmentName

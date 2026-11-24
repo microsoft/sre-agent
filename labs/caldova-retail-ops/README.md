@@ -19,7 +19,7 @@ The lab resources go into one resource group, `rg-<environment-name>`:
 
 | Resource | Purpose |
 |---|---|
-| App Service plan (Windows, `P0v3`) and web app `caldova-webapp-<suffix>` | The Caldova storefront (.NET 8) from [`src/`](src/) |
+| App Service plan (Windows, `B1`) and web app `caldova-webapp-<suffix>` | The Caldova storefront (.NET 8) from [`src/`](src/) |
 | Application Insights and Log Analytics workspace | Request telemetry, App Service logs, and metrics |
 | 12 availability tests and metric alerts | Steady background traffic and failure/availability signals |
 | Azure SRE Agent `caldova-sreagent-<suffix>` | Scoped to the resource group, with Application Insights and Log Analytics connected |
@@ -74,12 +74,12 @@ When prompted, enter an environment name such as `caldova-<your-alias>`, select 
 <details>
 <summary>Optional: change the agent region or App Service plan size</summary>
 
-Run these before `azd up`. The agent defaults to `eastus2`; use another [supported region](https://learn.microsoft.com/azure/sre-agent/supported-regions) if needed. Use `B1` or higher if `P0v3` quota is unavailable.
+Run these before `azd up`. The agent defaults to `eastus2`; use another [supported region](https://learn.microsoft.com/azure/sre-agent/supported-regions) if needed. The App Service plan defaults to `B1`; set a larger SKU such as `P0v3` if you prefer.
 
 ```bash
 azd env new caldova-<your-alias>
 azd env set SRE_AGENT_LOCATION swedencentral
-azd env set APP_SERVICE_PLAN_SKU B1
+azd env set APP_SERVICE_PLAN_SKU P0v3
 ```
 
 </details>

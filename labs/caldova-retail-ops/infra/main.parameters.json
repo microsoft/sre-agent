@@ -12,7 +12,7 @@
       "value": "${SRE_AGENT_LOCATION=eastus2}"
     },
     "appServicePlanSku": {
-      "value": "${APP_SERVICE_PLAN_SKU=P0v3}"
+      "value": "${APP_SERVICE_PLAN_SKU=B1}"
     }
   }
 }
