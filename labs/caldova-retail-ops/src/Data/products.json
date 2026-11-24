@@ -1,0 +1,10002 @@
+[
+  {
+    "sku": "CAL-0001",
+    "name": "Ember Mug",
+    "price": 261.9
+  },
+  {
+    "sku": "CAL-0002",
+    "name": "Canyon Glove Lite",
+    "price": 260.19
+  },
+  {
+    "sku": "CAL-0003",
+    "name": "Driftwood Camp Chair Mini",
+    "price": 41.3
+  },
+  {
+    "sku": "CAL-0004",
+    "name": "Meadow Boot",
+    "price": 43.58
+  },
+  {
+    "sku": "CAL-0005",
+    "name": "Canyon Rain Shell Max",
+    "price": 20.94
+  },
+  {
+    "sku": "CAL-0006",
+    "name": "Glacier Trail Mix Pouch Mini",
+    "price": 153.38
+  },
+  {
+    "sku": "CAL-0007",
+    "name": "Frontier Sleeping Bag 2.0",
+    "price": 284.78
+  },
+  {
+    "sku": "CAL-0008",
+    "name": "Alpine Lantern Lite",
+    "price": 247.27
+  },
+  {
+    "sku": "CAL-0009",
+    "name": "Northbound Beanie Lite",
+    "price": 84.56
+  },
+  {
+    "sku": "CAL-0010",
+    "name": "Sierra Water Bottle Pro",
+    "price": 43.26
+  },
+  {
+    "sku": "CAL-0011",
+    "name": "Ridge Pocket Knife Elite",
+    "price": 215.46
+  },
+  {
+    "sku": "CAL-0012",
+    "name": "Juniper Boot Ultra",
+    "price": 192.71
+  },
+  {
+    "sku": "CAL-0013",
+    "name": "Rimrock Camp Stove Pro",
+    "price": 198.04
+  },
+  {
+    "sku": "CAL-0014",
+    "name": "Cedar Sun Hat Max",
+    "price": 310.4
+  },
+  {
+    "sku": "CAL-0015",
+    "name": "Coastal Sleeping Bag XL",
+    "price": 249.44
+  },
+  {
+    "sku": "CAL-0016",
+    "name": "Trail Gaiter XL",
+    "price": 272.52
+  },
+  {
+    "sku": "CAL-0017",
+    "name": "Summit Thermal Flask XL",
+    "price": 304.0
+  },
+  {
+    "sku": "CAL-0018",
+    "name": "Harbor Beanie Ultra",
+    "price": 226.23
+  },
+  {
+    "sku": "CAL-0019",
+    "name": "Coastal Tent Elite",
+    "price": 131.73
+  },
+  {
+    "sku": "CAL-0020",
+    "name": "Driftwood Beanie Pro",
+    "price": 217.28
+  },
+  {
+    "sku": "CAL-0021",
+    "name": "Switchback Base Layer XL",
+    "price": 67.07
+  },
+  {
+    "sku": "CAL-0022",
+    "name": "Harbor Beanie Mini",
+    "price": 86.01
+  },
+  {
+    "sku": "CAL-0023",
+    "name": "Northbound Multi-Tool",
+    "price": 89.19
+  },
+  {
+    "sku": "CAL-0024",
+    "name": "Trail Dry Bag Elite",
+    "price": 147.19
+  },
+  {
+    "sku": "CAL-0025",
+    "name": "Summit Headlamp Max",
+    "price": 307.34
+  },
+  {
+    "sku": "CAL-0026",
+    "name": "Northbound Headlamp Ultra",
+    "price": 145.33
+  },
+  {
+    "sku": "CAL-0027",
+    "name": "Rimrock Sun Hat Ultra",
+    "price": 60.15
+  },
+  {
+    "sku": "CAL-0028",
+    "name": "Basecamp Glove Mini",
+    "price": 193.64
+  },
+  {
+    "sku": "CAL-0029",
+    "name": "Evergreen Sleeping Bag Classic",
+    "price": 314.57
+  },
+  {
+    "sku": "CAL-0030",
+    "name": "Harbor Pocket Knife XL",
+    "price": 348.1
+  },
+  {
+    "sku": "CAL-0031",
+    "name": "Basecamp Rain Shell Ultra",
+    "price": 42.64
+  },
+  {
+    "sku": "CAL-0032",
+    "name": "Trail Thermal Flask Pro",
+    "price": 63.51
+  },
+  {
+    "sku": "CAL-0033",
+    "name": "Switchback Dry Bag Classic",
+    "price": 212.99
+  },
+  {
+    "sku": "CAL-0034",
+    "name": "Harbor Camp Stove Max",
+    "price": 347.69
+  },
+  {
+    "sku": "CAL-0035",
+    "name": "Granite Beanie Mini",
+    "price": 302.08
+  },
+  {
+    "sku": "CAL-0036",
+    "name": "Alpine Gaiter Pro",
+    "price": 241.74
+  },
+  {
+    "sku": "CAL-0037",
+    "name": "Windward Lantern 2.0",
+    "price": 271.02
+  },
+  {
+    "sku": "CAL-0038",
+    "name": "Northbound Mug 2.0",
+    "price": 158.52
+  },
+  {
+    "sku": "CAL-0039",
+    "name": "Frontier Jacket 2.0",
+    "price": 339.53
+  },
+  {
+    "sku": "CAL-0040",
+    "name": "Sierra Tent Mini",
+    "price": 319.56
+  },
+  {
+    "sku": "CAL-0041",
+    "name": "Outpost Sun Hat 2.0",
+    "price": 295.64
+  },
+  {
+    "sku": "CAL-0042",
+    "name": "Granite Daypack XL",
+    "price": 63.51
+  },
+  {
+    "sku": "CAL-0043",
+    "name": "Sierra Snow Shovel Mini",
+    "price": 321.53
+  },
+  {
+    "sku": "CAL-0044",
+    "name": "Boulder Water Bottle Ultra",
+    "price": 18.56
+  },
+  {
+    "sku": "CAL-0045",
+    "name": "Rimrock Pocket Knife 2.0",
+    "price": 92.7
+  },
+  {
+    "sku": "CAL-0046",
+    "name": "Canyon Crampons Max",
+    "price": 331.12
+  },
+  {
+    "sku": "CAL-0047",
+    "name": "Summit Camp Chair Ultra",
+    "price": 287.0
+  },
+  {
+    "sku": "CAL-0048",
+    "name": "Sierra Base Layer Lite",
+    "price": 55.27
+  },
+  {
+    "sku": "CAL-0049",
+    "name": "Cascade Base Layer Lite",
+    "price": 101.32
+  },
+  {
+    "sku": "CAL-0050",
+    "name": "Outpost Daypack Classic",
+    "price": 336.99
+  },
+  {
+    "sku": "CAL-0051",
+    "name": "Rimrock Base Layer XL",
+    "price": 252.26
+  },
+  {
+    "sku": "CAL-0052",
+    "name": "Harbor Gaiter Elite",
+    "price": 159.64
+  },
+  {
+    "sku": "CAL-0053",
+    "name": "Granite Compass Pro",
+    "price": 95.54
+  },
+  {
+    "sku": "CAL-0054",
+    "name": "Summit Water Bottle",
+    "price": 210.26
+  },
+  {
+    "sku": "CAL-0055",
+    "name": "Canyon Sleeping Bag XL",
+    "price": 14.42
+  },
+  {
+    "sku": "CAL-0056",
+    "name": "Tundra Sun Hat",
+    "price": 89.15
+  },
+  {
+    "sku": "CAL-0057",
+    "name": "Horizon Boot Elite",
+    "price": 35.88
+  },
+  {
+    "sku": "CAL-0058",
+    "name": "Canyon Beanie Ultra",
+    "price": 84.2
+  },
+  {
+    "sku": "CAL-0059",
+    "name": "Basecamp Camp Chair Max",
+    "price": 206.18
+  },
+  {
+    "sku": "CAL-0060",
+    "name": "Canyon Dry Bag Ultra",
+    "price": 284.13
+  },
+  {
+    "sku": "CAL-0061",
+    "name": "Glacier Mug Pro",
+    "price": 234.08
+  },
+  {
+    "sku": "CAL-0062",
+    "name": "Coastal Hammock Classic",
+    "price": 169.39
+  },
+  {
+    "sku": "CAL-0063",
+    "name": "Evergreen Boot Pro",
+    "price": 32.43
+  },
+  {
+    "sku": "CAL-0064",
+    "name": "Evergreen Water Bottle Pro",
+    "price": 95.8
+  },
+  {
+    "sku": "CAL-0065",
+    "name": "Glacier Base Layer Ultra",
+    "price": 59.24
+  },
+  {
+    "sku": "CAL-0066",
+    "name": "Switchback Beanie Ultra",
+    "price": 96.18
+  },
+  {
+    "sku": "CAL-0067",
+    "name": "Rimrock Pack Ultra",
+    "price": 284.3
+  },
+  {
+    "sku": "CAL-0068",
+    "name": "Outpost Base Layer Pro",
+    "price": 29.05
+  },
+  {
+    "sku": "CAL-0069",
+    "name": "Windward Multi-Tool",
+    "price": 338.55
+  },
+  {
+    "sku": "CAL-0070",
+    "name": "Rimrock Lantern XL",
+    "price": 68.05
+  },
+  {
+    "sku": "CAL-0071",
+    "name": "Cascade Fleece Pullover XL",
+    "price": 303.39
+  },
+  {
+    "sku": "CAL-0072",
+    "name": "Horizon Boot Lite",
+    "price": 139.71
+  },
+  {
+    "sku": "CAL-0073",
+    "name": "Pioneer Hammock Mini",
+    "price": 235.05
+  },
+  {
+    "sku": "CAL-0074",
+    "name": "Cascade Trekking Pole XL",
+    "price": 111.99
+  },
+  {
+    "sku": "CAL-0075",
+    "name": "Trail Sleeping Bag Mini",
+    "price": 32.54
+  },
+  {
+    "sku": "CAL-0076",
+    "name": "Northbound Boot",
+    "price": 208.87
+  },
+  {
+    "sku": "CAL-0077",
+    "name": "Granite Snow Shovel Mini",
+    "price": 65.05
+  },
+  {
+    "sku": "CAL-0078",
+    "name": "Granite Pack Lite",
+    "price": 35.09
+  },
+  {
+    "sku": "CAL-0079",
+    "name": "Summit Gaiter XL",
+    "price": 148.07
+  },
+  {
+    "sku": "CAL-0080",
+    "name": "Horizon Sleeping Bag XL",
+    "price": 207.1
+  },
+  {
+    "sku": "CAL-0081",
+    "name": "Trail Daypack Pro",
+    "price": 153.28
+  },
+  {
+    "sku": "CAL-0082",
+    "name": "Highland Sleeping Bag Mini",
+    "price": 118.62
+  },
+  {
+    "sku": "CAL-0083",
+    "name": "Timberline Headlamp Elite",
+    "price": 92.44
+  },
+  {
+    "sku": "CAL-0084",
+    "name": "Harbor Trekking Pole 2.0",
+    "price": 166.08
+  },
+  {
+    "sku": "CAL-0085",
+    "name": "Rimrock Lantern Pro",
+    "price": 15.14
+  },
+  {
+    "sku": "CAL-0086",
+    "name": "Boulder Sleeping Bag Pro",
+    "price": 36.69
+  },
+  {
+    "sku": "CAL-0087",
+    "name": "Glacier Rain Shell 2.0",
+    "price": 56.64
+  },
+  {
+    "sku": "CAL-0088",
+    "name": "Coastal Crampons Pro",
+    "price": 308.31
+  },
+  {
+    "sku": "CAL-0089",
+    "name": "Coastal Sock Lite",
+    "price": 159.67
+  },
+  {
+    "sku": "CAL-0090",
+    "name": "Windward Trail Mix Pouch 2.0",
+    "price": 218.14
+  },
+  {
+    "sku": "CAL-0091",
+    "name": "Juniper Sun Hat Mini",
+    "price": 14.64
+  },
+  {
+    "sku": "CAL-0092",
+    "name": "Cedar Base Layer 2.0",
+    "price": 326.0
+  },
+  {
+    "sku": "CAL-0093",
+    "name": "Ridge Crampons Lite",
+    "price": 101.13
+  },
+  {
+    "sku": "CAL-0094",
+    "name": "Horizon Mug Mini",
+    "price": 64.39
+  },
+  {
+    "sku": "CAL-0095",
+    "name": "Pioneer Daypack XL",
+    "price": 253.84
+  },
+  {
+    "sku": "CAL-0096",
+    "name": "Glacier Gaiter 2.0",
+    "price": 182.32
+  },
+  {
+    "sku": "CAL-0097",
+    "name": "Timberline Crampons",
+    "price": 43.1
+  },
+  {
+    "sku": "CAL-0098",
+    "name": "Meadow Multi-Tool 2.0",
+    "price": 26.86
+  },
+  {
+    "sku": "CAL-0099",
+    "name": "Northbound Lantern Lite",
+    "price": 226.71
+  },
+  {
+    "sku": "CAL-0100",
+    "name": "Timberline Tent Ultra",
+    "price": 197.92
+  },
+  {
+    "sku": "CAL-0101",
+    "name": "Meadow Base Layer",
+    "price": 49.7
+  },
+  {
+    "sku": "CAL-0102",
+    "name": "Horizon Trail Mix Pouch Lite",
+    "price": 195.86
+  },
+  {
+    "sku": "CAL-0103",
+    "name": "Cedar Pocket Knife Max",
+    "price": 198.2
+  },
+  {
+    "sku": "CAL-0104",
+    "name": "Meadow Trekking Pole",
+    "price": 115.88
+  },
+  {
+    "sku": "CAL-0105",
+    "name": "Horizon Snow Shovel",
+    "price": 314.94
+  },
+  {
+    "sku": "CAL-0106",
+    "name": "Glacier Gaiter XL",
+    "price": 236.76
+  },
+  {
+    "sku": "CAL-0107",
+    "name": "Coastal Lantern Mini",
+    "price": 309.95
+  },
+  {
+    "sku": "CAL-0108",
+    "name": "Meadow Daypack Lite",
+    "price": 323.98
+  },
+  {
+    "sku": "CAL-0109",
+    "name": "Canyon Thermal Flask Lite",
+    "price": 340.98
+  },
+  {
+    "sku": "CAL-0110",
+    "name": "Juniper Tent Classic",
+    "price": 20.35
+  },
+  {
+    "sku": "CAL-0111",
+    "name": "Evergreen Snow Shovel Elite",
+    "price": 275.66
+  },
+  {
+    "sku": "CAL-0112",
+    "name": "Meadow Dry Bag XL",
+    "price": 101.91
+  },
+  {
+    "sku": "CAL-0113",
+    "name": "Juniper Trail Mix Pouch Pro",
+    "price": 140.92
+  },
+  {
+    "sku": "CAL-0114",
+    "name": "Trail Thermal Flask Ultra",
+    "price": 86.96
+  },
+  {
+    "sku": "CAL-0115",
+    "name": "Cedar Snow Shovel Ultra",
+    "price": 129.83
+  },
+  {
+    "sku": "CAL-0116",
+    "name": "Cedar Dry Bag XL",
+    "price": 87.13
+  },
+  {
+    "sku": "CAL-0117",
+    "name": "Driftwood Headlamp Classic",
+    "price": 122.62
+  },
+  {
+    "sku": "CAL-0118",
+    "name": "Outpost Pack 2.0",
+    "price": 130.34
+  },
+  {
+    "sku": "CAL-0119",
+    "name": "Granite Camp Stove Mini",
+    "price": 123.6
+  },
+  {
+    "sku": "CAL-0120",
+    "name": "Alpine Mug 2.0",
+    "price": 72.18
+  },
+  {
+    "sku": "CAL-0121",
+    "name": "Timberline Boot Pro",
+    "price": 213.04
+  },
+  {
+    "sku": "CAL-0122",
+    "name": "Coastal Camp Chair Elite",
+    "price": 159.06
+  },
+  {
+    "sku": "CAL-0123",
+    "name": "Granite Mug Classic",
+    "price": 315.13
+  },
+  {
+    "sku": "CAL-0124",
+    "name": "Glacier Beanie",
+    "price": 250.86
+  },
+  {
+    "sku": "CAL-0125",
+    "name": "Alpine Rain Shell Mini",
+    "price": 243.47
+  },
+  {
+    "sku": "CAL-0126",
+    "name": "Evergreen Camp Chair XL",
+    "price": 134.74
+  },
+  {
+    "sku": "CAL-0127",
+    "name": "Summit Gaiter Elite",
+    "price": 222.0
+  },
+  {
+    "sku": "CAL-0128",
+    "name": "Driftwood Thermal Flask Pro",
+    "price": 254.56
+  },
+  {
+    "sku": "CAL-0129",
+    "name": "Pioneer Rain Shell 2.0",
+    "price": 236.74
+  },
+  {
+    "sku": "CAL-0130",
+    "name": "Northbound Camp Stove 2.0",
+    "price": 198.84
+  },
+  {
+    "sku": "CAL-0131",
+    "name": "Glacier Hammock Classic",
+    "price": 240.26
+  },
+  {
+    "sku": "CAL-0132",
+    "name": "Horizon Tent Max",
+    "price": 203.79
+  },
+  {
+    "sku": "CAL-0133",
+    "name": "Harbor Base Layer",
+    "price": 114.41
+  },
+  {
+    "sku": "CAL-0134",
+    "name": "Glacier Hammock Max",
+    "price": 216.44
+  },
+  {
+    "sku": "CAL-0135",
+    "name": "Northbound Compass Ultra",
+    "price": 161.01
+  },
+  {
+    "sku": "CAL-0136",
+    "name": "Glacier Rain Shell Ultra",
+    "price": 279.49
+  },
+  {
+    "sku": "CAL-0137",
+    "name": "Juniper Camp Chair Lite",
+    "price": 234.03
+  },
+  {
+    "sku": "CAL-0138",
+    "name": "Pioneer Rain Shell Max",
+    "price": 124.96
+  },
+  {
+    "sku": "CAL-0139",
+    "name": "Cedar Lantern XL",
+    "price": 238.73
+  },
+  {
+    "sku": "CAL-0140",
+    "name": "Canyon Dry Bag XL",
+    "price": 61.66
+  },
+  {
+    "sku": "CAL-0141",
+    "name": "Trail Glove Ultra",
+    "price": 218.0
+  },
+  {
+    "sku": "CAL-0142",
+    "name": "Sierra Pack Ultra",
+    "price": 151.67
+  },
+  {
+    "sku": "CAL-0143",
+    "name": "Ember Sleeping Bag XL",
+    "price": 254.08
+  },
+  {
+    "sku": "CAL-0144",
+    "name": "Harbor Fleece Pullover Classic",
+    "price": 94.22
+  },
+  {
+    "sku": "CAL-0145",
+    "name": "Ember Trail Mix Pouch",
+    "price": 312.83
+  },
+  {
+    "sku": "CAL-0146",
+    "name": "Outpost Lantern Pro",
+    "price": 274.33
+  },
+  {
+    "sku": "CAL-0147",
+    "name": "Canyon Tent Mini",
+    "price": 168.55
+  },
+  {
+    "sku": "CAL-0148",
+    "name": "Windward Glove Pro",
+    "price": 165.83
+  },
+  {
+    "sku": "CAL-0149",
+    "name": "Juniper Compass Mini",
+    "price": 344.92
+  },
+  {
+    "sku": "CAL-0150",
+    "name": "Boulder Multi-Tool Mini",
+    "price": 155.81
+  },
+  {
+    "sku": "CAL-0151",
+    "name": "Rimrock Base Layer Ultra",
+    "price": 314.36
+  },
+  {
+    "sku": "CAL-0152",
+    "name": "Evergreen Thermal Flask Ultra",
+    "price": 163.67
+  },
+  {
+    "sku": "CAL-0153",
+    "name": "Sierra Glove 2.0",
+    "price": 270.08
+  },
+  {
+    "sku": "CAL-0154",
+    "name": "Granite Fleece Pullover XL",
+    "price": 104.54
+  },
+  {
+    "sku": "CAL-0155",
+    "name": "Summit Trail Mix Pouch 2.0",
+    "price": 91.02
+  },
+  {
+    "sku": "CAL-0156",
+    "name": "Northbound Water Bottle Mini",
+    "price": 39.15
+  },
+  {
+    "sku": "CAL-0157",
+    "name": "Basecamp Glove Classic",
+    "price": 245.86
+  },
+  {
+    "sku": "CAL-0158",
+    "name": "Tundra Headlamp Pro",
+    "price": 151.81
+  },
+  {
+    "sku": "CAL-0159",
+    "name": "Northbound Base Layer Ultra",
+    "price": 152.12
+  },
+  {
+    "sku": "CAL-0160",
+    "name": "Glacier Multi-Tool Classic",
+    "price": 143.25
+  },
+  {
+    "sku": "CAL-0161",
+    "name": "Sierra Sleeping Bag",
+    "price": 300.72
+  },
+  {
+    "sku": "CAL-0162",
+    "name": "Sierra Sleeping Bag Classic",
+    "price": 172.74
+  },
+  {
+    "sku": "CAL-0163",
+    "name": "Coastal Sock Classic",
+    "price": 299.61
+  },
+  {
+    "sku": "CAL-0164",
+    "name": "Cedar Hammock Mini",
+    "price": 263.91
+  },
+  {
+    "sku": "CAL-0165",
+    "name": "Windward Dry Bag Max",
+    "price": 314.56
+  },
+  {
+    "sku": "CAL-0166",
+    "name": "Cascade Glove 2.0",
+    "price": 158.88
+  },
+  {
+    "sku": "CAL-0167",
+    "name": "Alpine Camp Stove Elite",
+    "price": 237.41
+  },
+  {
+    "sku": "CAL-0168",
+    "name": "Juniper Camp Stove Lite",
+    "price": 295.25
+  },
+  {
+    "sku": "CAL-0169",
+    "name": "Rimrock Trekking Pole Max",
+    "price": 192.0
+  },
+  {
+    "sku": "CAL-0170",
+    "name": "Rimrock Camp Stove Max",
+    "price": 202.2
+  },
+  {
+    "sku": "CAL-0171",
+    "name": "Alpine Pack Classic",
+    "price": 57.73
+  },
+  {
+    "sku": "CAL-0172",
+    "name": "Frontier Tent",
+    "price": 99.67
+  },
+  {
+    "sku": "CAL-0173",
+    "name": "Northbound Water Bottle Classic",
+    "price": 105.77
+  },
+  {
+    "sku": "CAL-0174",
+    "name": "Cedar Hammock 2.0",
+    "price": 293.36
+  },
+  {
+    "sku": "CAL-0175",
+    "name": "Cascade Jacket Mini",
+    "price": 29.55
+  },
+  {
+    "sku": "CAL-0176",
+    "name": "Coastal Glove Pro",
+    "price": 275.28
+  },
+  {
+    "sku": "CAL-0177",
+    "name": "Ember Boot",
+    "price": 332.02
+  },
+  {
+    "sku": "CAL-0178",
+    "name": "Glacier Multi-Tool",
+    "price": 221.39
+  },
+  {
+    "sku": "CAL-0179",
+    "name": "Canyon Trekking Pole Ultra",
+    "price": 237.61
+  },
+  {
+    "sku": "CAL-0180",
+    "name": "Highland Headlamp Ultra",
+    "price": 247.72
+  },
+  {
+    "sku": "CAL-0181",
+    "name": "Sierra Pocket Knife Lite",
+    "price": 216.19
+  },
+  {
+    "sku": "CAL-0182",
+    "name": "Evergreen Trail Mix Pouch Pro",
+    "price": 274.12
+  },
+  {
+    "sku": "CAL-0183",
+    "name": "Switchback Sock Pro",
+    "price": 207.02
+  },
+  {
+    "sku": "CAL-0184",
+    "name": "Rimrock Sock Max",
+    "price": 240.27
+  },
+  {
+    "sku": "CAL-0185",
+    "name": "Harbor Camp Stove XL",
+    "price": 37.61
+  },
+  {
+    "sku": "CAL-0186",
+    "name": "Tundra Multi-Tool XL",
+    "price": 46.34
+  },
+  {
+    "sku": "CAL-0187",
+    "name": "Sierra Sock Max",
+    "price": 283.46
+  },
+  {
+    "sku": "CAL-0188",
+    "name": "Juniper Sleeping Bag",
+    "price": 129.01
+  },
+  {
+    "sku": "CAL-0189",
+    "name": "Meadow Gaiter Elite",
+    "price": 35.24
+  },
+  {
+    "sku": "CAL-0190",
+    "name": "Ember Water Bottle",
+    "price": 298.31
+  },
+  {
+    "sku": "CAL-0191",
+    "name": "Cedar Fleece Pullover Pro",
+    "price": 158.1
+  },
+  {
+    "sku": "CAL-0192",
+    "name": "Coastal Sun Hat Ultra",
+    "price": 250.36
+  },
+  {
+    "sku": "CAL-0193",
+    "name": "Meadow Tent Mini",
+    "price": 337.36
+  },
+  {
+    "sku": "CAL-0194",
+    "name": "Timberline Daypack Mini",
+    "price": 273.05
+  },
+  {
+    "sku": "CAL-0195",
+    "name": "Frontier Hammock Max",
+    "price": 102.45
+  },
+  {
+    "sku": "CAL-0196",
+    "name": "Outpost Glove Pro",
+    "price": 106.0
+  },
+  {
+    "sku": "CAL-0197",
+    "name": "Frontier Glove Ultra",
+    "price": 204.04
+  },
+  {
+    "sku": "CAL-0198",
+    "name": "Driftwood Camp Stove Elite",
+    "price": 21.67
+  },
+  {
+    "sku": "CAL-0199",
+    "name": "Outpost Water Bottle Lite",
+    "price": 176.3
+  },
+  {
+    "sku": "CAL-0200",
+    "name": "Coastal Dry Bag 2.0",
+    "price": 126.69
+  },
+  {
+    "sku": "CAL-0201",
+    "name": "Horizon Daypack 2.0",
+    "price": 199.3
+  },
+  {
+    "sku": "CAL-0202",
+    "name": "Granite Headlamp Pro",
+    "price": 93.34
+  },
+  {
+    "sku": "CAL-0203",
+    "name": "Meadow Fleece Pullover Mini",
+    "price": 267.5
+  },
+  {
+    "sku": "CAL-0204",
+    "name": "Tundra Fleece Pullover Ultra",
+    "price": 163.03
+  },
+  {
+    "sku": "CAL-0205",
+    "name": "Alpine Pack 2.0",
+    "price": 86.68
+  },
+  {
+    "sku": "CAL-0206",
+    "name": "Tundra Glove 2.0",
+    "price": 235.75
+  },
+  {
+    "sku": "CAL-0207",
+    "name": "Coastal Fleece Pullover Mini",
+    "price": 190.92
+  },
+  {
+    "sku": "CAL-0208",
+    "name": "Meadow Camp Chair Mini",
+    "price": 123.48
+  },
+  {
+    "sku": "CAL-0209",
+    "name": "Tundra Compass 2.0",
+    "price": 115.33
+  },
+  {
+    "sku": "CAL-0210",
+    "name": "Canyon Mug XL",
+    "price": 118.34
+  },
+  {
+    "sku": "CAL-0211",
+    "name": "Evergreen Base Layer Lite",
+    "price": 76.55
+  },
+  {
+    "sku": "CAL-0212",
+    "name": "Evergreen Fleece Pullover 2.0",
+    "price": 256.19
+  },
+  {
+    "sku": "CAL-0213",
+    "name": "Sierra Rain Shell Max",
+    "price": 107.37
+  },
+  {
+    "sku": "CAL-0214",
+    "name": "Ridge Multi-Tool XL",
+    "price": 111.84
+  },
+  {
+    "sku": "CAL-0215",
+    "name": "Coastal Tent 2.0",
+    "price": 16.77
+  },
+  {
+    "sku": "CAL-0216",
+    "name": "Windward Trekking Pole 2.0",
+    "price": 27.34
+  },
+  {
+    "sku": "CAL-0217",
+    "name": "Trail Base Layer 2.0",
+    "price": 247.03
+  },
+  {
+    "sku": "CAL-0218",
+    "name": "Basecamp Sun Hat Ultra",
+    "price": 46.57
+  },
+  {
+    "sku": "CAL-0219",
+    "name": "Alpine Sleeping Bag 2.0",
+    "price": 170.19
+  },
+  {
+    "sku": "CAL-0220",
+    "name": "Frontier Water Bottle Lite",
+    "price": 337.37
+  },
+  {
+    "sku": "CAL-0221",
+    "name": "Timberline Thermal Flask Ultra",
+    "price": 50.45
+  },
+  {
+    "sku": "CAL-0222",
+    "name": "Summit Camp Stove Ultra",
+    "price": 36.97
+  },
+  {
+    "sku": "CAL-0223",
+    "name": "Ember Gaiter",
+    "price": 63.13
+  },
+  {
+    "sku": "CAL-0224",
+    "name": "Juniper Sleeping Bag 2.0",
+    "price": 40.71
+  },
+  {
+    "sku": "CAL-0225",
+    "name": "Canyon Mug Mini",
+    "price": 269.62
+  },
+  {
+    "sku": "CAL-0226",
+    "name": "Boulder Daypack Max",
+    "price": 88.06
+  },
+  {
+    "sku": "CAL-0227",
+    "name": "Granite Camp Stove Ultra",
+    "price": 318.17
+  },
+  {
+    "sku": "CAL-0228",
+    "name": "Pioneer Thermal Flask Max",
+    "price": 345.64
+  },
+  {
+    "sku": "CAL-0229",
+    "name": "Pioneer Sleeping Bag Max",
+    "price": 32.3
+  },
+  {
+    "sku": "CAL-0230",
+    "name": "Evergreen Mug XL",
+    "price": 222.8
+  },
+  {
+    "sku": "CAL-0231",
+    "name": "Timberline Gaiter Pro",
+    "price": 64.93
+  },
+  {
+    "sku": "CAL-0232",
+    "name": "Switchback Base Layer Pro",
+    "price": 64.75
+  },
+  {
+    "sku": "CAL-0233",
+    "name": "Meadow Compass Max",
+    "price": 170.36
+  },
+  {
+    "sku": "CAL-0234",
+    "name": "Trail Glove 2.0",
+    "price": 250.24
+  },
+  {
+    "sku": "CAL-0235",
+    "name": "Tundra Thermal Flask Ultra",
+    "price": 35.99
+  },
+  {
+    "sku": "CAL-0236",
+    "name": "Canyon Snow Shovel 2.0",
+    "price": 277.5
+  },
+  {
+    "sku": "CAL-0237",
+    "name": "Meadow Mug Mini",
+    "price": 87.76
+  },
+  {
+    "sku": "CAL-0238",
+    "name": "Basecamp Snow Shovel 2.0",
+    "price": 290.57
+  },
+  {
+    "sku": "CAL-0239",
+    "name": "Summit Boot Lite",
+    "price": 279.12
+  },
+  {
+    "sku": "CAL-0240",
+    "name": "Boulder Camp Chair Max",
+    "price": 322.44
+  },
+  {
+    "sku": "CAL-0241",
+    "name": "Frontier Mug Ultra",
+    "price": 244.08
+  },
+  {
+    "sku": "CAL-0242",
+    "name": "Tundra Camp Stove 2.0",
+    "price": 180.66
+  },
+  {
+    "sku": "CAL-0243",
+    "name": "Cascade Compass Pro",
+    "price": 213.54
+  },
+  {
+    "sku": "CAL-0244",
+    "name": "Horizon Hammock Elite",
+    "price": 215.45
+  },
+  {
+    "sku": "CAL-0245",
+    "name": "Alpine Pack XL",
+    "price": 336.16
+  },
+  {
+    "sku": "CAL-0246",
+    "name": "Cedar Thermal Flask Max",
+    "price": 209.86
+  },
+  {
+    "sku": "CAL-0247",
+    "name": "Alpine Lantern 2.0",
+    "price": 206.2
+  },
+  {
+    "sku": "CAL-0248",
+    "name": "Sierra Lantern Lite",
+    "price": 170.56
+  },
+  {
+    "sku": "CAL-0249",
+    "name": "Ember Compass 2.0",
+    "price": 73.16
+  },
+  {
+    "sku": "CAL-0250",
+    "name": "Highland Hammock Ultra",
+    "price": 338.57
+  },
+  {
+    "sku": "CAL-0251",
+    "name": "Cascade Pocket Knife Classic",
+    "price": 124.32
+  },
+  {
+    "sku": "CAL-0252",
+    "name": "Driftwood Mug Lite",
+    "price": 123.14
+  },
+  {
+    "sku": "CAL-0253",
+    "name": "Tundra Fleece Pullover 2.0",
+    "price": 235.29
+  },
+  {
+    "sku": "CAL-0254",
+    "name": "Harbor Multi-Tool Mini",
+    "price": 24.37
+  },
+  {
+    "sku": "CAL-0255",
+    "name": "Summit Water Bottle 2.0",
+    "price": 120.94
+  },
+  {
+    "sku": "CAL-0256",
+    "name": "Sierra Camp Stove Mini",
+    "price": 290.0
+  },
+  {
+    "sku": "CAL-0257",
+    "name": "Alpine Gaiter Mini",
+    "price": 167.69
+  },
+  {
+    "sku": "CAL-0258",
+    "name": "Trail Headlamp Mini",
+    "price": 133.92
+  },
+  {
+    "sku": "CAL-0259",
+    "name": "Sierra Fleece Pullover Ultra",
+    "price": 268.12
+  },
+  {
+    "sku": "CAL-0260",
+    "name": "Glacier Beanie Mini",
+    "price": 56.15
+  },
+  {
+    "sku": "CAL-0261",
+    "name": "Pioneer Compass Ultra",
+    "price": 52.92
+  },
+  {
+    "sku": "CAL-0262",
+    "name": "Ember Daypack XL",
+    "price": 251.2
+  },
+  {
+    "sku": "CAL-0263",
+    "name": "Pioneer Base Layer",
+    "price": 198.11
+  },
+  {
+    "sku": "CAL-0264",
+    "name": "Summit Glove Pro",
+    "price": 167.51
+  },
+  {
+    "sku": "CAL-0265",
+    "name": "Ridge Sun Hat Lite",
+    "price": 179.95
+  },
+  {
+    "sku": "CAL-0266",
+    "name": "Tundra Sock Mini",
+    "price": 249.72
+  },
+  {
+    "sku": "CAL-0267",
+    "name": "Meadow Multi-Tool Ultra",
+    "price": 342.34
+  },
+  {
+    "sku": "CAL-0268",
+    "name": "Canyon Compass Mini",
+    "price": 60.74
+  },
+  {
+    "sku": "CAL-0269",
+    "name": "Glacier Snow Shovel Max",
+    "price": 183.28
+  },
+  {
+    "sku": "CAL-0270",
+    "name": "Horizon Trekking Pole Pro",
+    "price": 105.1
+  },
+  {
+    "sku": "CAL-0271",
+    "name": "Juniper Thermal Flask Classic",
+    "price": 126.54
+  },
+  {
+    "sku": "CAL-0272",
+    "name": "Juniper Rain Shell 2.0",
+    "price": 288.53
+  },
+  {
+    "sku": "CAL-0273",
+    "name": "Pioneer Camp Chair 2.0",
+    "price": 294.23
+  },
+  {
+    "sku": "CAL-0274",
+    "name": "Highland Gaiter Ultra",
+    "price": 303.59
+  },
+  {
+    "sku": "CAL-0275",
+    "name": "Frontier Base Layer Ultra",
+    "price": 128.31
+  },
+  {
+    "sku": "CAL-0276",
+    "name": "Windward Lantern Mini",
+    "price": 139.12
+  },
+  {
+    "sku": "CAL-0277",
+    "name": "Rimrock Water Bottle XL",
+    "price": 342.52
+  },
+  {
+    "sku": "CAL-0278",
+    "name": "Canyon Sleeping Bag Classic",
+    "price": 90.71
+  },
+  {
+    "sku": "CAL-0279",
+    "name": "Sierra Hammock",
+    "price": 119.23
+  },
+  {
+    "sku": "CAL-0280",
+    "name": "Cascade Trail Mix Pouch Classic",
+    "price": 142.11
+  },
+  {
+    "sku": "CAL-0281",
+    "name": "Driftwood Dry Bag Lite",
+    "price": 178.93
+  },
+  {
+    "sku": "CAL-0282",
+    "name": "Trail Trekking Pole Mini",
+    "price": 337.32
+  },
+  {
+    "sku": "CAL-0283",
+    "name": "Northbound Thermal Flask Pro",
+    "price": 306.6
+  },
+  {
+    "sku": "CAL-0284",
+    "name": "Frontier Mug Mini",
+    "price": 318.82
+  },
+  {
+    "sku": "CAL-0285",
+    "name": "Alpine Camp Chair Lite",
+    "price": 150.16
+  },
+  {
+    "sku": "CAL-0286",
+    "name": "Ember Trekking Pole Pro",
+    "price": 170.22
+  },
+  {
+    "sku": "CAL-0287",
+    "name": "Timberline Water Bottle Max",
+    "price": 245.44
+  },
+  {
+    "sku": "CAL-0288",
+    "name": "Ember Pack Elite",
+    "price": 299.24
+  },
+  {
+    "sku": "CAL-0289",
+    "name": "Outpost Base Layer Classic",
+    "price": 333.55
+  },
+  {
+    "sku": "CAL-0290",
+    "name": "Ember Trail Mix Pouch Ultra",
+    "price": 305.99
+  },
+  {
+    "sku": "CAL-0291",
+    "name": "Canyon Sun Hat 2.0",
+    "price": 348.13
+  },
+  {
+    "sku": "CAL-0292",
+    "name": "Evergreen Pack Classic",
+    "price": 341.7
+  },
+  {
+    "sku": "CAL-0293",
+    "name": "Sierra Sun Hat Pro",
+    "price": 161.52
+  },
+  {
+    "sku": "CAL-0294",
+    "name": "Tundra Sock",
+    "price": 27.5
+  },
+  {
+    "sku": "CAL-0295",
+    "name": "Juniper Boot 2.0",
+    "price": 132.8
+  },
+  {
+    "sku": "CAL-0296",
+    "name": "Meadow Trekking Pole XL",
+    "price": 191.0
+  },
+  {
+    "sku": "CAL-0297",
+    "name": "Highland Gaiter Lite",
+    "price": 69.28
+  },
+  {
+    "sku": "CAL-0298",
+    "name": "Summit Daypack Classic",
+    "price": 220.84
+  },
+  {
+    "sku": "CAL-0299",
+    "name": "Canyon Fleece Pullover Max",
+    "price": 60.23
+  },
+  {
+    "sku": "CAL-0300",
+    "name": "Frontier Sun Hat 2.0",
+    "price": 166.88
+  },
+  {
+    "sku": "CAL-0301",
+    "name": "Driftwood Jacket Ultra",
+    "price": 315.71
+  },
+  {
+    "sku": "CAL-0302",
+    "name": "Driftwood Base Layer Lite",
+    "price": 36.89
+  },
+  {
+    "sku": "CAL-0303",
+    "name": "Coastal Sleeping Bag 2.0",
+    "price": 227.32
+  },
+  {
+    "sku": "CAL-0304",
+    "name": "Meadow Trail Mix Pouch 2.0",
+    "price": 165.95
+  },
+  {
+    "sku": "CAL-0305",
+    "name": "Pioneer Headlamp Classic",
+    "price": 299.57
+  },
+  {
+    "sku": "CAL-0306",
+    "name": "Ridge Glove Classic",
+    "price": 204.74
+  },
+  {
+    "sku": "CAL-0307",
+    "name": "Highland Sock 2.0",
+    "price": 19.39
+  },
+  {
+    "sku": "CAL-0308",
+    "name": "Cedar Gaiter Classic",
+    "price": 104.5
+  },
+  {
+    "sku": "CAL-0309",
+    "name": "Highland Thermal Flask",
+    "price": 318.88
+  },
+  {
+    "sku": "CAL-0310",
+    "name": "Sierra Dry Bag XL",
+    "price": 216.58
+  },
+  {
+    "sku": "CAL-0311",
+    "name": "Coastal Glove XL",
+    "price": 221.24
+  },
+  {
+    "sku": "CAL-0312",
+    "name": "Driftwood Lantern Lite",
+    "price": 223.72
+  },
+  {
+    "sku": "CAL-0313",
+    "name": "Horizon Sun Hat",
+    "price": 116.11
+  },
+  {
+    "sku": "CAL-0314",
+    "name": "Frontier Boot Max",
+    "price": 134.96
+  },
+  {
+    "sku": "CAL-0315",
+    "name": "Basecamp Pack 2.0",
+    "price": 122.1
+  },
+  {
+    "sku": "CAL-0316",
+    "name": "Meadow Tent XL",
+    "price": 56.54
+  },
+  {
+    "sku": "CAL-0317",
+    "name": "Windward Crampons Elite",
+    "price": 190.9
+  },
+  {
+    "sku": "CAL-0318",
+    "name": "Rimrock Beanie Lite",
+    "price": 98.6
+  },
+  {
+    "sku": "CAL-0319",
+    "name": "Cedar Fleece Pullover 2.0",
+    "price": 263.59
+  },
+  {
+    "sku": "CAL-0320",
+    "name": "Northbound Dry Bag Pro",
+    "price": 169.83
+  },
+  {
+    "sku": "CAL-0321",
+    "name": "Summit Trekking Pole XL",
+    "price": 301.87
+  },
+  {
+    "sku": "CAL-0322",
+    "name": "Evergreen Gaiter Classic",
+    "price": 337.97
+  },
+  {
+    "sku": "CAL-0323",
+    "name": "Juniper Base Layer Elite",
+    "price": 42.43
+  },
+  {
+    "sku": "CAL-0324",
+    "name": "Harbor Jacket 2.0",
+    "price": 192.82
+  },
+  {
+    "sku": "CAL-0325",
+    "name": "Frontier Pocket Knife 2.0",
+    "price": 209.0
+  },
+  {
+    "sku": "CAL-0326",
+    "name": "Cedar Sun Hat Elite",
+    "price": 48.51
+  },
+  {
+    "sku": "CAL-0327",
+    "name": "Canyon Fleece Pullover",
+    "price": 220.79
+  },
+  {
+    "sku": "CAL-0328",
+    "name": "Windward Water Bottle Max",
+    "price": 86.6
+  },
+  {
+    "sku": "CAL-0329",
+    "name": "Summit Sun Hat Ultra",
+    "price": 318.46
+  },
+  {
+    "sku": "CAL-0330",
+    "name": "Pioneer Sun Hat Classic",
+    "price": 51.32
+  },
+  {
+    "sku": "CAL-0331",
+    "name": "Trail Boot 2.0",
+    "price": 347.63
+  },
+  {
+    "sku": "CAL-0332",
+    "name": "Ridge Mug XL",
+    "price": 311.01
+  },
+  {
+    "sku": "CAL-0333",
+    "name": "Basecamp Camp Stove Ultra",
+    "price": 137.03
+  },
+  {
+    "sku": "CAL-0334",
+    "name": "Evergreen Trail Mix Pouch Mini",
+    "price": 153.25
+  },
+  {
+    "sku": "CAL-0335",
+    "name": "Evergreen Camp Chair Lite",
+    "price": 310.38
+  },
+  {
+    "sku": "CAL-0336",
+    "name": "Ember Mug Ultra",
+    "price": 219.47
+  },
+  {
+    "sku": "CAL-0337",
+    "name": "Timberline Boot Elite",
+    "price": 85.22
+  },
+  {
+    "sku": "CAL-0338",
+    "name": "Frontier Glove Elite",
+    "price": 45.48
+  },
+  {
+    "sku": "CAL-0339",
+    "name": "Driftwood Pocket Knife Mini",
+    "price": 315.87
+  },
+  {
+    "sku": "CAL-0340",
+    "name": "Ember Pocket Knife",
+    "price": 146.17
+  },
+  {
+    "sku": "CAL-0341",
+    "name": "Glacier Mug Ultra",
+    "price": 42.89
+  },
+  {
+    "sku": "CAL-0342",
+    "name": "Glacier Sun Hat Max",
+    "price": 339.26
+  },
+  {
+    "sku": "CAL-0343",
+    "name": "Canyon Trekking Pole Max",
+    "price": 81.15
+  },
+  {
+    "sku": "CAL-0344",
+    "name": "Cedar Lantern Mini",
+    "price": 81.81
+  },
+  {
+    "sku": "CAL-0345",
+    "name": "Glacier Multi-Tool XL",
+    "price": 122.72
+  },
+  {
+    "sku": "CAL-0346",
+    "name": "Basecamp Dry Bag Max",
+    "price": 12.96
+  },
+  {
+    "sku": "CAL-0347",
+    "name": "Outpost Trekking Pole Lite",
+    "price": 194.05
+  },
+  {
+    "sku": "CAL-0348",
+    "name": "Juniper Tent Pro",
+    "price": 234.78
+  },
+  {
+    "sku": "CAL-0349",
+    "name": "Alpine Trekking Pole",
+    "price": 132.73
+  },
+  {
+    "sku": "CAL-0350",
+    "name": "Juniper Glove Max",
+    "price": 121.11
+  },
+  {
+    "sku": "CAL-0351",
+    "name": "Switchback Beanie",
+    "price": 54.72
+  },
+  {
+    "sku": "CAL-0352",
+    "name": "Meadow Rain Shell Pro",
+    "price": 263.29
+  },
+  {
+    "sku": "CAL-0353",
+    "name": "Cascade Compass Elite",
+    "price": 184.96
+  },
+  {
+    "sku": "CAL-0354",
+    "name": "Ridge Compass Mini",
+    "price": 86.66
+  },
+  {
+    "sku": "CAL-0355",
+    "name": "Boulder Boot Mini",
+    "price": 113.65
+  },
+  {
+    "sku": "CAL-0356",
+    "name": "Ember Jacket",
+    "price": 348.52
+  },
+  {
+    "sku": "CAL-0357",
+    "name": "Outpost Camp Stove Classic",
+    "price": 243.21
+  },
+  {
+    "sku": "CAL-0358",
+    "name": "Cascade Trail Mix Pouch Ultra",
+    "price": 36.77
+  },
+  {
+    "sku": "CAL-0359",
+    "name": "Summit Water Bottle Max",
+    "price": 61.99
+  },
+  {
+    "sku": "CAL-0360",
+    "name": "Basecamp Beanie Max",
+    "price": 225.35
+  },
+  {
+    "sku": "CAL-0361",
+    "name": "Windward Trail Mix Pouch Elite",
+    "price": 140.36
+  },
+  {
+    "sku": "CAL-0362",
+    "name": "Boulder Rain Shell 2.0",
+    "price": 164.9
+  },
+  {
+    "sku": "CAL-0363",
+    "name": "Boulder Hammock Pro",
+    "price": 279.27
+  },
+  {
+    "sku": "CAL-0364",
+    "name": "Ridge Thermal Flask Mini",
+    "price": 254.92
+  },
+  {
+    "sku": "CAL-0365",
+    "name": "Glacier Hammock Ultra",
+    "price": 311.29
+  },
+  {
+    "sku": "CAL-0366",
+    "name": "Meadow Water Bottle Ultra",
+    "price": 146.37
+  },
+  {
+    "sku": "CAL-0367",
+    "name": "Evergreen Mug Elite",
+    "price": 155.82
+  },
+  {
+    "sku": "CAL-0368",
+    "name": "Driftwood Beanie Elite",
+    "price": 333.36
+  },
+  {
+    "sku": "CAL-0369",
+    "name": "Driftwood Snow Shovel Ultra",
+    "price": 34.62
+  },
+  {
+    "sku": "CAL-0370",
+    "name": "Cedar Pack Pro",
+    "price": 157.54
+  },
+  {
+    "sku": "CAL-0371",
+    "name": "Evergreen Camp Chair Elite",
+    "price": 285.57
+  },
+  {
+    "sku": "CAL-0372",
+    "name": "Windward Boot Max",
+    "price": 334.38
+  },
+  {
+    "sku": "CAL-0373",
+    "name": "Windward Water Bottle Pro",
+    "price": 150.44
+  },
+  {
+    "sku": "CAL-0374",
+    "name": "Outpost Gaiter Classic",
+    "price": 304.55
+  },
+  {
+    "sku": "CAL-0375",
+    "name": "Evergreen Boot 2.0",
+    "price": 214.34
+  },
+  {
+    "sku": "CAL-0376",
+    "name": "Coastal Mug Max",
+    "price": 183.0
+  },
+  {
+    "sku": "CAL-0377",
+    "name": "Basecamp Gaiter Ultra",
+    "price": 87.57
+  },
+  {
+    "sku": "CAL-0378",
+    "name": "Ridge Pocket Knife Mini",
+    "price": 135.87
+  },
+  {
+    "sku": "CAL-0379",
+    "name": "Sierra Beanie Max",
+    "price": 88.22
+  },
+  {
+    "sku": "CAL-0380",
+    "name": "Meadow Thermal Flask Mini",
+    "price": 340.42
+  },
+  {
+    "sku": "CAL-0381",
+    "name": "Cedar Daypack Max",
+    "price": 239.47
+  },
+  {
+    "sku": "CAL-0382",
+    "name": "Windward Jacket Max",
+    "price": 325.1
+  },
+  {
+    "sku": "CAL-0383",
+    "name": "Cedar Trail Mix Pouch 2.0",
+    "price": 21.76
+  },
+  {
+    "sku": "CAL-0384",
+    "name": "Timberline Trail Mix Pouch 2.0",
+    "price": 322.56
+  },
+  {
+    "sku": "CAL-0385",
+    "name": "Coastal Jacket Lite",
+    "price": 305.14
+  },
+  {
+    "sku": "CAL-0386",
+    "name": "Highland Gaiter Classic",
+    "price": 35.45
+  },
+  {
+    "sku": "CAL-0387",
+    "name": "Evergreen Sun Hat",
+    "price": 42.92
+  },
+  {
+    "sku": "CAL-0388",
+    "name": "Granite Headlamp Classic",
+    "price": 153.48
+  },
+  {
+    "sku": "CAL-0389",
+    "name": "Northbound Tent Elite",
+    "price": 117.02
+  },
+  {
+    "sku": "CAL-0390",
+    "name": "Northbound Lantern Max",
+    "price": 212.93
+  },
+  {
+    "sku": "CAL-0391",
+    "name": "Switchback Lantern Max",
+    "price": 28.77
+  },
+  {
+    "sku": "CAL-0392",
+    "name": "Summit Beanie Ultra",
+    "price": 235.07
+  },
+  {
+    "sku": "CAL-0393",
+    "name": "Cascade Daypack Ultra",
+    "price": 151.58
+  },
+  {
+    "sku": "CAL-0394",
+    "name": "Glacier Lantern Mini",
+    "price": 50.36
+  },
+  {
+    "sku": "CAL-0395",
+    "name": "Meadow Mug 2.0",
+    "price": 240.56
+  },
+  {
+    "sku": "CAL-0396",
+    "name": "Highland Fleece Pullover Mini",
+    "price": 236.82
+  },
+  {
+    "sku": "CAL-0397",
+    "name": "Trail Glove Classic",
+    "price": 343.76
+  },
+  {
+    "sku": "CAL-0398",
+    "name": "Trail Jacket XL",
+    "price": 113.58
+  },
+  {
+    "sku": "CAL-0399",
+    "name": "Glacier Lantern Lite",
+    "price": 269.52
+  },
+  {
+    "sku": "CAL-0400",
+    "name": "Pioneer Water Bottle Pro",
+    "price": 14.6
+  },
+  {
+    "sku": "CAL-0401",
+    "name": "Evergreen Hammock Lite",
+    "price": 55.54
+  },
+  {
+    "sku": "CAL-0402",
+    "name": "Windward Trail Mix Pouch XL",
+    "price": 180.59
+  },
+  {
+    "sku": "CAL-0403",
+    "name": "Cedar Gaiter Elite",
+    "price": 36.29
+  },
+  {
+    "sku": "CAL-0404",
+    "name": "Outpost Camp Chair",
+    "price": 159.01
+  },
+  {
+    "sku": "CAL-0405",
+    "name": "Frontier Snow Shovel Pro",
+    "price": 302.53
+  },
+  {
+    "sku": "CAL-0406",
+    "name": "Highland Hammock Max",
+    "price": 148.29
+  },
+  {
+    "sku": "CAL-0407",
+    "name": "Ember Hammock 2.0",
+    "price": 50.81
+  },
+  {
+    "sku": "CAL-0408",
+    "name": "Alpine Water Bottle Lite",
+    "price": 282.05
+  },
+  {
+    "sku": "CAL-0409",
+    "name": "Boulder Compass Elite",
+    "price": 41.7
+  },
+  {
+    "sku": "CAL-0410",
+    "name": "Outpost Mug XL",
+    "price": 158.82
+  },
+  {
+    "sku": "CAL-0411",
+    "name": "Harbor Rain Shell Pro",
+    "price": 145.37
+  },
+  {
+    "sku": "CAL-0412",
+    "name": "Pioneer Camp Chair Elite",
+    "price": 86.67
+  },
+  {
+    "sku": "CAL-0413",
+    "name": "Sierra Tent Pro",
+    "price": 184.03
+  },
+  {
+    "sku": "CAL-0414",
+    "name": "Ridge Rain Shell Mini",
+    "price": 77.35
+  },
+  {
+    "sku": "CAL-0415",
+    "name": "Sierra Pocket Knife Elite",
+    "price": 257.13
+  },
+  {
+    "sku": "CAL-0416",
+    "name": "Cedar Sun Hat Lite",
+    "price": 91.62
+  },
+  {
+    "sku": "CAL-0417",
+    "name": "Basecamp Beanie XL",
+    "price": 70.47
+  },
+  {
+    "sku": "CAL-0418",
+    "name": "Basecamp Lantern Pro",
+    "price": 71.7
+  },
+  {
+    "sku": "CAL-0419",
+    "name": "Sierra Sun Hat Ultra",
+    "price": 168.35
+  },
+  {
+    "sku": "CAL-0420",
+    "name": "Highland Lantern Max",
+    "price": 163.28
+  },
+  {
+    "sku": "CAL-0421",
+    "name": "Rimrock Crampons Max",
+    "price": 228.69
+  },
+  {
+    "sku": "CAL-0422",
+    "name": "Boulder Water Bottle Elite",
+    "price": 62.87
+  },
+  {
+    "sku": "CAL-0423",
+    "name": "Summit Fleece Pullover Ultra",
+    "price": 224.78
+  },
+  {
+    "sku": "CAL-0424",
+    "name": "Juniper Beanie Max",
+    "price": 30.93
+  },
+  {
+    "sku": "CAL-0425",
+    "name": "Granite Pack 2.0",
+    "price": 167.61
+  },
+  {
+    "sku": "CAL-0426",
+    "name": "Trail Boot Elite",
+    "price": 292.28
+  },
+  {
+    "sku": "CAL-0427",
+    "name": "Summit Sun Hat Pro",
+    "price": 219.26
+  },
+  {
+    "sku": "CAL-0428",
+    "name": "Highland Base Layer",
+    "price": 163.56
+  },
+  {
+    "sku": "CAL-0429",
+    "name": "Juniper Sleeping Bag XL",
+    "price": 120.35
+  },
+  {
+    "sku": "CAL-0430",
+    "name": "Cascade Rain Shell Lite",
+    "price": 334.75
+  },
+  {
+    "sku": "CAL-0431",
+    "name": "Frontier Mug Elite",
+    "price": 343.06
+  },
+  {
+    "sku": "CAL-0432",
+    "name": "Summit Rain Shell Lite",
+    "price": 25.19
+  },
+  {
+    "sku": "CAL-0433",
+    "name": "Tundra Compass Ultra",
+    "price": 188.61
+  },
+  {
+    "sku": "CAL-0434",
+    "name": "Boulder Tent Elite",
+    "price": 137.65
+  },
+  {
+    "sku": "CAL-0435",
+    "name": "Pioneer Camp Stove Classic",
+    "price": 272.99
+  },
+  {
+    "sku": "CAL-0436",
+    "name": "Driftwood Daypack",
+    "price": 277.97
+  },
+  {
+    "sku": "CAL-0437",
+    "name": "Ember Water Bottle Pro",
+    "price": 123.11
+  },
+  {
+    "sku": "CAL-0438",
+    "name": "Windward Gaiter Classic",
+    "price": 107.76
+  },
+  {
+    "sku": "CAL-0439",
+    "name": "Evergreen Thermal Flask Max",
+    "price": 306.3
+  },
+  {
+    "sku": "CAL-0440",
+    "name": "Northbound Pack Max",
+    "price": 235.64
+  },
+  {
+    "sku": "CAL-0441",
+    "name": "Ember Trail Mix Pouch Classic",
+    "price": 55.46
+  },
+  {
+    "sku": "CAL-0442",
+    "name": "Tundra Pack 2.0",
+    "price": 200.36
+  },
+  {
+    "sku": "CAL-0443",
+    "name": "Ember Dry Bag Elite",
+    "price": 286.04
+  },
+  {
+    "sku": "CAL-0444",
+    "name": "Driftwood Trail Mix Pouch Mini",
+    "price": 43.49
+  },
+  {
+    "sku": "CAL-0445",
+    "name": "Driftwood Hammock Mini",
+    "price": 133.94
+  },
+  {
+    "sku": "CAL-0446",
+    "name": "Glacier Water Bottle Ultra",
+    "price": 76.71
+  },
+  {
+    "sku": "CAL-0447",
+    "name": "Basecamp Trekking Pole Pro",
+    "price": 111.68
+  },
+  {
+    "sku": "CAL-0448",
+    "name": "Juniper Mug Mini",
+    "price": 271.78
+  },
+  {
+    "sku": "CAL-0449",
+    "name": "Cedar Camp Chair Mini",
+    "price": 24.72
+  },
+  {
+    "sku": "CAL-0450",
+    "name": "Northbound Crampons Max",
+    "price": 56.16
+  },
+  {
+    "sku": "CAL-0451",
+    "name": "Harbor Trekking Pole Lite",
+    "price": 72.95
+  },
+  {
+    "sku": "CAL-0452",
+    "name": "Tundra Lantern Max",
+    "price": 284.65
+  },
+  {
+    "sku": "CAL-0453",
+    "name": "Switchback Camp Chair Ultra",
+    "price": 26.72
+  },
+  {
+    "sku": "CAL-0454",
+    "name": "Coastal Gaiter XL",
+    "price": 338.75
+  },
+  {
+    "sku": "CAL-0455",
+    "name": "Boulder Sock Ultra",
+    "price": 90.86
+  },
+  {
+    "sku": "CAL-0456",
+    "name": "Canyon Sock Ultra",
+    "price": 316.64
+  },
+  {
+    "sku": "CAL-0457",
+    "name": "Glacier Pocket Knife Max",
+    "price": 343.76
+  },
+  {
+    "sku": "CAL-0458",
+    "name": "Frontier Lantern 2.0",
+    "price": 274.23
+  },
+  {
+    "sku": "CAL-0459",
+    "name": "Granite Rain Shell Classic",
+    "price": 337.63
+  },
+  {
+    "sku": "CAL-0460",
+    "name": "Cedar Headlamp Max",
+    "price": 58.64
+  },
+  {
+    "sku": "CAL-0461",
+    "name": "Timberline Boot Ultra",
+    "price": 306.58
+  },
+  {
+    "sku": "CAL-0462",
+    "name": "Windward Snow Shovel Pro",
+    "price": 251.74
+  },
+  {
+    "sku": "CAL-0463",
+    "name": "Granite Thermal Flask Pro",
+    "price": 108.07
+  },
+  {
+    "sku": "CAL-0464",
+    "name": "Sierra Tent 2.0",
+    "price": 163.42
+  },
+  {
+    "sku": "CAL-0465",
+    "name": "Granite Trekking Pole Classic",
+    "price": 42.91
+  },
+  {
+    "sku": "CAL-0466",
+    "name": "Rimrock Glove Ultra",
+    "price": 310.12
+  },
+  {
+    "sku": "CAL-0467",
+    "name": "Rimrock Jacket Classic",
+    "price": 29.95
+  },
+  {
+    "sku": "CAL-0468",
+    "name": "Granite Pocket Knife XL",
+    "price": 142.14
+  },
+  {
+    "sku": "CAL-0469",
+    "name": "Summit Pocket Knife XL",
+    "price": 21.5
+  },
+  {
+    "sku": "CAL-0470",
+    "name": "Rimrock Mug Elite",
+    "price": 278.7
+  },
+  {
+    "sku": "CAL-0471",
+    "name": "Basecamp Boot 2.0",
+    "price": 321.16
+  },
+  {
+    "sku": "CAL-0472",
+    "name": "Cascade Trail Mix Pouch Lite",
+    "price": 267.73
+  },
+  {
+    "sku": "CAL-0473",
+    "name": "Cascade Compass Max",
+    "price": 13.77
+  },
+  {
+    "sku": "CAL-0474",
+    "name": "Summit Jacket 2.0",
+    "price": 84.68
+  },
+  {
+    "sku": "CAL-0475",
+    "name": "Basecamp Base Layer Max",
+    "price": 189.86
+  },
+  {
+    "sku": "CAL-0476",
+    "name": "Ridge Lantern 2.0",
+    "price": 92.08
+  },
+  {
+    "sku": "CAL-0477",
+    "name": "Ridge Boot XL",
+    "price": 153.48
+  },
+  {
+    "sku": "CAL-0478",
+    "name": "Juniper Daypack Ultra",
+    "price": 33.17
+  },
+  {
+    "sku": "CAL-0479",
+    "name": "Cedar Crampons Ultra",
+    "price": 213.1
+  },
+  {
+    "sku": "CAL-0480",
+    "name": "Alpine Sun Hat Mini",
+    "price": 205.79
+  },
+  {
+    "sku": "CAL-0481",
+    "name": "Tundra Trekking Pole 2.0",
+    "price": 156.65
+  },
+  {
+    "sku": "CAL-0482",
+    "name": "Boulder Pocket Knife XL",
+    "price": 204.31
+  },
+  {
+    "sku": "CAL-0483",
+    "name": "Switchback Gaiter Pro",
+    "price": 188.41
+  },
+  {
+    "sku": "CAL-0484",
+    "name": "Coastal Pack Mini",
+    "price": 195.36
+  },
+  {
+    "sku": "CAL-0485",
+    "name": "Juniper Rain Shell Mini",
+    "price": 18.85
+  },
+  {
+    "sku": "CAL-0486",
+    "name": "Outpost Fleece Pullover",
+    "price": 226.22
+  },
+  {
+    "sku": "CAL-0487",
+    "name": "Coastal Beanie",
+    "price": 132.34
+  },
+  {
+    "sku": "CAL-0488",
+    "name": "Evergreen Gaiter Pro",
+    "price": 272.0
+  },
+  {
+    "sku": "CAL-0489",
+    "name": "Evergreen Lantern Elite",
+    "price": 56.96
+  },
+  {
+    "sku": "CAL-0490",
+    "name": "Coastal Base Layer Elite",
+    "price": 286.15
+  },
+  {
+    "sku": "CAL-0491",
+    "name": "Switchback Multi-Tool Ultra",
+    "price": 342.54
+  },
+  {
+    "sku": "CAL-0492",
+    "name": "Cascade Sun Hat Lite",
+    "price": 285.47
+  },
+  {
+    "sku": "CAL-0493",
+    "name": "Summit Trail Mix Pouch Ultra",
+    "price": 24.46
+  },
+  {
+    "sku": "CAL-0494",
+    "name": "Glacier Boot XL",
+    "price": 310.51
+  },
+  {
+    "sku": "CAL-0495",
+    "name": "Northbound Snow Shovel 2.0",
+    "price": 185.68
+  },
+  {
+    "sku": "CAL-0496",
+    "name": "Cedar Base Layer Ultra",
+    "price": 97.37
+  },
+  {
+    "sku": "CAL-0497",
+    "name": "Sierra Sun Hat XL",
+    "price": 108.42
+  },
+  {
+    "sku": "CAL-0498",
+    "name": "Outpost Lantern",
+    "price": 303.77
+  },
+  {
+    "sku": "CAL-0499",
+    "name": "Northbound Beanie Pro",
+    "price": 281.38
+  },
+  {
+    "sku": "CAL-0500",
+    "name": "Meadow Crampons Classic",
+    "price": 262.49
+  },
+  {
+    "sku": "CAL-0501",
+    "name": "Horizon Camp Stove Elite",
+    "price": 340.14
+  },
+  {
+    "sku": "CAL-0502",
+    "name": "Coastal Snow Shovel Mini",
+    "price": 101.88
+  },
+  {
+    "sku": "CAL-0503",
+    "name": "Summit Camp Chair Classic",
+    "price": 38.6
+  },
+  {
+    "sku": "CAL-0504",
+    "name": "Boulder Multi-Tool Lite",
+    "price": 195.82
+  },
+  {
+    "sku": "CAL-0505",
+    "name": "Northbound Mug Pro",
+    "price": 122.51
+  },
+  {
+    "sku": "CAL-0506",
+    "name": "Pioneer Sock Ultra",
+    "price": 215.08
+  },
+  {
+    "sku": "CAL-0507",
+    "name": "Meadow Tent Ultra",
+    "price": 130.47
+  },
+  {
+    "sku": "CAL-0508",
+    "name": "Trail Camp Chair Elite",
+    "price": 219.2
+  },
+  {
+    "sku": "CAL-0509",
+    "name": "Meadow Beanie",
+    "price": 37.29
+  },
+  {
+    "sku": "CAL-0510",
+    "name": "Ember Camp Stove Elite",
+    "price": 184.91
+  },
+  {
+    "sku": "CAL-0511",
+    "name": "Evergreen Gaiter Lite",
+    "price": 333.09
+  },
+  {
+    "sku": "CAL-0512",
+    "name": "Basecamp Thermal Flask Max",
+    "price": 240.52
+  },
+  {
+    "sku": "CAL-0513",
+    "name": "Frontier Boot Lite",
+    "price": 34.66
+  },
+  {
+    "sku": "CAL-0514",
+    "name": "Sierra Sun Hat Elite",
+    "price": 134.04
+  },
+  {
+    "sku": "CAL-0515",
+    "name": "Highland Boot Max",
+    "price": 63.71
+  },
+  {
+    "sku": "CAL-0516",
+    "name": "Frontier Pocket Knife Elite",
+    "price": 161.61
+  },
+  {
+    "sku": "CAL-0517",
+    "name": "Summit Sleeping Bag Lite",
+    "price": 190.43
+  },
+  {
+    "sku": "CAL-0518",
+    "name": "Harbor Water Bottle 2.0",
+    "price": 96.12
+  },
+  {
+    "sku": "CAL-0519",
+    "name": "Ridge Jacket Lite",
+    "price": 180.18
+  },
+  {
+    "sku": "CAL-0520",
+    "name": "Harbor Snow Shovel Mini",
+    "price": 51.69
+  },
+  {
+    "sku": "CAL-0521",
+    "name": "Sierra Beanie Ultra",
+    "price": 84.31
+  },
+  {
+    "sku": "CAL-0522",
+    "name": "Glacier Mug Lite",
+    "price": 299.4
+  },
+  {
+    "sku": "CAL-0523",
+    "name": "Frontier Tent Ultra",
+    "price": 348.08
+  },
+  {
+    "sku": "CAL-0524",
+    "name": "Juniper Gaiter Elite",
+    "price": 237.06
+  },
+  {
+    "sku": "CAL-0525",
+    "name": "Tundra Pack Mini",
+    "price": 194.71
+  },
+  {
+    "sku": "CAL-0526",
+    "name": "Horizon Sock Lite",
+    "price": 251.88
+  },
+  {
+    "sku": "CAL-0527",
+    "name": "Rimrock Trail Mix Pouch Lite",
+    "price": 279.48
+  },
+  {
+    "sku": "CAL-0528",
+    "name": "Granite Glove Pro",
+    "price": 343.99
+  },
+  {
+    "sku": "CAL-0529",
+    "name": "Juniper Trekking Pole XL",
+    "price": 278.36
+  },
+  {
+    "sku": "CAL-0530",
+    "name": "Alpine Pocket Knife Mini",
+    "price": 204.86
+  },
+  {
+    "sku": "CAL-0531",
+    "name": "Frontier Dry Bag Mini",
+    "price": 55.73
+  },
+  {
+    "sku": "CAL-0532",
+    "name": "Horizon Pack Pro",
+    "price": 116.23
+  },
+  {
+    "sku": "CAL-0533",
+    "name": "Tundra Camp Chair Ultra",
+    "price": 189.16
+  },
+  {
+    "sku": "CAL-0534",
+    "name": "Sierra Hammock Max",
+    "price": 36.85
+  },
+  {
+    "sku": "CAL-0535",
+    "name": "Northbound Sun Hat Pro",
+    "price": 163.64
+  },
+  {
+    "sku": "CAL-0536",
+    "name": "Driftwood Rain Shell Elite",
+    "price": 55.25
+  },
+  {
+    "sku": "CAL-0537",
+    "name": "Ember Sleeping Bag Lite",
+    "price": 270.74
+  },
+  {
+    "sku": "CAL-0538",
+    "name": "Basecamp Hammock Mini",
+    "price": 318.91
+  },
+  {
+    "sku": "CAL-0539",
+    "name": "Trail Multi-Tool Pro",
+    "price": 186.6
+  },
+  {
+    "sku": "CAL-0540",
+    "name": "Pioneer Tent Lite",
+    "price": 120.74
+  },
+  {
+    "sku": "CAL-0541",
+    "name": "Tundra Glove Elite",
+    "price": 331.3
+  },
+  {
+    "sku": "CAL-0542",
+    "name": "Granite Crampons 2.0",
+    "price": 297.08
+  },
+  {
+    "sku": "CAL-0543",
+    "name": "Timberline Headlamp Mini",
+    "price": 104.49
+  },
+  {
+    "sku": "CAL-0544",
+    "name": "Ember Sock Max",
+    "price": 191.78
+  },
+  {
+    "sku": "CAL-0545",
+    "name": "Granite Sun Hat Lite",
+    "price": 211.44
+  },
+  {
+    "sku": "CAL-0546",
+    "name": "Highland Trekking Pole Lite",
+    "price": 233.99
+  },
+  {
+    "sku": "CAL-0547",
+    "name": "Evergreen Crampons Max",
+    "price": 125.78
+  },
+  {
+    "sku": "CAL-0548",
+    "name": "Rimrock Sleeping Bag",
+    "price": 290.1
+  },
+  {
+    "sku": "CAL-0549",
+    "name": "Alpine Pack",
+    "price": 331.66
+  },
+  {
+    "sku": "CAL-0550",
+    "name": "Sierra Sleeping Bag 2.0",
+    "price": 231.43
+  },
+  {
+    "sku": "CAL-0551",
+    "name": "Boulder Sun Hat",
+    "price": 179.84
+  },
+  {
+    "sku": "CAL-0552",
+    "name": "Ember Base Layer 2.0",
+    "price": 228.32
+  },
+  {
+    "sku": "CAL-0553",
+    "name": "Pioneer Fleece Pullover XL",
+    "price": 283.18
+  },
+  {
+    "sku": "CAL-0554",
+    "name": "Driftwood Camp Stove 2.0",
+    "price": 164.84
+  },
+  {
+    "sku": "CAL-0555",
+    "name": "Tundra Boot Lite",
+    "price": 160.15
+  },
+  {
+    "sku": "CAL-0556",
+    "name": "Cascade Compass XL",
+    "price": 126.64
+  },
+  {
+    "sku": "CAL-0557",
+    "name": "Basecamp Water Bottle Elite",
+    "price": 259.43
+  },
+  {
+    "sku": "CAL-0558",
+    "name": "Outpost Pocket Knife Classic",
+    "price": 56.07
+  },
+  {
+    "sku": "CAL-0559",
+    "name": "Coastal Rain Shell Mini",
+    "price": 47.78
+  },
+  {
+    "sku": "CAL-0560",
+    "name": "Canyon Compass Pro",
+    "price": 102.14
+  },
+  {
+    "sku": "CAL-0561",
+    "name": "Canyon Trekking Pole Pro",
+    "price": 29.05
+  },
+  {
+    "sku": "CAL-0562",
+    "name": "Harbor Thermal Flask Max",
+    "price": 152.91
+  },
+  {
+    "sku": "CAL-0563",
+    "name": "Outpost Crampons Lite",
+    "price": 286.14
+  },
+  {
+    "sku": "CAL-0564",
+    "name": "Rimrock Sleeping Bag Elite",
+    "price": 75.97
+  },
+  {
+    "sku": "CAL-0565",
+    "name": "Switchback Fleece Pullover Mini",
+    "price": 169.32
+  },
+  {
+    "sku": "CAL-0566",
+    "name": "Horizon Sock Ultra",
+    "price": 19.81
+  },
+  {
+    "sku": "CAL-0567",
+    "name": "Harbor Rain Shell Ultra",
+    "price": 337.77
+  },
+  {
+    "sku": "CAL-0568",
+    "name": "Glacier Sleeping Bag Elite",
+    "price": 28.4
+  },
+  {
+    "sku": "CAL-0569",
+    "name": "Pioneer Fleece Pullover Max",
+    "price": 309.35
+  },
+  {
+    "sku": "CAL-0570",
+    "name": "Ember Gaiter Ultra",
+    "price": 108.3
+  },
+  {
+    "sku": "CAL-0571",
+    "name": "Alpine Thermal Flask Pro",
+    "price": 157.22
+  },
+  {
+    "sku": "CAL-0572",
+    "name": "Horizon Beanie Elite",
+    "price": 269.42
+  },
+  {
+    "sku": "CAL-0573",
+    "name": "Coastal Boot Classic",
+    "price": 29.24
+  },
+  {
+    "sku": "CAL-0574",
+    "name": "Windward Headlamp Elite",
+    "price": 198.44
+  },
+  {
+    "sku": "CAL-0575",
+    "name": "Summit Camp Stove Mini",
+    "price": 163.77
+  },
+  {
+    "sku": "CAL-0576",
+    "name": "Windward Beanie Max",
+    "price": 241.29
+  },
+  {
+    "sku": "CAL-0577",
+    "name": "Ridge Trekking Pole Pro",
+    "price": 144.75
+  },
+  {
+    "sku": "CAL-0578",
+    "name": "Juniper Water Bottle Mini",
+    "price": 328.43
+  },
+  {
+    "sku": "CAL-0579",
+    "name": "Sierra Trekking Pole XL",
+    "price": 215.03
+  },
+  {
+    "sku": "CAL-0580",
+    "name": "Harbor Rain Shell",
+    "price": 27.27
+  },
+  {
+    "sku": "CAL-0581",
+    "name": "Basecamp Trail Mix Pouch Elite",
+    "price": 282.94
+  },
+  {
+    "sku": "CAL-0582",
+    "name": "Granite Compass Lite",
+    "price": 216.31
+  },
+  {
+    "sku": "CAL-0583",
+    "name": "Granite Trekking Pole Elite",
+    "price": 325.87
+  },
+  {
+    "sku": "CAL-0584",
+    "name": "Northbound Tent Classic",
+    "price": 345.84
+  },
+  {
+    "sku": "CAL-0585",
+    "name": "Evergreen Multi-Tool 2.0",
+    "price": 212.09
+  },
+  {
+    "sku": "CAL-0586",
+    "name": "Granite Multi-Tool Mini",
+    "price": 191.4
+  },
+  {
+    "sku": "CAL-0587",
+    "name": "Tundra Sleeping Bag 2.0",
+    "price": 172.04
+  },
+  {
+    "sku": "CAL-0588",
+    "name": "Alpine Pocket Knife Elite",
+    "price": 239.07
+  },
+  {
+    "sku": "CAL-0589",
+    "name": "Meadow Sleeping Bag 2.0",
+    "price": 280.51
+  },
+  {
+    "sku": "CAL-0590",
+    "name": "Evergreen Thermal Flask",
+    "price": 213.16
+  },
+  {
+    "sku": "CAL-0591",
+    "name": "Timberline Sun Hat Max",
+    "price": 206.66
+  },
+  {
+    "sku": "CAL-0592",
+    "name": "Evergreen Boot Max",
+    "price": 173.91
+  },
+  {
+    "sku": "CAL-0593",
+    "name": "Granite Sun Hat Max",
+    "price": 273.04
+  },
+  {
+    "sku": "CAL-0594",
+    "name": "Harbor Trekking Pole XL",
+    "price": 22.64
+  },
+  {
+    "sku": "CAL-0595",
+    "name": "Tundra Mug XL",
+    "price": 18.38
+  },
+  {
+    "sku": "CAL-0596",
+    "name": "Northbound Hammock Lite",
+    "price": 151.17
+  },
+  {
+    "sku": "CAL-0597",
+    "name": "Glacier Hammock Mini",
+    "price": 273.17
+  },
+  {
+    "sku": "CAL-0598",
+    "name": "Rimrock Fleece Pullover",
+    "price": 249.85
+  },
+  {
+    "sku": "CAL-0599",
+    "name": "Granite Headlamp Mini",
+    "price": 121.54
+  },
+  {
+    "sku": "CAL-0600",
+    "name": "Driftwood Fleece Pullover Mini",
+    "price": 138.99
+  },
+  {
+    "sku": "CAL-0601",
+    "name": "Switchback Compass Mini",
+    "price": 127.36
+  },
+  {
+    "sku": "CAL-0602",
+    "name": "Coastal Gaiter 2.0",
+    "price": 217.6
+  },
+  {
+    "sku": "CAL-0603",
+    "name": "Glacier Glove 2.0",
+    "price": 200.08
+  },
+  {
+    "sku": "CAL-0604",
+    "name": "Canyon Sock 2.0",
+    "price": 249.55
+  },
+  {
+    "sku": "CAL-0605",
+    "name": "Tundra Trail Mix Pouch Ultra",
+    "price": 118.84
+  },
+  {
+    "sku": "CAL-0606",
+    "name": "Coastal Base Layer 2.0",
+    "price": 108.99
+  },
+  {
+    "sku": "CAL-0607",
+    "name": "Highland Gaiter Mini",
+    "price": 139.96
+  },
+  {
+    "sku": "CAL-0608",
+    "name": "Harbor Multi-Tool Elite",
+    "price": 333.7
+  },
+  {
+    "sku": "CAL-0609",
+    "name": "Juniper Trekking Pole 2.0",
+    "price": 26.18
+  },
+  {
+    "sku": "CAL-0610",
+    "name": "Tundra Pack Elite",
+    "price": 323.39
+  },
+  {
+    "sku": "CAL-0611",
+    "name": "Ember Beanie Ultra",
+    "price": 84.11
+  },
+  {
+    "sku": "CAL-0612",
+    "name": "Rimrock Base Layer 2.0",
+    "price": 58.26
+  },
+  {
+    "sku": "CAL-0613",
+    "name": "Canyon Glove",
+    "price": 237.73
+  },
+  {
+    "sku": "CAL-0614",
+    "name": "Granite Glove XL",
+    "price": 29.69
+  },
+  {
+    "sku": "CAL-0615",
+    "name": "Ridge Gaiter Lite",
+    "price": 13.75
+  },
+  {
+    "sku": "CAL-0616",
+    "name": "Windward Snow Shovel Lite",
+    "price": 149.13
+  },
+  {
+    "sku": "CAL-0617",
+    "name": "Rimrock Crampons Ultra",
+    "price": 172.9
+  },
+  {
+    "sku": "CAL-0618",
+    "name": "Glacier Lantern 2.0",
+    "price": 120.23
+  },
+  {
+    "sku": "CAL-0619",
+    "name": "Ember Boot Pro",
+    "price": 231.82
+  },
+  {
+    "sku": "CAL-0620",
+    "name": "Canyon Base Layer",
+    "price": 319.76
+  },
+  {
+    "sku": "CAL-0621",
+    "name": "Switchback Hammock Lite",
+    "price": 326.73
+  },
+  {
+    "sku": "CAL-0622",
+    "name": "Trail Multi-Tool Classic",
+    "price": 277.54
+  },
+  {
+    "sku": "CAL-0623",
+    "name": "Switchback Snow Shovel 2.0",
+    "price": 307.46
+  },
+  {
+    "sku": "CAL-0624",
+    "name": "Alpine Sock Max",
+    "price": 215.14
+  },
+  {
+    "sku": "CAL-0625",
+    "name": "Rimrock Water Bottle 2.0",
+    "price": 165.12
+  },
+  {
+    "sku": "CAL-0626",
+    "name": "Ember Base Layer Mini",
+    "price": 178.45
+  },
+  {
+    "sku": "CAL-0627",
+    "name": "Basecamp Thermal Flask Mini",
+    "price": 169.72
+  },
+  {
+    "sku": "CAL-0628",
+    "name": "Glacier Dry Bag Pro",
+    "price": 123.44
+  },
+  {
+    "sku": "CAL-0629",
+    "name": "Evergreen Compass 2.0",
+    "price": 254.17
+  },
+  {
+    "sku": "CAL-0630",
+    "name": "Alpine Camp Chair Elite",
+    "price": 278.49
+  },
+  {
+    "sku": "CAL-0631",
+    "name": "Highland Gaiter XL",
+    "price": 71.14
+  },
+  {
+    "sku": "CAL-0632",
+    "name": "Outpost Sun Hat Classic",
+    "price": 290.7
+  },
+  {
+    "sku": "CAL-0633",
+    "name": "Granite Water Bottle Pro",
+    "price": 147.08
+  },
+  {
+    "sku": "CAL-0634",
+    "name": "Ridge Tent Lite",
+    "price": 172.9
+  },
+  {
+    "sku": "CAL-0635",
+    "name": "Rimrock Glove",
+    "price": 99.88
+  },
+  {
+    "sku": "CAL-0636",
+    "name": "Canyon Compass 2.0",
+    "price": 333.51
+  },
+  {
+    "sku": "CAL-0637",
+    "name": "Alpine Beanie Elite",
+    "price": 245.46
+  },
+  {
+    "sku": "CAL-0638",
+    "name": "Trail Gaiter Pro",
+    "price": 168.84
+  },
+  {
+    "sku": "CAL-0639",
+    "name": "Switchback Camp Stove Mini",
+    "price": 323.09
+  },
+  {
+    "sku": "CAL-0640",
+    "name": "Horizon Trail Mix Pouch 2.0",
+    "price": 244.63
+  },
+  {
+    "sku": "CAL-0641",
+    "name": "Ember Snow Shovel 2.0",
+    "price": 135.86
+  },
+  {
+    "sku": "CAL-0642",
+    "name": "Cascade Trekking Pole Ultra",
+    "price": 263.99
+  },
+  {
+    "sku": "CAL-0643",
+    "name": "Boulder Pocket Knife Classic",
+    "price": 248.55
+  },
+  {
+    "sku": "CAL-0644",
+    "name": "Rimrock Fleece Pullover Mini",
+    "price": 282.27
+  },
+  {
+    "sku": "CAL-0645",
+    "name": "Cedar Headlamp XL",
+    "price": 241.28
+  },
+  {
+    "sku": "CAL-0646",
+    "name": "Boulder Thermal Flask Pro",
+    "price": 189.1
+  },
+  {
+    "sku": "CAL-0647",
+    "name": "Granite Trail Mix Pouch Elite",
+    "price": 38.32
+  },
+  {
+    "sku": "CAL-0648",
+    "name": "Highland Mug",
+    "price": 291.3
+  },
+  {
+    "sku": "CAL-0649",
+    "name": "Horizon Rain Shell XL",
+    "price": 205.0
+  },
+  {
+    "sku": "CAL-0650",
+    "name": "Basecamp Tent Elite",
+    "price": 299.96
+  },
+  {
+    "sku": "CAL-0651",
+    "name": "Frontier Mug XL",
+    "price": 253.6
+  },
+  {
+    "sku": "CAL-0652",
+    "name": "Cascade Pack Mini",
+    "price": 162.13
+  },
+  {
+    "sku": "CAL-0653",
+    "name": "Trail Compass Lite",
+    "price": 184.96
+  },
+  {
+    "sku": "CAL-0654",
+    "name": "Frontier Sleeping Bag",
+    "price": 200.31
+  },
+  {
+    "sku": "CAL-0655",
+    "name": "Driftwood Dry Bag 2.0",
+    "price": 255.75
+  },
+  {
+    "sku": "CAL-0656",
+    "name": "Harbor Beanie",
+    "price": 263.34
+  },
+  {
+    "sku": "CAL-0657",
+    "name": "Highland Pack",
+    "price": 154.79
+  },
+  {
+    "sku": "CAL-0658",
+    "name": "Trail Snow Shovel Pro",
+    "price": 344.33
+  },
+  {
+    "sku": "CAL-0659",
+    "name": "Cascade Boot 2.0",
+    "price": 149.79
+  },
+  {
+    "sku": "CAL-0660",
+    "name": "Sierra Trekking Pole Classic",
+    "price": 138.19
+  },
+  {
+    "sku": "CAL-0661",
+    "name": "Horizon Camp Stove Ultra",
+    "price": 305.06
+  },
+  {
+    "sku": "CAL-0662",
+    "name": "Rimrock Camp Stove Classic",
+    "price": 39.04
+  },
+  {
+    "sku": "CAL-0663",
+    "name": "Driftwood Thermal Flask Mini",
+    "price": 56.82
+  },
+  {
+    "sku": "CAL-0664",
+    "name": "Outpost Pocket Knife Pro",
+    "price": 72.15
+  },
+  {
+    "sku": "CAL-0665",
+    "name": "Windward Camp Stove Mini",
+    "price": 54.92
+  },
+  {
+    "sku": "CAL-0666",
+    "name": "Canyon Multi-Tool",
+    "price": 266.83
+  },
+  {
+    "sku": "CAL-0667",
+    "name": "Pioneer Compass Mini",
+    "price": 154.93
+  },
+  {
+    "sku": "CAL-0668",
+    "name": "Harbor Multi-Tool XL",
+    "price": 95.41
+  },
+  {
+    "sku": "CAL-0669",
+    "name": "Coastal Trekking Pole 2.0",
+    "price": 75.52
+  },
+  {
+    "sku": "CAL-0670",
+    "name": "Horizon Camp Chair Pro",
+    "price": 22.86
+  },
+  {
+    "sku": "CAL-0671",
+    "name": "Driftwood Hammock Max",
+    "price": 270.16
+  },
+  {
+    "sku": "CAL-0672",
+    "name": "Horizon Crampons",
+    "price": 93.1
+  },
+  {
+    "sku": "CAL-0673",
+    "name": "Summit Mug Max",
+    "price": 23.32
+  },
+  {
+    "sku": "CAL-0674",
+    "name": "Boulder Gaiter",
+    "price": 94.48
+  },
+  {
+    "sku": "CAL-0675",
+    "name": "Trail Camp Stove Ultra",
+    "price": 90.97
+  },
+  {
+    "sku": "CAL-0676",
+    "name": "Glacier Lantern",
+    "price": 59.23
+  },
+  {
+    "sku": "CAL-0677",
+    "name": "Pioneer Glove Max",
+    "price": 119.47
+  },
+  {
+    "sku": "CAL-0678",
+    "name": "Boulder Lantern Elite",
+    "price": 91.84
+  },
+  {
+    "sku": "CAL-0679",
+    "name": "Horizon Trekking Pole Mini",
+    "price": 86.49
+  },
+  {
+    "sku": "CAL-0680",
+    "name": "Pioneer Beanie",
+    "price": 199.61
+  },
+  {
+    "sku": "CAL-0681",
+    "name": "Highland Crampons Lite",
+    "price": 222.96
+  },
+  {
+    "sku": "CAL-0682",
+    "name": "Meadow Base Layer Ultra",
+    "price": 27.8
+  },
+  {
+    "sku": "CAL-0683",
+    "name": "Coastal Sun Hat Classic",
+    "price": 276.82
+  },
+  {
+    "sku": "CAL-0684",
+    "name": "Northbound Trail Mix Pouch Classic",
+    "price": 149.58
+  },
+  {
+    "sku": "CAL-0685",
+    "name": "Pioneer Camp Stove Lite",
+    "price": 266.24
+  },
+  {
+    "sku": "CAL-0686",
+    "name": "Cascade Glove XL",
+    "price": 113.35
+  },
+  {
+    "sku": "CAL-0687",
+    "name": "Tundra Trekking Pole Ultra",
+    "price": 320.27
+  },
+  {
+    "sku": "CAL-0688",
+    "name": "Windward Hammock Classic",
+    "price": 199.81
+  },
+  {
+    "sku": "CAL-0689",
+    "name": "Basecamp Camp Stove XL",
+    "price": 97.93
+  },
+  {
+    "sku": "CAL-0690",
+    "name": "Rimrock Compass Elite",
+    "price": 43.16
+  },
+  {
+    "sku": "CAL-0691",
+    "name": "Evergreen Multi-Tool XL",
+    "price": 29.37
+  },
+  {
+    "sku": "CAL-0692",
+    "name": "Harbor Gaiter Max",
+    "price": 215.18
+  },
+  {
+    "sku": "CAL-0693",
+    "name": "Outpost Pack XL",
+    "price": 283.17
+  },
+  {
+    "sku": "CAL-0694",
+    "name": "Highland Camp Chair Mini",
+    "price": 85.13
+  },
+  {
+    "sku": "CAL-0695",
+    "name": "Glacier Thermal Flask Elite",
+    "price": 114.17
+  },
+  {
+    "sku": "CAL-0696",
+    "name": "Rimrock Jacket XL",
+    "price": 327.82
+  },
+  {
+    "sku": "CAL-0697",
+    "name": "Evergreen Mug Ultra",
+    "price": 320.17
+  },
+  {
+    "sku": "CAL-0698",
+    "name": "Tundra Daypack XL",
+    "price": 145.67
+  },
+  {
+    "sku": "CAL-0699",
+    "name": "Canyon Base Layer Elite",
+    "price": 273.35
+  },
+  {
+    "sku": "CAL-0700",
+    "name": "Harbor Compass Mini",
+    "price": 230.62
+  },
+  {
+    "sku": "CAL-0701",
+    "name": "Pioneer Beanie Elite",
+    "price": 184.82
+  },
+  {
+    "sku": "CAL-0702",
+    "name": "Juniper Camp Chair Ultra",
+    "price": 268.67
+  },
+  {
+    "sku": "CAL-0703",
+    "name": "Northbound Snow Shovel XL",
+    "price": 136.93
+  },
+  {
+    "sku": "CAL-0704",
+    "name": "Meadow Boot Max",
+    "price": 303.2
+  },
+  {
+    "sku": "CAL-0705",
+    "name": "Evergreen Trekking Pole",
+    "price": 99.88
+  },
+  {
+    "sku": "CAL-0706",
+    "name": "Rimrock Sleeping Bag Max",
+    "price": 254.64
+  },
+  {
+    "sku": "CAL-0707",
+    "name": "Pioneer Trekking Pole XL",
+    "price": 123.16
+  },
+  {
+    "sku": "CAL-0708",
+    "name": "Harbor Sleeping Bag XL",
+    "price": 180.26
+  },
+  {
+    "sku": "CAL-0709",
+    "name": "Ember Gaiter Elite",
+    "price": 98.72
+  },
+  {
+    "sku": "CAL-0710",
+    "name": "Cedar Fleece Pullover Ultra",
+    "price": 167.3
+  },
+  {
+    "sku": "CAL-0711",
+    "name": "Evergreen Dry Bag Elite",
+    "price": 69.04
+  },
+  {
+    "sku": "CAL-0712",
+    "name": "Evergreen Base Layer Ultra",
+    "price": 74.02
+  },
+  {
+    "sku": "CAL-0713",
+    "name": "Horizon Base Layer",
+    "price": 188.57
+  },
+  {
+    "sku": "CAL-0714",
+    "name": "Cedar Thermal Flask Pro",
+    "price": 330.53
+  },
+  {
+    "sku": "CAL-0715",
+    "name": "Driftwood Boot",
+    "price": 150.98
+  },
+  {
+    "sku": "CAL-0716",
+    "name": "Cedar Sun Hat XL",
+    "price": 34.91
+  },
+  {
+    "sku": "CAL-0717",
+    "name": "Basecamp Jacket XL",
+    "price": 182.43
+  },
+  {
+    "sku": "CAL-0718",
+    "name": "Coastal Boot Max",
+    "price": 226.91
+  },
+  {
+    "sku": "CAL-0719",
+    "name": "Rimrock Daypack Ultra",
+    "price": 234.18
+  },
+  {
+    "sku": "CAL-0720",
+    "name": "Alpine Jacket Mini",
+    "price": 197.9
+  },
+  {
+    "sku": "CAL-0721",
+    "name": "Evergreen Beanie Mini",
+    "price": 341.41
+  },
+  {
+    "sku": "CAL-0722",
+    "name": "Alpine Rain Shell Classic",
+    "price": 283.68
+  },
+  {
+    "sku": "CAL-0723",
+    "name": "Rimrock Tent Pro",
+    "price": 321.38
+  },
+  {
+    "sku": "CAL-0724",
+    "name": "Granite Trekking Pole XL",
+    "price": 76.68
+  },
+  {
+    "sku": "CAL-0725",
+    "name": "Granite Beanie Elite",
+    "price": 102.09
+  },
+  {
+    "sku": "CAL-0726",
+    "name": "Harbor Pack Elite",
+    "price": 335.28
+  },
+  {
+    "sku": "CAL-0727",
+    "name": "Frontier Sleeping Bag XL",
+    "price": 345.71
+  },
+  {
+    "sku": "CAL-0728",
+    "name": "Canyon Sock Pro",
+    "price": 232.31
+  },
+  {
+    "sku": "CAL-0729",
+    "name": "Outpost Sun Hat",
+    "price": 43.51
+  },
+  {
+    "sku": "CAL-0730",
+    "name": "Harbor Camp Stove Mini",
+    "price": 172.41
+  },
+  {
+    "sku": "CAL-0731",
+    "name": "Ember Jacket Lite",
+    "price": 39.87
+  },
+  {
+    "sku": "CAL-0732",
+    "name": "Outpost Hammock Elite",
+    "price": 202.69
+  },
+  {
+    "sku": "CAL-0733",
+    "name": "Outpost Mug Mini",
+    "price": 321.75
+  },
+  {
+    "sku": "CAL-0734",
+    "name": "Canyon Headlamp Max",
+    "price": 172.24
+  },
+  {
+    "sku": "CAL-0735",
+    "name": "Driftwood Snow Shovel 2.0",
+    "price": 315.07
+  },
+  {
+    "sku": "CAL-0736",
+    "name": "Highland Gaiter",
+    "price": 72.44
+  },
+  {
+    "sku": "CAL-0737",
+    "name": "Outpost Water Bottle",
+    "price": 336.02
+  },
+  {
+    "sku": "CAL-0738",
+    "name": "Highland Trekking Pole Classic",
+    "price": 325.03
+  },
+  {
+    "sku": "CAL-0739",
+    "name": "Pioneer Tent Max",
+    "price": 93.04
+  },
+  {
+    "sku": "CAL-0740",
+    "name": "Cedar Thermal Flask Classic",
+    "price": 240.16
+  },
+  {
+    "sku": "CAL-0741",
+    "name": "Windward Water Bottle Classic",
+    "price": 266.64
+  },
+  {
+    "sku": "CAL-0742",
+    "name": "Basecamp Dry Bag Pro",
+    "price": 180.77
+  },
+  {
+    "sku": "CAL-0743",
+    "name": "Coastal Boot Pro",
+    "price": 159.3
+  },
+  {
+    "sku": "CAL-0744",
+    "name": "Cedar Pack Elite",
+    "price": 215.94
+  },
+  {
+    "sku": "CAL-0745",
+    "name": "Boulder Daypack Classic",
+    "price": 338.53
+  },
+  {
+    "sku": "CAL-0746",
+    "name": "Northbound Jacket 2.0",
+    "price": 276.06
+  },
+  {
+    "sku": "CAL-0747",
+    "name": "Frontier Fleece Pullover XL",
+    "price": 131.91
+  },
+  {
+    "sku": "CAL-0748",
+    "name": "Harbor Hammock Lite",
+    "price": 241.06
+  },
+  {
+    "sku": "CAL-0749",
+    "name": "Driftwood Camp Stove Pro",
+    "price": 272.22
+  },
+  {
+    "sku": "CAL-0750",
+    "name": "Pioneer Dry Bag XL",
+    "price": 252.32
+  },
+  {
+    "sku": "CAL-0751",
+    "name": "Summit Beanie Lite",
+    "price": 140.06
+  },
+  {
+    "sku": "CAL-0752",
+    "name": "Juniper Sun Hat Lite",
+    "price": 261.26
+  },
+  {
+    "sku": "CAL-0753",
+    "name": "Northbound Pocket Knife Pro",
+    "price": 42.84
+  },
+  {
+    "sku": "CAL-0754",
+    "name": "Pioneer Compass Elite",
+    "price": 268.57
+  },
+  {
+    "sku": "CAL-0755",
+    "name": "Switchback Hammock Ultra",
+    "price": 199.7
+  },
+  {
+    "sku": "CAL-0756",
+    "name": "Granite Hammock Pro",
+    "price": 20.85
+  },
+  {
+    "sku": "CAL-0757",
+    "name": "Coastal Base Layer Pro",
+    "price": 213.16
+  },
+  {
+    "sku": "CAL-0758",
+    "name": "Juniper Water Bottle Classic",
+    "price": 16.16
+  },
+  {
+    "sku": "CAL-0759",
+    "name": "Meadow Camp Stove Pro",
+    "price": 256.27
+  },
+  {
+    "sku": "CAL-0760",
+    "name": "Windward Crampons XL",
+    "price": 204.75
+  },
+  {
+    "sku": "CAL-0761",
+    "name": "Switchback Gaiter Classic",
+    "price": 69.12
+  },
+  {
+    "sku": "CAL-0762",
+    "name": "Timberline Sock 2.0",
+    "price": 178.18
+  },
+  {
+    "sku": "CAL-0763",
+    "name": "Summit Tent Classic",
+    "price": 105.0
+  },
+  {
+    "sku": "CAL-0764",
+    "name": "Pioneer Fleece Pullover Pro",
+    "price": 133.7
+  },
+  {
+    "sku": "CAL-0765",
+    "name": "Canyon Camp Chair Ultra",
+    "price": 212.11
+  },
+  {
+    "sku": "CAL-0766",
+    "name": "Glacier Compass Pro",
+    "price": 57.66
+  },
+  {
+    "sku": "CAL-0767",
+    "name": "Cedar Daypack Classic",
+    "price": 282.97
+  },
+  {
+    "sku": "CAL-0768",
+    "name": "Northbound Compass Elite",
+    "price": 157.12
+  },
+  {
+    "sku": "CAL-0769",
+    "name": "Basecamp Sock Elite",
+    "price": 215.28
+  },
+  {
+    "sku": "CAL-0770",
+    "name": "Tundra Headlamp Ultra",
+    "price": 117.88
+  },
+  {
+    "sku": "CAL-0771",
+    "name": "Evergreen Trail Mix Pouch Ultra",
+    "price": 338.14
+  },
+  {
+    "sku": "CAL-0772",
+    "name": "Juniper Glove Elite",
+    "price": 138.73
+  },
+  {
+    "sku": "CAL-0773",
+    "name": "Cedar Dry Bag Classic",
+    "price": 135.01
+  },
+  {
+    "sku": "CAL-0774",
+    "name": "Rimrock Sleeping Bag XL",
+    "price": 211.58
+  },
+  {
+    "sku": "CAL-0775",
+    "name": "Windward Tent Mini",
+    "price": 21.07
+  },
+  {
+    "sku": "CAL-0776",
+    "name": "Evergreen Compass XL",
+    "price": 159.76
+  },
+  {
+    "sku": "CAL-0777",
+    "name": "Pioneer Multi-Tool Pro",
+    "price": 287.99
+  },
+  {
+    "sku": "CAL-0778",
+    "name": "Juniper Dry Bag Classic",
+    "price": 238.79
+  },
+  {
+    "sku": "CAL-0779",
+    "name": "Basecamp Sun Hat 2.0",
+    "price": 93.56
+  },
+  {
+    "sku": "CAL-0780",
+    "name": "Driftwood Trekking Pole Classic",
+    "price": 277.92
+  },
+  {
+    "sku": "CAL-0781",
+    "name": "Summit Compass Max",
+    "price": 173.5
+  },
+  {
+    "sku": "CAL-0782",
+    "name": "Harbor Base Layer Mini",
+    "price": 323.22
+  },
+  {
+    "sku": "CAL-0783",
+    "name": "Outpost Trail Mix Pouch Classic",
+    "price": 195.21
+  },
+  {
+    "sku": "CAL-0784",
+    "name": "Juniper Pocket Knife Mini",
+    "price": 212.12
+  },
+  {
+    "sku": "CAL-0785",
+    "name": "Rimrock Pack Pro",
+    "price": 271.14
+  },
+  {
+    "sku": "CAL-0786",
+    "name": "Driftwood Gaiter Elite",
+    "price": 68.06
+  },
+  {
+    "sku": "CAL-0787",
+    "name": "Boulder Boot Max",
+    "price": 343.48
+  },
+  {
+    "sku": "CAL-0788",
+    "name": "Driftwood Sun Hat Classic",
+    "price": 337.82
+  },
+  {
+    "sku": "CAL-0789",
+    "name": "Northbound Dry Bag Classic",
+    "price": 47.7
+  },
+  {
+    "sku": "CAL-0790",
+    "name": "Ridge Beanie XL",
+    "price": 184.1
+  },
+  {
+    "sku": "CAL-0791",
+    "name": "Granite Base Layer Max",
+    "price": 243.74
+  },
+  {
+    "sku": "CAL-0792",
+    "name": "Canyon Compass Elite",
+    "price": 143.81
+  },
+  {
+    "sku": "CAL-0793",
+    "name": "Sierra Gaiter Max",
+    "price": 244.68
+  },
+  {
+    "sku": "CAL-0794",
+    "name": "Basecamp Pocket Knife",
+    "price": 174.69
+  },
+  {
+    "sku": "CAL-0795",
+    "name": "Pioneer Hammock Pro",
+    "price": 51.12
+  },
+  {
+    "sku": "CAL-0796",
+    "name": "Evergreen Trekking Pole Elite",
+    "price": 117.11
+  },
+  {
+    "sku": "CAL-0797",
+    "name": "Frontier Dry Bag XL",
+    "price": 187.62
+  },
+  {
+    "sku": "CAL-0798",
+    "name": "Coastal Fleece Pullover Pro",
+    "price": 159.66
+  },
+  {
+    "sku": "CAL-0799",
+    "name": "Tundra Compass Elite",
+    "price": 34.64
+  },
+  {
+    "sku": "CAL-0800",
+    "name": "Trail Dry Bag Pro",
+    "price": 19.61
+  },
+  {
+    "sku": "CAL-0801",
+    "name": "Rimrock Camp Chair XL",
+    "price": 185.89
+  },
+  {
+    "sku": "CAL-0802",
+    "name": "Windward Tent Elite",
+    "price": 200.67
+  },
+  {
+    "sku": "CAL-0803",
+    "name": "Frontier Glove Classic",
+    "price": 224.23
+  },
+  {
+    "sku": "CAL-0804",
+    "name": "Switchback Sun Hat Classic",
+    "price": 145.31
+  },
+  {
+    "sku": "CAL-0805",
+    "name": "Evergreen Daypack XL",
+    "price": 163.51
+  },
+  {
+    "sku": "CAL-0806",
+    "name": "Meadow Camp Stove",
+    "price": 249.5
+  },
+  {
+    "sku": "CAL-0807",
+    "name": "Glacier Beanie Pro",
+    "price": 206.57
+  },
+  {
+    "sku": "CAL-0808",
+    "name": "Juniper Thermal Flask Mini",
+    "price": 75.01
+  },
+  {
+    "sku": "CAL-0809",
+    "name": "Ridge Beanie Ultra",
+    "price": 189.84
+  },
+  {
+    "sku": "CAL-0810",
+    "name": "Ember Water Bottle Max",
+    "price": 142.97
+  },
+  {
+    "sku": "CAL-0811",
+    "name": "Harbor Sleeping Bag Pro",
+    "price": 129.25
+  },
+  {
+    "sku": "CAL-0812",
+    "name": "Outpost Compass Max",
+    "price": 70.14
+  },
+  {
+    "sku": "CAL-0813",
+    "name": "Driftwood Trail Mix Pouch 2.0",
+    "price": 321.6
+  },
+  {
+    "sku": "CAL-0814",
+    "name": "Highland Pack Lite",
+    "price": 117.54
+  },
+  {
+    "sku": "CAL-0815",
+    "name": "Switchback Pocket Knife Lite",
+    "price": 184.15
+  },
+  {
+    "sku": "CAL-0816",
+    "name": "Highland Camp Stove Classic",
+    "price": 74.6
+  },
+  {
+    "sku": "CAL-0817",
+    "name": "Ember Base Layer Lite",
+    "price": 199.01
+  },
+  {
+    "sku": "CAL-0818",
+    "name": "Cascade Sock Lite",
+    "price": 75.05
+  },
+  {
+    "sku": "CAL-0819",
+    "name": "Cedar Compass Max",
+    "price": 30.07
+  },
+  {
+    "sku": "CAL-0820",
+    "name": "Coastal Jacket Ultra",
+    "price": 58.01
+  },
+  {
+    "sku": "CAL-0821",
+    "name": "Cedar Camp Stove Mini",
+    "price": 182.33
+  },
+  {
+    "sku": "CAL-0822",
+    "name": "Cascade Hammock Ultra",
+    "price": 152.07
+  },
+  {
+    "sku": "CAL-0823",
+    "name": "Cedar Compass Ultra",
+    "price": 68.36
+  },
+  {
+    "sku": "CAL-0824",
+    "name": "Highland Jacket XL",
+    "price": 110.43
+  },
+  {
+    "sku": "CAL-0825",
+    "name": "Timberline Glove Mini",
+    "price": 109.28
+  },
+  {
+    "sku": "CAL-0826",
+    "name": "Sierra Compass Max",
+    "price": 262.23
+  },
+  {
+    "sku": "CAL-0827",
+    "name": "Sierra Fleece Pullover Mini",
+    "price": 184.14
+  },
+  {
+    "sku": "CAL-0828",
+    "name": "Highland Mug 2.0",
+    "price": 273.21
+  },
+  {
+    "sku": "CAL-0829",
+    "name": "Cedar Pocket Knife Mini",
+    "price": 289.22
+  },
+  {
+    "sku": "CAL-0830",
+    "name": "Trail Lantern Ultra",
+    "price": 196.12
+  },
+  {
+    "sku": "CAL-0831",
+    "name": "Meadow Mug XL",
+    "price": 112.33
+  },
+  {
+    "sku": "CAL-0832",
+    "name": "Trail Compass 2.0",
+    "price": 129.47
+  },
+  {
+    "sku": "CAL-0833",
+    "name": "Cedar Pack Ultra",
+    "price": 303.6
+  },
+  {
+    "sku": "CAL-0834",
+    "name": "Ridge Lantern XL",
+    "price": 82.73
+  },
+  {
+    "sku": "CAL-0835",
+    "name": "Evergreen Sleeping Bag Elite",
+    "price": 302.17
+  },
+  {
+    "sku": "CAL-0836",
+    "name": "Boulder Sun Hat Classic",
+    "price": 67.94
+  },
+  {
+    "sku": "CAL-0837",
+    "name": "Basecamp Dry Bag XL",
+    "price": 286.16
+  },
+  {
+    "sku": "CAL-0838",
+    "name": "Juniper Boot Max",
+    "price": 130.22
+  },
+  {
+    "sku": "CAL-0839",
+    "name": "Switchback Water Bottle 2.0",
+    "price": 109.51
+  },
+  {
+    "sku": "CAL-0840",
+    "name": "Timberline Thermal Flask Mini",
+    "price": 344.11
+  },
+  {
+    "sku": "CAL-0841",
+    "name": "Driftwood Multi-Tool Pro",
+    "price": 57.69
+  },
+  {
+    "sku": "CAL-0842",
+    "name": "Sierra Dry Bag Classic",
+    "price": 321.63
+  },
+  {
+    "sku": "CAL-0843",
+    "name": "Timberline Thermal Flask Lite",
+    "price": 248.38
+  },
+  {
+    "sku": "CAL-0844",
+    "name": "Basecamp Glove Lite",
+    "price": 251.74
+  },
+  {
+    "sku": "CAL-0845",
+    "name": "Cedar Glove Classic",
+    "price": 176.95
+  },
+  {
+    "sku": "CAL-0846",
+    "name": "Highland Sun Hat 2.0",
+    "price": 223.57
+  },
+  {
+    "sku": "CAL-0847",
+    "name": "Harbor Compass Pro",
+    "price": 225.53
+  },
+  {
+    "sku": "CAL-0848",
+    "name": "Horizon Lantern Pro",
+    "price": 147.76
+  },
+  {
+    "sku": "CAL-0849",
+    "name": "Evergreen Beanie Elite",
+    "price": 165.23
+  },
+  {
+    "sku": "CAL-0850",
+    "name": "Cascade Water Bottle Max",
+    "price": 12.83
+  },
+  {
+    "sku": "CAL-0851",
+    "name": "Sierra Thermal Flask Pro",
+    "price": 258.32
+  },
+  {
+    "sku": "CAL-0852",
+    "name": "Frontier Sun Hat Elite",
+    "price": 298.49
+  },
+  {
+    "sku": "CAL-0853",
+    "name": "Juniper Base Layer Classic",
+    "price": 85.41
+  },
+  {
+    "sku": "CAL-0854",
+    "name": "Meadow Multi-Tool XL",
+    "price": 178.72
+  },
+  {
+    "sku": "CAL-0855",
+    "name": "Northbound Multi-Tool 2.0",
+    "price": 125.82
+  },
+  {
+    "sku": "CAL-0856",
+    "name": "Highland Trekking Pole Max",
+    "price": 299.27
+  },
+  {
+    "sku": "CAL-0857",
+    "name": "Juniper Water Bottle",
+    "price": 27.48
+  },
+  {
+    "sku": "CAL-0858",
+    "name": "Ember Dry Bag Ultra",
+    "price": 17.49
+  },
+  {
+    "sku": "CAL-0859",
+    "name": "Rimrock Thermal Flask Lite",
+    "price": 160.71
+  },
+  {
+    "sku": "CAL-0860",
+    "name": "Alpine Hammock XL",
+    "price": 347.55
+  },
+  {
+    "sku": "CAL-0861",
+    "name": "Rimrock Trekking Pole 2.0",
+    "price": 65.58
+  },
+  {
+    "sku": "CAL-0862",
+    "name": "Rimrock Crampons 2.0",
+    "price": 43.46
+  },
+  {
+    "sku": "CAL-0863",
+    "name": "Coastal Beanie Pro",
+    "price": 137.31
+  },
+  {
+    "sku": "CAL-0864",
+    "name": "Horizon Sun Hat Lite",
+    "price": 29.45
+  },
+  {
+    "sku": "CAL-0865",
+    "name": "Ember Sock XL",
+    "price": 156.65
+  },
+  {
+    "sku": "CAL-0866",
+    "name": "Summit Trail Mix Pouch Pro",
+    "price": 12.37
+  },
+  {
+    "sku": "CAL-0867",
+    "name": "Cascade Pack Lite",
+    "price": 212.07
+  },
+  {
+    "sku": "CAL-0868",
+    "name": "Granite Gaiter Ultra",
+    "price": 15.13
+  },
+  {
+    "sku": "CAL-0869",
+    "name": "Tundra Water Bottle Pro",
+    "price": 345.01
+  },
+  {
+    "sku": "CAL-0870",
+    "name": "Meadow Trail Mix Pouch Lite",
+    "price": 172.98
+  },
+  {
+    "sku": "CAL-0871",
+    "name": "Canyon Camp Stove Pro",
+    "price": 258.27
+  },
+  {
+    "sku": "CAL-0872",
+    "name": "Ridge Mug Elite",
+    "price": 135.87
+  },
+  {
+    "sku": "CAL-0873",
+    "name": "Pioneer Trekking Pole Classic",
+    "price": 272.66
+  },
+  {
+    "sku": "CAL-0874",
+    "name": "Sierra Thermal Flask Lite",
+    "price": 228.21
+  },
+  {
+    "sku": "CAL-0875",
+    "name": "Driftwood Trekking Pole Pro",
+    "price": 190.78
+  },
+  {
+    "sku": "CAL-0876",
+    "name": "Alpine Daypack Lite",
+    "price": 160.31
+  },
+  {
+    "sku": "CAL-0877",
+    "name": "Evergreen Headlamp Lite",
+    "price": 322.0
+  },
+  {
+    "sku": "CAL-0878",
+    "name": "Boulder Gaiter Ultra",
+    "price": 301.81
+  },
+  {
+    "sku": "CAL-0879",
+    "name": "Summit Crampons Pro",
+    "price": 59.18
+  },
+  {
+    "sku": "CAL-0880",
+    "name": "Ridge Sleeping Bag Classic",
+    "price": 130.47
+  },
+  {
+    "sku": "CAL-0881",
+    "name": "Meadow Water Bottle Lite",
+    "price": 95.5
+  },
+  {
+    "sku": "CAL-0882",
+    "name": "Ember Pack XL",
+    "price": 198.49
+  },
+  {
+    "sku": "CAL-0883",
+    "name": "Pioneer Lantern",
+    "price": 297.74
+  },
+  {
+    "sku": "CAL-0884",
+    "name": "Driftwood Crampons 2.0",
+    "price": 81.24
+  },
+  {
+    "sku": "CAL-0885",
+    "name": "Boulder Rain Shell XL",
+    "price": 264.02
+  },
+  {
+    "sku": "CAL-0886",
+    "name": "Pioneer Sun Hat",
+    "price": 276.14
+  },
+  {
+    "sku": "CAL-0887",
+    "name": "Juniper Glove Ultra",
+    "price": 142.04
+  },
+  {
+    "sku": "CAL-0888",
+    "name": "Summit Rain Shell",
+    "price": 344.58
+  },
+  {
+    "sku": "CAL-0889",
+    "name": "Rimrock Water Bottle Lite",
+    "price": 142.36
+  },
+  {
+    "sku": "CAL-0890",
+    "name": "Cedar Sleeping Bag Classic",
+    "price": 135.14
+  },
+  {
+    "sku": "CAL-0891",
+    "name": "Driftwood Tent Ultra",
+    "price": 333.65
+  },
+  {
+    "sku": "CAL-0892",
+    "name": "Sierra Pack",
+    "price": 209.94
+  },
+  {
+    "sku": "CAL-0893",
+    "name": "Alpine Beanie XL",
+    "price": 25.42
+  },
+  {
+    "sku": "CAL-0894",
+    "name": "Trail Dry Bag Classic",
+    "price": 182.73
+  },
+  {
+    "sku": "CAL-0895",
+    "name": "Ember Trail Mix Pouch Mini",
+    "price": 270.52
+  },
+  {
+    "sku": "CAL-0896",
+    "name": "Meadow Trail Mix Pouch Classic",
+    "price": 39.78
+  },
+  {
+    "sku": "CAL-0897",
+    "name": "Windward Base Layer Max",
+    "price": 63.45
+  },
+  {
+    "sku": "CAL-0898",
+    "name": "Summit Sock Pro",
+    "price": 184.31
+  },
+  {
+    "sku": "CAL-0899",
+    "name": "Glacier Dry Bag Lite",
+    "price": 192.76
+  },
+  {
+    "sku": "CAL-0900",
+    "name": "Pioneer Trail Mix Pouch Classic",
+    "price": 258.0
+  },
+  {
+    "sku": "CAL-0901",
+    "name": "Outpost Glove",
+    "price": 94.39
+  },
+  {
+    "sku": "CAL-0902",
+    "name": "Rimrock Hammock Pro",
+    "price": 164.79
+  },
+  {
+    "sku": "CAL-0903",
+    "name": "Boulder Boot 2.0",
+    "price": 236.47
+  },
+  {
+    "sku": "CAL-0904",
+    "name": "Driftwood Camp Chair Lite",
+    "price": 52.25
+  },
+  {
+    "sku": "CAL-0905",
+    "name": "Tundra Trekking Pole",
+    "price": 67.21
+  },
+  {
+    "sku": "CAL-0906",
+    "name": "Juniper Multi-Tool 2.0",
+    "price": 68.27
+  },
+  {
+    "sku": "CAL-0907",
+    "name": "Basecamp Camp Chair 2.0",
+    "price": 259.0
+  },
+  {
+    "sku": "CAL-0908",
+    "name": "Ridge Lantern",
+    "price": 124.9
+  },
+  {
+    "sku": "CAL-0909",
+    "name": "Meadow Beanie Mini",
+    "price": 33.52
+  },
+  {
+    "sku": "CAL-0910",
+    "name": "Tundra Sleeping Bag Pro",
+    "price": 179.2
+  },
+  {
+    "sku": "CAL-0911",
+    "name": "Granite Pocket Knife",
+    "price": 180.37
+  },
+  {
+    "sku": "CAL-0912",
+    "name": "Highland Tent Elite",
+    "price": 65.01
+  },
+  {
+    "sku": "CAL-0913",
+    "name": "Sierra Mug Max",
+    "price": 239.18
+  },
+  {
+    "sku": "CAL-0914",
+    "name": "Ridge Glove Mini",
+    "price": 12.87
+  },
+  {
+    "sku": "CAL-0915",
+    "name": "Outpost Thermal Flask",
+    "price": 94.41
+  },
+  {
+    "sku": "CAL-0916",
+    "name": "Rimrock Trekking Pole Lite",
+    "price": 325.8
+  },
+  {
+    "sku": "CAL-0917",
+    "name": "Outpost Boot Mini",
+    "price": 282.65
+  },
+  {
+    "sku": "CAL-0918",
+    "name": "Tundra Camp Chair Classic",
+    "price": 87.66
+  },
+  {
+    "sku": "CAL-0919",
+    "name": "Canyon Hammock Elite",
+    "price": 103.41
+  },
+  {
+    "sku": "CAL-0920",
+    "name": "Summit Sleeping Bag Elite",
+    "price": 52.24
+  },
+  {
+    "sku": "CAL-0921",
+    "name": "Driftwood Crampons",
+    "price": 72.44
+  },
+  {
+    "sku": "CAL-0922",
+    "name": "Juniper Rain Shell",
+    "price": 333.52
+  },
+  {
+    "sku": "CAL-0923",
+    "name": "Summit Crampons Ultra",
+    "price": 303.85
+  },
+  {
+    "sku": "CAL-0924",
+    "name": "Sierra Thermal Flask 2.0",
+    "price": 122.3
+  },
+  {
+    "sku": "CAL-0925",
+    "name": "Windward Compass",
+    "price": 136.33
+  },
+  {
+    "sku": "CAL-0926",
+    "name": "Pioneer Sleeping Bag 2.0",
+    "price": 261.24
+  },
+  {
+    "sku": "CAL-0927",
+    "name": "Highland Fleece Pullover XL",
+    "price": 258.84
+  },
+  {
+    "sku": "CAL-0928",
+    "name": "Windward Lantern XL",
+    "price": 62.74
+  },
+  {
+    "sku": "CAL-0929",
+    "name": "Rimrock Hammock",
+    "price": 90.52
+  },
+  {
+    "sku": "CAL-0930",
+    "name": "Coastal Sun Hat",
+    "price": 332.48
+  },
+  {
+    "sku": "CAL-0931",
+    "name": "Alpine Lantern Classic",
+    "price": 298.12
+  },
+  {
+    "sku": "CAL-0932",
+    "name": "Evergreen Sock Pro",
+    "price": 81.15
+  },
+  {
+    "sku": "CAL-0933",
+    "name": "Canyon Hammock Ultra",
+    "price": 335.92
+  },
+  {
+    "sku": "CAL-0934",
+    "name": "Basecamp Trail Mix Pouch 2.0",
+    "price": 43.35
+  },
+  {
+    "sku": "CAL-0935",
+    "name": "Rimrock Glove Mini",
+    "price": 151.2
+  },
+  {
+    "sku": "CAL-0936",
+    "name": "Horizon Pocket Knife Ultra",
+    "price": 340.42
+  },
+  {
+    "sku": "CAL-0937",
+    "name": "Summit Sleeping Bag Pro",
+    "price": 182.33
+  },
+  {
+    "sku": "CAL-0938",
+    "name": "Ember Multi-Tool Classic",
+    "price": 37.22
+  },
+  {
+    "sku": "CAL-0939",
+    "name": "Highland Boot Classic",
+    "price": 235.24
+  },
+  {
+    "sku": "CAL-0940",
+    "name": "Basecamp Glove 2.0",
+    "price": 99.95
+  },
+  {
+    "sku": "CAL-0941",
+    "name": "Northbound Snow Shovel Classic",
+    "price": 248.14
+  },
+  {
+    "sku": "CAL-0942",
+    "name": "Evergreen Water Bottle Elite",
+    "price": 164.58
+  },
+  {
+    "sku": "CAL-0943",
+    "name": "Canyon Pack XL",
+    "price": 57.87
+  },
+  {
+    "sku": "CAL-0944",
+    "name": "Sierra Sleeping Bag Pro",
+    "price": 64.37
+  },
+  {
+    "sku": "CAL-0945",
+    "name": "Switchback Compass Ultra",
+    "price": 117.83
+  },
+  {
+    "sku": "CAL-0946",
+    "name": "Ridge Base Layer Elite",
+    "price": 337.08
+  },
+  {
+    "sku": "CAL-0947",
+    "name": "Glacier Compass 2.0",
+    "price": 168.15
+  },
+  {
+    "sku": "CAL-0948",
+    "name": "Outpost Mug Pro",
+    "price": 65.12
+  },
+  {
+    "sku": "CAL-0949",
+    "name": "Driftwood Sock Max",
+    "price": 25.59
+  },
+  {
+    "sku": "CAL-0950",
+    "name": "Cedar Thermal Flask Elite",
+    "price": 61.99
+  },
+  {
+    "sku": "CAL-0951",
+    "name": "Driftwood Sock 2.0",
+    "price": 288.37
+  },
+  {
+    "sku": "CAL-0952",
+    "name": "Switchback Jacket Classic",
+    "price": 300.0
+  },
+  {
+    "sku": "CAL-0953",
+    "name": "Windward Camp Chair Mini",
+    "price": 96.2
+  },
+  {
+    "sku": "CAL-0954",
+    "name": "Frontier Mug Lite",
+    "price": 52.93
+  },
+  {
+    "sku": "CAL-0955",
+    "name": "Trail Multi-Tool XL",
+    "price": 56.05
+  },
+  {
+    "sku": "CAL-0956",
+    "name": "Cedar Camp Stove Elite",
+    "price": 243.28
+  },
+  {
+    "sku": "CAL-0957",
+    "name": "Ember Pack Max",
+    "price": 209.52
+  },
+  {
+    "sku": "CAL-0958",
+    "name": "Rimrock Multi-Tool Pro",
+    "price": 19.35
+  },
+  {
+    "sku": "CAL-0959",
+    "name": "Summit Headlamp Ultra",
+    "price": 284.73
+  },
+  {
+    "sku": "CAL-0960",
+    "name": "Summit Crampons Elite",
+    "price": 53.29
+  },
+  {
+    "sku": "CAL-0961",
+    "name": "Rimrock Sleeping Bag Classic",
+    "price": 288.91
+  },
+  {
+    "sku": "CAL-0962",
+    "name": "Harbor Fleece Pullover",
+    "price": 140.98
+  },
+  {
+    "sku": "CAL-0963",
+    "name": "Meadow Tent Elite",
+    "price": 84.36
+  },
+  {
+    "sku": "CAL-0964",
+    "name": "Switchback Beanie 2.0",
+    "price": 162.31
+  },
+  {
+    "sku": "CAL-0965",
+    "name": "Basecamp Boot Max",
+    "price": 220.66
+  },
+  {
+    "sku": "CAL-0966",
+    "name": "Cascade Hammock Mini",
+    "price": 173.43
+  },
+  {
+    "sku": "CAL-0967",
+    "name": "Summit Beanie Classic",
+    "price": 58.25
+  },
+  {
+    "sku": "CAL-0968",
+    "name": "Glacier Sun Hat Mini",
+    "price": 95.96
+  },
+  {
+    "sku": "CAL-0969",
+    "name": "Juniper Base Layer",
+    "price": 345.43
+  },
+  {
+    "sku": "CAL-0970",
+    "name": "Juniper Trail Mix Pouch Elite",
+    "price": 173.65
+  },
+  {
+    "sku": "CAL-0971",
+    "name": "Juniper Fleece Pullover Elite",
+    "price": 319.57
+  },
+  {
+    "sku": "CAL-0972",
+    "name": "Granite Water Bottle Classic",
+    "price": 103.14
+  },
+  {
+    "sku": "CAL-0973",
+    "name": "Alpine Water Bottle Max",
+    "price": 85.81
+  },
+  {
+    "sku": "CAL-0974",
+    "name": "Horizon Dry Bag 2.0",
+    "price": 31.75
+  },
+  {
+    "sku": "CAL-0975",
+    "name": "Cascade Rain Shell Elite",
+    "price": 270.43
+  },
+  {
+    "sku": "CAL-0976",
+    "name": "Canyon Tent Pro",
+    "price": 95.53
+  },
+  {
+    "sku": "CAL-0977",
+    "name": "Canyon Beanie Mini",
+    "price": 287.09
+  },
+  {
+    "sku": "CAL-0978",
+    "name": "Rimrock Camp Chair",
+    "price": 269.48
+  },
+  {
+    "sku": "CAL-0979",
+    "name": "Coastal Snow Shovel Lite",
+    "price": 71.35
+  },
+  {
+    "sku": "CAL-0980",
+    "name": "Highland Water Bottle Elite",
+    "price": 320.01
+  },
+  {
+    "sku": "CAL-0981",
+    "name": "Alpine Trail Mix Pouch Elite",
+    "price": 331.33
+  },
+  {
+    "sku": "CAL-0982",
+    "name": "Glacier Multi-Tool Ultra",
+    "price": 194.7
+  },
+  {
+    "sku": "CAL-0983",
+    "name": "Switchback Fleece Pullover",
+    "price": 42.42
+  },
+  {
+    "sku": "CAL-0984",
+    "name": "Canyon Daypack XL",
+    "price": 18.72
+  },
+  {
+    "sku": "CAL-0985",
+    "name": "Cascade Jacket Elite",
+    "price": 321.33
+  },
+  {
+    "sku": "CAL-0986",
+    "name": "Northbound Trail Mix Pouch Lite",
+    "price": 321.63
+  },
+  {
+    "sku": "CAL-0987",
+    "name": "Outpost Thermal Flask Elite",
+    "price": 32.07
+  },
+  {
+    "sku": "CAL-0988",
+    "name": "Basecamp Sleeping Bag Lite",
+    "price": 272.96
+  },
+  {
+    "sku": "CAL-0989",
+    "name": "Outpost Rain Shell Elite",
+    "price": 335.71
+  },
+  {
+    "sku": "CAL-0990",
+    "name": "Coastal Trail Mix Pouch Classic",
+    "price": 209.49
+  },
+  {
+    "sku": "CAL-0991",
+    "name": "Northbound Sock Elite",
+    "price": 57.98
+  },
+  {
+    "sku": "CAL-0992",
+    "name": "Switchback Camp Chair Classic",
+    "price": 278.85
+  },
+  {
+    "sku": "CAL-0993",
+    "name": "Cascade Sun Hat Elite",
+    "price": 70.71
+  },
+  {
+    "sku": "CAL-0994",
+    "name": "Windward Trail Mix Pouch Max",
+    "price": 277.22
+  },
+  {
+    "sku": "CAL-0995",
+    "name": "Canyon Gaiter Max",
+    "price": 286.47
+  },
+  {
+    "sku": "CAL-0996",
+    "name": "Harbor Sock 2.0",
+    "price": 54.92
+  },
+  {
+    "sku": "CAL-0997",
+    "name": "Evergreen Jacket Max",
+    "price": 143.97
+  },
+  {
+    "sku": "CAL-0998",
+    "name": "Switchback Daypack Elite",
+    "price": 322.39
+  },
+  {
+    "sku": "CAL-0999",
+    "name": "Boulder Glove Max",
+    "price": 47.09
+  },
+  {
+    "sku": "CAL-1000",
+    "name": "Cascade Trekking Pole Elite",
+    "price": 263.18
+  },
+  {
+    "sku": "CAL-1001",
+    "name": "Canyon Pocket Knife Elite",
+    "price": 68.58
+  },
+  {
+    "sku": "CAL-1002",
+    "name": "Horizon Pack Elite",
+    "price": 162.51
+  },
+  {
+    "sku": "CAL-1003",
+    "name": "Timberline Headlamp XL",
+    "price": 245.6
+  },
+  {
+    "sku": "CAL-1004",
+    "name": "Evergreen Jacket",
+    "price": 142.06
+  },
+  {
+    "sku": "CAL-1005",
+    "name": "Horizon Hammock Ultra",
+    "price": 309.16
+  },
+  {
+    "sku": "CAL-1006",
+    "name": "Coastal Base Layer Classic",
+    "price": 46.18
+  },
+  {
+    "sku": "CAL-1007",
+    "name": "Cascade Dry Bag Max",
+    "price": 231.38
+  },
+  {
+    "sku": "CAL-1008",
+    "name": "Driftwood Glove Lite",
+    "price": 164.08
+  },
+  {
+    "sku": "CAL-1009",
+    "name": "Juniper Thermal Flask",
+    "price": 111.38
+  },
+  {
+    "sku": "CAL-1010",
+    "name": "Summit Water Bottle Lite",
+    "price": 311.23
+  },
+  {
+    "sku": "CAL-1011",
+    "name": "Switchback Camp Chair Pro",
+    "price": 196.35
+  },
+  {
+    "sku": "CAL-1012",
+    "name": "Boulder Daypack Ultra",
+    "price": 249.42
+  },
+  {
+    "sku": "CAL-1013",
+    "name": "Meadow Sun Hat Lite",
+    "price": 216.67
+  },
+  {
+    "sku": "CAL-1014",
+    "name": "Meadow Tent",
+    "price": 46.12
+  },
+  {
+    "sku": "CAL-1015",
+    "name": "Glacier Headlamp Classic",
+    "price": 246.96
+  },
+  {
+    "sku": "CAL-1016",
+    "name": "Evergreen Snow Shovel Mini",
+    "price": 101.39
+  },
+  {
+    "sku": "CAL-1017",
+    "name": "Pioneer Sock XL",
+    "price": 44.32
+  },
+  {
+    "sku": "CAL-1018",
+    "name": "Harbor Sleeping Bag Mini",
+    "price": 295.03
+  },
+  {
+    "sku": "CAL-1019",
+    "name": "Basecamp Boot Elite",
+    "price": 13.29
+  },
+  {
+    "sku": "CAL-1020",
+    "name": "Summit Sock Max",
+    "price": 173.87
+  },
+  {
+    "sku": "CAL-1021",
+    "name": "Ridge Jacket XL",
+    "price": 69.57
+  },
+  {
+    "sku": "CAL-1022",
+    "name": "Pioneer Pack Ultra",
+    "price": 296.35
+  },
+  {
+    "sku": "CAL-1023",
+    "name": "Pioneer Dry Bag Classic",
+    "price": 170.71
+  },
+  {
+    "sku": "CAL-1024",
+    "name": "Horizon Gaiter 2.0",
+    "price": 42.71
+  },
+  {
+    "sku": "CAL-1025",
+    "name": "Windward Camp Stove Lite",
+    "price": 137.03
+  },
+  {
+    "sku": "CAL-1026",
+    "name": "Harbor Pocket Knife Lite",
+    "price": 162.23
+  },
+  {
+    "sku": "CAL-1027",
+    "name": "Timberline Compass Ultra",
+    "price": 100.77
+  },
+  {
+    "sku": "CAL-1028",
+    "name": "Cedar Beanie Max",
+    "price": 32.77
+  },
+  {
+    "sku": "CAL-1029",
+    "name": "Sierra Trail Mix Pouch Pro",
+    "price": 40.88
+  },
+  {
+    "sku": "CAL-1030",
+    "name": "Coastal Dry Bag Mini",
+    "price": 151.51
+  },
+  {
+    "sku": "CAL-1031",
+    "name": "Sierra Sleeping Bag XL",
+    "price": 198.56
+  },
+  {
+    "sku": "CAL-1032",
+    "name": "Highland Crampons XL",
+    "price": 172.5
+  },
+  {
+    "sku": "CAL-1033",
+    "name": "Summit Camp Stove",
+    "price": 181.21
+  },
+  {
+    "sku": "CAL-1034",
+    "name": "Horizon Rain Shell Max",
+    "price": 240.33
+  },
+  {
+    "sku": "CAL-1035",
+    "name": "Boulder Trekking Pole Pro",
+    "price": 331.9
+  },
+  {
+    "sku": "CAL-1036",
+    "name": "Frontier Tent Lite",
+    "price": 339.62
+  },
+  {
+    "sku": "CAL-1037",
+    "name": "Juniper Headlamp Lite",
+    "price": 26.38
+  },
+  {
+    "sku": "CAL-1038",
+    "name": "Summit Gaiter Classic",
+    "price": 80.05
+  },
+  {
+    "sku": "CAL-1039",
+    "name": "Cedar Daypack 2.0",
+    "price": 119.76
+  },
+  {
+    "sku": "CAL-1040",
+    "name": "Evergreen Snow Shovel Pro",
+    "price": 41.33
+  },
+  {
+    "sku": "CAL-1041",
+    "name": "Northbound Thermal Flask 2.0",
+    "price": 187.13
+  },
+  {
+    "sku": "CAL-1042",
+    "name": "Rimrock Thermal Flask",
+    "price": 277.07
+  },
+  {
+    "sku": "CAL-1043",
+    "name": "Boulder Sleeping Bag Mini",
+    "price": 275.43
+  },
+  {
+    "sku": "CAL-1044",
+    "name": "Ridge Hammock Lite",
+    "price": 61.94
+  },
+  {
+    "sku": "CAL-1045",
+    "name": "Highland Sleeping Bag Pro",
+    "price": 323.7
+  },
+  {
+    "sku": "CAL-1046",
+    "name": "Highland Lantern Pro",
+    "price": 276.8
+  },
+  {
+    "sku": "CAL-1047",
+    "name": "Outpost Base Layer Elite",
+    "price": 307.85
+  },
+  {
+    "sku": "CAL-1048",
+    "name": "Timberline Camp Stove Ultra",
+    "price": 204.77
+  },
+  {
+    "sku": "CAL-1049",
+    "name": "Cascade Boot Lite",
+    "price": 104.81
+  },
+  {
+    "sku": "CAL-1050",
+    "name": "Basecamp Daypack Max",
+    "price": 241.43
+  },
+  {
+    "sku": "CAL-1051",
+    "name": "Harbor Boot Classic",
+    "price": 311.79
+  },
+  {
+    "sku": "CAL-1052",
+    "name": "Northbound Trail Mix Pouch XL",
+    "price": 28.61
+  },
+  {
+    "sku": "CAL-1053",
+    "name": "Cascade Snow Shovel 2.0",
+    "price": 314.3
+  },
+  {
+    "sku": "CAL-1054",
+    "name": "Alpine Water Bottle 2.0",
+    "price": 116.79
+  },
+  {
+    "sku": "CAL-1055",
+    "name": "Outpost Glove Lite",
+    "price": 113.26
+  },
+  {
+    "sku": "CAL-1056",
+    "name": "Evergreen Compass Elite",
+    "price": 102.79
+  },
+  {
+    "sku": "CAL-1057",
+    "name": "Meadow Daypack Pro",
+    "price": 75.33
+  },
+  {
+    "sku": "CAL-1058",
+    "name": "Glacier Snow Shovel Classic",
+    "price": 261.7
+  },
+  {
+    "sku": "CAL-1059",
+    "name": "Sierra Rain Shell Elite",
+    "price": 288.68
+  },
+  {
+    "sku": "CAL-1060",
+    "name": "Granite Dry Bag Lite",
+    "price": 34.11
+  },
+  {
+    "sku": "CAL-1061",
+    "name": "Tundra Rain Shell Classic",
+    "price": 57.71
+  },
+  {
+    "sku": "CAL-1062",
+    "name": "Outpost Rain Shell Max",
+    "price": 21.76
+  },
+  {
+    "sku": "CAL-1063",
+    "name": "Glacier Crampons XL",
+    "price": 294.06
+  },
+  {
+    "sku": "CAL-1064",
+    "name": "Canyon Boot Ultra",
+    "price": 29.04
+  },
+  {
+    "sku": "CAL-1065",
+    "name": "Coastal Trail Mix Pouch XL",
+    "price": 104.33
+  },
+  {
+    "sku": "CAL-1066",
+    "name": "Cedar Compass Mini",
+    "price": 145.77
+  },
+  {
+    "sku": "CAL-1067",
+    "name": "Rimrock Mug",
+    "price": 93.53
+  },
+  {
+    "sku": "CAL-1068",
+    "name": "Switchback Thermal Flask Ultra",
+    "price": 209.78
+  },
+  {
+    "sku": "CAL-1069",
+    "name": "Coastal Pocket Knife Lite",
+    "price": 294.29
+  },
+  {
+    "sku": "CAL-1070",
+    "name": "Timberline Camp Chair Pro",
+    "price": 108.07
+  },
+  {
+    "sku": "CAL-1071",
+    "name": "Harbor Boot Lite",
+    "price": 299.74
+  },
+  {
+    "sku": "CAL-1072",
+    "name": "Sierra Headlamp XL",
+    "price": 230.17
+  },
+  {
+    "sku": "CAL-1073",
+    "name": "Driftwood Headlamp 2.0",
+    "price": 231.58
+  },
+  {
+    "sku": "CAL-1074",
+    "name": "Granite Jacket",
+    "price": 171.77
+  },
+  {
+    "sku": "CAL-1075",
+    "name": "Basecamp Sun Hat Lite",
+    "price": 214.58
+  },
+  {
+    "sku": "CAL-1076",
+    "name": "Alpine Glove 2.0",
+    "price": 217.01
+  },
+  {
+    "sku": "CAL-1077",
+    "name": "Pioneer Trail Mix Pouch 2.0",
+    "price": 154.82
+  },
+  {
+    "sku": "CAL-1078",
+    "name": "Harbor Thermal Flask Elite",
+    "price": 166.68
+  },
+  {
+    "sku": "CAL-1079",
+    "name": "Driftwood Rain Shell Max",
+    "price": 145.84
+  },
+  {
+    "sku": "CAL-1080",
+    "name": "Ridge Jacket Mini",
+    "price": 348.81
+  },
+  {
+    "sku": "CAL-1081",
+    "name": "Cedar Multi-Tool Elite",
+    "price": 201.21
+  },
+  {
+    "sku": "CAL-1082",
+    "name": "Boulder Daypack 2.0",
+    "price": 112.59
+  },
+  {
+    "sku": "CAL-1083",
+    "name": "Ridge Fleece Pullover Pro",
+    "price": 125.33
+  },
+  {
+    "sku": "CAL-1084",
+    "name": "Timberline Sun Hat Elite",
+    "price": 302.32
+  },
+  {
+    "sku": "CAL-1085",
+    "name": "Timberline Sun Hat 2.0",
+    "price": 75.48
+  },
+  {
+    "sku": "CAL-1086",
+    "name": "Granite Lantern XL",
+    "price": 315.19
+  },
+  {
+    "sku": "CAL-1087",
+    "name": "Juniper Thermal Flask Max",
+    "price": 148.18
+  },
+  {
+    "sku": "CAL-1088",
+    "name": "Northbound Gaiter Lite",
+    "price": 255.07
+  },
+  {
+    "sku": "CAL-1089",
+    "name": "Ember Fleece Pullover 2.0",
+    "price": 99.43
+  },
+  {
+    "sku": "CAL-1090",
+    "name": "Meadow Camp Stove Classic",
+    "price": 260.28
+  },
+  {
+    "sku": "CAL-1091",
+    "name": "Highland Trail Mix Pouch Max",
+    "price": 287.0
+  },
+  {
+    "sku": "CAL-1092",
+    "name": "Northbound Camp Chair XL",
+    "price": 243.29
+  },
+  {
+    "sku": "CAL-1093",
+    "name": "Rimrock Gaiter Elite",
+    "price": 182.97
+  },
+  {
+    "sku": "CAL-1094",
+    "name": "Outpost Tent Mini",
+    "price": 73.04
+  },
+  {
+    "sku": "CAL-1095",
+    "name": "Ridge Fleece Pullover Lite",
+    "price": 261.69
+  },
+  {
+    "sku": "CAL-1096",
+    "name": "Evergreen Dry Bag Mini",
+    "price": 269.1
+  },
+  {
+    "sku": "CAL-1097",
+    "name": "Switchback Gaiter Elite",
+    "price": 232.54
+  },
+  {
+    "sku": "CAL-1098",
+    "name": "Canyon Pocket Knife XL",
+    "price": 262.8
+  },
+  {
+    "sku": "CAL-1099",
+    "name": "Pioneer Hammock Elite",
+    "price": 137.26
+  },
+  {
+    "sku": "CAL-1100",
+    "name": "Highland Sock Ultra",
+    "price": 298.86
+  },
+  {
+    "sku": "CAL-1101",
+    "name": "Cascade Boot Max",
+    "price": 207.57
+  },
+  {
+    "sku": "CAL-1102",
+    "name": "Boulder Pack Ultra",
+    "price": 311.74
+  },
+  {
+    "sku": "CAL-1103",
+    "name": "Granite Sock Classic",
+    "price": 30.22
+  },
+  {
+    "sku": "CAL-1104",
+    "name": "Glacier Water Bottle Classic",
+    "price": 344.68
+  },
+  {
+    "sku": "CAL-1105",
+    "name": "Horizon Snow Shovel Ultra",
+    "price": 60.27
+  },
+  {
+    "sku": "CAL-1106",
+    "name": "Outpost Trail Mix Pouch Lite",
+    "price": 274.5
+  },
+  {
+    "sku": "CAL-1107",
+    "name": "Cascade Water Bottle Lite",
+    "price": 117.62
+  },
+  {
+    "sku": "CAL-1108",
+    "name": "Trail Jacket Ultra",
+    "price": 104.18
+  },
+  {
+    "sku": "CAL-1109",
+    "name": "Highland Lantern Lite",
+    "price": 176.99
+  },
+  {
+    "sku": "CAL-1110",
+    "name": "Sierra Lantern Pro",
+    "price": 55.61
+  },
+  {
+    "sku": "CAL-1111",
+    "name": "Meadow Sun Hat Classic",
+    "price": 147.94
+  },
+  {
+    "sku": "CAL-1112",
+    "name": "Cascade Camp Stove",
+    "price": 24.71
+  },
+  {
+    "sku": "CAL-1113",
+    "name": "Glacier Camp Chair Elite",
+    "price": 332.17
+  },
+  {
+    "sku": "CAL-1114",
+    "name": "Horizon Water Bottle Mini",
+    "price": 76.22
+  },
+  {
+    "sku": "CAL-1115",
+    "name": "Driftwood Jacket XL",
+    "price": 88.25
+  },
+  {
+    "sku": "CAL-1116",
+    "name": "Horizon Pocket Knife 2.0",
+    "price": 55.45
+  },
+  {
+    "sku": "CAL-1117",
+    "name": "Harbor Rain Shell Max",
+    "price": 115.16
+  },
+  {
+    "sku": "CAL-1118",
+    "name": "Summit Multi-Tool",
+    "price": 112.49
+  },
+  {
+    "sku": "CAL-1119",
+    "name": "Boulder Rain Shell Elite",
+    "price": 158.15
+  },
+  {
+    "sku": "CAL-1120",
+    "name": "Driftwood Trekking Pole Elite",
+    "price": 347.7
+  },
+  {
+    "sku": "CAL-1121",
+    "name": "Cascade Pocket Knife XL",
+    "price": 67.57
+  },
+  {
+    "sku": "CAL-1122",
+    "name": "Rimrock Snow Shovel Classic",
+    "price": 18.45
+  },
+  {
+    "sku": "CAL-1123",
+    "name": "Canyon Camp Chair Lite",
+    "price": 83.17
+  },
+  {
+    "sku": "CAL-1124",
+    "name": "Alpine Sleeping Bag Mini",
+    "price": 68.95
+  },
+  {
+    "sku": "CAL-1125",
+    "name": "Coastal Trail Mix Pouch",
+    "price": 138.44
+  },
+  {
+    "sku": "CAL-1126",
+    "name": "Ember Beanie Mini",
+    "price": 222.0
+  },
+  {
+    "sku": "CAL-1127",
+    "name": "Boulder Boot Pro",
+    "price": 232.25
+  },
+  {
+    "sku": "CAL-1128",
+    "name": "Alpine Boot Pro",
+    "price": 152.45
+  },
+  {
+    "sku": "CAL-1129",
+    "name": "Harbor Mug Mini",
+    "price": 97.17
+  },
+  {
+    "sku": "CAL-1130",
+    "name": "Tundra Trekking Pole XL",
+    "price": 246.28
+  },
+  {
+    "sku": "CAL-1131",
+    "name": "Ember Jacket 2.0",
+    "price": 153.83
+  },
+  {
+    "sku": "CAL-1132",
+    "name": "Ridge Gaiter Mini",
+    "price": 102.98
+  },
+  {
+    "sku": "CAL-1133",
+    "name": "Boulder Trail Mix Pouch Lite",
+    "price": 153.14
+  },
+  {
+    "sku": "CAL-1134",
+    "name": "Evergreen Daypack Pro",
+    "price": 107.27
+  },
+  {
+    "sku": "CAL-1135",
+    "name": "Juniper Mug Ultra",
+    "price": 78.94
+  },
+  {
+    "sku": "CAL-1136",
+    "name": "Cedar Rain Shell XL",
+    "price": 132.62
+  },
+  {
+    "sku": "CAL-1137",
+    "name": "Meadow Sock Lite",
+    "price": 25.28
+  },
+  {
+    "sku": "CAL-1138",
+    "name": "Cascade Snow Shovel XL",
+    "price": 243.92
+  },
+  {
+    "sku": "CAL-1139",
+    "name": "Cascade Water Bottle XL",
+    "price": 12.92
+  },
+  {
+    "sku": "CAL-1140",
+    "name": "Driftwood Pack Pro",
+    "price": 293.47
+  },
+  {
+    "sku": "CAL-1141",
+    "name": "Driftwood Fleece Pullover Lite",
+    "price": 331.96
+  },
+  {
+    "sku": "CAL-1142",
+    "name": "Sierra Rain Shell Pro",
+    "price": 255.84
+  },
+  {
+    "sku": "CAL-1143",
+    "name": "Ridge Crampons 2.0",
+    "price": 229.14
+  },
+  {
+    "sku": "CAL-1144",
+    "name": "Frontier Sock 2.0",
+    "price": 168.46
+  },
+  {
+    "sku": "CAL-1145",
+    "name": "Ridge Multi-Tool Lite",
+    "price": 306.59
+  },
+  {
+    "sku": "CAL-1146",
+    "name": "Outpost Sock Elite",
+    "price": 282.14
+  },
+  {
+    "sku": "CAL-1147",
+    "name": "Northbound Hammock Pro",
+    "price": 44.01
+  },
+  {
+    "sku": "CAL-1148",
+    "name": "Sierra Crampons",
+    "price": 15.26
+  },
+  {
+    "sku": "CAL-1149",
+    "name": "Basecamp Gaiter Lite",
+    "price": 122.76
+  },
+  {
+    "sku": "CAL-1150",
+    "name": "Horizon Compass Max",
+    "price": 102.42
+  },
+  {
+    "sku": "CAL-1151",
+    "name": "Evergreen Pack Elite",
+    "price": 286.64
+  },
+  {
+    "sku": "CAL-1152",
+    "name": "Switchback Mug Classic",
+    "price": 146.88
+  },
+  {
+    "sku": "CAL-1153",
+    "name": "Frontier Beanie Classic",
+    "price": 244.5
+  },
+  {
+    "sku": "CAL-1154",
+    "name": "Cascade Dry Bag Classic",
+    "price": 230.66
+  },
+  {
+    "sku": "CAL-1155",
+    "name": "Basecamp Trail Mix Pouch",
+    "price": 342.79
+  },
+  {
+    "sku": "CAL-1156",
+    "name": "Outpost Tent Pro",
+    "price": 152.2
+  },
+  {
+    "sku": "CAL-1157",
+    "name": "Highland Fleece Pullover Max",
+    "price": 240.62
+  },
+  {
+    "sku": "CAL-1158",
+    "name": "Switchback Daypack Classic",
+    "price": 274.58
+  },
+  {
+    "sku": "CAL-1159",
+    "name": "Boulder Jacket Lite",
+    "price": 174.8
+  },
+  {
+    "sku": "CAL-1160",
+    "name": "Cascade Mug Classic",
+    "price": 160.51
+  },
+  {
+    "sku": "CAL-1161",
+    "name": "Summit Beanie Elite",
+    "price": 16.17
+  },
+  {
+    "sku": "CAL-1162",
+    "name": "Outpost Gaiter Mini",
+    "price": 270.66
+  },
+  {
+    "sku": "CAL-1163",
+    "name": "Highland Camp Chair Max",
+    "price": 87.48
+  },
+  {
+    "sku": "CAL-1164",
+    "name": "Driftwood Thermal Flask Elite",
+    "price": 186.94
+  },
+  {
+    "sku": "CAL-1165",
+    "name": "Tundra Trail Mix Pouch Max",
+    "price": 44.1
+  },
+  {
+    "sku": "CAL-1166",
+    "name": "Driftwood Camp Chair XL",
+    "price": 174.41
+  },
+  {
+    "sku": "CAL-1167",
+    "name": "Driftwood Gaiter Classic",
+    "price": 62.1
+  },
+  {
+    "sku": "CAL-1168",
+    "name": "Cedar Base Layer Max",
+    "price": 30.39
+  },
+  {
+    "sku": "CAL-1169",
+    "name": "Ember Snow Shovel Lite",
+    "price": 182.38
+  },
+  {
+    "sku": "CAL-1170",
+    "name": "Cascade Thermal Flask Ultra",
+    "price": 304.99
+  },
+  {
+    "sku": "CAL-1171",
+    "name": "Summit Lantern Ultra",
+    "price": 120.05
+  },
+  {
+    "sku": "CAL-1172",
+    "name": "Northbound Beanie",
+    "price": 182.84
+  },
+  {
+    "sku": "CAL-1173",
+    "name": "Windward Sun Hat Classic",
+    "price": 147.9
+  },
+  {
+    "sku": "CAL-1174",
+    "name": "Canyon Pack Ultra",
+    "price": 161.69
+  },
+  {
+    "sku": "CAL-1175",
+    "name": "Highland Compass Pro",
+    "price": 300.67
+  },
+  {
+    "sku": "CAL-1176",
+    "name": "Frontier Water Bottle Pro",
+    "price": 342.49
+  },
+  {
+    "sku": "CAL-1177",
+    "name": "Ridge Camp Stove Classic",
+    "price": 24.08
+  },
+  {
+    "sku": "CAL-1178",
+    "name": "Windward Jacket Pro",
+    "price": 278.83
+  },
+  {
+    "sku": "CAL-1179",
+    "name": "Boulder Sun Hat 2.0",
+    "price": 311.97
+  },
+  {
+    "sku": "CAL-1180",
+    "name": "Windward Headlamp Ultra",
+    "price": 332.27
+  },
+  {
+    "sku": "CAL-1181",
+    "name": "Coastal Multi-Tool",
+    "price": 287.19
+  },
+  {
+    "sku": "CAL-1182",
+    "name": "Outpost Compass Elite",
+    "price": 200.77
+  },
+  {
+    "sku": "CAL-1183",
+    "name": "Tundra Gaiter Elite",
+    "price": 253.26
+  },
+  {
+    "sku": "CAL-1184",
+    "name": "Alpine Water Bottle Elite",
+    "price": 291.67
+  },
+  {
+    "sku": "CAL-1185",
+    "name": "Juniper Sock Mini",
+    "price": 187.91
+  },
+  {
+    "sku": "CAL-1186",
+    "name": "Tundra Mug",
+    "price": 314.25
+  },
+  {
+    "sku": "CAL-1187",
+    "name": "Cascade Trekking Pole Classic",
+    "price": 48.05
+  },
+  {
+    "sku": "CAL-1188",
+    "name": "Boulder Headlamp XL",
+    "price": 52.69
+  },
+  {
+    "sku": "CAL-1189",
+    "name": "Outpost Camp Stove XL",
+    "price": 166.02
+  },
+  {
+    "sku": "CAL-1190",
+    "name": "Juniper Headlamp Elite",
+    "price": 48.32
+  },
+  {
+    "sku": "CAL-1191",
+    "name": "Ridge Lantern Ultra",
+    "price": 166.14
+  },
+  {
+    "sku": "CAL-1192",
+    "name": "Highland Rain Shell Lite",
+    "price": 336.82
+  },
+  {
+    "sku": "CAL-1193",
+    "name": "Alpine Rain Shell",
+    "price": 198.44
+  },
+  {
+    "sku": "CAL-1194",
+    "name": "Meadow Multi-Tool Max",
+    "price": 174.75
+  },
+  {
+    "sku": "CAL-1195",
+    "name": "Granite Lantern Lite",
+    "price": 245.14
+  },
+  {
+    "sku": "CAL-1196",
+    "name": "Switchback Camp Chair Lite",
+    "price": 46.9
+  },
+  {
+    "sku": "CAL-1197",
+    "name": "Driftwood Daypack Max",
+    "price": 309.47
+  },
+  {
+    "sku": "CAL-1198",
+    "name": "Granite Crampons Classic",
+    "price": 153.09
+  },
+  {
+    "sku": "CAL-1199",
+    "name": "Boulder Snow Shovel XL",
+    "price": 104.2
+  },
+  {
+    "sku": "CAL-1200",
+    "name": "Northbound Sock Ultra",
+    "price": 283.22
+  },
+  {
+    "sku": "CAL-1201",
+    "name": "Basecamp Hammock Max",
+    "price": 247.9
+  },
+  {
+    "sku": "CAL-1202",
+    "name": "Evergreen Rain Shell 2.0",
+    "price": 296.12
+  },
+  {
+    "sku": "CAL-1203",
+    "name": "Windward Thermal Flask Elite",
+    "price": 251.9
+  },
+  {
+    "sku": "CAL-1204",
+    "name": "Glacier Headlamp Max",
+    "price": 252.75
+  },
+  {
+    "sku": "CAL-1205",
+    "name": "Driftwood Pocket Knife Lite",
+    "price": 342.71
+  },
+  {
+    "sku": "CAL-1206",
+    "name": "Ember Tent Mini",
+    "price": 194.82
+  },
+  {
+    "sku": "CAL-1207",
+    "name": "Sierra Pocket Knife Mini",
+    "price": 173.88
+  },
+  {
+    "sku": "CAL-1208",
+    "name": "Pioneer Crampons Classic",
+    "price": 284.4
+  },
+  {
+    "sku": "CAL-1209",
+    "name": "Granite Mug",
+    "price": 140.35
+  },
+  {
+    "sku": "CAL-1210",
+    "name": "Trail Gaiter",
+    "price": 79.37
+  },
+  {
+    "sku": "CAL-1211",
+    "name": "Sierra Dry Bag Lite",
+    "price": 343.45
+  },
+  {
+    "sku": "CAL-1212",
+    "name": "Driftwood Beanie Lite",
+    "price": 294.87
+  },
+  {
+    "sku": "CAL-1213",
+    "name": "Tundra Dry Bag 2.0",
+    "price": 80.75
+  },
+  {
+    "sku": "CAL-1214",
+    "name": "Windward Boot Elite",
+    "price": 286.33
+  },
+  {
+    "sku": "CAL-1215",
+    "name": "Ridge Daypack Mini",
+    "price": 303.45
+  },
+  {
+    "sku": "CAL-1216",
+    "name": "Evergreen Sun Hat Mini",
+    "price": 143.05
+  },
+  {
+    "sku": "CAL-1217",
+    "name": "Granite Dry Bag 2.0",
+    "price": 245.52
+  },
+  {
+    "sku": "CAL-1218",
+    "name": "Trail Snow Shovel Classic",
+    "price": 142.61
+  },
+  {
+    "sku": "CAL-1219",
+    "name": "Windward Boot",
+    "price": 262.62
+  },
+  {
+    "sku": "CAL-1220",
+    "name": "Glacier Daypack Ultra",
+    "price": 291.7
+  },
+  {
+    "sku": "CAL-1221",
+    "name": "Rimrock Sun Hat Elite",
+    "price": 266.47
+  },
+  {
+    "sku": "CAL-1222",
+    "name": "Windward Camp Chair Max",
+    "price": 78.21
+  },
+  {
+    "sku": "CAL-1223",
+    "name": "Evergreen Headlamp 2.0",
+    "price": 163.25
+  },
+  {
+    "sku": "CAL-1224",
+    "name": "Driftwood Pack Lite",
+    "price": 336.35
+  },
+  {
+    "sku": "CAL-1225",
+    "name": "Evergreen Rain Shell Pro",
+    "price": 139.12
+  },
+  {
+    "sku": "CAL-1226",
+    "name": "Timberline Trekking Pole Lite",
+    "price": 208.8
+  },
+  {
+    "sku": "CAL-1227",
+    "name": "Timberline Jacket Elite",
+    "price": 169.15
+  },
+  {
+    "sku": "CAL-1228",
+    "name": "Rimrock Trekking Pole",
+    "price": 63.8
+  },
+  {
+    "sku": "CAL-1229",
+    "name": "Northbound Daypack",
+    "price": 272.72
+  },
+  {
+    "sku": "CAL-1230",
+    "name": "Ember Daypack 2.0",
+    "price": 177.32
+  },
+  {
+    "sku": "CAL-1231",
+    "name": "Highland Base Layer Elite",
+    "price": 36.56
+  },
+  {
+    "sku": "CAL-1232",
+    "name": "Tundra Water Bottle Mini",
+    "price": 86.13
+  },
+  {
+    "sku": "CAL-1233",
+    "name": "Switchback Rain Shell Pro",
+    "price": 276.97
+  },
+  {
+    "sku": "CAL-1234",
+    "name": "Switchback Hammock Mini",
+    "price": 192.98
+  },
+  {
+    "sku": "CAL-1235",
+    "name": "Horizon Headlamp Elite",
+    "price": 123.57
+  },
+  {
+    "sku": "CAL-1236",
+    "name": "Pioneer Headlamp Max",
+    "price": 190.78
+  },
+  {
+    "sku": "CAL-1237",
+    "name": "Ridge Gaiter Elite",
+    "price": 162.19
+  },
+  {
+    "sku": "CAL-1238",
+    "name": "Horizon Sun Hat Max",
+    "price": 321.57
+  },
+  {
+    "sku": "CAL-1239",
+    "name": "Canyon Boot Elite",
+    "price": 140.52
+  },
+  {
+    "sku": "CAL-1240",
+    "name": "Juniper Mug Classic",
+    "price": 98.47
+  },
+  {
+    "sku": "CAL-1241",
+    "name": "Evergreen Sock",
+    "price": 319.12
+  },
+  {
+    "sku": "CAL-1242",
+    "name": "Cedar Lantern Elite",
+    "price": 185.32
+  },
+  {
+    "sku": "CAL-1243",
+    "name": "Granite Compass Ultra",
+    "price": 26.78
+  },
+  {
+    "sku": "CAL-1244",
+    "name": "Horizon Sun Hat XL",
+    "price": 119.95
+  },
+  {
+    "sku": "CAL-1245",
+    "name": "Summit Mug Lite",
+    "price": 339.44
+  },
+  {
+    "sku": "CAL-1246",
+    "name": "Sierra Base Layer Mini",
+    "price": 14.47
+  },
+  {
+    "sku": "CAL-1247",
+    "name": "Summit Headlamp XL",
+    "price": 303.49
+  },
+  {
+    "sku": "CAL-1248",
+    "name": "Meadow Multi-Tool Pro",
+    "price": 81.28
+  },
+  {
+    "sku": "CAL-1249",
+    "name": "Cedar Trail Mix Pouch Classic",
+    "price": 229.89
+  },
+  {
+    "sku": "CAL-1250",
+    "name": "Summit Camp Chair Lite",
+    "price": 20.0
+  },
+  {
+    "sku": "CAL-1251",
+    "name": "Tundra Water Bottle",
+    "price": 41.49
+  },
+  {
+    "sku": "CAL-1252",
+    "name": "Trail Tent 2.0",
+    "price": 200.07
+  },
+  {
+    "sku": "CAL-1253",
+    "name": "Highland Multi-Tool XL",
+    "price": 319.0
+  },
+  {
+    "sku": "CAL-1254",
+    "name": "Meadow Camp Stove Ultra",
+    "price": 224.38
+  },
+  {
+    "sku": "CAL-1255",
+    "name": "Meadow Water Bottle",
+    "price": 143.26
+  },
+  {
+    "sku": "CAL-1256",
+    "name": "Ridge Base Layer",
+    "price": 228.16
+  },
+  {
+    "sku": "CAL-1257",
+    "name": "Boulder Pack Max",
+    "price": 27.34
+  },
+  {
+    "sku": "CAL-1258",
+    "name": "Outpost Pack Elite",
+    "price": 324.75
+  },
+  {
+    "sku": "CAL-1259",
+    "name": "Ridge Sock 2.0",
+    "price": 216.41
+  },
+  {
+    "sku": "CAL-1260",
+    "name": "Pioneer Lantern Ultra",
+    "price": 140.54
+  },
+  {
+    "sku": "CAL-1261",
+    "name": "Cedar Gaiter",
+    "price": 171.73
+  },
+  {
+    "sku": "CAL-1262",
+    "name": "Windward Glove Lite",
+    "price": 263.66
+  },
+  {
+    "sku": "CAL-1263",
+    "name": "Juniper Dry Bag Mini",
+    "price": 111.41
+  },
+  {
+    "sku": "CAL-1264",
+    "name": "Ember Trekking Pole 2.0",
+    "price": 240.25
+  },
+  {
+    "sku": "CAL-1265",
+    "name": "Rimrock Dry Bag Elite",
+    "price": 334.64
+  },
+  {
+    "sku": "CAL-1266",
+    "name": "Alpine Base Layer Mini",
+    "price": 59.64
+  },
+  {
+    "sku": "CAL-1267",
+    "name": "Trail Jacket Max",
+    "price": 213.07
+  },
+  {
+    "sku": "CAL-1268",
+    "name": "Windward Base Layer Pro",
+    "price": 114.68
+  },
+  {
+    "sku": "CAL-1269",
+    "name": "Basecamp Tent Lite",
+    "price": 86.41
+  },
+  {
+    "sku": "CAL-1270",
+    "name": "Cedar Beanie XL",
+    "price": 50.63
+  },
+  {
+    "sku": "CAL-1271",
+    "name": "Driftwood Dry Bag Max",
+    "price": 299.21
+  },
+  {
+    "sku": "CAL-1272",
+    "name": "Outpost Lantern Mini",
+    "price": 167.45
+  },
+  {
+    "sku": "CAL-1273",
+    "name": "Windward Pack 2.0",
+    "price": 238.36
+  },
+  {
+    "sku": "CAL-1274",
+    "name": "Timberline Mug XL",
+    "price": 256.52
+  },
+  {
+    "sku": "CAL-1275",
+    "name": "Cascade Water Bottle Elite",
+    "price": 55.21
+  },
+  {
+    "sku": "CAL-1276",
+    "name": "Ember Glove Pro",
+    "price": 108.09
+  },
+  {
+    "sku": "CAL-1277",
+    "name": "Summit Crampons XL",
+    "price": 119.09
+  },
+  {
+    "sku": "CAL-1278",
+    "name": "Frontier Water Bottle Max",
+    "price": 234.23
+  },
+  {
+    "sku": "CAL-1279",
+    "name": "Tundra Sleeping Bag Lite",
+    "price": 202.59
+  },
+  {
+    "sku": "CAL-1280",
+    "name": "Coastal Dry Bag Elite",
+    "price": 335.07
+  },
+  {
+    "sku": "CAL-1281",
+    "name": "Switchback Jacket Elite",
+    "price": 94.96
+  },
+  {
+    "sku": "CAL-1282",
+    "name": "Canyon Trail Mix Pouch Classic",
+    "price": 105.24
+  },
+  {
+    "sku": "CAL-1283",
+    "name": "Coastal Trekking Pole Elite",
+    "price": 307.85
+  },
+  {
+    "sku": "CAL-1284",
+    "name": "Frontier Compass Elite",
+    "price": 273.1
+  },
+  {
+    "sku": "CAL-1285",
+    "name": "Cascade Base Layer Pro",
+    "price": 71.23
+  },
+  {
+    "sku": "CAL-1286",
+    "name": "Boulder Pack 2.0",
+    "price": 301.39
+  },
+  {
+    "sku": "CAL-1287",
+    "name": "Basecamp Crampons Mini",
+    "price": 78.2
+  },
+  {
+    "sku": "CAL-1288",
+    "name": "Evergreen Crampons Pro",
+    "price": 257.14
+  },
+  {
+    "sku": "CAL-1289",
+    "name": "Horizon Jacket Mini",
+    "price": 224.86
+  },
+  {
+    "sku": "CAL-1290",
+    "name": "Cedar Sleeping Bag Max",
+    "price": 148.53
+  },
+  {
+    "sku": "CAL-1291",
+    "name": "Highland Headlamp",
+    "price": 197.89
+  },
+  {
+    "sku": "CAL-1292",
+    "name": "Windward Crampons Mini",
+    "price": 171.1
+  },
+  {
+    "sku": "CAL-1293",
+    "name": "Sierra Trekking Pole Elite",
+    "price": 144.27
+  },
+  {
+    "sku": "CAL-1294",
+    "name": "Horizon Lantern Max",
+    "price": 259.1
+  },
+  {
+    "sku": "CAL-1295",
+    "name": "Pioneer Trekking Pole Ultra",
+    "price": 180.88
+  },
+  {
+    "sku": "CAL-1296",
+    "name": "Summit Camp Stove Elite",
+    "price": 181.23
+  },
+  {
+    "sku": "CAL-1297",
+    "name": "Driftwood Glove Max",
+    "price": 242.56
+  },
+  {
+    "sku": "CAL-1298",
+    "name": "Sierra Rain Shell Lite",
+    "price": 162.38
+  },
+  {
+    "sku": "CAL-1299",
+    "name": "Switchback Sleeping Bag Max",
+    "price": 234.22
+  },
+  {
+    "sku": "CAL-1300",
+    "name": "Basecamp Camp Chair Ultra",
+    "price": 328.5
+  },
+  {
+    "sku": "CAL-1301",
+    "name": "Canyon Pack 2.0",
+    "price": 136.5
+  },
+  {
+    "sku": "CAL-1302",
+    "name": "Granite Snow Shovel Elite",
+    "price": 142.79
+  },
+  {
+    "sku": "CAL-1303",
+    "name": "Rimrock Compass",
+    "price": 25.45
+  },
+  {
+    "sku": "CAL-1304",
+    "name": "Tundra Rain Shell 2.0",
+    "price": 293.35
+  },
+  {
+    "sku": "CAL-1305",
+    "name": "Timberline Sleeping Bag Mini",
+    "price": 204.14
+  },
+  {
+    "sku": "CAL-1306",
+    "name": "Harbor Sun Hat Classic",
+    "price": 135.11
+  },
+  {
+    "sku": "CAL-1307",
+    "name": "Ember Crampons Pro",
+    "price": 186.12
+  },
+  {
+    "sku": "CAL-1308",
+    "name": "Harbor Snow Shovel XL",
+    "price": 186.02
+  },
+  {
+    "sku": "CAL-1309",
+    "name": "Coastal Multi-Tool Elite",
+    "price": 176.07
+  },
+  {
+    "sku": "CAL-1310",
+    "name": "Cascade Crampons Max",
+    "price": 14.22
+  },
+  {
+    "sku": "CAL-1311",
+    "name": "Horizon Trekking Pole Ultra",
+    "price": 67.81
+  },
+  {
+    "sku": "CAL-1312",
+    "name": "Summit Rain Shell 2.0",
+    "price": 83.28
+  },
+  {
+    "sku": "CAL-1313",
+    "name": "Switchback Tent Elite",
+    "price": 214.88
+  },
+  {
+    "sku": "CAL-1314",
+    "name": "Cedar Mug XL",
+    "price": 151.72
+  },
+  {
+    "sku": "CAL-1315",
+    "name": "Northbound Camp Chair Pro",
+    "price": 174.27
+  },
+  {
+    "sku": "CAL-1316",
+    "name": "Highland Tent Classic",
+    "price": 19.56
+  },
+  {
+    "sku": "CAL-1317",
+    "name": "Trail Trekking Pole Max",
+    "price": 211.62
+  },
+  {
+    "sku": "CAL-1318",
+    "name": "Basecamp Sun Hat Mini",
+    "price": 25.21
+  },
+  {
+    "sku": "CAL-1319",
+    "name": "Highland Trekking Pole",
+    "price": 68.06
+  },
+  {
+    "sku": "CAL-1320",
+    "name": "Rimrock Tent Mini",
+    "price": 334.93
+  },
+  {
+    "sku": "CAL-1321",
+    "name": "Boulder Sleeping Bag",
+    "price": 308.06
+  },
+  {
+    "sku": "CAL-1322",
+    "name": "Evergreen Gaiter 2.0",
+    "price": 331.22
+  },
+  {
+    "sku": "CAL-1323",
+    "name": "Glacier Compass Max",
+    "price": 346.57
+  },
+  {
+    "sku": "CAL-1324",
+    "name": "Outpost Fleece Pullover Lite",
+    "price": 85.93
+  },
+  {
+    "sku": "CAL-1325",
+    "name": "Juniper Sleeping Bag Lite",
+    "price": 222.02
+  },
+  {
+    "sku": "CAL-1326",
+    "name": "Granite Beanie Lite",
+    "price": 256.05
+  },
+  {
+    "sku": "CAL-1327",
+    "name": "Northbound Snow Shovel Ultra",
+    "price": 213.03
+  },
+  {
+    "sku": "CAL-1328",
+    "name": "Summit Glove Classic",
+    "price": 141.9
+  },
+  {
+    "sku": "CAL-1329",
+    "name": "Granite Thermal Flask Mini",
+    "price": 242.63
+  },
+  {
+    "sku": "CAL-1330",
+    "name": "Cedar Trekking Pole Max",
+    "price": 44.45
+  },
+  {
+    "sku": "CAL-1331",
+    "name": "Granite Lantern Pro",
+    "price": 43.41
+  },
+  {
+    "sku": "CAL-1332",
+    "name": "Driftwood Trekking Pole Max",
+    "price": 193.74
+  },
+  {
+    "sku": "CAL-1333",
+    "name": "Alpine Crampons Classic",
+    "price": 187.93
+  },
+  {
+    "sku": "CAL-1334",
+    "name": "Coastal Thermal Flask",
+    "price": 247.11
+  },
+  {
+    "sku": "CAL-1335",
+    "name": "Meadow Glove Ultra",
+    "price": 278.08
+  },
+  {
+    "sku": "CAL-1336",
+    "name": "Harbor Pocket Knife Max",
+    "price": 283.16
+  },
+  {
+    "sku": "CAL-1337",
+    "name": "Rimrock Lantern Max",
+    "price": 44.93
+  },
+  {
+    "sku": "CAL-1338",
+    "name": "Basecamp Beanie Ultra",
+    "price": 270.09
+  },
+  {
+    "sku": "CAL-1339",
+    "name": "Rimrock Thermal Flask Pro",
+    "price": 107.46
+  },
+  {
+    "sku": "CAL-1340",
+    "name": "Horizon Base Layer Classic",
+    "price": 98.88
+  },
+  {
+    "sku": "CAL-1341",
+    "name": "Alpine Trail Mix Pouch",
+    "price": 206.78
+  },
+  {
+    "sku": "CAL-1342",
+    "name": "Ridge Rain Shell",
+    "price": 138.39
+  },
+  {
+    "sku": "CAL-1343",
+    "name": "Glacier Trail Mix Pouch Elite",
+    "price": 149.78
+  },
+  {
+    "sku": "CAL-1344",
+    "name": "Ridge Trekking Pole Classic",
+    "price": 231.58
+  },
+  {
+    "sku": "CAL-1345",
+    "name": "Timberline Beanie Mini",
+    "price": 154.74
+  },
+  {
+    "sku": "CAL-1346",
+    "name": "Coastal Daypack 2.0",
+    "price": 346.24
+  },
+  {
+    "sku": "CAL-1347",
+    "name": "Harbor Lantern XL",
+    "price": 151.26
+  },
+  {
+    "sku": "CAL-1348",
+    "name": "Juniper Base Layer Ultra",
+    "price": 72.23
+  },
+  {
+    "sku": "CAL-1349",
+    "name": "Windward Base Layer Ultra",
+    "price": 97.52
+  },
+  {
+    "sku": "CAL-1350",
+    "name": "Pioneer Sleeping Bag Elite",
+    "price": 272.9
+  },
+  {
+    "sku": "CAL-1351",
+    "name": "Harbor Camp Chair Lite",
+    "price": 300.13
+  },
+  {
+    "sku": "CAL-1352",
+    "name": "Driftwood Mug XL",
+    "price": 162.5
+  },
+  {
+    "sku": "CAL-1353",
+    "name": "Tundra Tent Pro",
+    "price": 84.27
+  },
+  {
+    "sku": "CAL-1354",
+    "name": "Harbor Dry Bag Elite",
+    "price": 281.89
+  },
+  {
+    "sku": "CAL-1355",
+    "name": "Boulder Trail Mix Pouch",
+    "price": 66.17
+  },
+  {
+    "sku": "CAL-1356",
+    "name": "Ember Jacket Pro",
+    "price": 289.44
+  },
+  {
+    "sku": "CAL-1357",
+    "name": "Cascade Snow Shovel Max",
+    "price": 158.72
+  },
+  {
+    "sku": "CAL-1358",
+    "name": "Summit Beanie XL",
+    "price": 136.97
+  },
+  {
+    "sku": "CAL-1359",
+    "name": "Boulder Boot Classic",
+    "price": 325.64
+  },
+  {
+    "sku": "CAL-1360",
+    "name": "Harbor Daypack Mini",
+    "price": 108.54
+  },
+  {
+    "sku": "CAL-1361",
+    "name": "Boulder Boot Lite",
+    "price": 227.78
+  },
+  {
+    "sku": "CAL-1362",
+    "name": "Frontier Jacket XL",
+    "price": 298.64
+  },
+  {
+    "sku": "CAL-1363",
+    "name": "Rimrock Dry Bag Mini",
+    "price": 108.38
+  },
+  {
+    "sku": "CAL-1364",
+    "name": "Trail Dry Bag Max",
+    "price": 184.05
+  },
+  {
+    "sku": "CAL-1365",
+    "name": "Tundra Glove Max",
+    "price": 69.12
+  },
+  {
+    "sku": "CAL-1366",
+    "name": "Trail Pocket Knife XL",
+    "price": 232.74
+  },
+  {
+    "sku": "CAL-1367",
+    "name": "Switchback Pack 2.0",
+    "price": 274.75
+  },
+  {
+    "sku": "CAL-1368",
+    "name": "Coastal Gaiter Classic",
+    "price": 148.64
+  },
+  {
+    "sku": "CAL-1369",
+    "name": "Glacier Rain Shell",
+    "price": 260.34
+  },
+  {
+    "sku": "CAL-1370",
+    "name": "Summit Snow Shovel Pro",
+    "price": 197.21
+  },
+  {
+    "sku": "CAL-1371",
+    "name": "Evergreen Multi-Tool Mini",
+    "price": 320.36
+  },
+  {
+    "sku": "CAL-1372",
+    "name": "Coastal Pocket Knife 2.0",
+    "price": 88.26
+  },
+  {
+    "sku": "CAL-1373",
+    "name": "Glacier Compass Classic",
+    "price": 205.74
+  },
+  {
+    "sku": "CAL-1374",
+    "name": "Timberline Tent Classic",
+    "price": 182.6
+  },
+  {
+    "sku": "CAL-1375",
+    "name": "Windward Pack Mini",
+    "price": 111.16
+  },
+  {
+    "sku": "CAL-1376",
+    "name": "Ridge Dry Bag Mini",
+    "price": 334.41
+  },
+  {
+    "sku": "CAL-1377",
+    "name": "Horizon Base Layer Max",
+    "price": 96.3
+  },
+  {
+    "sku": "CAL-1378",
+    "name": "Frontier Camp Stove Max",
+    "price": 174.98
+  },
+  {
+    "sku": "CAL-1379",
+    "name": "Canyon Lantern Elite",
+    "price": 335.94
+  },
+  {
+    "sku": "CAL-1380",
+    "name": "Frontier Gaiter Ultra",
+    "price": 314.13
+  },
+  {
+    "sku": "CAL-1381",
+    "name": "Outpost Jacket Ultra",
+    "price": 51.18
+  },
+  {
+    "sku": "CAL-1382",
+    "name": "Summit Camp Stove XL",
+    "price": 240.12
+  },
+  {
+    "sku": "CAL-1383",
+    "name": "Canyon Dry Bag Elite",
+    "price": 150.99
+  },
+  {
+    "sku": "CAL-1384",
+    "name": "Alpine Trail Mix Pouch 2.0",
+    "price": 95.66
+  },
+  {
+    "sku": "CAL-1385",
+    "name": "Summit Base Layer Lite",
+    "price": 172.6
+  },
+  {
+    "sku": "CAL-1386",
+    "name": "Coastal Headlamp Max",
+    "price": 102.68
+  },
+  {
+    "sku": "CAL-1387",
+    "name": "Evergreen Gaiter XL",
+    "price": 180.16
+  },
+  {
+    "sku": "CAL-1388",
+    "name": "Glacier Glove XL",
+    "price": 306.11
+  },
+  {
+    "sku": "CAL-1389",
+    "name": "Cedar Glove Max",
+    "price": 131.98
+  },
+  {
+    "sku": "CAL-1390",
+    "name": "Sierra Mug Pro",
+    "price": 322.1
+  },
+  {
+    "sku": "CAL-1391",
+    "name": "Driftwood Gaiter Ultra",
+    "price": 218.86
+  },
+  {
+    "sku": "CAL-1392",
+    "name": "Sierra Thermal Flask Mini",
+    "price": 334.84
+  },
+  {
+    "sku": "CAL-1393",
+    "name": "Outpost Fleece Pullover Elite",
+    "price": 221.16
+  },
+  {
+    "sku": "CAL-1394",
+    "name": "Outpost Beanie Ultra",
+    "price": 73.63
+  },
+  {
+    "sku": "CAL-1395",
+    "name": "Timberline Camp Stove XL",
+    "price": 264.81
+  },
+  {
+    "sku": "CAL-1396",
+    "name": "Basecamp Boot Mini",
+    "price": 281.35
+  },
+  {
+    "sku": "CAL-1397",
+    "name": "Cascade Base Layer",
+    "price": 181.33
+  },
+  {
+    "sku": "CAL-1398",
+    "name": "Harbor Thermal Flask Lite",
+    "price": 166.08
+  },
+  {
+    "sku": "CAL-1399",
+    "name": "Ridge Trail Mix Pouch Mini",
+    "price": 167.04
+  },
+  {
+    "sku": "CAL-1400",
+    "name": "Tundra Jacket",
+    "price": 239.17
+  },
+  {
+    "sku": "CAL-1401",
+    "name": "Northbound Pocket Knife Max",
+    "price": 302.44
+  },
+  {
+    "sku": "CAL-1402",
+    "name": "Switchback Base Layer 2.0",
+    "price": 91.92
+  },
+  {
+    "sku": "CAL-1403",
+    "name": "Cascade Daypack Elite",
+    "price": 135.32
+  },
+  {
+    "sku": "CAL-1404",
+    "name": "Cascade Hammock XL",
+    "price": 153.23
+  },
+  {
+    "sku": "CAL-1405",
+    "name": "Outpost Camp Stove 2.0",
+    "price": 163.9
+  },
+  {
+    "sku": "CAL-1406",
+    "name": "Driftwood Glove Pro",
+    "price": 254.91
+  },
+  {
+    "sku": "CAL-1407",
+    "name": "Juniper Glove Mini",
+    "price": 157.66
+  },
+  {
+    "sku": "CAL-1408",
+    "name": "Harbor Headlamp Lite",
+    "price": 281.61
+  },
+  {
+    "sku": "CAL-1409",
+    "name": "Evergreen Trekking Pole Ultra",
+    "price": 283.51
+  },
+  {
+    "sku": "CAL-1410",
+    "name": "Windward Camp Chair Elite",
+    "price": 276.66
+  },
+  {
+    "sku": "CAL-1411",
+    "name": "Pioneer Beanie Mini",
+    "price": 301.32
+  },
+  {
+    "sku": "CAL-1412",
+    "name": "Trail Camp Stove Pro",
+    "price": 244.71
+  },
+  {
+    "sku": "CAL-1413",
+    "name": "Trail Headlamp 2.0",
+    "price": 172.59
+  },
+  {
+    "sku": "CAL-1414",
+    "name": "Evergreen Water Bottle 2.0",
+    "price": 133.64
+  },
+  {
+    "sku": "CAL-1415",
+    "name": "Windward Base Layer 2.0",
+    "price": 127.98
+  },
+  {
+    "sku": "CAL-1416",
+    "name": "Meadow Mug Elite",
+    "price": 304.3
+  },
+  {
+    "sku": "CAL-1417",
+    "name": "Boulder Headlamp Max",
+    "price": 206.08
+  },
+  {
+    "sku": "CAL-1418",
+    "name": "Sierra Sock Elite",
+    "price": 121.56
+  },
+  {
+    "sku": "CAL-1419",
+    "name": "Granite Fleece Pullover Ultra",
+    "price": 311.81
+  },
+  {
+    "sku": "CAL-1420",
+    "name": "Harbor Daypack 2.0",
+    "price": 168.28
+  },
+  {
+    "sku": "CAL-1421",
+    "name": "Basecamp Thermal Flask Lite",
+    "price": 227.88
+  },
+  {
+    "sku": "CAL-1422",
+    "name": "Rimrock Water Bottle Classic",
+    "price": 224.74
+  },
+  {
+    "sku": "CAL-1423",
+    "name": "Highland Camp Stove Pro",
+    "price": 38.66
+  },
+  {
+    "sku": "CAL-1424",
+    "name": "Northbound Glove Elite",
+    "price": 118.79
+  },
+  {
+    "sku": "CAL-1425",
+    "name": "Timberline Crampons Ultra",
+    "price": 275.19
+  },
+  {
+    "sku": "CAL-1426",
+    "name": "Coastal Camp Chair Max",
+    "price": 187.56
+  },
+  {
+    "sku": "CAL-1427",
+    "name": "Frontier Hammock Lite",
+    "price": 73.97
+  },
+  {
+    "sku": "CAL-1428",
+    "name": "Alpine Trekking Pole XL",
+    "price": 235.1
+  },
+  {
+    "sku": "CAL-1429",
+    "name": "Glacier Tent Classic",
+    "price": 46.71
+  },
+  {
+    "sku": "CAL-1430",
+    "name": "Summit Snow Shovel Ultra",
+    "price": 196.82
+  },
+  {
+    "sku": "CAL-1431",
+    "name": "Ridge Beanie Max",
+    "price": 64.33
+  },
+  {
+    "sku": "CAL-1432",
+    "name": "Ember Snow Shovel Classic",
+    "price": 116.26
+  },
+  {
+    "sku": "CAL-1433",
+    "name": "Canyon Camp Chair 2.0",
+    "price": 161.35
+  },
+  {
+    "sku": "CAL-1434",
+    "name": "Basecamp Trekking Pole Mini",
+    "price": 294.58
+  },
+  {
+    "sku": "CAL-1435",
+    "name": "Alpine Boot Elite",
+    "price": 301.94
+  },
+  {
+    "sku": "CAL-1436",
+    "name": "Northbound Thermal Flask Ultra",
+    "price": 169.44
+  },
+  {
+    "sku": "CAL-1437",
+    "name": "Outpost Base Layer 2.0",
+    "price": 196.86
+  },
+  {
+    "sku": "CAL-1438",
+    "name": "Basecamp Trail Mix Pouch Mini",
+    "price": 71.66
+  },
+  {
+    "sku": "CAL-1439",
+    "name": "Boulder Compass Max",
+    "price": 158.59
+  },
+  {
+    "sku": "CAL-1440",
+    "name": "Ember Sun Hat Mini",
+    "price": 116.36
+  },
+  {
+    "sku": "CAL-1441",
+    "name": "Canyon Dry Bag Pro",
+    "price": 160.91
+  },
+  {
+    "sku": "CAL-1442",
+    "name": "Coastal Hammock 2.0",
+    "price": 64.48
+  },
+  {
+    "sku": "CAL-1443",
+    "name": "Cedar Lantern Lite",
+    "price": 127.89
+  },
+  {
+    "sku": "CAL-1444",
+    "name": "Tundra Snow Shovel Ultra",
+    "price": 331.12
+  },
+  {
+    "sku": "CAL-1445",
+    "name": "Cascade Sock",
+    "price": 270.1
+  },
+  {
+    "sku": "CAL-1446",
+    "name": "Juniper Sock Max",
+    "price": 89.92
+  },
+  {
+    "sku": "CAL-1447",
+    "name": "Alpine Base Layer Elite",
+    "price": 75.55
+  },
+  {
+    "sku": "CAL-1448",
+    "name": "Harbor Glove Lite",
+    "price": 252.93
+  },
+  {
+    "sku": "CAL-1449",
+    "name": "Ember Camp Stove Classic",
+    "price": 86.34
+  },
+  {
+    "sku": "CAL-1450",
+    "name": "Summit Hammock XL",
+    "price": 186.1
+  },
+  {
+    "sku": "CAL-1451",
+    "name": "Juniper Snow Shovel Max",
+    "price": 284.15
+  },
+  {
+    "sku": "CAL-1452",
+    "name": "Driftwood Beanie 2.0",
+    "price": 230.53
+  },
+  {
+    "sku": "CAL-1453",
+    "name": "Windward Dry Bag 2.0",
+    "price": 151.15
+  },
+  {
+    "sku": "CAL-1454",
+    "name": "Outpost Pack Lite",
+    "price": 58.04
+  },
+  {
+    "sku": "CAL-1455",
+    "name": "Ridge Sun Hat Ultra",
+    "price": 220.17
+  },
+  {
+    "sku": "CAL-1456",
+    "name": "Timberline Trail Mix Pouch Max",
+    "price": 177.8
+  },
+  {
+    "sku": "CAL-1457",
+    "name": "Northbound Jacket Lite",
+    "price": 28.73
+  },
+  {
+    "sku": "CAL-1458",
+    "name": "Windward Jacket Lite",
+    "price": 339.68
+  },
+  {
+    "sku": "CAL-1459",
+    "name": "Pioneer Beanie Lite",
+    "price": 253.02
+  },
+  {
+    "sku": "CAL-1460",
+    "name": "Evergreen Jacket XL",
+    "price": 42.4
+  },
+  {
+    "sku": "CAL-1461",
+    "name": "Alpine Fleece Pullover XL",
+    "price": 127.22
+  },
+  {
+    "sku": "CAL-1462",
+    "name": "Pioneer Dry Bag Ultra",
+    "price": 348.31
+  },
+  {
+    "sku": "CAL-1463",
+    "name": "Frontier Trail Mix Pouch",
+    "price": 123.29
+  },
+  {
+    "sku": "CAL-1464",
+    "name": "Trail Beanie Classic",
+    "price": 36.06
+  },
+  {
+    "sku": "CAL-1465",
+    "name": "Cascade Tent XL",
+    "price": 313.85
+  },
+  {
+    "sku": "CAL-1466",
+    "name": "Timberline Multi-Tool Classic",
+    "price": 291.12
+  },
+  {
+    "sku": "CAL-1467",
+    "name": "Harbor Lantern Ultra",
+    "price": 95.29
+  },
+  {
+    "sku": "CAL-1468",
+    "name": "Trail Headlamp Ultra",
+    "price": 259.8
+  },
+  {
+    "sku": "CAL-1469",
+    "name": "Ridge Rain Shell XL",
+    "price": 171.34
+  },
+  {
+    "sku": "CAL-1470",
+    "name": "Driftwood Sock Elite",
+    "price": 65.45
+  },
+  {
+    "sku": "CAL-1471",
+    "name": "Evergreen Boot Mini",
+    "price": 187.55
+  },
+  {
+    "sku": "CAL-1472",
+    "name": "Timberline Fleece Pullover 2.0",
+    "price": 78.97
+  },
+  {
+    "sku": "CAL-1473",
+    "name": "Horizon Boot XL",
+    "price": 339.99
+  },
+  {
+    "sku": "CAL-1474",
+    "name": "Canyon Sun Hat Classic",
+    "price": 121.36
+  },
+  {
+    "sku": "CAL-1475",
+    "name": "Switchback Dry Bag 2.0",
+    "price": 209.04
+  },
+  {
+    "sku": "CAL-1476",
+    "name": "Harbor Dry Bag XL",
+    "price": 15.01
+  },
+  {
+    "sku": "CAL-1477",
+    "name": "Trail Sleeping Bag Ultra",
+    "price": 243.99
+  },
+  {
+    "sku": "CAL-1478",
+    "name": "Basecamp Pocket Knife Pro",
+    "price": 95.82
+  },
+  {
+    "sku": "CAL-1479",
+    "name": "Cascade Pack Max",
+    "price": 126.05
+  },
+  {
+    "sku": "CAL-1480",
+    "name": "Sierra Sun Hat",
+    "price": 32.14
+  },
+  {
+    "sku": "CAL-1481",
+    "name": "Ember Trekking Pole Mini",
+    "price": 278.72
+  },
+  {
+    "sku": "CAL-1482",
+    "name": "Basecamp Fleece Pullover XL",
+    "price": 118.74
+  },
+  {
+    "sku": "CAL-1483",
+    "name": "Windward Dry Bag Elite",
+    "price": 283.46
+  },
+  {
+    "sku": "CAL-1484",
+    "name": "Frontier Camp Chair XL",
+    "price": 19.2
+  },
+  {
+    "sku": "CAL-1485",
+    "name": "Windward Sock Mini",
+    "price": 246.9
+  },
+  {
+    "sku": "CAL-1486",
+    "name": "Glacier Sleeping Bag Lite",
+    "price": 195.2
+  },
+  {
+    "sku": "CAL-1487",
+    "name": "Northbound Camp Chair Ultra",
+    "price": 104.78
+  },
+  {
+    "sku": "CAL-1488",
+    "name": "Cedar Daypack Mini",
+    "price": 66.04
+  },
+  {
+    "sku": "CAL-1489",
+    "name": "Granite Trekking Pole Ultra",
+    "price": 111.64
+  },
+  {
+    "sku": "CAL-1490",
+    "name": "Timberline Base Layer Elite",
+    "price": 165.02
+  },
+  {
+    "sku": "CAL-1491",
+    "name": "Sierra Sun Hat Mini",
+    "price": 139.74
+  },
+  {
+    "sku": "CAL-1492",
+    "name": "Switchback Crampons",
+    "price": 220.85
+  },
+  {
+    "sku": "CAL-1493",
+    "name": "Coastal Lantern Max",
+    "price": 92.47
+  },
+  {
+    "sku": "CAL-1494",
+    "name": "Evergreen Pack Mini",
+    "price": 288.02
+  },
+  {
+    "sku": "CAL-1495",
+    "name": "Boulder Sock Elite",
+    "price": 150.1
+  },
+  {
+    "sku": "CAL-1496",
+    "name": "Granite Gaiter Pro",
+    "price": 26.75
+  },
+  {
+    "sku": "CAL-1497",
+    "name": "Basecamp Tent",
+    "price": 80.1
+  },
+  {
+    "sku": "CAL-1498",
+    "name": "Cascade Headlamp Pro",
+    "price": 22.72
+  },
+  {
+    "sku": "CAL-1499",
+    "name": "Boulder Trail Mix Pouch Max",
+    "price": 98.25
+  },
+  {
+    "sku": "CAL-1500",
+    "name": "Coastal Glove Max",
+    "price": 253.91
+  },
+  {
+    "sku": "CAL-1501",
+    "name": "Alpine Snow Shovel XL",
+    "price": 232.99
+  },
+  {
+    "sku": "CAL-1502",
+    "name": "Rimrock Crampons Pro",
+    "price": 169.74
+  },
+  {
+    "sku": "CAL-1503",
+    "name": "Ember Boot Elite",
+    "price": 200.05
+  },
+  {
+    "sku": "CAL-1504",
+    "name": "Juniper Trail Mix Pouch",
+    "price": 289.57
+  },
+  {
+    "sku": "CAL-1505",
+    "name": "Timberline Rain Shell",
+    "price": 259.46
+  },
+  {
+    "sku": "CAL-1506",
+    "name": "Cedar Sock Pro",
+    "price": 330.33
+  },
+  {
+    "sku": "CAL-1507",
+    "name": "Granite Mug Pro",
+    "price": 256.38
+  },
+  {
+    "sku": "CAL-1508",
+    "name": "Windward Camp Stove XL",
+    "price": 77.08
+  },
+  {
+    "sku": "CAL-1509",
+    "name": "Evergreen Base Layer Classic",
+    "price": 263.44
+  },
+  {
+    "sku": "CAL-1510",
+    "name": "Sierra Sun Hat Max",
+    "price": 132.63
+  },
+  {
+    "sku": "CAL-1511",
+    "name": "Frontier Trail Mix Pouch Classic",
+    "price": 309.51
+  },
+  {
+    "sku": "CAL-1512",
+    "name": "Switchback Dry Bag Lite",
+    "price": 197.34
+  },
+  {
+    "sku": "CAL-1513",
+    "name": "Granite Water Bottle Lite",
+    "price": 191.92
+  },
+  {
+    "sku": "CAL-1514",
+    "name": "Northbound Thermal Flask Elite",
+    "price": 150.96
+  },
+  {
+    "sku": "CAL-1515",
+    "name": "Ember Hammock Elite",
+    "price": 217.04
+  },
+  {
+    "sku": "CAL-1516",
+    "name": "Highland Base Layer XL",
+    "price": 138.4
+  },
+  {
+    "sku": "CAL-1517",
+    "name": "Windward Snow Shovel 2.0",
+    "price": 133.32
+  },
+  {
+    "sku": "CAL-1518",
+    "name": "Frontier Compass Classic",
+    "price": 12.07
+  },
+  {
+    "sku": "CAL-1519",
+    "name": "Trail Sock Max",
+    "price": 17.49
+  },
+  {
+    "sku": "CAL-1520",
+    "name": "Basecamp Crampons 2.0",
+    "price": 14.21
+  },
+  {
+    "sku": "CAL-1521",
+    "name": "Canyon Headlamp Elite",
+    "price": 19.31
+  },
+  {
+    "sku": "CAL-1522",
+    "name": "Rimrock Base Layer Mini",
+    "price": 199.48
+  },
+  {
+    "sku": "CAL-1523",
+    "name": "Rimrock Sleeping Bag Lite",
+    "price": 43.77
+  },
+  {
+    "sku": "CAL-1524",
+    "name": "Frontier Pocket Knife Lite",
+    "price": 58.64
+  },
+  {
+    "sku": "CAL-1525",
+    "name": "Coastal Crampons Max",
+    "price": 96.2
+  },
+  {
+    "sku": "CAL-1526",
+    "name": "Timberline Dry Bag 2.0",
+    "price": 42.97
+  },
+  {
+    "sku": "CAL-1527",
+    "name": "Juniper Fleece Pullover Lite",
+    "price": 176.55
+  },
+  {
+    "sku": "CAL-1528",
+    "name": "Horizon Trail Mix Pouch Max",
+    "price": 288.18
+  },
+  {
+    "sku": "CAL-1529",
+    "name": "Ridge Daypack 2.0",
+    "price": 24.59
+  },
+  {
+    "sku": "CAL-1530",
+    "name": "Juniper Sleeping Bag Classic",
+    "price": 38.45
+  },
+  {
+    "sku": "CAL-1531",
+    "name": "Trail Snow Shovel Elite",
+    "price": 129.25
+  },
+  {
+    "sku": "CAL-1532",
+    "name": "Cedar Hammock Classic",
+    "price": 325.49
+  },
+  {
+    "sku": "CAL-1533",
+    "name": "Ridge Thermal Flask XL",
+    "price": 263.97
+  },
+  {
+    "sku": "CAL-1534",
+    "name": "Outpost Daypack",
+    "price": 225.62
+  },
+  {
+    "sku": "CAL-1535",
+    "name": "Ember Camp Stove",
+    "price": 114.71
+  },
+  {
+    "sku": "CAL-1536",
+    "name": "Trail Water Bottle Mini",
+    "price": 202.38
+  },
+  {
+    "sku": "CAL-1537",
+    "name": "Northbound Rain Shell XL",
+    "price": 63.63
+  },
+  {
+    "sku": "CAL-1538",
+    "name": "Driftwood Camp Chair Classic",
+    "price": 339.24
+  },
+  {
+    "sku": "CAL-1539",
+    "name": "Sierra Daypack Max",
+    "price": 182.09
+  },
+  {
+    "sku": "CAL-1540",
+    "name": "Canyon Hammock 2.0",
+    "price": 277.01
+  },
+  {
+    "sku": "CAL-1541",
+    "name": "Basecamp Trekking Pole Elite",
+    "price": 39.82
+  },
+  {
+    "sku": "CAL-1542",
+    "name": "Highland Camp Chair",
+    "price": 196.73
+  },
+  {
+    "sku": "CAL-1543",
+    "name": "Timberline Pack Classic",
+    "price": 181.11
+  },
+  {
+    "sku": "CAL-1544",
+    "name": "Sierra Trail Mix Pouch Lite",
+    "price": 268.81
+  },
+  {
+    "sku": "CAL-1545",
+    "name": "Cascade Base Layer XL",
+    "price": 176.41
+  },
+  {
+    "sku": "CAL-1546",
+    "name": "Windward Daypack Mini",
+    "price": 94.98
+  },
+  {
+    "sku": "CAL-1547",
+    "name": "Northbound Gaiter Max",
+    "price": 42.19
+  },
+  {
+    "sku": "CAL-1548",
+    "name": "Driftwood Hammock Classic",
+    "price": 135.1
+  },
+  {
+    "sku": "CAL-1549",
+    "name": "Glacier Water Bottle Elite",
+    "price": 212.14
+  },
+  {
+    "sku": "CAL-1550",
+    "name": "Switchback Pocket Knife Max",
+    "price": 288.87
+  },
+  {
+    "sku": "CAL-1551",
+    "name": "Juniper Compass Max",
+    "price": 61.14
+  },
+  {
+    "sku": "CAL-1552",
+    "name": "Trail Snow Shovel XL",
+    "price": 79.29
+  },
+  {
+    "sku": "CAL-1553",
+    "name": "Coastal Trekking Pole Pro",
+    "price": 49.87
+  },
+  {
+    "sku": "CAL-1554",
+    "name": "Trail Glove Max",
+    "price": 324.31
+  },
+  {
+    "sku": "CAL-1555",
+    "name": "Outpost Multi-Tool 2.0",
+    "price": 16.63
+  },
+  {
+    "sku": "CAL-1556",
+    "name": "Tundra Dry Bag Pro",
+    "price": 114.82
+  },
+  {
+    "sku": "CAL-1557",
+    "name": "Glacier Camp Chair Mini",
+    "price": 83.4
+  },
+  {
+    "sku": "CAL-1558",
+    "name": "Windward Rain Shell 2.0",
+    "price": 196.95
+  },
+  {
+    "sku": "CAL-1559",
+    "name": "Boulder Camp Chair Lite",
+    "price": 246.24
+  },
+  {
+    "sku": "CAL-1560",
+    "name": "Driftwood Jacket Classic",
+    "price": 208.47
+  },
+  {
+    "sku": "CAL-1561",
+    "name": "Driftwood Rain Shell",
+    "price": 98.09
+  },
+  {
+    "sku": "CAL-1562",
+    "name": "Trail Sock XL",
+    "price": 277.96
+  },
+  {
+    "sku": "CAL-1563",
+    "name": "Boulder Beanie",
+    "price": 168.69
+  },
+  {
+    "sku": "CAL-1564",
+    "name": "Outpost Mug",
+    "price": 110.57
+  },
+  {
+    "sku": "CAL-1565",
+    "name": "Horizon Sun Hat Classic",
+    "price": 89.9
+  },
+  {
+    "sku": "CAL-1566",
+    "name": "Horizon Water Bottle Ultra",
+    "price": 304.1
+  },
+  {
+    "sku": "CAL-1567",
+    "name": "Windward Pack Lite",
+    "price": 79.02
+  },
+  {
+    "sku": "CAL-1568",
+    "name": "Frontier Base Layer",
+    "price": 25.4
+  },
+  {
+    "sku": "CAL-1569",
+    "name": "Rimrock Rain Shell 2.0",
+    "price": 124.41
+  },
+  {
+    "sku": "CAL-1570",
+    "name": "Coastal Sun Hat 2.0",
+    "price": 91.6
+  },
+  {
+    "sku": "CAL-1571",
+    "name": "Granite Beanie",
+    "price": 222.89
+  },
+  {
+    "sku": "CAL-1572",
+    "name": "Horizon Camp Stove",
+    "price": 330.17
+  },
+  {
+    "sku": "CAL-1573",
+    "name": "Timberline Glove Lite",
+    "price": 127.18
+  },
+  {
+    "sku": "CAL-1574",
+    "name": "Harbor Gaiter Lite",
+    "price": 41.59
+  },
+  {
+    "sku": "CAL-1575",
+    "name": "Outpost Sun Hat XL",
+    "price": 152.64
+  },
+  {
+    "sku": "CAL-1576",
+    "name": "Pioneer Snow Shovel Max",
+    "price": 122.97
+  },
+  {
+    "sku": "CAL-1577",
+    "name": "Windward Trekking Pole XL",
+    "price": 231.88
+  },
+  {
+    "sku": "CAL-1578",
+    "name": "Outpost Trekking Pole 2.0",
+    "price": 244.04
+  },
+  {
+    "sku": "CAL-1579",
+    "name": "Horizon Rain Shell Lite",
+    "price": 156.93
+  },
+  {
+    "sku": "CAL-1580",
+    "name": "Rimrock Lantern Lite",
+    "price": 233.15
+  },
+  {
+    "sku": "CAL-1581",
+    "name": "Highland Snow Shovel Lite",
+    "price": 119.0
+  },
+  {
+    "sku": "CAL-1582",
+    "name": "Switchback Water Bottle Lite",
+    "price": 257.03
+  },
+  {
+    "sku": "CAL-1583",
+    "name": "Sierra Water Bottle Classic",
+    "price": 335.92
+  },
+  {
+    "sku": "CAL-1584",
+    "name": "Pioneer Compass 2.0",
+    "price": 63.21
+  },
+  {
+    "sku": "CAL-1585",
+    "name": "Switchback Jacket Max",
+    "price": 219.91
+  },
+  {
+    "sku": "CAL-1586",
+    "name": "Boulder Sleeping Bag Max",
+    "price": 89.82
+  },
+  {
+    "sku": "CAL-1587",
+    "name": "Coastal Pack Ultra",
+    "price": 57.19
+  },
+  {
+    "sku": "CAL-1588",
+    "name": "Outpost Daypack Ultra",
+    "price": 251.95
+  },
+  {
+    "sku": "CAL-1589",
+    "name": "Coastal Tent Classic",
+    "price": 177.62
+  },
+  {
+    "sku": "CAL-1590",
+    "name": "Basecamp Tent XL",
+    "price": 88.25
+  },
+  {
+    "sku": "CAL-1591",
+    "name": "Meadow Lantern",
+    "price": 323.87
+  },
+  {
+    "sku": "CAL-1592",
+    "name": "Meadow Glove XL",
+    "price": 267.37
+  },
+  {
+    "sku": "CAL-1593",
+    "name": "Summit Tent Ultra",
+    "price": 304.22
+  },
+  {
+    "sku": "CAL-1594",
+    "name": "Cascade Trail Mix Pouch Elite",
+    "price": 304.1
+  },
+  {
+    "sku": "CAL-1595",
+    "name": "Horizon Glove Classic",
+    "price": 148.44
+  },
+  {
+    "sku": "CAL-1596",
+    "name": "Trail Daypack Classic",
+    "price": 254.71
+  },
+  {
+    "sku": "CAL-1597",
+    "name": "Harbor Daypack Max",
+    "price": 212.11
+  },
+  {
+    "sku": "CAL-1598",
+    "name": "Granite Sun Hat",
+    "price": 187.46
+  },
+  {
+    "sku": "CAL-1599",
+    "name": "Frontier Compass",
+    "price": 307.81
+  },
+  {
+    "sku": "CAL-1600",
+    "name": "Canyon Rain Shell Mini",
+    "price": 145.32
+  },
+  {
+    "sku": "CAL-1601",
+    "name": "Glacier Sock Ultra",
+    "price": 146.14
+  },
+  {
+    "sku": "CAL-1602",
+    "name": "Pioneer Lantern 2.0",
+    "price": 167.47
+  },
+  {
+    "sku": "CAL-1603",
+    "name": "Meadow Sock Max",
+    "price": 321.71
+  },
+  {
+    "sku": "CAL-1604",
+    "name": "Tundra Rain Shell Lite",
+    "price": 168.23
+  },
+  {
+    "sku": "CAL-1605",
+    "name": "Ember Compass Pro",
+    "price": 255.53
+  },
+  {
+    "sku": "CAL-1606",
+    "name": "Ridge Tent Max",
+    "price": 328.05
+  },
+  {
+    "sku": "CAL-1607",
+    "name": "Tundra Base Layer Lite",
+    "price": 144.46
+  },
+  {
+    "sku": "CAL-1608",
+    "name": "Northbound Compass",
+    "price": 72.28
+  },
+  {
+    "sku": "CAL-1609",
+    "name": "Horizon Compass Pro",
+    "price": 96.28
+  },
+  {
+    "sku": "CAL-1610",
+    "name": "Tundra Sun Hat Lite",
+    "price": 254.09
+  },
+  {
+    "sku": "CAL-1611",
+    "name": "Ridge Pack Pro",
+    "price": 250.0
+  },
+  {
+    "sku": "CAL-1612",
+    "name": "Ember Pocket Knife Pro",
+    "price": 188.53
+  },
+  {
+    "sku": "CAL-1613",
+    "name": "Harbor Camp Chair Mini",
+    "price": 218.27
+  },
+  {
+    "sku": "CAL-1614",
+    "name": "Rimrock Water Bottle Max",
+    "price": 305.63
+  },
+  {
+    "sku": "CAL-1615",
+    "name": "Sierra Trail Mix Pouch",
+    "price": 153.4
+  },
+  {
+    "sku": "CAL-1616",
+    "name": "Pioneer Camp Chair Ultra",
+    "price": 109.32
+  },
+  {
+    "sku": "CAL-1617",
+    "name": "Switchback Mug Lite",
+    "price": 335.67
+  },
+  {
+    "sku": "CAL-1618",
+    "name": "Alpine Daypack 2.0",
+    "price": 16.11
+  },
+  {
+    "sku": "CAL-1619",
+    "name": "Windward Dry Bag",
+    "price": 216.89
+  },
+  {
+    "sku": "CAL-1620",
+    "name": "Frontier Hammock Ultra",
+    "price": 38.76
+  },
+  {
+    "sku": "CAL-1621",
+    "name": "Boulder Jacket XL",
+    "price": 309.29
+  },
+  {
+    "sku": "CAL-1622",
+    "name": "Cedar Multi-Tool XL",
+    "price": 28.49
+  },
+  {
+    "sku": "CAL-1623",
+    "name": "Trail Trekking Pole",
+    "price": 236.78
+  },
+  {
+    "sku": "CAL-1624",
+    "name": "Northbound Snow Shovel Pro",
+    "price": 28.52
+  },
+  {
+    "sku": "CAL-1625",
+    "name": "Meadow Tent Lite",
+    "price": 238.49
+  },
+  {
+    "sku": "CAL-1626",
+    "name": "Boulder Gaiter Max",
+    "price": 204.86
+  },
+  {
+    "sku": "CAL-1627",
+    "name": "Windward Tent Ultra",
+    "price": 264.53
+  },
+  {
+    "sku": "CAL-1628",
+    "name": "Coastal Snow Shovel",
+    "price": 43.38
+  },
+  {
+    "sku": "CAL-1629",
+    "name": "Pioneer Water Bottle Elite",
+    "price": 314.47
+  },
+  {
+    "sku": "CAL-1630",
+    "name": "Cedar Pack Classic",
+    "price": 296.2
+  },
+  {
+    "sku": "CAL-1631",
+    "name": "Summit Sock Ultra",
+    "price": 57.34
+  },
+  {
+    "sku": "CAL-1632",
+    "name": "Tundra Thermal Flask 2.0",
+    "price": 122.94
+  },
+  {
+    "sku": "CAL-1633",
+    "name": "Meadow Rain Shell XL",
+    "price": 246.49
+  },
+  {
+    "sku": "CAL-1634",
+    "name": "Summit Fleece Pullover Max",
+    "price": 326.72
+  },
+  {
+    "sku": "CAL-1635",
+    "name": "Tundra Sock Classic",
+    "price": 217.18
+  },
+  {
+    "sku": "CAL-1636",
+    "name": "Northbound Beanie Mini",
+    "price": 205.82
+  },
+  {
+    "sku": "CAL-1637",
+    "name": "Boulder Pocket Knife Lite",
+    "price": 219.02
+  },
+  {
+    "sku": "CAL-1638",
+    "name": "Cascade Rain Shell Ultra",
+    "price": 177.97
+  },
+  {
+    "sku": "CAL-1639",
+    "name": "Switchback Crampons Max",
+    "price": 90.43
+  },
+  {
+    "sku": "CAL-1640",
+    "name": "Pioneer Headlamp",
+    "price": 51.84
+  },
+  {
+    "sku": "CAL-1641",
+    "name": "Frontier Sun Hat Pro",
+    "price": 260.53
+  },
+  {
+    "sku": "CAL-1642",
+    "name": "Glacier Dry Bag Max",
+    "price": 348.66
+  },
+  {
+    "sku": "CAL-1643",
+    "name": "Meadow Boot Elite",
+    "price": 129.83
+  },
+  {
+    "sku": "CAL-1644",
+    "name": "Juniper Sun Hat XL",
+    "price": 15.81
+  },
+  {
+    "sku": "CAL-1645",
+    "name": "Glacier Trail Mix Pouch 2.0",
+    "price": 97.74
+  },
+  {
+    "sku": "CAL-1646",
+    "name": "Summit Sock 2.0",
+    "price": 182.75
+  },
+  {
+    "sku": "CAL-1647",
+    "name": "Northbound Lantern",
+    "price": 50.36
+  },
+  {
+    "sku": "CAL-1648",
+    "name": "Evergreen Sleeping Bag Max",
+    "price": 335.56
+  },
+  {
+    "sku": "CAL-1649",
+    "name": "Cedar Tent XL",
+    "price": 123.38
+  },
+  {
+    "sku": "CAL-1650",
+    "name": "Ember Trekking Pole Ultra",
+    "price": 64.37
+  },
+  {
+    "sku": "CAL-1651",
+    "name": "Frontier Crampons Mini",
+    "price": 313.93
+  },
+  {
+    "sku": "CAL-1652",
+    "name": "Frontier Dry Bag Classic",
+    "price": 324.67
+  },
+  {
+    "sku": "CAL-1653",
+    "name": "Trail Multi-Tool Mini",
+    "price": 112.88
+  },
+  {
+    "sku": "CAL-1654",
+    "name": "Evergreen Gaiter Elite",
+    "price": 199.09
+  },
+  {
+    "sku": "CAL-1655",
+    "name": "Alpine Headlamp Max",
+    "price": 243.01
+  },
+  {
+    "sku": "CAL-1656",
+    "name": "Juniper Snow Shovel Elite",
+    "price": 34.31
+  },
+  {
+    "sku": "CAL-1657",
+    "name": "Basecamp Beanie",
+    "price": 126.29
+  },
+  {
+    "sku": "CAL-1658",
+    "name": "Harbor Sun Hat Mini",
+    "price": 295.89
+  },
+  {
+    "sku": "CAL-1659",
+    "name": "Highland Daypack Classic",
+    "price": 75.15
+  },
+  {
+    "sku": "CAL-1660",
+    "name": "Ridge Thermal Flask 2.0",
+    "price": 249.67
+  },
+  {
+    "sku": "CAL-1661",
+    "name": "Northbound Trail Mix Pouch",
+    "price": 103.49
+  },
+  {
+    "sku": "CAL-1662",
+    "name": "Summit Fleece Pullover XL",
+    "price": 137.22
+  },
+  {
+    "sku": "CAL-1663",
+    "name": "Cedar Sock XL",
+    "price": 188.96
+  },
+  {
+    "sku": "CAL-1664",
+    "name": "Switchback Mug Elite",
+    "price": 276.53
+  },
+  {
+    "sku": "CAL-1665",
+    "name": "Sierra Headlamp Pro",
+    "price": 161.55
+  },
+  {
+    "sku": "CAL-1666",
+    "name": "Alpine Dry Bag Ultra",
+    "price": 316.97
+  },
+  {
+    "sku": "CAL-1667",
+    "name": "Basecamp Headlamp Elite",
+    "price": 323.27
+  },
+  {
+    "sku": "CAL-1668",
+    "name": "Evergreen Thermal Flask Mini",
+    "price": 116.59
+  },
+  {
+    "sku": "CAL-1669",
+    "name": "Northbound Trekking Pole Pro",
+    "price": 289.06
+  },
+  {
+    "sku": "CAL-1670",
+    "name": "Granite Gaiter Lite",
+    "price": 81.15
+  },
+  {
+    "sku": "CAL-1671",
+    "name": "Trail Compass Classic",
+    "price": 252.51
+  },
+  {
+    "sku": "CAL-1672",
+    "name": "Pioneer Snow Shovel",
+    "price": 243.54
+  },
+  {
+    "sku": "CAL-1673",
+    "name": "Ridge Rain Shell 2.0",
+    "price": 19.58
+  },
+  {
+    "sku": "CAL-1674",
+    "name": "Sierra Sock XL",
+    "price": 120.14
+  },
+  {
+    "sku": "CAL-1675",
+    "name": "Glacier Sock 2.0",
+    "price": 191.38
+  },
+  {
+    "sku": "CAL-1676",
+    "name": "Sierra Compass Pro",
+    "price": 103.88
+  },
+  {
+    "sku": "CAL-1677",
+    "name": "Switchback Beanie Pro",
+    "price": 17.14
+  },
+  {
+    "sku": "CAL-1678",
+    "name": "Boulder Base Layer Mini",
+    "price": 46.5
+  },
+  {
+    "sku": "CAL-1679",
+    "name": "Windward Pocket Knife Mini",
+    "price": 119.33
+  },
+  {
+    "sku": "CAL-1680",
+    "name": "Highland Glove Lite",
+    "price": 36.01
+  },
+  {
+    "sku": "CAL-1681",
+    "name": "Boulder Crampons Elite",
+    "price": 194.17
+  },
+  {
+    "sku": "CAL-1682",
+    "name": "Cascade Crampons",
+    "price": 47.7
+  },
+  {
+    "sku": "CAL-1683",
+    "name": "Trail Pack Classic",
+    "price": 144.08
+  },
+  {
+    "sku": "CAL-1684",
+    "name": "Tundra Daypack Max",
+    "price": 224.13
+  },
+  {
+    "sku": "CAL-1685",
+    "name": "Boulder Pocket Knife 2.0",
+    "price": 124.0
+  },
+  {
+    "sku": "CAL-1686",
+    "name": "Highland Trekking Pole Pro",
+    "price": 285.93
+  },
+  {
+    "sku": "CAL-1687",
+    "name": "Rimrock Trail Mix Pouch Ultra",
+    "price": 44.78
+  },
+  {
+    "sku": "CAL-1688",
+    "name": "Pioneer Gaiter Ultra",
+    "price": 170.57
+  },
+  {
+    "sku": "CAL-1689",
+    "name": "Timberline Snow Shovel Elite",
+    "price": 144.13
+  },
+  {
+    "sku": "CAL-1690",
+    "name": "Tundra Snow Shovel Elite",
+    "price": 277.82
+  },
+  {
+    "sku": "CAL-1691",
+    "name": "Cascade Jacket Pro",
+    "price": 172.19
+  },
+  {
+    "sku": "CAL-1692",
+    "name": "Coastal Fleece Pullover Ultra",
+    "price": 297.02
+  },
+  {
+    "sku": "CAL-1693",
+    "name": "Pioneer Lantern Elite",
+    "price": 215.7
+  },
+  {
+    "sku": "CAL-1694",
+    "name": "Basecamp Rain Shell Pro",
+    "price": 148.72
+  },
+  {
+    "sku": "CAL-1695",
+    "name": "Northbound Base Layer Pro",
+    "price": 279.05
+  },
+  {
+    "sku": "CAL-1696",
+    "name": "Windward Compass Classic",
+    "price": 211.01
+  },
+  {
+    "sku": "CAL-1697",
+    "name": "Glacier Multi-Tool Max",
+    "price": 157.3
+  },
+  {
+    "sku": "CAL-1698",
+    "name": "Meadow Sleeping Bag Elite",
+    "price": 195.51
+  },
+  {
+    "sku": "CAL-1699",
+    "name": "Evergreen Snow Shovel Max",
+    "price": 293.98
+  },
+  {
+    "sku": "CAL-1700",
+    "name": "Ridge Sleeping Bag Max",
+    "price": 168.0
+  },
+  {
+    "sku": "CAL-1701",
+    "name": "Windward Mug Ultra",
+    "price": 71.37
+  },
+  {
+    "sku": "CAL-1702",
+    "name": "Harbor Pack Max",
+    "price": 48.65
+  },
+  {
+    "sku": "CAL-1703",
+    "name": "Northbound Fleece Pullover",
+    "price": 42.51
+  },
+  {
+    "sku": "CAL-1704",
+    "name": "Horizon Lantern",
+    "price": 267.14
+  },
+  {
+    "sku": "CAL-1705",
+    "name": "Driftwood Trekking Pole Ultra",
+    "price": 191.03
+  },
+  {
+    "sku": "CAL-1706",
+    "name": "Frontier Headlamp XL",
+    "price": 241.67
+  },
+  {
+    "sku": "CAL-1707",
+    "name": "Northbound Sock Max",
+    "price": 279.69
+  },
+  {
+    "sku": "CAL-1708",
+    "name": "Driftwood Sock Classic",
+    "price": 253.9
+  },
+  {
+    "sku": "CAL-1709",
+    "name": "Rimrock Pocket Knife Pro",
+    "price": 208.38
+  },
+  {
+    "sku": "CAL-1710",
+    "name": "Boulder Rain Shell Classic",
+    "price": 297.65
+  },
+  {
+    "sku": "CAL-1711",
+    "name": "Outpost Sock",
+    "price": 136.43
+  },
+  {
+    "sku": "CAL-1712",
+    "name": "Tundra Base Layer Elite",
+    "price": 48.97
+  },
+  {
+    "sku": "CAL-1713",
+    "name": "Pioneer Thermal Flask",
+    "price": 91.28
+  },
+  {
+    "sku": "CAL-1714",
+    "name": "Tundra Sleeping Bag Classic",
+    "price": 222.7
+  },
+  {
+    "sku": "CAL-1715",
+    "name": "Tundra Camp Stove Classic",
+    "price": 140.59
+  },
+  {
+    "sku": "CAL-1716",
+    "name": "Windward Headlamp Lite",
+    "price": 172.03
+  },
+  {
+    "sku": "CAL-1717",
+    "name": "Glacier Base Layer Classic",
+    "price": 296.2
+  },
+  {
+    "sku": "CAL-1718",
+    "name": "Coastal Multi-Tool Classic",
+    "price": 63.99
+  },
+  {
+    "sku": "CAL-1719",
+    "name": "Outpost Gaiter Lite",
+    "price": 57.25
+  },
+  {
+    "sku": "CAL-1720",
+    "name": "Summit Sun Hat",
+    "price": 60.53
+  },
+  {
+    "sku": "CAL-1721",
+    "name": "Horizon Fleece Pullover Classic",
+    "price": 340.57
+  },
+  {
+    "sku": "CAL-1722",
+    "name": "Basecamp Pack Lite",
+    "price": 228.44
+  },
+  {
+    "sku": "CAL-1723",
+    "name": "Meadow Thermal Flask Ultra",
+    "price": 313.14
+  },
+  {
+    "sku": "CAL-1724",
+    "name": "Tundra Daypack Classic",
+    "price": 222.03
+  },
+  {
+    "sku": "CAL-1725",
+    "name": "Frontier Rain Shell Classic",
+    "price": 198.04
+  },
+  {
+    "sku": "CAL-1726",
+    "name": "Frontier Camp Stove Elite",
+    "price": 88.07
+  },
+  {
+    "sku": "CAL-1727",
+    "name": "Meadow Daypack",
+    "price": 206.77
+  },
+  {
+    "sku": "CAL-1728",
+    "name": "Outpost Camp Chair XL",
+    "price": 251.99
+  },
+  {
+    "sku": "CAL-1729",
+    "name": "Timberline Hammock Mini",
+    "price": 206.23
+  },
+  {
+    "sku": "CAL-1730",
+    "name": "Trail Boot Max",
+    "price": 174.86
+  },
+  {
+    "sku": "CAL-1731",
+    "name": "Cascade Trail Mix Pouch Pro",
+    "price": 59.88
+  },
+  {
+    "sku": "CAL-1732",
+    "name": "Frontier Rain Shell Pro",
+    "price": 188.37
+  },
+  {
+    "sku": "CAL-1733",
+    "name": "Boulder Pack XL",
+    "price": 171.22
+  },
+  {
+    "sku": "CAL-1734",
+    "name": "Driftwood Sun Hat Mini",
+    "price": 280.96
+  },
+  {
+    "sku": "CAL-1735",
+    "name": "Pioneer Daypack",
+    "price": 316.51
+  },
+  {
+    "sku": "CAL-1736",
+    "name": "Windward Lantern",
+    "price": 170.01
+  },
+  {
+    "sku": "CAL-1737",
+    "name": "Granite Crampons Ultra",
+    "price": 205.43
+  },
+  {
+    "sku": "CAL-1738",
+    "name": "Northbound Hammock Elite",
+    "price": 335.72
+  },
+  {
+    "sku": "CAL-1739",
+    "name": "Juniper Sock 2.0",
+    "price": 68.45
+  },
+  {
+    "sku": "CAL-1740",
+    "name": "Tundra Snow Shovel Max",
+    "price": 264.56
+  },
+  {
+    "sku": "CAL-1741",
+    "name": "Evergreen Dry Bag Max",
+    "price": 99.77
+  },
+  {
+    "sku": "CAL-1742",
+    "name": "Ember Fleece Pullover Max",
+    "price": 68.98
+  },
+  {
+    "sku": "CAL-1743",
+    "name": "Trail Gaiter 2.0",
+    "price": 284.6
+  },
+  {
+    "sku": "CAL-1744",
+    "name": "Boulder Jacket 2.0",
+    "price": 175.36
+  },
+  {
+    "sku": "CAL-1745",
+    "name": "Outpost Dry Bag 2.0",
+    "price": 96.94
+  },
+  {
+    "sku": "CAL-1746",
+    "name": "Boulder Beanie 2.0",
+    "price": 301.1
+  },
+  {
+    "sku": "CAL-1747",
+    "name": "Alpine Camp Chair Pro",
+    "price": 215.49
+  },
+  {
+    "sku": "CAL-1748",
+    "name": "Driftwood Compass Elite",
+    "price": 284.24
+  },
+  {
+    "sku": "CAL-1749",
+    "name": "Timberline Dry Bag XL",
+    "price": 175.42
+  },
+  {
+    "sku": "CAL-1750",
+    "name": "Northbound Pack Lite",
+    "price": 212.7
+  },
+  {
+    "sku": "CAL-1751",
+    "name": "Cedar Trekking Pole Ultra",
+    "price": 265.68
+  },
+  {
+    "sku": "CAL-1752",
+    "name": "Meadow Lantern Classic",
+    "price": 92.19
+  },
+  {
+    "sku": "CAL-1753",
+    "name": "Frontier Camp Chair Lite",
+    "price": 83.06
+  },
+  {
+    "sku": "CAL-1754",
+    "name": "Evergreen Multi-Tool Elite",
+    "price": 30.31
+  },
+  {
+    "sku": "CAL-1755",
+    "name": "Timberline Lantern Pro",
+    "price": 29.7
+  },
+  {
+    "sku": "CAL-1756",
+    "name": "Frontier Camp Stove Ultra",
+    "price": 113.56
+  },
+  {
+    "sku": "CAL-1757",
+    "name": "Evergreen Lantern Mini",
+    "price": 90.74
+  },
+  {
+    "sku": "CAL-1758",
+    "name": "Driftwood Trail Mix Pouch Classic",
+    "price": 171.94
+  },
+  {
+    "sku": "CAL-1759",
+    "name": "Basecamp Rain Shell Classic",
+    "price": 16.0
+  },
+  {
+    "sku": "CAL-1760",
+    "name": "Rimrock Dry Bag Ultra",
+    "price": 140.74
+  },
+  {
+    "sku": "CAL-1761",
+    "name": "Northbound Rain Shell",
+    "price": 44.81
+  },
+  {
+    "sku": "CAL-1762",
+    "name": "Windward Sun Hat Elite",
+    "price": 334.23
+  },
+  {
+    "sku": "CAL-1763",
+    "name": "Meadow Daypack 2.0",
+    "price": 124.88
+  },
+  {
+    "sku": "CAL-1764",
+    "name": "Timberline Dry Bag Pro",
+    "price": 98.05
+  },
+  {
+    "sku": "CAL-1765",
+    "name": "Highland Camp Stove Ultra",
+    "price": 272.55
+  },
+  {
+    "sku": "CAL-1766",
+    "name": "Evergreen Glove Max",
+    "price": 271.66
+  },
+  {
+    "sku": "CAL-1767",
+    "name": "Northbound Base Layer",
+    "price": 238.73
+  },
+  {
+    "sku": "CAL-1768",
+    "name": "Cedar Pack",
+    "price": 150.59
+  },
+  {
+    "sku": "CAL-1769",
+    "name": "Granite Mug Ultra",
+    "price": 130.46
+  },
+  {
+    "sku": "CAL-1770",
+    "name": "Evergreen Sock 2.0",
+    "price": 77.07
+  },
+  {
+    "sku": "CAL-1771",
+    "name": "Alpine Daypack Pro",
+    "price": 31.17
+  },
+  {
+    "sku": "CAL-1772",
+    "name": "Boulder Gaiter XL",
+    "price": 332.31
+  },
+  {
+    "sku": "CAL-1773",
+    "name": "Ember Mug Pro",
+    "price": 41.11
+  },
+  {
+    "sku": "CAL-1774",
+    "name": "Boulder Trekking Pole Classic",
+    "price": 233.2
+  },
+  {
+    "sku": "CAL-1775",
+    "name": "Tundra Tent 2.0",
+    "price": 111.27
+  },
+  {
+    "sku": "CAL-1776",
+    "name": "Driftwood Snow Shovel Pro",
+    "price": 227.27
+  },
+  {
+    "sku": "CAL-1777",
+    "name": "Rimrock Beanie Classic",
+    "price": 245.28
+  },
+  {
+    "sku": "CAL-1778",
+    "name": "Driftwood Lantern Elite",
+    "price": 98.72
+  },
+  {
+    "sku": "CAL-1779",
+    "name": "Sierra Pack 2.0",
+    "price": 273.88
+  },
+  {
+    "sku": "CAL-1780",
+    "name": "Harbor Camp Stove Elite",
+    "price": 347.64
+  },
+  {
+    "sku": "CAL-1781",
+    "name": "Timberline Multi-Tool 2.0",
+    "price": 71.96
+  },
+  {
+    "sku": "CAL-1782",
+    "name": "Boulder Camp Stove Lite",
+    "price": 229.53
+  },
+  {
+    "sku": "CAL-1783",
+    "name": "Ridge Trekking Pole Mini",
+    "price": 271.05
+  },
+  {
+    "sku": "CAL-1784",
+    "name": "Glacier Daypack Pro",
+    "price": 319.55
+  },
+  {
+    "sku": "CAL-1785",
+    "name": "Tundra Beanie Pro",
+    "price": 23.75
+  },
+  {
+    "sku": "CAL-1786",
+    "name": "Summit Sleeping Bag 2.0",
+    "price": 273.93
+  },
+  {
+    "sku": "CAL-1787",
+    "name": "Alpine Crampons Ultra",
+    "price": 62.16
+  },
+  {
+    "sku": "CAL-1788",
+    "name": "Horizon Camp Stove Max",
+    "price": 13.25
+  },
+  {
+    "sku": "CAL-1789",
+    "name": "Tundra Lantern Ultra",
+    "price": 173.13
+  },
+  {
+    "sku": "CAL-1790",
+    "name": "Harbor Thermal Flask Pro",
+    "price": 194.02
+  },
+  {
+    "sku": "CAL-1791",
+    "name": "Alpine Camp Stove Ultra",
+    "price": 52.85
+  },
+  {
+    "sku": "CAL-1792",
+    "name": "Windward Snow Shovel Elite",
+    "price": 124.37
+  },
+  {
+    "sku": "CAL-1793",
+    "name": "Pioneer Camp Stove",
+    "price": 225.08
+  },
+  {
+    "sku": "CAL-1794",
+    "name": "Summit Multi-Tool Ultra",
+    "price": 268.27
+  },
+  {
+    "sku": "CAL-1795",
+    "name": "Pioneer Sun Hat XL",
+    "price": 71.52
+  },
+  {
+    "sku": "CAL-1796",
+    "name": "Trail Camp Stove XL",
+    "price": 112.72
+  },
+  {
+    "sku": "CAL-1797",
+    "name": "Harbor Crampons Pro",
+    "price": 224.52
+  },
+  {
+    "sku": "CAL-1798",
+    "name": "Horizon Sun Hat Ultra",
+    "price": 259.8
+  },
+  {
+    "sku": "CAL-1799",
+    "name": "Basecamp Boot XL",
+    "price": 20.55
+  },
+  {
+    "sku": "CAL-1800",
+    "name": "Highland Glove Ultra",
+    "price": 143.01
+  },
+  {
+    "sku": "CAL-1801",
+    "name": "Juniper Base Layer 2.0",
+    "price": 180.39
+  },
+  {
+    "sku": "CAL-1802",
+    "name": "Cedar Dry Bag Ultra",
+    "price": 337.74
+  },
+  {
+    "sku": "CAL-1803",
+    "name": "Trail Water Bottle",
+    "price": 148.66
+  },
+  {
+    "sku": "CAL-1804",
+    "name": "Glacier Dry Bag Mini",
+    "price": 166.47
+  },
+  {
+    "sku": "CAL-1805",
+    "name": "Canyon Snow Shovel Pro",
+    "price": 24.43
+  },
+  {
+    "sku": "CAL-1806",
+    "name": "Basecamp Fleece Pullover",
+    "price": 170.8
+  },
+  {
+    "sku": "CAL-1807",
+    "name": "Rimrock Daypack",
+    "price": 93.78
+  },
+  {
+    "sku": "CAL-1808",
+    "name": "Ember Trekking Pole",
+    "price": 70.05
+  },
+  {
+    "sku": "CAL-1809",
+    "name": "Trail Crampons 2.0",
+    "price": 288.59
+  },
+  {
+    "sku": "CAL-1810",
+    "name": "Ridge Compass Max",
+    "price": 69.52
+  },
+  {
+    "sku": "CAL-1811",
+    "name": "Highland Pack Pro",
+    "price": 50.48
+  },
+  {
+    "sku": "CAL-1812",
+    "name": "Boulder Dry Bag Max",
+    "price": 86.33
+  },
+  {
+    "sku": "CAL-1813",
+    "name": "Juniper Headlamp Classic",
+    "price": 125.68
+  },
+  {
+    "sku": "CAL-1814",
+    "name": "Cedar Camp Chair Classic",
+    "price": 121.27
+  },
+  {
+    "sku": "CAL-1815",
+    "name": "Driftwood Sleeping Bag Mini",
+    "price": 58.28
+  },
+  {
+    "sku": "CAL-1816",
+    "name": "Sierra Boot Max",
+    "price": 70.45
+  },
+  {
+    "sku": "CAL-1817",
+    "name": "Summit Mug 2.0",
+    "price": 59.6
+  },
+  {
+    "sku": "CAL-1818",
+    "name": "Canyon Snow Shovel Max",
+    "price": 25.72
+  },
+  {
+    "sku": "CAL-1819",
+    "name": "Ridge Dry Bag Max",
+    "price": 138.76
+  },
+  {
+    "sku": "CAL-1820",
+    "name": "Switchback Jacket Ultra",
+    "price": 39.2
+  },
+  {
+    "sku": "CAL-1821",
+    "name": "Alpine Tent Pro",
+    "price": 250.17
+  },
+  {
+    "sku": "CAL-1822",
+    "name": "Highland Crampons 2.0",
+    "price": 152.27
+  },
+  {
+    "sku": "CAL-1823",
+    "name": "Juniper Dry Bag Ultra",
+    "price": 245.32
+  },
+  {
+    "sku": "CAL-1824",
+    "name": "Glacier Trekking Pole 2.0",
+    "price": 188.28
+  },
+  {
+    "sku": "CAL-1825",
+    "name": "Meadow Glove Lite",
+    "price": 217.75
+  },
+  {
+    "sku": "CAL-1826",
+    "name": "Trail Daypack Lite",
+    "price": 253.7
+  },
+  {
+    "sku": "CAL-1827",
+    "name": "Coastal Hammock",
+    "price": 199.95
+  },
+  {
+    "sku": "CAL-1828",
+    "name": "Glacier Mug Mini",
+    "price": 341.18
+  },
+  {
+    "sku": "CAL-1829",
+    "name": "Boulder Pocket Knife Mini",
+    "price": 183.04
+  },
+  {
+    "sku": "CAL-1830",
+    "name": "Frontier Lantern XL",
+    "price": 105.16
+  },
+  {
+    "sku": "CAL-1831",
+    "name": "Driftwood Thermal Flask Ultra",
+    "price": 179.66
+  },
+  {
+    "sku": "CAL-1832",
+    "name": "Switchback Gaiter",
+    "price": 30.21
+  },
+  {
+    "sku": "CAL-1833",
+    "name": "Coastal Sock XL",
+    "price": 158.48
+  },
+  {
+    "sku": "CAL-1834",
+    "name": "Northbound Daypack Ultra",
+    "price": 26.6
+  },
+  {
+    "sku": "CAL-1835",
+    "name": "Switchback Tent",
+    "price": 175.47
+  },
+  {
+    "sku": "CAL-1836",
+    "name": "Ridge Pack XL",
+    "price": 255.11
+  },
+  {
+    "sku": "CAL-1837",
+    "name": "Highland Sleeping Bag Elite",
+    "price": 153.23
+  },
+  {
+    "sku": "CAL-1838",
+    "name": "Canyon Lantern Pro",
+    "price": 121.91
+  },
+  {
+    "sku": "CAL-1839",
+    "name": "Outpost Headlamp Classic",
+    "price": 312.39
+  },
+  {
+    "sku": "CAL-1840",
+    "name": "Cascade Boot Classic",
+    "price": 60.85
+  },
+  {
+    "sku": "CAL-1841",
+    "name": "Switchback Camp Stove Elite",
+    "price": 57.97
+  },
+  {
+    "sku": "CAL-1842",
+    "name": "Evergreen Headlamp Elite",
+    "price": 340.76
+  },
+  {
+    "sku": "CAL-1843",
+    "name": "Glacier Water Bottle Lite",
+    "price": 22.82
+  },
+  {
+    "sku": "CAL-1844",
+    "name": "Highland Boot 2.0",
+    "price": 58.0
+  },
+  {
+    "sku": "CAL-1845",
+    "name": "Outpost Compass Ultra",
+    "price": 152.94
+  },
+  {
+    "sku": "CAL-1846",
+    "name": "Sierra Water Bottle XL",
+    "price": 310.72
+  },
+  {
+    "sku": "CAL-1847",
+    "name": "Boulder Tent Max",
+    "price": 317.18
+  },
+  {
+    "sku": "CAL-1848",
+    "name": "Summit Hammock Mini",
+    "price": 176.86
+  },
+  {
+    "sku": "CAL-1849",
+    "name": "Glacier Sleeping Bag Ultra",
+    "price": 294.07
+  },
+  {
+    "sku": "CAL-1850",
+    "name": "Timberline Jacket Classic",
+    "price": 260.09
+  },
+  {
+    "sku": "CAL-1851",
+    "name": "Canyon Glove Elite",
+    "price": 158.34
+  },
+  {
+    "sku": "CAL-1852",
+    "name": "Basecamp Snow Shovel Max",
+    "price": 314.71
+  },
+  {
+    "sku": "CAL-1853",
+    "name": "Cascade Camp Chair Mini",
+    "price": 23.33
+  },
+  {
+    "sku": "CAL-1854",
+    "name": "Juniper Dry Bag Pro",
+    "price": 164.47
+  },
+  {
+    "sku": "CAL-1855",
+    "name": "Canyon Pack Mini",
+    "price": 265.79
+  },
+  {
+    "sku": "CAL-1856",
+    "name": "Glacier Trekking Pole Elite",
+    "price": 111.68
+  },
+  {
+    "sku": "CAL-1857",
+    "name": "Ember Pack",
+    "price": 173.69
+  },
+  {
+    "sku": "CAL-1858",
+    "name": "Pioneer Tent Ultra",
+    "price": 301.12
+  },
+  {
+    "sku": "CAL-1859",
+    "name": "Evergreen Sleeping Bag",
+    "price": 341.05
+  },
+  {
+    "sku": "CAL-1860",
+    "name": "Frontier Lantern Lite",
+    "price": 306.61
+  },
+  {
+    "sku": "CAL-1861",
+    "name": "Harbor Tent Elite",
+    "price": 223.24
+  },
+  {
+    "sku": "CAL-1862",
+    "name": "Outpost Sun Hat Pro",
+    "price": 141.7
+  },
+  {
+    "sku": "CAL-1863",
+    "name": "Trail Sock Classic",
+    "price": 265.72
+  },
+  {
+    "sku": "CAL-1864",
+    "name": "Tundra Daypack Mini",
+    "price": 205.85
+  },
+  {
+    "sku": "CAL-1865",
+    "name": "Evergreen Snow Shovel",
+    "price": 185.47
+  },
+  {
+    "sku": "CAL-1866",
+    "name": "Horizon Boot Pro",
+    "price": 141.06
+  },
+  {
+    "sku": "CAL-1867",
+    "name": "Frontier Daypack",
+    "price": 135.2
+  },
+  {
+    "sku": "CAL-1868",
+    "name": "Switchback Sun Hat Mini",
+    "price": 249.54
+  },
+  {
+    "sku": "CAL-1869",
+    "name": "Basecamp Water Bottle XL",
+    "price": 193.86
+  },
+  {
+    "sku": "CAL-1870",
+    "name": "Outpost Trail Mix Pouch XL",
+    "price": 265.82
+  },
+  {
+    "sku": "CAL-1871",
+    "name": "Sierra Glove Elite",
+    "price": 130.86
+  },
+  {
+    "sku": "CAL-1872",
+    "name": "Timberline Rain Shell Classic",
+    "price": 105.4
+  },
+  {
+    "sku": "CAL-1873",
+    "name": "Summit Pocket Knife Elite",
+    "price": 164.46
+  },
+  {
+    "sku": "CAL-1874",
+    "name": "Granite Rain Shell Pro",
+    "price": 170.45
+  },
+  {
+    "sku": "CAL-1875",
+    "name": "Windward Gaiter Mini",
+    "price": 315.12
+  },
+  {
+    "sku": "CAL-1876",
+    "name": "Frontier Daypack Elite",
+    "price": 281.57
+  },
+  {
+    "sku": "CAL-1877",
+    "name": "Glacier Crampons Ultra",
+    "price": 41.42
+  },
+  {
+    "sku": "CAL-1878",
+    "name": "Harbor Crampons Lite",
+    "price": 109.18
+  },
+  {
+    "sku": "CAL-1879",
+    "name": "Timberline Mug Lite",
+    "price": 179.26
+  },
+  {
+    "sku": "CAL-1880",
+    "name": "Outpost Headlamp Mini",
+    "price": 332.86
+  },
+  {
+    "sku": "CAL-1881",
+    "name": "Alpine Sock Classic",
+    "price": 338.75
+  },
+  {
+    "sku": "CAL-1882",
+    "name": "Frontier Camp Chair",
+    "price": 110.24
+  },
+  {
+    "sku": "CAL-1883",
+    "name": "Summit Jacket XL",
+    "price": 293.38
+  },
+  {
+    "sku": "CAL-1884",
+    "name": "Granite Sun Hat Elite",
+    "price": 150.74
+  },
+  {
+    "sku": "CAL-1885",
+    "name": "Northbound Sun Hat Elite",
+    "price": 175.83
+  },
+  {
+    "sku": "CAL-1886",
+    "name": "Frontier Sock Max",
+    "price": 56.47
+  },
+  {
+    "sku": "CAL-1887",
+    "name": "Juniper Sock Lite",
+    "price": 277.98
+  },
+  {
+    "sku": "CAL-1888",
+    "name": "Canyon Fleece Pullover Elite",
+    "price": 339.13
+  },
+  {
+    "sku": "CAL-1889",
+    "name": "Sierra Thermal Flask",
+    "price": 61.99
+  },
+  {
+    "sku": "CAL-1890",
+    "name": "Pioneer Compass Lite",
+    "price": 220.48
+  },
+  {
+    "sku": "CAL-1891",
+    "name": "Switchback Trail Mix Pouch Mini",
+    "price": 108.13
+  },
+  {
+    "sku": "CAL-1892",
+    "name": "Switchback Multi-Tool Lite",
+    "price": 66.34
+  },
+  {
+    "sku": "CAL-1893",
+    "name": "Ridge Boot Elite",
+    "price": 205.61
+  },
+  {
+    "sku": "CAL-1894",
+    "name": "Frontier Beanie Elite",
+    "price": 74.18
+  },
+  {
+    "sku": "CAL-1895",
+    "name": "Windward Trail Mix Pouch",
+    "price": 236.29
+  },
+  {
+    "sku": "CAL-1896",
+    "name": "Frontier Base Layer Lite",
+    "price": 191.84
+  },
+  {
+    "sku": "CAL-1897",
+    "name": "Ridge Snow Shovel",
+    "price": 148.34
+  },
+  {
+    "sku": "CAL-1898",
+    "name": "Cascade Lantern Lite",
+    "price": 331.4
+  },
+  {
+    "sku": "CAL-1899",
+    "name": "Alpine Camp Chair Mini",
+    "price": 340.78
+  },
+  {
+    "sku": "CAL-1900",
+    "name": "Northbound Sun Hat 2.0",
+    "price": 171.71
+  },
+  {
+    "sku": "CAL-1901",
+    "name": "Pioneer Lantern Max",
+    "price": 236.74
+  },
+  {
+    "sku": "CAL-1902",
+    "name": "Juniper Sleeping Bag Ultra",
+    "price": 126.14
+  },
+  {
+    "sku": "CAL-1903",
+    "name": "Ridge Camp Chair Ultra",
+    "price": 315.36
+  },
+  {
+    "sku": "CAL-1904",
+    "name": "Basecamp Gaiter Mini",
+    "price": 51.39
+  },
+  {
+    "sku": "CAL-1905",
+    "name": "Alpine Camp Stove Max",
+    "price": 295.38
+  },
+  {
+    "sku": "CAL-1906",
+    "name": "Frontier Pocket Knife Pro",
+    "price": 121.99
+  },
+  {
+    "sku": "CAL-1907",
+    "name": "Boulder Sun Hat XL",
+    "price": 208.62
+  },
+  {
+    "sku": "CAL-1908",
+    "name": "Canyon Dry Bag 2.0",
+    "price": 77.96
+  },
+  {
+    "sku": "CAL-1909",
+    "name": "Summit Base Layer Ultra",
+    "price": 240.17
+  },
+  {
+    "sku": "CAL-1910",
+    "name": "Summit Rain Shell Classic",
+    "price": 77.53
+  },
+  {
+    "sku": "CAL-1911",
+    "name": "Northbound Daypack Max",
+    "price": 184.39
+  },
+  {
+    "sku": "CAL-1912",
+    "name": "Harbor Trekking Pole Classic",
+    "price": 136.57
+  },
+  {
+    "sku": "CAL-1913",
+    "name": "Coastal Jacket 2.0",
+    "price": 128.24
+  },
+  {
+    "sku": "CAL-1914",
+    "name": "Evergreen Hammock Ultra",
+    "price": 109.27
+  },
+  {
+    "sku": "CAL-1915",
+    "name": "Juniper Camp Chair Classic",
+    "price": 257.54
+  },
+  {
+    "sku": "CAL-1916",
+    "name": "Meadow Trekking Pole Max",
+    "price": 213.5
+  },
+  {
+    "sku": "CAL-1917",
+    "name": "Basecamp Headlamp 2.0",
+    "price": 171.94
+  },
+  {
+    "sku": "CAL-1918",
+    "name": "Summit Snow Shovel Max",
+    "price": 266.81
+  },
+  {
+    "sku": "CAL-1919",
+    "name": "Summit Jacket Classic",
+    "price": 227.28
+  },
+  {
+    "sku": "CAL-1920",
+    "name": "Timberline Hammock Lite",
+    "price": 199.31
+  },
+  {
+    "sku": "CAL-1921",
+    "name": "Pioneer Base Layer Ultra",
+    "price": 26.23
+  },
+  {
+    "sku": "CAL-1922",
+    "name": "Cedar Sock Max",
+    "price": 114.42
+  },
+  {
+    "sku": "CAL-1923",
+    "name": "Windward Camp Chair Ultra",
+    "price": 87.66
+  },
+  {
+    "sku": "CAL-1924",
+    "name": "Juniper Jacket Lite",
+    "price": 100.52
+  },
+  {
+    "sku": "CAL-1925",
+    "name": "Ember Multi-Tool Ultra",
+    "price": 53.85
+  },
+  {
+    "sku": "CAL-1926",
+    "name": "Rimrock Trail Mix Pouch XL",
+    "price": 21.59
+  },
+  {
+    "sku": "CAL-1927",
+    "name": "Summit Daypack Elite",
+    "price": 207.82
+  },
+  {
+    "sku": "CAL-1928",
+    "name": "Highland Hammock 2.0",
+    "price": 223.63
+  },
+  {
+    "sku": "CAL-1929",
+    "name": "Coastal Rain Shell Max",
+    "price": 17.91
+  },
+  {
+    "sku": "CAL-1930",
+    "name": "Timberline Tent Max",
+    "price": 31.72
+  },
+  {
+    "sku": "CAL-1931",
+    "name": "Northbound Compass Lite",
+    "price": 132.44
+  },
+  {
+    "sku": "CAL-1932",
+    "name": "Trail Beanie Elite",
+    "price": 153.38
+  },
+  {
+    "sku": "CAL-1933",
+    "name": "Rimrock Pocket Knife",
+    "price": 109.68
+  },
+  {
+    "sku": "CAL-1934",
+    "name": "Granite Sun Hat Pro",
+    "price": 185.17
+  },
+  {
+    "sku": "CAL-1935",
+    "name": "Sierra Sun Hat Lite",
+    "price": 269.7
+  },
+  {
+    "sku": "CAL-1936",
+    "name": "Boulder Lantern Lite",
+    "price": 195.23
+  },
+  {
+    "sku": "CAL-1937",
+    "name": "Outpost Water Bottle 2.0",
+    "price": 103.48
+  },
+  {
+    "sku": "CAL-1938",
+    "name": "Tundra Trail Mix Pouch Elite",
+    "price": 44.3
+  },
+  {
+    "sku": "CAL-1939",
+    "name": "Highland Pocket Knife Lite",
+    "price": 16.35
+  },
+  {
+    "sku": "CAL-1940",
+    "name": "Granite Sock Elite",
+    "price": 274.46
+  },
+  {
+    "sku": "CAL-1941",
+    "name": "Ridge Headlamp Lite",
+    "price": 181.64
+  },
+  {
+    "sku": "CAL-1942",
+    "name": "Cedar Headlamp Mini",
+    "price": 218.73
+  },
+  {
+    "sku": "CAL-1943",
+    "name": "Cedar Rain Shell Mini",
+    "price": 252.13
+  },
+  {
+    "sku": "CAL-1944",
+    "name": "Tundra Lantern Pro",
+    "price": 152.65
+  },
+  {
+    "sku": "CAL-1945",
+    "name": "Cedar Trekking Pole",
+    "price": 173.6
+  },
+  {
+    "sku": "CAL-1946",
+    "name": "Pioneer Trail Mix Pouch Elite",
+    "price": 58.85
+  },
+  {
+    "sku": "CAL-1947",
+    "name": "Frontier Crampons Max",
+    "price": 188.29
+  },
+  {
+    "sku": "CAL-1948",
+    "name": "Northbound Tent 2.0",
+    "price": 21.69
+  },
+  {
+    "sku": "CAL-1949",
+    "name": "Basecamp Headlamp Lite",
+    "price": 342.63
+  },
+  {
+    "sku": "CAL-1950",
+    "name": "Meadow Trail Mix Pouch Pro",
+    "price": 38.2
+  },
+  {
+    "sku": "CAL-1951",
+    "name": "Sierra Fleece Pullover Classic",
+    "price": 26.33
+  },
+  {
+    "sku": "CAL-1952",
+    "name": "Ridge Boot Mini",
+    "price": 211.9
+  },
+  {
+    "sku": "CAL-1953",
+    "name": "Cascade Mug 2.0",
+    "price": 26.59
+  },
+  {
+    "sku": "CAL-1954",
+    "name": "Pioneer Gaiter",
+    "price": 266.28
+  },
+  {
+    "sku": "CAL-1955",
+    "name": "Juniper Mug Max",
+    "price": 81.22
+  },
+  {
+    "sku": "CAL-1956",
+    "name": "Horizon Headlamp Lite",
+    "price": 237.99
+  },
+  {
+    "sku": "CAL-1957",
+    "name": "Alpine Pack Lite",
+    "price": 297.06
+  },
+  {
+    "sku": "CAL-1958",
+    "name": "Timberline Sleeping Bag Elite",
+    "price": 130.69
+  },
+  {
+    "sku": "CAL-1959",
+    "name": "Sierra Jacket Mini",
+    "price": 85.13
+  },
+  {
+    "sku": "CAL-1960",
+    "name": "Glacier Sock Lite",
+    "price": 315.86
+  },
+  {
+    "sku": "CAL-1961",
+    "name": "Rimrock Headlamp Mini",
+    "price": 298.89
+  },
+  {
+    "sku": "CAL-1962",
+    "name": "Cascade Pocket Knife Max",
+    "price": 74.39
+  },
+  {
+    "sku": "CAL-1963",
+    "name": "Cedar Pocket Knife Classic",
+    "price": 154.92
+  },
+  {
+    "sku": "CAL-1964",
+    "name": "Granite Glove Classic",
+    "price": 50.03
+  },
+  {
+    "sku": "CAL-1965",
+    "name": "Northbound Mug Ultra",
+    "price": 49.18
+  },
+  {
+    "sku": "CAL-1966",
+    "name": "Basecamp Fleece Pullover Elite",
+    "price": 249.49
+  },
+  {
+    "sku": "CAL-1967",
+    "name": "Windward Camp Chair",
+    "price": 39.72
+  },
+  {
+    "sku": "CAL-1968",
+    "name": "Pioneer Compass Max",
+    "price": 260.09
+  },
+  {
+    "sku": "CAL-1969",
+    "name": "Driftwood Multi-Tool Ultra",
+    "price": 88.12
+  },
+  {
+    "sku": "CAL-1970",
+    "name": "Meadow Sock Classic",
+    "price": 75.62
+  },
+  {
+    "sku": "CAL-1971",
+    "name": "Alpine Gaiter Ultra",
+    "price": 238.5
+  },
+  {
+    "sku": "CAL-1972",
+    "name": "Driftwood Gaiter Pro",
+    "price": 52.18
+  },
+  {
+    "sku": "CAL-1973",
+    "name": "Ridge Camp Chair Lite",
+    "price": 33.81
+  },
+  {
+    "sku": "CAL-1974",
+    "name": "Glacier Water Bottle XL",
+    "price": 212.5
+  },
+  {
+    "sku": "CAL-1975",
+    "name": "Harbor Mug XL",
+    "price": 294.44
+  },
+  {
+    "sku": "CAL-1976",
+    "name": "Sierra Trail Mix Pouch Max",
+    "price": 212.06
+  },
+  {
+    "sku": "CAL-1977",
+    "name": "Coastal Fleece Pullover Max",
+    "price": 332.2
+  },
+  {
+    "sku": "CAL-1978",
+    "name": "Cascade Rain Shell 2.0",
+    "price": 61.67
+  },
+  {
+    "sku": "CAL-1979",
+    "name": "Frontier Mug Pro",
+    "price": 96.48
+  },
+  {
+    "sku": "CAL-1980",
+    "name": "Cascade Glove Lite",
+    "price": 22.02
+  },
+  {
+    "sku": "CAL-1981",
+    "name": "Cascade Gaiter",
+    "price": 339.59
+  },
+  {
+    "sku": "CAL-1982",
+    "name": "Harbor Daypack Elite",
+    "price": 63.47
+  },
+  {
+    "sku": "CAL-1983",
+    "name": "Boulder Daypack Pro",
+    "price": 268.18
+  },
+  {
+    "sku": "CAL-1984",
+    "name": "Driftwood Lantern Mini",
+    "price": 270.67
+  },
+  {
+    "sku": "CAL-1985",
+    "name": "Juniper Compass XL",
+    "price": 110.93
+  },
+  {
+    "sku": "CAL-1986",
+    "name": "Cascade Fleece Pullover Mini",
+    "price": 100.18
+  },
+  {
+    "sku": "CAL-1987",
+    "name": "Northbound Dry Bag Mini",
+    "price": 196.21
+  },
+  {
+    "sku": "CAL-1988",
+    "name": "Sierra Boot Classic",
+    "price": 308.6
+  },
+  {
+    "sku": "CAL-1989",
+    "name": "Ridge Camp Stove Ultra",
+    "price": 118.01
+  },
+  {
+    "sku": "CAL-1990",
+    "name": "Harbor Compass Ultra",
+    "price": 24.13
+  },
+  {
+    "sku": "CAL-1991",
+    "name": "Cascade Hammock Lite",
+    "price": 117.3
+  },
+  {
+    "sku": "CAL-1992",
+    "name": "Harbor Fleece Pullover Pro",
+    "price": 203.7
+  },
+  {
+    "sku": "CAL-1993",
+    "name": "Cascade Gaiter Mini",
+    "price": 242.97
+  },
+  {
+    "sku": "CAL-1994",
+    "name": "Highland Fleece Pullover Ultra",
+    "price": 201.48
+  },
+  {
+    "sku": "CAL-1995",
+    "name": "Switchback Rain Shell",
+    "price": 143.9
+  },
+  {
+    "sku": "CAL-1996",
+    "name": "Cascade Sleeping Bag Classic",
+    "price": 219.91
+  },
+  {
+    "sku": "CAL-1997",
+    "name": "Coastal Lantern 2.0",
+    "price": 120.0
+  },
+  {
+    "sku": "CAL-1998",
+    "name": "Alpine Sleeping Bag",
+    "price": 55.2
+  },
+  {
+    "sku": "CAL-1999",
+    "name": "Coastal Pocket Knife Max",
+    "price": 21.07
+  },
+  {
+    "sku": "CAL-2000",
+    "name": "Horizon Sun Hat Elite",
+    "price": 140.25
+  }
+]
