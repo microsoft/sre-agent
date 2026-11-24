@@ -1206,13 +1206,27 @@ for ($i = 0; $i -lt $CONNECTOR_COUNT; $i++) {
     $ctype = $CONNECTORS | jq -r --argjson i $i '.[$i].properties.dataConnectorType'
     switch ($ctype) {
         'AppInsights' {
-            $ENABLE_AI = $true
-            $AI_RESOURCE_ID = $CONNECTORS | Invoke-Jq -Raw -Filter '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""' -ExtraArgs @('--argjson', 'i', "$i")
-            $AI_APP_ID = $CONNECTORS | Invoke-Jq -Raw -Filter '.[$i].properties.extendedProperties.appId // ""' -ExtraArgs @('--argjson', 'i', "$i")
+            # ARM does not return dataSource on read, so this can come back empty. Enabling
+            # the connector without one makes the deployment fail with "DataSource is
+            # required", so the toggle is only set when a resource id was actually resolved.
+            $aiId = $CONNECTORS | Invoke-Jq -Raw -Filter '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""' -ExtraArgs @('--argjson', 'i', "$i")
+            if (-not [string]::IsNullOrWhiteSpace($aiId)) {
+                $ENABLE_AI = $true
+                $AI_RESOURCE_ID = $aiId
+                $AI_APP_ID = $CONNECTORS | Invoke-Jq -Raw -Filter '.[$i].properties.extendedProperties.appId // ""' -ExtraArgs @('--argjson', 'i', "$i")
+            } else {
+                _warn 'AppInsights connector has no resolvable resource id - not enabling it on the clone'
+            }
         }
         'LogAnalytics' {
-            $ENABLE_LAW = $true
-            $LAW_RESOURCE_ID = $CONNECTORS | Invoke-Jq -Raw -Filter '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""' -ExtraArgs @('--argjson', 'i', "$i")
+            # See the note above.
+            $lawId = $CONNECTORS | Invoke-Jq -Raw -Filter '.[$i].properties.dataSource // .[$i].properties.extendedProperties.armResourceId // ""' -ExtraArgs @('--argjson', 'i', "$i")
+            if (-not [string]::IsNullOrWhiteSpace($lawId)) {
+                $ENABLE_LAW = $true
+                $LAW_RESOURCE_ID = $lawId
+            } else {
+                _warn 'LogAnalytics connector has no resolvable workspace id - not enabling it on the clone'
+            }
         }
         'AzureMonitor' {
             $ENABLE_AZMON = $true
