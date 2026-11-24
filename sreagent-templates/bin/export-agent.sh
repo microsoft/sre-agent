@@ -302,8 +302,31 @@ AGENT_ENDPOINT=$(echo "$AGENT_JSON" | jq -r '.properties.agentEndpoint // empty'
 LOCATION=$(echo "$AGENT_JSON" | jq -r '.location // "eastus2"')
 ACCESS_LEVEL=$(echo "$AGENT_JSON" | jq -r '.properties.actionConfiguration.accessLevel // .properties.accessLevel // "Low"')
 ACTION_MODE=$(echo "$AGENT_JSON" | jq -r '.properties.actionConfiguration.mode // .properties.actionMode // "Review"')
+# ARM returns the mode in inconsistent case -- "review" on one agent and "Review" on
+# another -- while clone-agent.sh and the Bicep @allowed list match exactly, so an untouched
+# export fails our own validation. Normalise to the spellings the template accepts.
+# "Automatic" is the former name for "Autonomous" and is still produced by older agents;
+# mapping it to the current name here is what keeps an autonomous agent from being silently
+# exported as Review.
+case "$(printf '%s' "$ACTION_MODE" | tr '[:upper:]' '[:lower:]')" in
+  autonomous|automatic) ACTION_MODE="Autonomous" ;;
+  *)                    ACTION_MODE="Review" ;;
+esac
 UPGRADE_CHANNEL=$(echo "$AGENT_JSON" | jq -r '.properties.upgradeChannel // "Preview"')
-DEFAULT_MODEL_PROVIDER=$(echo "$AGENT_JSON" | jq -r '.properties.defaultModelProvider // "Anthropic"')
+# ARM exposes the provider under defaultModel.provider; the flat defaultModelProvider form
+# is only present on older payloads.
+DEFAULT_MODEL_PROVIDER=$(echo "$AGENT_JSON" | jq -r '.properties.defaultModel.provider // .properties.defaultModelProvider // "Anthropic"')
+MONTHLY_AGENT_UNIT_LIMIT=$(echo "$AGENT_JSON" | jq -r '.properties.monthlyAgentUnitLimit // 10000')
+
+# Sandbox egress. assemble-agent.sh already reads every one of these from
+# .networkConfiguration; without them an export of a Limited agent assembles as
+# Unrestricted, which is more permissive than the agent it was taken from.
+NET_EGRESS=$(echo "$AGENT_JSON"     | jq -r '.properties.sandboxConfiguration.egress.mode // "Unrestricted"')
+NET_HOSTS=$(echo "$AGENT_JSON"      | jq -c '.properties.sandboxConfiguration.egress.allowedHosts // []')
+NET_REGISTRIES=$(echo "$AGENT_JSON" | jq -c '.properties.sandboxConfiguration.egress.allowedRegistries // []')
+NET_CODE_REPOS=$(echo "$AGENT_JSON" | jq -c '.properties.sandboxConfiguration.egress.allowedCodeRepositories // []')
+NET_ALLOW_MCP=$(echo "$AGENT_JSON"  | jq -r '.properties.sandboxConfiguration.egress.allowHttpMcpServerNetworkAccess // true')
+NET_PRIVATE_DNS=$(echo "$AGENT_JSON" | jq -r '.properties.sandboxConfiguration.egress.usePrivateDnsResolution // false')
 AGENT_UAMI=$(echo "$AGENT_JSON" | jq -r '.identity.userAssignedIdentities // {} | keys[0] // ""')
 
 _log "Location:       ${LOCATION}"
@@ -1074,6 +1097,15 @@ jq -n \
   --arg action "$ACTION_MODE" \
   --argjson targetRgs "$TARGET_RGS" \
   --argjson enableBridge "$BRIDGE_EXISTS" \
+  --arg upgradeChannel "$UPGRADE_CHANNEL" \
+  --arg modelProvider "$DEFAULT_MODEL_PROVIDER" \
+  --argjson monthlyLimit "$MONTHLY_AGENT_UNIT_LIMIT" \
+  --arg netEgress "$NET_EGRESS" \
+  --argjson netHosts "$NET_HOSTS" \
+  --argjson netRegistries "$NET_REGISTRIES" \
+  --argjson netCodeRepos "$NET_CODE_REPOS" \
+  --argjson netAllowMcp "$NET_ALLOW_MCP" \
+  --argjson netPrivateDns "$NET_PRIVATE_DNS" \
   '{
     "_description": "SRE Agent configuration — edit these values to clone to a new environment.",
     "_exported_at": (now | todate),
@@ -1091,10 +1123,19 @@ jq -n \
       "actionMode":   $action
     },
 
-    "upgradeChannel": "Preview",
-    "defaultModelProvider": "Anthropic",
-    "monthlyAgentUnitLimit": 10000,
+    "upgradeChannel": $upgradeChannel,
+    "defaultModelProvider": $modelProvider,
+    "monthlyAgentUnitLimit": $monthlyLimit,
     "tags": {},
+
+    "networkConfiguration": {
+      "type":                            $netEgress,
+      "allowedHosts":                    $netHosts,
+      "allowedRegistries":               $netRegistries,
+      "allowedCodeRepositories":         $netCodeRepos,
+      "allowHttpMcpServerNetworkAccess": $netAllowMcp,
+      "usePrivateDnsResolution":         $netPrivateDns
+    },
 
     "toggles": {
       "enableWebhookBridge":         $enableBridge,

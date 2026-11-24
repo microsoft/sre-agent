@@ -465,8 +465,27 @@ if (-not $AGENT_ENDPOINT) {
 $LOCATION      = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.location // "eastus2"')
 $ACCESS_LEVEL  = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.properties.actionConfiguration.accessLevel // .properties.accessLevel // "Low"')
 $ACTION_MODE   = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.properties.actionConfiguration.mode // .properties.actionMode // "Review"')
+# ARM returns the mode in inconsistent case -- "review" on one agent and "Review" on
+# another -- while Clone-Agent and the Bicep @allowed list match exactly, so an untouched
+# export fails our own validation. "Automatic" is the former name for "Autonomous" and is
+# still produced by older agents; mapping it to the current name here is what keeps an
+# autonomous agent from being silently exported as Review.
+$ACTION_MODE = if ($ACTION_MODE -ieq 'Autonomous' -or $ACTION_MODE -ieq 'Automatic') { 'Autonomous' } else { 'Review' }
 $UPGRADE_CHANNEL = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.properties.upgradeChannel // "Preview"')
-$DEFAULT_MODEL_PROVIDER = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.properties.defaultModelProvider // "Anthropic"')
+# ARM exposes the provider under defaultModel.provider; the flat defaultModelProvider form
+# is only present on older payloads.
+$DEFAULT_MODEL_PROVIDER = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.properties.defaultModel.provider // .properties.defaultModelProvider // "Anthropic"')
+$MONTHLY_AGENT_UNIT_LIMIT = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.properties.monthlyAgentUnitLimit // 10000')
+
+# Sandbox egress. Assemble-Agent already reads each of these from .networkConfiguration;
+# without them an export of a Limited agent assembles as Unrestricted, which is more
+# permissive than the agent it was taken from.
+$NET_EGRESS      = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.properties.sandboxConfiguration.egress.mode // "Unrestricted"')
+$NET_HOSTS       = ($AGENT_JSON | Invoke-Jq -Compact -Filter '.properties.sandboxConfiguration.egress.allowedHosts // []')
+$NET_REGISTRIES  = ($AGENT_JSON | Invoke-Jq -Compact -Filter '.properties.sandboxConfiguration.egress.allowedRegistries // []')
+$NET_CODE_REPOS  = ($AGENT_JSON | Invoke-Jq -Compact -Filter '.properties.sandboxConfiguration.egress.allowedCodeRepositories // []')
+$NET_ALLOW_MCP   = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.properties.sandboxConfiguration.egress.allowHttpMcpServerNetworkAccess // true')
+$NET_PRIVATE_DNS = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.properties.sandboxConfiguration.egress.usePrivateDnsResolution // false')
 $AGENT_UAMI    = ($AGENT_JSON | Invoke-Jq -Raw -Filter '.identity.userAssignedIdentities // {} | keys[0] // ""')
 
 _log "Location:       ${LOCATION}"
@@ -1196,6 +1215,11 @@ if (-not (Test-Path (Join-Path $EXPORT_DIR 'config'))) {
 # ═══════ 1. agent.json ═══════
 
 _info 'Writing agent.json'
+$netTmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())
+New-Item -ItemType Directory -Path $netTmpDir -Force | Out-Null
+Set-Content -Path (Join-Path $netTmpDir 'hosts.json')      -Value $NET_HOSTS      -NoNewline -Encoding utf8
+Set-Content -Path (Join-Path $netTmpDir 'registries.json') -Value $NET_REGISTRIES -NoNewline -Encoding utf8
+Set-Content -Path (Join-Path $netTmpDir 'coderepos.json')  -Value $NET_CODE_REPOS -NoNewline -Encoding utf8
 
 # Toggle inference from connectors
 $ENABLE_AI = $false; $AI_RESOURCE_ID = ''; $AI_APP_ID = ''
@@ -1238,15 +1262,32 @@ Invoke-Jq -Filter '{
             "accessLevel":  $access,
             "actionMode":   $action
         },
-        "upgradeChannel": "Preview",
-        "defaultModelProvider": "Anthropic",
-        "monthlyAgentUnitLimit": 10000,
+        "upgradeChannel": $upgradeChannel,
+        "defaultModelProvider": $modelProvider,
+        "monthlyAgentUnitLimit": ($monthlyLimit | tonumber),
         "tags": {},
+        "networkConfiguration": {
+            "type":                            $netEgress,
+            "allowedHosts":                    $netHosts[0],
+            "allowedRegistries":               $netRegistries[0],
+            "allowedCodeRepositories":         $netCodeRepos[0],
+            "allowHttpMcpServerNetworkAccess": ($netAllowMcp | test("true")),
+            "usePrivateDnsResolution":         ($netPrivateDns | test("true"))
+        },
         "toggles": {
             "enableWebhookBridge":     ($enableBridge | test("true")),
             "webhookBridgeTriggerUrl": ""
         }
     }' -ExtraArgs @(
+        '--arg', 'upgradeChannel', $UPGRADE_CHANNEL,
+        '--arg', 'modelProvider', $DEFAULT_MODEL_PROVIDER,
+        '--arg', 'monthlyLimit', $MONTHLY_AGENT_UNIT_LIMIT,
+        '--arg', 'netEgress', $NET_EGRESS,
+        '--slurpfile', 'netHosts', (Join-Path $netTmpDir 'hosts.json'),
+        '--slurpfile', 'netRegistries', (Join-Path $netTmpDir 'registries.json'),
+        '--slurpfile', 'netCodeRepos', (Join-Path $netTmpDir 'coderepos.json'),
+        '--arg', 'netAllowMcp', $NET_ALLOW_MCP,
+        '--arg', 'netPrivateDns', $NET_PRIVATE_DNS,
         '--arg', 'agent', $AgentName,
         '--arg', 'rg', $ResourceGroup,
         '--arg', 'sub', $Subscription,
@@ -1256,6 +1297,7 @@ Invoke-Jq -Filter '{
         '--slurpfile', 'targetRgs', $trgTmpFile,
         '--arg', 'enableBridge', $bridgeBool
     ) | Set-Content -Path (Join-Path $EXPORT_DIR 'agent.json') -Encoding utf8
+Remove-Item $netTmpDir -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $trgTmpFile -Force -ErrorAction SilentlyContinue
 
 # Apply --set overrides
