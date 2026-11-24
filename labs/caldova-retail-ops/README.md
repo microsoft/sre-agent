@@ -42,21 +42,31 @@ The deployed services, availability tests, and SRE Agent incur charges until rem
 
 ## Deploy
 
-```bash
-git clone https://github.com/microsoft/sre-agent.git
-cd sre-agent/labs/caldova-retail-ops
-azd auth login
-azd up
-```
+1. Clone the repository and sign in:
 
-`azd up` asks for an environment name, subscription, and region for the app. The agent is deployed to `eastus2` by default. To choose another [supported region](https://learn.microsoft.com/azure/sre-agent/supported-regions), create the environment and set its location before `azd up`:
+   ```bash
+   git clone https://github.com/microsoft/sre-agent.git
+   cd sre-agent/labs/caldova-retail-ops
+   azd auth login
+   ```
 
-```bash
-azd env new <environment-name>
-azd env set SRE_AGENT_LOCATION swedencentral
-```
+2. Optional: change the defaults. The agent is deployed to `eastus2` and the App Service plan is `P0v3`. To change either, create the environment and set the values **before** `azd up`:
 
-To change the App Service plan size (for example, if `P0v3` quota is unavailable), create the environment first and run `azd env set APP_SERVICE_PLAN_SKU B1` (any Basic or higher SKU) before `azd up`.
+   ```bash
+   azd env new <environment-name>
+   azd env set SRE_AGENT_LOCATION swedencentral   # any supported SRE Agent region
+   azd env set APP_SERVICE_PLAN_SKU B1            # any Basic or higher SKU, if P0v3 quota is unavailable
+   ```
+
+   See [supported regions](https://learn.microsoft.com/azure/sre-agent/supported-regions) for the agent.
+
+3. Deploy:
+
+   ```bash
+   azd up
+   ```
+
+   `azd up` asks for an environment name (unless you created one in step 2), a subscription, and a region for the app.
 
 When it finishes, `azd` prints the web app URL. Run `azd env get-values` to find `WEB_APP_URL` and `SRE_AGENT_NAME`.
 
