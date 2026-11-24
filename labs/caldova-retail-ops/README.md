@@ -354,4 +354,4 @@ On PowerShell, use `az role assignment delete --ids (azd env get-value SRE_AGENT
 
 ## Credits
 
-This lab was created by Puneet Gupta and Shamir Abdul Aziz for Microsoft Ignite 2026 session PREL38, with help from Azure SRE Agent.
+This lab was created by Puneet Gupta and Shamir Abdul Aziz, with help from Azure SRE Agent.
