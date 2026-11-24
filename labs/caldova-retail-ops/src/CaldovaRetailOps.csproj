@@ -11,11 +11,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Update="Data\catalog-waves.json">
+    <Content Update="Data/catalog-waves.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
-    <Content Update="Data\products.json">
+    <Content Update="Data/products.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
