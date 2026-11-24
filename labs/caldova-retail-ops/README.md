@@ -34,7 +34,9 @@ You also get the **SRE Agent Administrator** role on the agent so you can open i
 
 The deployed resources and the SRE Agent incur charges until you [clean up](#clean-up).
 
-## Set up (about 30 minutes)
+## Set up (10–25 minutes)
+
+About 10 minutes if the tools are already installed; up to 25 minutes on a new machine.
 
 ### Step 1. Install prerequisites
 
@@ -67,7 +69,7 @@ cd sre-agent/labs/caldova-retail-ops
 azd up
 ```
 
-When prompted, enter an environment name such as `caldova-<your-alias>`, select your subscription, and select a region such as `eastus2`. Deployment takes about 10–15 minutes and prints your storefront URL. To see your values again later, run `azd env get-values` (`WEB_APP_URL` and `SRE_AGENT_NAME`).
+When prompted, enter an environment name such as `caldova-<your-alias>`, select your subscription, and select a region such as `eastus2`. Deployment takes about 5 minutes and prints your storefront URL. To see your values again later, run `azd env get-values` (`WEB_APP_URL` and `SRE_AGENT_NAME`).
 
 <details>
 <summary>Optional: change the agent region or App Service plan size</summary>
