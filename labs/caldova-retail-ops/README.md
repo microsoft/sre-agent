@@ -29,49 +29,68 @@ You also get the **SRE Agent Administrator** role on the agent so you can open i
 
 ## Prerequisites
 
-To deploy, you need:
+Complete every row in order. Use **Terminal** on macOS and **PowerShell** on Windows. "Same" means the command is identical on both.
 
-- An Azure subscription with **Owner**, or **Contributor** and **User Access Administrator**, at subscription scope. Deployment creates a resource group and role assignments.
-- The `Microsoft.App` resource provider registered in that subscription. If needed, register it in the Azure portal or with `az provider register -n Microsoft.App --wait`.
-- [Git](https://git-scm.com/downloads), [Azure Developer CLI](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) (`azd`), and the [.NET 8 SDK or later](https://dotnet.microsoft.com/download) to clone and build the app.
-- Quota for a Windows App Service plan, and access to a [supported SRE Agent region](https://learn.microsoft.com/azure/sre-agent/supported-regions). The default agent region is `eastus2`.
+> [!IMPORTANT]
+> On Windows, run the installs in rows 4–8 first, then close and reopen PowerShell before running the checks.
 
-For the exercises, you'll also need a GitHub account to connect your own copy of the app source. [GitHub CLI](https://cli.github.com/) (`gh`) is optional; you can create the repository in a browser instead. [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) (`az`) is needed for the cleanup command below and can also be used to reset the scenario or register the provider.
+| # | Step | macOS | Windows | Check |
+| -: | ---- | ----- | ------- | ----- |
+| 1 | Azure subscription with **Owner**, or **Contributor** + **User Access Administrator** | [Azure portal](https://portal.azure.com) > your subscription > **Access control (IAM)** > **View my access** | Same | One of those roles is listed |
+| 2 | GitHub account | Sign up at <https://github.com/signup> | Same | You can sign in to github.com |
+| 3 | Package manager | Install [Homebrew](https://brew.sh):<br>`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`<br>Then run the **Next steps** commands it prints | `winget` is included in Windows 10 and 11 | `brew --version` / `winget --version` |
+| 4 | Git | `brew install git` | `winget install -e --id Git.Git` | `git --version` |
+| 5 | Azure Developer CLI | `brew tap azure/azd && brew install azd` | `winget install -e --id Microsoft.Azd` | `azd version` |
+| 6 | Azure CLI | `brew install azure-cli` | `winget install -e --id Microsoft.AzureCLI` | `az version` |
+| 7 | .NET SDK 8 or later | `brew install --cask dotnet-sdk` | `winget install -e --id Microsoft.DotNet.SDK.8` | `dotnet --version` shows 8.0 or later |
+| 8 | GitHub CLI | `brew install gh` | `winget install -e --id GitHub.cli` | `gh --version` |
+| 9 | Git identity | `git config --global user.name "Your Name"`<br>`git config --global user.email "you@example.com"` | Same | `git config --global user.email` |
+| 10 | Sign in to GitHub | `gh auth login`<br>Choose **GitHub.com**, **HTTPS**, **Yes**, **Login with a web browser** | Same | `gh auth status` |
+| 11 | Sign in to Azure | `az login`<br>`azd auth login` | Same | `az account show` |
+| 12 | Select the lab subscription | `az account set --subscription "<subscription-id-or-name>"` | Same | `az account show --query id -o tsv` prints the ID. Copy it for [Deploy](#deploy) |
+| 13 | Register the SRE Agent resource provider | `az provider register --namespace Microsoft.App --wait` | Same | `az provider show -n Microsoft.App --query registrationState -o tsv` prints `Registered` |
 
-The deployed services, availability tests, and SRE Agent incur charges until removed.
+The deployed resources and the SRE Agent incur charges until you [clean up](#clean-up).
 
 ## Deploy
 
-1. Clone the repository and sign in:
+1. Clone the repository and go to the lab folder:
 
    ```bash
    git clone https://github.com/microsoft/sre-agent.git
    cd sre-agent/labs/caldova-retail-ops
-   azd auth login
    ```
 
-2. Optional: change the defaults. The agent is deployed to `eastus2` and the App Service plan is `P0v3`. To change either, create the environment and set the values **before** `azd up`:
+2. Create an azd environment. The name becomes the resource group name, `rg-<environment-name>`. The location is the region for the web app and monitoring:
 
    ```bash
-   azd env new <environment-name>
-   azd env set SRE_AGENT_LOCATION swedencentral   # any supported SRE Agent region
-   azd env set APP_SERVICE_PLAN_SKU B1            # any Basic or higher SKU, if P0v3 quota is unavailable
+   azd env new caldova-<your-alias> --subscription "<subscription-id>" --location eastus2
    ```
 
-   See [supported regions](https://learn.microsoft.com/azure/sre-agent/supported-regions) for the agent.
+3. Optional: override the defaults. The agent region is `eastus2` and the App Service plan is `P0v3`:
 
-3. Deploy:
+   ```bash
+   azd env set SRE_AGENT_LOCATION swedencentral
+   azd env set APP_SERVICE_PLAN_SKU B1
+   ```
+
+   Use a [supported SRE Agent region](https://learn.microsoft.com/azure/sre-agent/supported-regions). Use `B1` or higher if `P0v3` quota is unavailable.
+
+4. Deploy. This takes about 10–15 minutes:
 
    ```bash
    azd up
    ```
 
-   `azd up` asks for an environment name (unless you created one in step 2), a subscription, and a region for the app.
+5. Note your values:
 
-When it finishes, `azd` prints the web app URL. Run `azd env get-values` to find `WEB_APP_URL` and `SRE_AGENT_NAME`.
+   ```bash
+   azd env get-values
+   ```
 
-> [!NOTE]
-> Give the deployment 10–15 minutes after `azd up` finishes. Availability tests need time to generate telemetry, and the agent needs time to build its context.
+   You'll use `WEB_APP_URL` (the storefront) and `SRE_AGENT_NAME` (your agent).
+
+6. Wait 10–15 minutes before starting exercise 5, so availability tests generate telemetry and the agent builds its context. Exercises 1–4 can start right away.
 
 ## Your path
 
@@ -112,18 +131,30 @@ Each exercise ends with a **Points** line. Award yourself the points when you me
 
 Code context lets the agent relate runtime errors to their implementation and propose a fix instead of relying only on telemetry.
 
-From the `labs/caldova-retail-ops` folder, publish the app source to a new private repository in your GitHub account:
+From the `labs/caldova-retail-ops` folder, copy the app source to a new folder in your home directory.
+
+macOS:
 
 ```bash
-cp -R src ../../../caldova-retail-ops
-cd ../../../caldova-retail-ops
+cp -R src ~/caldova-retail-ops
+cd ~/caldova-retail-ops
+```
+
+Windows (PowerShell):
+
+```powershell
+Copy-Item -Recurse src $HOME\caldova-retail-ops
+cd $HOME\caldova-retail-ops
+```
+
+Then publish it to a new private repository in your GitHub account:
+
+```bash
 git init -b main
 git add .
 git commit -m "Caldova Retail Ops"
 gh repo create caldova-retail-ops --private --source . --push
 ```
-
-On Windows PowerShell, use `Copy-Item -Recurse src ..\..\..\caldova-retail-ops` for the first line. Without `gh`, create an empty private repository at <https://github.com/new> and push to it.
 
 Copy the new repository's URL, for example `https://github.com/<your-account>/caldova-retail-ops`.
 
