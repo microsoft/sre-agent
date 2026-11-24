@@ -81,6 +81,11 @@ app.get("/", (_req, res) => {
  .meta{color:#5b6b7b;font-size:13px;margin-bottom:12px}
  button{background:#0b6bcb;color:#fff;border:0;border-radius:6px;padding:8px 12px;cursor:pointer}
  #quiz{margin-top:20px;padding:16px;background:#fff;border-radius:10px;border:1px solid #e1e8ef;display:none}
+ #quiz .q{margin:0 0 18px}
+ #quiz .prompt{font-weight:600;margin:0 0 8px}
+ #quiz .opts{list-style:none;margin:0;padding:0}
+ #quiz .opts li{padding:3px 0;color:#33475b}
+ #quiz .lbl{display:inline-block;width:22px;font-weight:600;color:#0b6bcb}
  .err{color:#b00020;font-weight:600}
 </style></head>
 <body>
@@ -108,7 +113,9 @@ async function launchQuiz(id){
     const r=await fetch('/api/quiz/'+id); if(!r.ok) throw new Error(r.status);
     const data=await r.json();
     q.innerHTML='<h3>Quiz: '+data.courseId+'</h3>'+data.questions.map((x,i)=>
-      '<p><b>'+(i+1)+'. '+x.q+'</b><br>'+x.options.join(' &nbsp; ')+'</p>').join('');
+      '<div class="q"><p class="prompt">'+(i+1)+'. '+x.q+'</p><ul class="opts">'+
+      x.options.map((o,j)=>'<li><span class="lbl">'+'ABCD'[j]+'.</span>'+o+'</li>').join('')+
+      '</ul></div>').join('');
   }catch(e){ q.innerHTML='<p class="err">We could not launch this quiz. Please try again shortly.</p>'; }
 }
 loadCourses();
