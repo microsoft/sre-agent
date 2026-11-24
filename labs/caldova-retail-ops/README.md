@@ -4,6 +4,15 @@ Act as the on-call engineer for Caldova Retail Co., a storefront and operations 
 
 One `azd up` deploys everything into your subscription: the Caldova web app (with the search failure already in place), monitoring, and an SRE Agent connected to it.
 
+## Architecture
+
+![Caldova Retail Ops lab architecture: shoppers reach the Caldova web app on App Service; telemetry flows to Application Insights and Log Analytics, with availability tests and metric alerts; Azure SRE Agent runs as a managed identity, queries the telemetry, can inspect and fix the app, and uses your GitHub repository copy for code context](docs/images/architecture.svg)
+
+- **Application:** the Caldova storefront (.NET 8) runs on a Windows App Service plan. A forward-dated `Catalog__AsOfDate` setting breaks product search; browsing still works.
+- **Observability:** the app sends requests, exceptions, and traces to Application Insights, and App Service logs and metrics to Log Analytics. Availability tests generate steady traffic, and metric alerts watch failures and availability.
+- **Azure SRE Agent:** runs as a user-assigned managed identity with Contributor on the resource group and Reader on the subscription. Connectors give it Log Analytics and Application Insights. It starts in **Review** mode, so you approve its actions.
+- **You:** work with the agent at [sre.azure.com](https://sre.azure.com) as **SRE Agent Administrator**. In exercise 4 you connect your own GitHub copy of the app source so the agent can relate failures to code.
+
 ## What gets deployed
 
 The lab resources go into one resource group, `rg-<environment-name>`:
@@ -56,16 +65,38 @@ When it finishes, `azd` prints the web app URL. Run `azd env get-values` to find
 
 ## Your path
 
-| Stage | Exercises | What you'll have at the end |
-| ----- | --------- | --------------------------- |
-| Give the agent context | 1-4 | Your own repository copy, connected to the agent alongside its Azure scope and logs |
-| Investigate and fix | 5-7 | A working product search, verified in the app yourself |
-| Automate and budget | 8-10 | A weekly cost review, a live health report, and a clear view of the AAU limit |
-| Explore (optional) | 11 | Report versions, detailed usage, Agent Canvas, skills, custom agents, integrations, and triggers |
+![Lab path: give the agent context (25 points), investigate and fix (35 points), automate and budget (35 points), explore (5 points), 100 points in total](docs/images/lab-path.svg)
+
+| Stage | Exercises | What you'll have at the end | Points |
+| ----- | --------- | --------------------------- | -----: |
+| Give the agent context | 1-4 | Your own repository copy, connected to the agent alongside its Azure scope and logs | 25 |
+| Investigate and fix | 5-7 | A working product search, verified in the app yourself | 35 |
+| Automate and budget | 8-10 | A weekly cost review, a live health report, and a clear view of the AAU limit | 35 |
+| Explore | 11 | Report versions, detailed usage, Agent Canvas, skills, custom agents, integrations, and triggers | 5 |
+| **Total** | | | **100** |
+
+### Scorecard
+
+Each exercise ends with a **Points** line. Award yourself the points when you meet it.
+
+| # | Exercise | Points |
+| -: | -------- | -----: |
+| 1 | Create your copy of the app source | 5 |
+| 2 | Open Azure SRE Agent | 5 |
+| 3 | Review Azure resources and telemetry | 5 |
+| 4 | Connect your repository | 10 |
+| 5 | Review the Getting started thread | 5 |
+| 6 | Inquire and configure Web App | 5 |
+| 7 | Debug the product-search failure | 25 |
+| 8 | Schedule a weekly cost review | 15 |
+| 9 | Create a live traffic and health report | 15 |
+| 10 | Review agent consumption and the AAU budget | 5 |
+| 11 | Explore agent capabilities | 5 |
+| | **Total** | **100** |
 
 **Keep work moving:** Agent replies, task creation, report authoring, and scheduled runs can take several minutes. Answer pending questions or approvals, then continue an independent exercise instead of waiting. Do not submit duplicate requests.
 
-## 1. Create your copy of the app source
+## 1. Create your copy of the app source (5 points)
 
 **Goal:** Give the agent a repository with the application code it can inspect.
 
@@ -86,7 +117,9 @@ On Windows PowerShell, use `Copy-Item -Recurse src ..\..\..\caldova-retail-ops` 
 
 Copy the new repository's URL, for example `https://github.com/<your-account>/caldova-retail-ops`.
 
-## 2. Open Azure SRE Agent
+**Points: 5.** Your private `caldova-retail-ops` repository exists and contains the app source.
+
+## 2. Open Azure SRE Agent (5 points)
 
 **Goal:** Open the deployed agent and see how its context is assembled.
 
@@ -99,7 +132,9 @@ Copy the new repository's URL, for example `https://github.com/<your-account>/ca
 
    ![Context wizard with Quickstart selected, Code, and connected Logs](docs/images/reviewed-context-wizard-b929c8710b68.png)
 
-## 3. Review Azure resources and telemetry
+**Points: 5.** You opened your agent at sre.azure.com and the context wizard is showing.
+
+## 3. Review Azure resources and telemetry (5 points)
 
 **Goal:** Understand which resource group and log sources the agent uses.
 
@@ -114,7 +149,9 @@ If the context wizard is closed, go to **Operations hub > Overview > Complete se
 
    ![Logs details with Application Insights and Log Analytics Connected](docs/images/logs-connected.png)
 
-## 4. Connect your repository
+**Points: 5.** You confirmed the resource group scope and that Application Insights and Log Analytics show **Connected**.
+
+## 4. Connect your repository (10 points)
 
 **Goal:** Connect your repository so the agent can investigate the application source.
 
@@ -131,7 +168,9 @@ If the context wizard is closed, go to **Operations hub > Overview > Complete se
 
 If the agent reports that indexing is still running, continue another exercise and return later.
 
-## 5. Review the Getting started thread
+**Points: 10.** Your repository appears under **Code > Show details**.
+
+## 5. Review the Getting started thread (5 points)
 
 **Goal:** Understand what Caldova does and how its Azure resources fit together.
 
@@ -149,7 +188,9 @@ If the agent reports that indexing is still running, continue another exercise a
 
 Spend up to 5 minutes here, then continue.
 
-## 6. Inquire and configure Web App
+**Points: 5.** You can describe what Caldova does and which Azure resources it uses.
+
+## 6. Inquire and configure Web App (5 points)
 
 **Goal:** Inspect and understand the App Service configuration.
 
@@ -166,7 +207,9 @@ Knowing the hosting settings and the website address helps you distinguish confi
 
    ![Example App Service configuration response](docs/images/reviewed-default-hostname-0540d408303f.png)
 
-## 7. Debug the product-search failure
+**Points: 5.** You opened the website from the link the agent gave you.
+
+## 7. Debug the product-search failure (25 points)
 
 **Goal:** Investigate the search problem, fix it, and confirm customer-visible recovery.
 
@@ -189,7 +232,9 @@ A proposed patch is not the outcome: customers must be able to find products aga
 
 A source-code pull request is not a deployment. If the running app still fails after a proposed fix, tell the agent what still fails and ask it to investigate further. An empty result set is not recovery.
 
-## 8. Schedule a weekly cost review
+**Points: 25.** Searching for `jacket` returns products, catalog browsing still works, and you can state the root cause in one sentence.
+
+## 8. Schedule a weekly cost review (15 points)
 
 **Goal:** Use chat to automate cost analysis, forecasting, and savings recommendations.
 
@@ -215,7 +260,9 @@ A source-code pull request is not a deployment. If the running app still fails a
 
    *Example amounts only; your data and layout will differ.*
 
-## 9. Create a live traffic and health report
+**Points: 15.** You opened the HTML slide deck from the task's execution thread.
+
+## 9. Create a live traffic and health report (15 points)
 
 **Goal:** Build and use an interactive UI through conversation.
 
@@ -250,7 +297,9 @@ A source-code pull request is not a deployment. If the running app still fails a
 
    > **Important:** If the report fails to load or behaves unexpectedly, describe the behavior or share screenshots in the same conversation so the agent can refine it.
 
-## 10. Review agent consumption and the AAU budget
+**Points: 15.** The **Caldova Traffic and Health** report shows the dependency graph, charts, and tables.
+
+## 10. Review agent consumption and the AAU budget (5 points)
 
 **Goal:** Understand how an AAU limit makes agent spending predictable, controlled, and visible.
 
@@ -271,7 +320,9 @@ A source-code pull request is not a deployment. If the running app still fails a
 
 5. When the active-flow limit is reached, chat and actions stop until allowance is available again. The fixed **always-on** charge is separate and continues while the agent exists. Usage can lag; select **Refresh** before concluding a thread is missing.
 
-## 11. Explore agent capabilities (optional)
+**Points: 5.** You can explain how the AAU limit keeps agent spending predictable, controlled, and visible.
+
+## 11. Explore agent capabilities (5 points)
 
 ### Additional resource scopes and log connectors
 
@@ -316,12 +367,28 @@ Help me build a reusable skill for troubleshooting web-service issues. Cover HTT
 
 Open **Incidents** to see supported incident platforms, and **Incidents > Triggers + response plans** to see how alerts route to investigations. Scheduled tasks run by time; incident triggers react to alerts; HTTP triggers react to an explicit request from another system. Treat HTTP trigger callback URLs as credentials.
 
+**Points: 5.** You tried at least two of the capabilities above, for example a skill draft and the live report version picker.
+
 ## Complete
 
-- Searching for `jacket` returns products, and catalog browsing still works.
-- You've opened the cost review's HTML slide deck from its execution thread.
-- You've used the **Caldova Traffic and Health** live report.
-- You can explain how the AAU limit keeps agent spending predictable, controlled, and visible.
+Add up your scorecard. To reach 100 points:
+
+- [ ] Searching for `jacket` returns products, and catalog browsing still works.
+- [ ] You've opened the cost review's HTML slide deck from its execution thread.
+- [ ] You've used the **Caldova Traffic and Health** live report.
+- [ ] You can explain how the AAU limit keeps agent spending predictable, controlled, and visible.
+- [ ] You've explored at least two capabilities from exercise 11.
+
+<details>
+<summary><strong>Scored 100 points? Open this.</strong></summary>
+
+### 🏆 You did it!
+
+You ran the full on-call loop with Azure SRE Agent: you gave it context, investigated a customer-facing failure, fixed it and verified recovery, automated recurring work, and kept agent spending under control.
+
+Next, try it on your own services: connect a real resource group, your repository, and your incident platform at [sre.azure.com](https://sre.azure.com).
+
+</details>
 
 ## Reset the search failure
 
