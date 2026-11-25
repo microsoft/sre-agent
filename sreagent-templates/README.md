@@ -278,6 +278,10 @@ Full PowerShell 7+ port in [`bin/ps/`](bin/ps/). Same config directory, same res
 
 See [examples/ci-cd/](examples/ci-cd/) for GitHub Actions and step-by-step setup.
 
+## Teams and Outlook connectors
+
+Add `Teams` and `Outlook` entries to `connectors.json`, deploy, then sign in once in the portal. See [examples/teams-outlook-connectors/](examples/teams-outlook-connectors/).
+
 ## Contributing
 
 A recipe is defined by 5 dimensions — think through each for your use case:

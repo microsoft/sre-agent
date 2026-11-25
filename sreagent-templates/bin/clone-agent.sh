@@ -476,10 +476,10 @@ for i in $(seq 0 $((CONNECTOR_COUNT - 1))); do
       _warn "Connector '${cname}' (${ctype}): needs ADO AUTH — set ADO_PAT, ADO_USE_AAD=1, or ADO_USE_MI=1 before running apply-extras.sh"
       ;;
     Teams)
-      _warn "Connector '${cname}' (${ctype}): needs PORTAL SETUP — configure Teams connector via portal API Connections blade"
+      _warn "Connector '${cname}' (${ctype}): needs PORTAL SIGN-IN — after deploy, sign in on the Teams connector in the portal Connectors page"
       ;;
     Outlook)
-      _warn "Connector '${cname}' (${ctype}): needs PORTAL SETUP — configure Outlook connector via portal API Connections blade"
+      _warn "Connector '${cname}' (${ctype}): needs PORTAL SIGN-IN — after deploy, sign in on the Outlook connector in the portal Connectors page"
       ;;
     PagerDuty)
       _warn "Connector '${cname}' (${ctype}): needs PAGERDUTY API KEY — configure via portal Incident Platforms page"

@@ -10,6 +10,9 @@ roles:
   #   type: rbac
   #   role: "Log Analytics Reader"
 
+  # Teams / Outlook — prefer named connectors in connectors.json instead
+  # (dataConnectorType "Teams" / "Outlook"); see examples/teams-outlook-connectors.
+  # The api-connection blocks below are the legacy approach.
   # Teams connector — creates API connection, prints consent URL to sign in
   # - name: Teams API Connection
   #   type: api-connection

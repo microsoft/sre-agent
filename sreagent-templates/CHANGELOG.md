@@ -15,7 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `webhookBridgeName` replaces `webhookBridgeUrl` in the main Bicep template, and the standalone bridge template no longer returns `logicAppCallbackUrl`. Consumers must retrieve the callback URL explicitly with `listCallbackUrl`.
 - Webhook bridge lookup or deployment failures now stop Bash and PowerShell `apply-extras`, so later configuration steps do not run after a bridge failure.
 
+### Added
+- `examples/teams-outlook-connectors/` shows how to deploy the Teams and Outlook managed connectors through `connectors.json`, followed by a one-time portal sign-in.
+
 ### Changed
+- `deploy.sh` prints a sign-in reminder when Teams or Outlook connectors are deployed. `clone-agent.sh`, `GETTING-STARTED.md`, and recipe `roles.yaml` comments now point to named managed connectors in `connectors.json` instead of `api-connection` roles.
 - Webhook bridge scripts print the Logic App name and a `listCallbackUrl` retrieval command instead of the callback URL.
 
 ### Fixed

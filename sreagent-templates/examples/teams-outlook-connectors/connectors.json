@@ -1,0 +1,26 @@
+{
+  "toggles": {},
+  "connectors": [
+    {
+      "name": "teams",
+      "properties": {
+        "dataConnectorType": "Teams",
+        "dataSource": "placeholder",
+        "extendedProperties": {}
+      }
+    },
+    {
+      "name": "outlook",
+      "properties": {
+        "dataConnectorType": "Outlook",
+        "dataSource": "placeholder",
+        "extendedProperties": {
+          "connectionParameterValueSet": {
+            "name": "oauthDelegated",
+            "values": {}
+          }
+        }
+      }
+    }
+  ]
+}
