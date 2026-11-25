@@ -1,0 +1,26 @@
+// =============================================================================
+// 2. IIS W3C Extended Logs — Error Rates, Substatus Codes, and Request Latency
+// Workspace: law-caldova-central (W3CIISLog table)
+// =============================================================================
+
+// A. Request volume, failure rate, and p95 latency (ms) per minute and endpoint
+W3CIISLog
+| where TimeGenerated > ago(1h)
+| where Computer has "caldova" or _ResourceId has "win-caldova-exp01"
+| extend StatusInt = toint(scStatus)
+| summarize
+    TotalRequests  = count(),
+    Failed5xx      = countif(StatusInt >= 500),
+    ErrorRatePct   = round(100.0 * countif(StatusInt >= 500) / count(), 1),
+    AvgTimeTakenMs = round(avg(todouble(timeTaken)), 1),
+    P95TimeTakenMs = round(percentile(todouble(timeTaken), 95), 1)
+    by bin(TimeGenerated, 1m), csMethod, csUriStem
+| order by TimeGenerated desc
+
+// B. Detailed HTTP 5xx breakdown (status, substatus, win32 status)
+W3CIISLog
+| where TimeGenerated > ago(1h)
+| where Computer has "caldova" or _ResourceId has "win-caldova-exp01"
+| where toint(scStatus) >= 500
+| project TimeGenerated, Computer, csMethod, csUriStem, csUriQuery, scStatus, scSubStatus, scWin32Status, timeTaken, cIP
+| order by TimeGenerated desc

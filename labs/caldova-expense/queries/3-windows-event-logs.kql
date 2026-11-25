@@ -1,0 +1,21 @@
+// =============================================================================
+// 3. Windows Event Logs — CaldovaExpense Provider, IIS (WAS/W3SVC), & SQL Server
+// Workspace: law-caldova-central (Event table)
+// =============================================================================
+
+// A. Application-specific events emitted by CaldovaExpense (EventIDs 1001, 4001, 5001-5005)
+Event
+| where TimeGenerated > ago(2h)
+| where Computer has "caldova" or _ResourceId has "win-caldova-exp01"
+| where Source == "CaldovaExpense" or EventLevelName in ("Error", "Warning", "Critical")
+| project TimeGenerated, Computer, EventLog, Source, EventID, EventLevelName, RenderedDescription
+| order by TimeGenerated desc
+
+// B. Summary of error/warning EventIDs over time
+Event
+| where TimeGenerated > ago(2h)
+| where Computer has "caldova" or _ResourceId has "win-caldova-exp01"
+| where EventLevelName in ("Error", "Warning", "Critical")
+| summarize EventCount = count(), FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated)
+    by Source, EventID, EventLevelName
+| order by LastSeen desc

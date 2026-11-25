@@ -1,0 +1,27 @@
+// =============================================================================
+// 1. Verify Azure Arc Heartbeat & Windows / IIS / SQL Server Performance Counters
+// Workspace: law-caldova-central
+// =============================================================================
+
+// A. Latest Azure Arc / AMA Heartbeat from win-caldova-exp01
+Heartbeat
+| where TimeGenerated > ago(1h)
+| where Computer has "caldova" or _ResourceId has "win-caldova-exp01"
+| summarize LastHeartbeat = max(TimeGenerated), OSType = any(OSType), Version = any(Version) by Computer, _ResourceId
+
+// B. CPU, Available Memory, IIS Connections, and SQL Lock Wait Time (5-minute buckets)
+Perf
+| where TimeGenerated > ago(1h)
+| where Computer has "caldova" or _ResourceId has "win-caldova-exp01"
+| where CounterName in (
+    "% Processor Time",
+    "Available MBytes",
+    "Current Connections",
+    "Total Method Requests/sec",
+    "User Connections",
+    "Batch Requests/sec",
+    "Lock Wait Time (ms)"
+)
+| summarize AvgValue = round(avg(CounterValue), 2), MaxValue = round(max(CounterValue), 2)
+    by bin(TimeGenerated, 5m), ObjectName, CounterName, Computer
+| order by TimeGenerated desc, ObjectName asc

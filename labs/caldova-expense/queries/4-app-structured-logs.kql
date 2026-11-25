@@ -1,0 +1,25 @@
+// =============================================================================
+// 4. Structured Application Logs — Correlation IDs & Request Error Rate
+// Workspace: law-caldova-central (CaldovaExpenseApp_CL table)
+// =============================================================================
+
+// A. Accurate API error rate (counts only single request-completion records)
+CaldovaExpenseApp_CL
+| where TimeGenerated > ago(1h)
+| where RawData has "[HttpRequest] corr=" and RawData has "Request "
+| parse RawData with * "Request " Method " " Path " " Outcome " status=" Status:int " durationMs=" DurationMs:long " chaosMode=" ChaosMode
+| summarize
+    TotalRequests = count(),
+    Failed5xx     = countif(Status >= 500),
+    FailurePct    = round(100.0 * countif(Status >= 500) / count(), 1),
+    P95DurationMs = percentile(DurationMs, 95)
+    by bin(TimeGenerated, 1m), Method, Path
+| order by TimeGenerated desc
+
+// B. Correlated diagnostic & upstream exceptions (SapFiSync, SqlTimeout, SqlError)
+CaldovaExpenseApp_CL
+| where TimeGenerated > ago(1h)
+| where RawData has_any ("ERROR", "WARN")
+| parse RawData with LogTimestamp " " Level " [" Category "] corr=" CorrelationId " host=" Host " " Message
+| project TimeGenerated, Level = trim(" ", Level), Category, CorrelationId, Host, Message
+| order by TimeGenerated desc
