@@ -336,7 +336,7 @@ check_connector_health() {
   [[ "$count" -gt 0 ]] || return 0
 
   echo -e "  ${BOLD}Connectors:${NC}"
-  local warn=false
+  local warn=false signin=false
   for i in $(seq 0 $((count - 1))); do
     local cname cstate ctype
     cname=$(echo "$conn_json" | jq -r ".value[$i].name")
@@ -351,10 +351,16 @@ check_connector_health() {
       echo -e "    ${YELLOW}⚠ ${cname} (${ctype}): ${cstate}${NC}"
       warn=true
     fi
+    case "$ctype" in
+      Teams|Outlook) signin=true ;;
+    esac
   done
   if [[ "$warn" == "true" ]]; then
     echo
     echo -e "  ${YELLOW}${BOLD}⚠ Some connectors are not healthy. Check the portal or redeploy.${NC}"
+  fi
+  if [[ "$signin" == "true" ]]; then
+    echo -e "  ${CYAN}ℹ Teams/Outlook connectors need a one-time sign-in. Open the agent in the portal, go to Connectors, and sign in.${NC}"
   fi
   echo
 }

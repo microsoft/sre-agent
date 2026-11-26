@@ -1,0 +1,26 @@
+{
+  "toggles": {},
+  "connectors": [
+    {
+      "name": "teams",
+      "properties": {
+        "dataConnectorType": "Teams",
+        "extendedProperties": {}
+      }
+    },
+    {
+      "name": "outlook",
+      "properties": {
+        "dataConnectorType": "Outlook",
+        "extendedProperties": {
+          "selectedTools": ["GetEmailsV3"],
+          "requireApprovalTools": ["GetEmailsV3"],
+          "connectionParameterValueSet": {
+            "name": "oauthDelegated",
+            "values": {}
+          }
+        }
+      }
+    }
+  ]
+}

@@ -94,7 +94,7 @@ The Bicep template creates a User-Assigned Managed Identity (UAMI) and grants it
 | **Target resource groups** | Automatic — Bicep grants Reader + Log Analytics Reader (+ Contributor if accessLevel=High) | During deploy |
 | **Target subscriptions** (if monitoring cross-sub) | `az role assignment create --assignee-object-id $UAMI --role Reader --scope /subscriptions/$TARGET_SUB` | After deploy |
 | **Kusto/ADX cluster** | `az kusto database add-principal` with Viewer role | After deploy |
-| **Teams / Outlook** | API connection created by `roles.yaml`. User signs in via consent URL | After deploy |
+| **Teams / Outlook** | Not needed. Add `Teams` / `Outlook` entries to `connectors.json`, then sign in once in the portal (see [examples/teams-outlook-connectors](../examples/teams-outlook-connectors/)) | After deploy |
 | **ADO repos** (via MI) | Federated Identity Credential on UAMI → ADO org. Then `ADO_USE_MI=1` | After deploy |
 
 The UAMI principal ID is printed in the deploy output. To retrieve it later:
@@ -137,7 +137,7 @@ For connectors that use MI, no secrets are needed in files — just RBAC grants.
 | MCP (Dynatrace, Datadog, Splunk, etc.) | Bearer token | `connectors.secrets.env` → `${ENV_VAR}` in `connectors.json` |
 | GitHub | OAuth or PAT | Sign in via URL printed by deploy.sh, or set `GITHUB_PAT` env var |
 | Azure DevOps | PAT / AAD / MI | `ADO_PAT`, `ADO_USE_AAD=1`, or `ADO_USE_MI=1` env var before deploy |
-| Teams / Outlook | OAuth consent | Add to `roles.yaml` as `type: api-connection`. deploy.sh creates the resource and prints consent URL |
+| Teams / Outlook | OAuth (portal sign-in) | Add `Teams` / `Outlook` entries to `connectors.json` (Outlook needs `connectionParameterValueSet` `oauthDelegated`). After deploy, sign in on each connector in the portal. See [examples/teams-outlook-connectors](../examples/teams-outlook-connectors/) |
 | PagerDuty / ServiceNow | Portal setup | Configure via portal Incident Platforms page after deploy |
 
 ## Step 4: Validate (dry run)
