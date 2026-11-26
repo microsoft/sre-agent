@@ -152,7 +152,7 @@ param scheduledTasks array = []
 @description('Optional. Incident filter definitions (AzMonitor / PagerDuty / ServiceNow rules + handling subagent).')
 param incidentFilters array = []
 
-@description('Optional. Connector definitions for any kind not covered by toggles above (kusto, mcp, github, azuredevops, servicenow, pagerduty, grafana, and named managed connectors such as Teams and Outlook) or to override a toggle-generated entry. Managed connectors deploy without OAuth; sign in once in the portal after deployment.')
+@description('Optional. Connector definitions for any kind not covered by toggles above (kusto, mcp, github, azuredevops, servicenow, pagerduty, grafana, and managed connectors such as Teams and Outlook) or to override a toggle-generated entry. Teams and Outlook connectors use OAuth and require one-time sign-in in the portal after deployment.')
 param connectors array = []
 
 @description('Optional. Hook definitions for any handler beyond the toggles above (additional PreToolUse/Start/Stop entries).')

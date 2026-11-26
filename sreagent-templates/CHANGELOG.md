@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `examples/teams-outlook-connectors/` shows how to deploy the Teams and Outlook managed connectors through `connectors.json`, followed by a one-time portal sign-in.
 
 ### Changed
-- `deploy.sh` prints a sign-in reminder when Teams or Outlook connectors are deployed. `clone-agent.sh`, `GETTING-STARTED.md`, and recipe `roles.yaml` comments now point to named managed connectors in `connectors.json` instead of `api-connection` roles.
+- `deploy.sh` prints a sign-in reminder when Teams or Outlook connectors are deployed. `clone-agent.sh`, `GETTING-STARTED.md`, and recipe `roles.yaml` comments now point to managed connectors in `connectors.json` instead of `api-connection` roles.
 - Webhook bridge scripts print the Logic App name and a `listCallbackUrl` retrieval command instead of the callback URL.
 
 ### Fixed
