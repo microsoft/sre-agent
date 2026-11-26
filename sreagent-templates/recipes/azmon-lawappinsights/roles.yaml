@@ -5,7 +5,7 @@
 # and print setup instructions (consent URLs, az commands, etc.)
 
 roles:
-  # Teams / Outlook — prefer named connectors in connectors.json instead
+  # Teams / Outlook — use the new managed connectors in connectors.json.
   # (dataConnectorType "Teams" / "Outlook"); see examples/teams-outlook-connectors.
   # The api-connection blocks below are the legacy approach.
   # Teams connector — creates API connection, prints consent URL to sign in
