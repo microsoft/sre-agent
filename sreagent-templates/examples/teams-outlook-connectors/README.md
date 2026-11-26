@@ -6,7 +6,7 @@ This example adds the Microsoft Teams and Outlook connectors to an agent through
 
 Teams and Outlook are managed connectors. Use the named connector types `Teams` and `Outlook` in the `connectors` array. You do not need an `api-connection` entry in `roles.yaml`.
 
-The Bicep template deploys each entry as a `Microsoft.App/agents/connectors` resource, one at a time (`@batchSize(1)`). Parallel writes to managed connectors fail with `OperationConflict`.
+The Bicep template deploys each entry as a `Microsoft.App/agents/connectors` resource. Separate managed connectors can be deployed in parallel.
 
 | Field | Value | Notes |
 |---|---|---|

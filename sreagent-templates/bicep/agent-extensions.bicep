@@ -146,7 +146,6 @@ resource parent 'Microsoft.App/agents@2025-05-01-preview' existing = {
 
 // Connectors (working typed shape — see comment above builtInConnectors).
 #disable-next-line BCP081
-@batchSize(1)
 resource connectorRes 'Microsoft.App/agents/connectors@2025-05-01-preview' = [for c in allConnectors: {
   parent: parent
   name: c.name
