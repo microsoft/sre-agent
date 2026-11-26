@@ -228,8 +228,13 @@ dataplane_put_extended() {
   local kind="$1" name="$2" type="$3" tags_json="$4" props_json="$5"
   local TOKEN body url
   TOKEN=$(_dp_token)
-  body=$(jq -nc --arg n "$name" --arg t "$type" --argjson tags "$tags_json" --argjson props "$props_json" \
-    '{name:$n, type:$t, tags:$tags, properties:$props}')
+  # props_json can exceed MAX_ARG_STRLEN (128 KiB) for a large subagent or tool, so it is
+  # handed to jq through a file rather than argv.
+  local props_tmp="${TMPDIR:-/tmp}/.apply-props.$$"
+  printf '%s' "$props_json" > "$props_tmp"
+  body=$(jq -nc --arg n "$name" --arg t "$type" --argjson tags "$tags_json" --slurpfile props "$props_tmp" \
+    '{name:$n, type:$t, tags:$tags, properties:$props[0]}')
+  rm -f "$props_tmp"
   url="${AGENT_ENDPOINT}/api/v2/extendedAgent/${kind}/$(printf %s "$name" | jq -sRr @uri)"
   # Try PUT first. If the resource exists and the API doesn't update immutable
   # fields (e.g. hook type), fall back to DELETE + PUT.
