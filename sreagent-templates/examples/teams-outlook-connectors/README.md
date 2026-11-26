@@ -4,14 +4,14 @@ This example adds the Microsoft Teams and Outlook connectors to an agent through
 
 ## How it works
 
-Teams and Outlook are managed connectors. Use the named connector types `Teams` and `Outlook` in the `connectors` array. You do not need an `api-connection` entry in `roles.yaml`.
+Teams and Outlook are managed connectors. Set `dataConnectorType` to `Teams` or `Outlook` in the `connectors` array. You do not need an `api-connection` entry in `roles.yaml`.
 
 The Bicep template deploys each entry as a `Microsoft.App/agents/connectors` resource. Separate managed connectors can be deployed in parallel.
 
 | Field | Value | Notes |
 |---|---|---|
-| `dataConnectorType` | `Teams` or `Outlook` | Named managed connector type. Do not use `ConnectorGateway`. |
-| `dataSource` | Omitted | Not required for Teams or Outlook managed connectors. |
+| `dataConnectorType` | Managed connector name, e.g. `Teams` or `Outlook` | See the [full list of currently supported managed connectors](https://sre.azure.com/docs/reference/api-reference#managed-connector-types). |
+| `dataSource` | Not required for managed connectors. | |
 | `extendedProperties.connectionParameterValueSet` | `{ "name": "oauthDelegated", "values": {} }` | Required for Outlook. Teams has no parameter sets, so leave it out. |
 | `extendedProperties.selectedTools` | `["GetEmailsV3"]` | Optional. Enables the named Outlook operation. |
 | `extendedProperties.requireApprovalTools` | `["GetEmailsV3"]` | Optional. Requires approval to run the named operation. |
