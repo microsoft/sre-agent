@@ -254,6 +254,68 @@ Recipe-specific env vars:
 | pagerduty | `PAGERDUTY_API_KEY` |
 | dynatrace | `DT_TENANT`, `DT_TOKEN`, `GITHUB_REPO` |
 
+## Updating Governance Hooks
+
+Hooks require Python 3 and use `failMode: block`. CLI policies inspect
+`tool_input.command`; named built-in tools are matched by `tool_name`.
+`deny-prod-deletes` denies delete/remove operations whose input contains
+`prod`/`prd`. Restart/scale approval and VM/NSG approval are separate
+`ask` policies. Production names use substring matching, so `product-dev`
+also matches; adapt the naming rule for your environment.
+Each approval hook evaluates the same production-removal rule before asking,
+so denial does not depend on the ordering of these recipe hooks. This does not
+change the platform's behavior for other customer-defined hooks.
+Capacity updates (`sku.capacity`, nodepool count limits, worker counts and
+replica patches) also request approval. This heuristic checks only the command,
+not unrelated input fields. VM/VMSS writes still require review under the VM
+policy even when they only update tags.
+
+Built-in matchers use case-sensitive naming patterns rather than an enumerated
+tool list: restart/scaling names, NSG modification names in the VM policy, and
+`(?:APIM)?RemoveNSGRule.*` for production removal. The scripts use the same
+patterns. New names following those conventions are covered automatically;
+names outside them (for example `RecycleApplication`) are not. The two CLI
+entry points remain explicit because their command arguments determine the action.
+
+AWS checks ordinary tools' operation names (including `batch-delete-*`), not
+their arguments. Generic forwarding tools (`call_aws`, `run_script`, ...,
+including proxy-prefixed names such as `aws___call_aws`) are parsed for
+`aws <service> <operation>` in top-level string arguments: recognized destructive
+operations are denied and every other forwarded request asks for approval.
+Nested `request` commands are not parsed and therefore require approval.
+Ordinary single-component names such as `recommend` are checked as an operation
+name rather than rejected for their format.
+
+Check `/api/v2/agent/tools` for actual enabled names. These examples cover only
+the naming patterns and recognized commands, not every execution path or complete
+shell syntax. Keep least-privilege resource permissions and verify live
+approval behavior before relying on the policies.
+
+Existing Agents do not update automatically. Update your own hook YAML,
+then reapply and verify (PowerShell equivalents are also available).
+Use `apply-extras.sh` directly or `bin/deploy.sh --force` to explicitly reapply
+the configuration (`Apply-Extras.ps1` or `Deploy-Agent.ps1 -Force` in PowerShell):
+
+```bash
+bash bicep/apply-extras.sh "$SUB" "$RG" "$AGENT" /path/to/updated-agent-config
+bash bin/verify-agent.sh "$SUB" "$RG" "$AGENT" --expected /path/to/updated-agent-config
+```
+
+Confirm successful data-plane application; a skipped upload is not an update.
+Bicep retains `hooks`, `enableDenyProdDeletesHook` and `pendingHooks` as deprecated
+compatibility interfaces. `pendingHooks` only returns the caller's entries.
+Direct Bicep deployment alone
+does not install hooks or convert `enableDenyProdDeletesHook`. Direct Bicep
+callers must put the hook in `config/hooks` and then run apply-extras.
+The assemblers translate an enabled legacy toggle
+into the default `deny-prod-deletes` hook in extras unless a same-name hook
+already exists; customer definitions take precedence. Apply the assembled
+extras through `apply-extras.sh` or `Apply-Extras.ps1`. Deployment change
+detection compares these assembled hook definitions, including matcher, type
+and normalized script content, so an added default or changed same-name hook
+requires deployment. Identical definitions do not require redeployment.
+The toggle has no effect until the assembled extras are actually applied.
+
 ## PowerShell
 
 Full PowerShell 7+ port in [`bin/ps/`](bin/ps/). Same config directory, same results.

@@ -100,7 +100,7 @@ Every YAML file must match the API shape it targets. Common mistakes:
 |---|---|---|
 | Skills | `metadata.name`, `metadata.description`, `metadata.spec.tools`, `skillContent: skills/<name>.md` | Missing `skills/` prefix on skillContent |
 | Subagents | `metadata.name`, `spec.instructions: subagents/<name>.instructions.md`, `spec.handoffs: []` | Missing `subagents/` prefix, instructions < 50 chars |
-| Hooks | `spec.hook.type`, `spec.hook.prompt`, `spec.hook.matcher` | Using `hookType`/`hookBody` (Bicep shape, not API) |
+| Hooks | `spec.eventType`, `spec.hook.type`, `spec.hook.matcher`, `spec.hook.script` (command) or `spec.hook.prompt` (prompt) | Using `hookType`/`hookBody`, or putting decisions outside script output |
 | Common Prompts | `metadata.name`, `spec.prompt` (inline text) | Referencing .md file instead of inline content |
 | Incident Filters | `metadata.name`, `spec.incidentPlatform` (`AzMonitor`, `PagerDuty`, `ServiceNow`) | Using `AzureMonitor` instead of `AzMonitor` |
 | Scheduled Tasks | `metadata.name`, `spec.schedule` or `spec.cronExpression`, `spec.prompt` or `spec.agentPrompt` | — |
@@ -117,6 +117,36 @@ Every YAML file must match the API shape it targets. Common mistakes:
 - Connector toggles (`enableAppInsightsConnector`, etc.) go in `connectors.json` only
 - Do NOT also create connector YAML files for toggle-managed connectors
 - Items created by the recipe YAML (hooks, prompts, tasks) must NOT also have Bicep toggle flags
+
+### Governance Hooks
+
+Use deterministic `PreToolUse` command hooks with `failMode: block` and a bounded
+timeout. Matcher regexes are case-sensitive and full-name anchored; verify
+them against enabled names from `/api/v2/agent/tools`. Both deployment verifiers
+reject missing, invalid or unmatched matchers and unavailable inventories.
+Use scoped naming regexes for built-ins and the identical expression in the
+script; test both existing names and new names following the convention.
+Include negative tests for unrelated/read-only names. Matcher coverage verifies
+at least one enabled tool, not completeness of operation coverage.
+
+Scripts receive event JSON on stdin. Inspect `tool_name` before assuming a
+CLI `tool_input.command` exists. Deny with top-level `"ok": false` and `"reason"`,
+plus `hookSpecificOutput.permissionDecision: deny`; ask with
+`hookSpecificOutput.permissionDecision: ask` and `permissionDecisionReason`.
+Never emit `allow`. Out-of-policy operations print `{"ok": true}`;
+malformed event or CLI input must fail.
+
+For AWS, inspect ordinary tool operation names, not parameter values. Normalize
+proxy prefixes before recognizing generic forwarding tools. Only forwarders
+need command parsing; every non-denied forwarded request must ask for review.
+Add read-only log filters and tag values to regression tests so policy words
+in ordinary tool data do not become operation decisions.
+
+Run `python3 tests/test-governance-hooks.py`,
+`bash tests/test-hook-assembly.sh`, and
+`bash tests/test-verify-required-subsets.sh` before submitting hook changes.
+Live Autonomous/Review approval and resume behavior require scoped acceptance,
+not just offline tests.
 
 ## How to Add a Recipe
 

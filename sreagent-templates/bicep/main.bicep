@@ -119,8 +119,7 @@ param azureMonitorLookbackDays int = 7
 @description('Optional. Enable a daily 8am health summary scheduled task.')
 param enableDailyHealthCheckTask bool = false
 
-// ── Hook: deny destructive tools on prod resources ──
-@description('Optional. Enable a PreToolUse hook that denies delete_*/remove_* tools when the target name contains "prod"/"prd".')
+@description('Deprecated. The assembler converts it to the deny-prod-deletes data-plane hook; apply-extras deploys it. Direct Bicep deployment alone does not install hooks.')
 param enableDenyProdDeletesHook bool = false
 
 // ── Common prompt: safety rules ──
@@ -155,7 +154,7 @@ param incidentFilters array = []
 @description('Optional. Connector definitions for any kind not covered by toggles above (kusto, mcp, github, azuredevops, teams, outlook, servicenow, pagerduty, grafana) or to override a toggle-generated entry.')
 param connectors array = []
 
-@description('Optional. Hook definitions for any handler beyond the toggles above (additional PreToolUse/Start/Stop entries).')
+@description('Deprecated compatibility parameter. Entries are only returned by pendingHooks, not deployed. Use config/hooks and apply-extras.sh.')
 param hooks array = []
 
 @description('Optional. Common prompt definitions for any prompt beyond the toggles above.')
@@ -262,9 +261,11 @@ output lawId string = core.outputs.lawId
 output agentPortalUrl string = 'https://sre.azure.com/#/agent/${subscription().subscriptionId}/${agentResourceGroupName}/${agentName}'
 output resourceGroupPortalUrl string = 'https://portal.azure.com/#@/resource/subscriptions/${subscription().subscriptionId}/resourceGroups/${agentResourceGroupName}/overview'
 
-// hooks/commonPrompts/pluginConfigs aren't ARM-exposed at 2025-05-01-preview.
+// Hooks are supplied in config/hooks and applied by apply-extras.sh.
+// commonPrompts/pluginConfigs aren't ARM-exposed at 2025-05-01-preview.
 // Apply post-deploy with apply-extras.sh.
-output pendingHooks         array = extensions.outputs.pendingHooks
+@description('Deprecated compatibility output. Returned entries are not deployed hooks.')
+output pendingHooks array = extensions.outputs.pendingHooks
 output pendingPluginConfigs array = extensions.outputs.pendingPluginConfigs
 
 // Emit only the resource name, not the credential-bearing callback URL.

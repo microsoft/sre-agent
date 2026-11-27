@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Webhook bridge scripts print the Logic App name and a `listCallbackUrl` retrieval command instead of the callback URL.
 
 ### Fixed
+- Assemble an enabled legacy production-delete toggle into one data-plane hook,
+  preserving customer definitions. Apply the assembled extras or force
+  redeployment to install it; direct Bicep deployment does not convert the toggle.
+- Detect added defaults and changed same-name hook definitions before deployment,
+  while keeping identical normalized definitions unchanged.
+- Align recipe governance hooks with tool names and verify matcher coverage.
+  Preserve AWS read-only queries and existing Bicep parameter compatibility.
 - Discover available Azure SRE Agent regions from the selected subscription in Bash and PowerShell workflows, with all 20 live regions as the offline fallback.
 - Made `export-agent.sh` detect and install PyYAML before export, with an isolated-environment fallback and actionable failure guidance.
 

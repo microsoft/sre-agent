@@ -6,6 +6,7 @@
 #
 # Queries ARM + data-plane APIs and prints a pass/fail table.
 # If --expected is given, compares counts against the config directory.
+# PreToolUse hook matchers must match at least one enabled tool.
 
 set -uo pipefail
 
@@ -230,13 +231,55 @@ check "Subagents" "$SA_CT" "$EXP_SA_CT" "$COLLECTION_COUNT_MODE"
 [[ -n "$EXP_SA_NAMES" ]] && check "Subagent names" "$SA_NAMES" "$EXP_SA_NAMES" "$COLLECTION_NAME_MODE" || RESULTS="${RESULTS}\n  Subagent names|${SA_NAMES}|—|"
 
 # ── Hooks ──
-HOOKS=$(dp_get "/api/v2/extendedAgent/hooks")
+if ! HOOKS=$(curl -fsS --connect-timeout 10 --max-time 60 \
+  "$ENDPOINT/api/v2/extendedAgent/hooks" -H "Authorization: Bearer ${TOKEN}"); then
+  echo "FAIL: Could not read deployed hooks" >&2
+  exit 1
+fi
+if ! echo "$HOOKS" | jq -e '
+  (.value // .) | type == "array" and
+  all(.[]; (.name | type == "string") and (.properties.eventType | type == "string"))
+' >/dev/null; then
+  echo "FAIL: Expected a deployed hook array with names and event types" >&2
+  exit 1
+fi
 HOOK_CT=$(echo "$HOOKS" | jq '.value // . | if type == "array" then length else 0 end' 2>/dev/null || echo 0)
 HOOK_NAMES=$(echo "$HOOKS" | jq -r '(.value // .)[].name' 2>/dev/null | sort | tr '\n' ', ' | sed 's/,$//')
 EXP_HOOK_CT=$(exp '.hooks | length' "-")
 EXP_HOOK_NAMES=$(exp_list '.hooks')
 check "Hooks" "$HOOK_CT" "$EXP_HOOK_CT" "$COLLECTION_COUNT_MODE"
 [[ -n "$EXP_HOOK_NAMES" ]] && check "Hook names" "$HOOK_NAMES" "$EXP_HOOK_NAMES" "$COLLECTION_NAME_MODE" || RESULTS="${RESULTS}\n  Hook names|${HOOK_NAMES}|—|"
+
+PRETOOL_HOOKS=$(echo "$HOOKS" | jq -c '(.value // .)[] | select(.properties.eventType == "PreToolUse")')
+if [[ -n "$PRETOOL_HOOKS" ]]; then
+  if ! TOOLS=$(curl -fsS --connect-timeout 10 --max-time 60 \
+    "$ENDPOINT/api/v2/agent/tools" -H "Authorization: Bearer ${TOKEN}"); then
+    echo "FAIL: Could not read the Agent tool inventory" >&2
+    exit 1
+  fi
+  if ! echo "$TOOLS" | jq -e '
+    (.data | type == "array") and
+    all(.data[]; (.name | type == "string" and length > 0) and (.enabled | type == "boolean"))
+  ' >/dev/null; then
+    echo "FAIL: Expected the Agent tool inventory with data[].name and data[].enabled" >&2
+    exit 1
+  fi
+  while IFS= read -r hook; do
+    hook_name=$(echo "$hook" | jq -r '.name')
+    matcher=$(echo "$hook" | jq -r '.properties.hook.matcher // empty')
+    if ! echo "$hook" | jq -e '.properties.hook.matcher | type == "string"' >/dev/null; then
+      matched="invalid matcher"
+    elif [[ -z "${matcher//[[:space:]]/}" ]]; then
+      matched="missing matcher"
+    elif ! matched=$(echo "$TOOLS" | jq --arg matcher "$matcher" '
+      [.data[] | select(.enabled) |
+        select(if $matcher == "*" then true else (.name | test("^(" + $matcher + ")$")) end)] | length
+    '); then
+      matched="invalid matcher"
+    fi
+    check "Hook matcher (${hook_name})" "$matched" "1" "minimum"
+  done <<< "$PRETOOL_HOOKS"
+fi
 
 # ── Common Prompts ──
 PROMPTS=$(dp_get "/api/v2/extendedAgent/commonprompts")

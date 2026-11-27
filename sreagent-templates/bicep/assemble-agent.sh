@@ -239,6 +239,15 @@ TOOLS=$(collect_config "tools")
 _log "tools: $(echo "$TOOLS" | jq 'length')"
 
 HOOKS=$(collect_config "hooks")
+if echo "$TOGGLES" | jq -e '.enableDenyProdDeletesHook == true' >/dev/null; then
+  if ! echo "$HOOKS" | jq -e 'any(.[]; (.metadata.name // .name) == "deny-prod-deletes")' >/dev/null; then
+    DEFAULT_HOOK_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/defaults/hooks/deny-prod-deletes.yaml"
+    if command -v cygpath >/dev/null 2>&1; then DEFAULT_HOOK_PATH="$(cygpath -m "$DEFAULT_HOOK_PATH")"; fi
+    DEFAULT_HOOK=$(python3 -c 'import json,sys,yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1], encoding="utf-8"))))' "$DEFAULT_HOOK_PATH")
+    HOOKS=$(echo "$HOOKS" | jq -c --argjson hook "$DEFAULT_HOOK" '. + [$hook]')
+    _log "enableDenyProdDeletesHook is deprecated; added config hook deny-prod-deletes from defaults. Move it to config/hooks."
+  fi
+fi
 _log "hooks: $(echo "$HOOKS" | jq 'length')"
 
 RAW_PROMPTS=$(collect_config "common-prompts")

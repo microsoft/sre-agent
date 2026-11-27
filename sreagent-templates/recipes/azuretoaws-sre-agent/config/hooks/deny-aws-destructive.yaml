@@ -3,9 +3,82 @@ metadata:
 spec:
   eventType: PreToolUse
   hook:
-    type: prompt
-    prompt: If the tool targets a production AWS resource (deleting, terminating, or
-      removing), deny the action and require explicit human approval.
-    matcher: ^aws-mcp_(delete|terminate|remove|destroy|stop).*
-  permissionDecision: deny
+    type: command
+    matcher: aws-mcp_.*
+    failMode: block
+    timeout: 10
+    script: |
+      #!/usr/bin/env python3
+      import json
+      import re
+      import shlex
+      import sys
+
+      event = json.load(sys.stdin)
+      if not isinstance(event, dict):
+          raise ValueError("Hook event must be an object")
+      tool_name = event["tool_name"]
+      tool_input = event["tool_input"]
+      if not isinstance(tool_name, str) or not tool_name.strip() or not isinstance(tool_input, dict):
+          raise ValueError("Expected a nonempty tool_name and an object tool_input")
+      if not tool_name.startswith("aws-mcp_"):
+          raise ValueError("Expected an aws-mcp_ tool name")
+      name = re.sub(r"^aws_{2,}", "", tool_name[len("aws-mcp_"):])
+
+      def is_destructive(operation):
+          return bool(re.match(r"(?:batch[-_]?)?(delete|terminate|remove|destroy|stop)", operation, re.IGNORECASE)) or operation.lower() in {"rm", "rb"}
+
+      value_options = {
+          "--profile", "--region", "--endpoint-url", "--output", "--query",
+          "--ca-bundle", "--cli-read-timeout", "--cli-connect-timeout",
+      }
+      flag_options = {"--debug", "--no-verify-ssl", "--no-paginate", "--no-cli-pager", "--no-sign-request"}
+
+      def skip_options(tokens, index):
+          while index < len(tokens) and tokens[index].startswith("--"):
+              option, equals, _ = tokens[index].partition("=")
+              if option in flag_options and not equals:
+                  index += 1
+              elif option in value_options:
+                  index += 1 if equals else 2
+              else:
+                  return len(tokens)
+          return index
+
+      forwarded = name in {"call_aws", "run_script", "execute", "invoke", "run"}
+      if forwarded:
+          deny = False
+          for value in tool_input.values():
+              if not isinstance(value, str):
+                  continue
+              try:
+                  lexer = shlex.shlex(value, posix=True, punctuation_chars=";&|\n")
+                  lexer.whitespace = " \t\r"
+                  lexer.whitespace_split = True
+                  tokens = list(lexer)
+              except ValueError:
+                  continue
+              for index, token in enumerate(tokens):
+                  if token != "aws":
+                      continue
+                  service_index = skip_options(tokens, index + 1)
+                  operation_index = skip_options(tokens, service_index + 1)
+                  if operation_index < len(tokens) and is_destructive(tokens[operation_index]):
+                      deny = True
+      else:
+          _, separator, operation = name.partition("_")
+          deny = is_destructive(operation if separator else name)
+      if deny:
+          print(json.dumps({
+              "ok": False,
+              "reason": "Destructive AWS operations are blocked by this policy.",
+              "hookSpecificOutput": {"permissionDecision": "deny"}
+          }))
+      elif forwarded:
+          print(json.dumps({"ok": True, "hookSpecificOutput": {
+              "permissionDecision": "ask",
+              "permissionDecisionReason": "Approve this forwarded AWS request?"
+          }}))
+      else:
+          print(json.dumps({"ok": True}))
   enabled: true

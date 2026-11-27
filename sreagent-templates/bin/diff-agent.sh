@@ -11,6 +11,7 @@
 #   0 = no changes (everything matches)
 #   1 = changes detected (prints diff table)
 #   2 = agent doesn't exist (all items will be created)
+#   3 = hook assembly/comparison unavailable (deployment must not be skipped)
 
 set -uo pipefail
 
@@ -18,6 +19,16 @@ SUB="${1:?subscription-id required}"
 RG="${2:?resource-group required}"
 AGENT="${3:?agent-name required}"
 CONFIG_DIR="${4:?config-directory required}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+shift 4
+EXTRAS_FILE=""
+if [[ $# -gt 0 ]]; then
+  [[ $# -eq 2 && "$1" == "--extras" ]] || { echo "Expected --extras <assembled-extras-file>" >&2; exit 3; }
+  EXTRAS_FILE="$2"
+fi
+SCRATCH=""
+cleanup() { [[ -z "$SCRATCH" ]] || rm -rf "$SCRATCH"; }
+trap cleanup EXIT
 
 API_VERSION="2025-05-01-preview"
 ARM_BASE="https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.App/agents/${AGENT}"
@@ -129,9 +140,38 @@ compare_items "skills" "${CONFIG_DIR}/config/skills" "$DEPLOYED_SKILLS"
 DEPLOYED_SA=$(dp_get "/api/v2/extendedAgent/agents" | jq -r '.value[].name' 2>/dev/null | tr '\n' ' ')
 compare_items "subagents" "${CONFIG_DIR}/config/subagents" "$DEPLOYED_SA"
 
-# Hooks
-DEPLOYED_HOOKS=$(dp_get "/api/v2/extendedAgent/hooks" | jq -r '(.value // .)[].name' 2>/dev/null | tr '\n' ' ')
-compare_items "hooks" "${CONFIG_DIR}/config/hooks" "$DEPLOYED_HOOKS"
+# Hooks: compare the effective definitions, including assembler defaults.
+SCRATCH=$(mktemp -d) || exit 3
+if command -v cygpath >/dev/null 2>&1; then SCRATCH="$(cygpath -m "$SCRATCH")"; fi
+if [[ -z "$EXTRAS_FILE" ]]; then
+  if ! bash "${SCRIPT_DIR}/../bicep/assemble-agent.sh" "$CONFIG_DIR" --output "$SCRATCH/assembled" > "$SCRATCH/assembly.log" 2>&1; then
+    cat "$SCRATCH/assembly.log" >&2
+    exit 3
+  fi
+  EXTRAS_FILE="$SCRATCH/assembled.extras.json"
+fi
+if [[ -z "$TOKEN" ]] || ! curl -fsS --connect-timeout 10 --max-time 60 \
+  "$ENDPOINT/api/v2/extendedAgent/hooks" -H "Authorization: Bearer ${TOKEN}" > "$SCRATCH/deployed-hooks.json"; then
+  echo "Hook comparison failed: could not read deployed hooks" >&2
+  exit 3
+fi
+COMPARE_HOOKS="${SCRIPT_DIR}/compare-hooks.py"
+if command -v cygpath >/dev/null 2>&1; then
+  COMPARE_HOOKS="$(cygpath -m "$COMPARE_HOOKS")"
+  EXTRAS_FILE="$(cygpath -m "$EXTRAS_FILE")"
+fi
+if ! HOOK_DIFF=$(python3 "$COMPARE_HOOKS" "$EXTRAS_FILE" "$SCRATCH/deployed-hooks.json"); then
+  exit 3
+fi
+while IFS=$'\t' read -r name action; do
+  [[ -n "$name" ]] || continue
+  case "$action" in
+    CREATE) RESULTS="${RESULTS}\n  hooks/${name}|+ CREATE"; CREATES=$((CREATES + 1)) ;;
+    UPDATE) RESULTS="${RESULTS}\n  hooks/${name}|~ UPDATE (definition changed)"; CREATES=$((CREATES + 1)) ;;
+    MATCH) RESULTS="${RESULTS}\n  hooks/${name}|= match"; UNCHANGED=$((UNCHANGED + 1)) ;;
+    ORPHAN) RESULTS="${RESULTS}\n  hooks/${name}|- ORPHAN (deployed, not in config)"; ORPHANS=$((ORPHANS + 1)); UNCHANGED=$((UNCHANGED + 1)) ;;
+  esac
+done < <(echo "$HOOK_DIFF" | jq -r '.[] | [.name, .action] | @tsv')
 
 # Common Prompts
 DEPLOYED_PROMPTS=$(dp_get "/api/v2/extendedAgent/commonprompts" | jq -r '(.value // .)[].name' 2>/dev/null | tr '\n' ' ')
@@ -228,6 +268,6 @@ echo "  Summary: ${CREATES} new, ${UNCHANGED} match, ${ORPHANS} orphan"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-# Exit 1 only if there are new items to create (needs deploy)
+# Creates and definition updates both require deployment.
 [[ "$CREATES" -gt 0 ]] && exit 1
 exit 0

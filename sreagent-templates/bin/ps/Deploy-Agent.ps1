@@ -349,10 +349,14 @@ if ($IsDirectory) {
     $DiffScript = Join-Path $ScriptDir 'Diff-Agent.ps1'
     if (Test-Path $DiffScript) {
         try {
-            & $DiffScript -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AgentName $AgentName -InputPath $InputPath
+            $global:LASTEXITCODE = 0
+            & $DiffScript -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AgentName $AgentName -ConfigDir $InputPath -ExtrasFile $ExtrasFile
             $DiffExit = $LASTEXITCODE
         } catch {
-            $DiffExit = 1
+            throw "Change detection failed; deployment was not attempted. $($_.Exception.Message)"
+        }
+        if ($DiffExit -gt 2) {
+            throw "Change detection failed (exit $DiffExit); deployment was not attempted."
         }
 
         if ($DiffExit -eq 0) {

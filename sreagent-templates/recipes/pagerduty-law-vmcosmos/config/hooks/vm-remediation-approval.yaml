@@ -3,20 +3,77 @@ metadata:
 spec:
   eventType: PreToolUse
   hook:
-    type: prompt
-    prompt: |
-      You are a safety reviewer for VM remediation actions. Before allowing this tool
-      to execute, verify ALL of the following:
+    type: command
+    matcher: RunAzCliWriteCommands|RunKubectlWriteCommand|(?:(?:AutoScale|Scale|Restart|RolloutRestart|Modify.*Scale|Resize|Stop|Deallocate).*|(?:APIM)?(?:CreateOrUpdate|Modify|Remove).*NSG.*)
+    failMode: block
+    timeout: 10
+    script: |
+      #!/usr/bin/env python3
+      import json
+      import re
+      import shlex
+      import sys
 
-      1. The action has been justified by diagnostic evidence (metrics, logs, alerts).
-      2. The target VM is correctly identified — confirm resource group and VM name.
-      3. The action is proportional to the issue (do not restart for a minor CPU spike).
-      4. A less disruptive alternative has been considered first (e.g., process kill
-         before VM restart, NSG rule addition before full network reset).
-      5. The action will not cause cascading failures in dependent services.
-      6. If the VM hosts a stateful workload, data safety has been confirmed.
-
-      If ANY condition is not met, DENY the action and explain what evidence is missing.
-    matcher: ^(az_vm_|az_network_nsg_|restart_|resize_).*
-  permissionDecision: deny
+      event = json.load(sys.stdin)
+      if not isinstance(event, dict):
+          raise ValueError("Hook event must be an object")
+      tool_name = event["tool_name"]
+      tool_input = event["tool_input"]
+      if not isinstance(tool_name, str) or not tool_name.strip() or not isinstance(tool_input, dict):
+          raise ValueError("Expected a nonempty tool_name and an object tool_input")
+      builtin_pattern = r"(?:(?:AutoScale|Scale|Restart|RolloutRestart|Modify.*Scale|Resize|Stop|Deallocate).*|(?:APIM)?(?:CreateOrUpdate|Modify|Remove).*NSG.*)"
+      builtin_action = bool(re.fullmatch(builtin_pattern, tool_name))
+      is_cli = tool_name in {"RunAzCliWriteCommands", "RunKubectlWriteCommand"}
+      command = tool_input["command"] if is_cli else ""
+      if is_cli and (not isinstance(command, str) or not command.strip()):
+          raise ValueError("tool_input.command must be a nonempty string")
+      removal = bool(re.fullmatch(r"(?:APIM)?RemoveNSGRule.*", tool_name))
+      if ((removal or re.search(r"\b(delete|remove)\b", command, re.IGNORECASE))
+              and re.search(r"prod|prd", json.dumps(tool_input), re.IGNORECASE)):
+          print(json.dumps({
+              "ok": False,
+              "reason": "Deleting or removing production resources is blocked.",
+              "hookSpecificOutput": {"permissionDecision": "deny"}
+          }))
+          sys.exit(0)
+      capacity = (
+          re.search(r"\b(update|patch|set|apply)\b", command, re.IGNORECASE)
+          and re.search(r"sku\.capacity|--(?:max-count|min-count|node-count|number-of-workers)\b|\breplicas\b", command, re.IGNORECASE)
+      )
+      needs_approval = bool(builtin_action or capacity or re.search(r"\b(restart|stop|deallocate|scale|resize)\b", command, re.IGNORECASE))
+      lexer = shlex.shlex(command.lower(), posix=True, punctuation_chars=";&|")
+      lexer.whitespace_split = True
+      segments = [[]]
+      for token in lexer:
+          if token in {";", "&&", "||", "|", "&"}:
+              segments.append([])
+          else:
+              segments[-1].append(token)
+      for tokens in segments:
+          if "az" not in tokens:
+              continue
+          path = tokens[tokens.index("az") + 1:]
+          if path and path[0].startswith("-"):
+              needs_approval = True
+              continue
+          if path[:1] in (["vm"], ["vmss"]):
+              path = path[1:]
+          elif path[:2] == ["network", "nsg"]:
+              path = path[2:]
+          else:
+              continue
+          operation = []
+          for word in path:
+              if word.startswith("-") or word in {";", "&&", "||", "|"}:
+                  break
+              operation.append(word)
+          if not operation or not (operation[-1] in {"show", "list"} or operation[-1].startswith(("show-", "list-", "get-"))):
+              needs_approval = True
+      if needs_approval:
+          print(json.dumps({"ok": True, "hookSpecificOutput": {
+              "permissionDecision": "ask",
+              "permissionDecisionReason": "Approve remediation after reviewing diagnostic evidence, target resources, alternatives, dependencies and data safety?"
+          }}))
+      else:
+          print(json.dumps({"ok": True}))
   enabled: true
