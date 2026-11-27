@@ -172,7 +172,11 @@ CHANGES_DETECTED=""
 if [[ -d "$INPUT" ]]; then
   echo "── Change detection ──"
   DIFF_EXIT=0
-  "${SCRIPT_DIR}/diff-agent.sh" "$SUB" "$RG" "$AG" "$INPUT" 2>/dev/null || DIFF_EXIT=$?
+  "${SCRIPT_DIR}/diff-agent.sh" "$SUB" "$RG" "$AG" "$INPUT" --extras "$EXTRAS_FILE" || DIFF_EXIT=$?
+  if [[ "$DIFF_EXIT" -gt 2 ]]; then
+    echo "Change detection failed; deployment was not attempted." >&2
+    exit "$DIFF_EXIT"
+  fi
   if [[ "$DIFF_EXIT" -eq 0 ]]; then
     echo "  No changes detected."
     if [[ -z "$FORCE" ]]; then

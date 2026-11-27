@@ -115,7 +115,7 @@ These go in the secrets file, **never** on the command line:
 | Connectors | AWS MCP (stdio, SigV4 via mcp-proxy-for-aws), AWS Knowledge MCP (remote, no auth) |
 | Skills | `investigate-aws-app-errors` — CloudWatch + Lambda + DynamoDB diagnostics |
 | Subagents | `aws-investigator` — autonomous investigation using AWS MCP tools |
-| Hooks | `deny-aws-destructive` — blocks delete/terminate/remove without approval |
+| Hooks | `deny-aws-destructive` — denies delete/terminate/remove/destroy/stop operations |
 | Common Prompts | `safety-rules` — AWS-specific safety guardrails |
 | Repos | GitHub repo connected for code context |
 

@@ -10,6 +10,7 @@
       0 = no changes (everything matches)
       1 = changes detected (prints diff table)
       2 = agent doesn't exist (all items will be created)
+      3 = hook assembly/comparison unavailable
 
 .PARAMETER Subscription
     Azure subscription ID.
@@ -41,8 +42,10 @@ param(
     [string]$AgentName,
 
     [Parameter(Mandatory)]
-    [Alias('c','d')]
-    [string]$ConfigDir
+    [Alias('c','d','InputPath')]
+    [string]$ConfigDir,
+
+    [string]$ExtrasFile
 )
 
 Set-StrictMode -Version Latest
@@ -69,6 +72,9 @@ if (Test-Path $PrereqScript) {
     }
 }
 . (Join-Path $PSScriptRoot 'Invoke-Jq.ps1')
+$Python = Resolve-PythonWithYaml
+$ScratchDirectory = $null
+try {
 
 # ─────────────────────────── ARM setup ───────────────────────────
 
@@ -168,7 +174,7 @@ $Results   = [System.Collections.Generic.List[PSCustomObject]]::new()
 
 function Get-YamlName {
     param([string]$FilePath)
-    python3 -c "import yaml,sys; d=yaml.safe_load(open(sys.argv[1])); print(d.get('metadata',{}).get('name','') or d.get('name',''))" $FilePath 2>$null
+    & $Python -c "import yaml,sys; d=yaml.safe_load(open(sys.argv[1])); print(d.get('metadata',{}).get('name','') or d.get('name',''))" $FilePath 2>$null
 }
 
 # ─────────────────────────── compare_items ───────────────────────────
@@ -213,9 +219,9 @@ function Compare-Items {
 # ─────────────────────────── Banner ───────────────────────────
 
 Write-Host ''
-Write-Host ([char]0x2550 * 55) -ForegroundColor Cyan
+Write-Host ([string][char]0x2550 * 55) -ForegroundColor Cyan
 Write-Host "  Change Detection: ${AgentName} in ${ResourceGroup}" -ForegroundColor Cyan
-Write-Host ([char]0x2550 * 55) -ForegroundColor Cyan
+Write-Host ([string][char]0x2550 * 55) -ForegroundColor Cyan
 Write-Host ''
 
 # ─────────────────────────── Skills ───────────────────────────
@@ -230,8 +236,36 @@ Compare-Items 'subagents' (Join-Path $ConfigDir 'config/subagents') $deployedSA
 
 # ─────────────────────────── Hooks ───────────────────────────
 
-$deployedHooks = @(Invoke-Dp '/api/v2/extendedAgent/hooks' | Invoke-Jq -Raw -Filter '(.value // .)[].name' | Where-Object { $_ })
-Compare-Items 'hooks' (Join-Path $ConfigDir 'config/hooks') $deployedHooks
+try {
+    $ScratchDirectory = (New-Item -ItemType Directory -Path (Join-Path ([IO.Path]::GetTempPath()) "sre-diff-$([guid]::NewGuid())")).FullName
+    if (-not $ExtrasFile) {
+        $prefix = Join-Path $ScratchDirectory 'assembled'
+        $global:LASTEXITCODE = 0
+        & (Join-Path (Split-Path $PSScriptRoot -Parent) '../bicep/Assemble-Agent.ps1') -ConfigDir $ConfigDir -Output $prefix | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Hook assembly failed (exit $LASTEXITCODE)" }
+        $ExtrasFile = "${prefix}.extras.json"
+    }
+    $response = Invoke-WebRequest -Uri "${Endpoint}/api/v2/extendedAgent/hooks" `
+        -Headers @{ Authorization = "Bearer $Token" } -TimeoutSec 60 -SkipHttpErrorCheck
+    if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300) {
+        throw "Hook read failed (HTTP $($response.StatusCode))"
+    }
+    $deployedFile = Join-Path $ScratchDirectory 'deployed-hooks.json'
+    Set-Content -LiteralPath $deployedFile -Value $response.Content -Encoding utf8
+    $rows = & $Python (Join-Path (Split-Path $PSScriptRoot -Parent) 'compare-hooks.py') $ExtrasFile $deployedFile
+    if ($LASTEXITCODE -ne 0) { throw "Hook comparison failed (exit $LASTEXITCODE)" }
+    foreach ($row in (ConvertFrom-Json -InputObject ($rows -join "`n"))) {
+        switch ($row.action) {
+            'CREATE' { $Results.Add([pscustomobject]@{Resource = "hooks/$($row.name)"; Action = '+ CREATE'}); $Creates++ }
+            'UPDATE' { $Results.Add([pscustomobject]@{Resource = "hooks/$($row.name)"; Action = '~ UPDATE (definition changed)'}); $Creates++ }
+            'MATCH' { $Results.Add([pscustomobject]@{Resource = "hooks/$($row.name)"; Action = '= match'}); $Unchanged++ }
+            'ORPHAN' { $Results.Add([pscustomobject]@{Resource = "hooks/$($row.name)"; Action = '- ORPHAN (deployed, not in config)'}); $Orphans++; $Unchanged++ }
+        }
+    }
+} catch {
+    Write-Error "Hook comparison unavailable: $($_.Exception.Message)" -ErrorAction Continue
+    exit 3
+}
 
 # ─────────────────────────── Common Prompts ───────────────────────────
 
@@ -260,7 +294,7 @@ if (Test-Path $filterDir) {
         if ($deployedFilters -contains $localName) {
             # Deep field comparison
             $deployed = $deployedFiltersJson | Invoke-Jq -Compact -Filter '[.[] | select(.id == $n)][0] // {}' -ExtraArgs @('--arg', 'n', $localName)
-            $localSpec = python3 -c @"
+            $localSpec = & $Python -c @"
 import yaml,json,sys
 d=yaml.safe_load(open(sys.argv[1]))
 s=d.get('spec',{})
@@ -279,7 +313,7 @@ print(json.dumps(s))
             }
 
             # Check customInstructions via handler
-            $localCi  = python3 -c "import yaml,sys; d=yaml.safe_load(open(sys.argv[1])); print(d.get('spec',{}).get('customInstructions',''))" $f.FullName 2>$null
+            $localCi  = & $Python -c "import yaml,sys; d=yaml.safe_load(open(sys.argv[1])); print(d.get('spec',{}).get('customInstructions',''))" $f.FullName 2>$null
             $deployCi = $deployedHandlersJson | Invoke-Jq -Raw -Filter '[.[] | select(.incidentFilterId == $n)][0].customInstructions // ""' -ExtraArgs @('--arg', 'n', $localName)
             if ($localCi -and $localCi -ne $deployCi) {
                 $diffs += 'customInstructions:changed'
@@ -359,10 +393,15 @@ foreach ($r in $Results) {
 # ─────────────────────────── Summary ───────────────────────────
 
 Write-Host ''
-Write-Host ([char]0x2550 * 55) -ForegroundColor Cyan
+Write-Host ([string][char]0x2550 * 55) -ForegroundColor Cyan
 Write-Host "  Summary: ${Creates} new, ${Unchanged} match, ${Orphans} orphan" -ForegroundColor $(if ($Creates -gt 0) { 'Yellow' } else { 'Green' })
-Write-Host ([char]0x2550 * 55) -ForegroundColor Cyan
+Write-Host ([string][char]0x2550 * 55) -ForegroundColor Cyan
 Write-Host ''
 
 if ($Creates -gt 0) { exit 1 }
 exit 0
+} finally {
+    if ($ScratchDirectory -and (Test-Path -LiteralPath $ScratchDirectory)) {
+        Remove-Item -LiteralPath $ScratchDirectory -Recurse -Force
+    }
+}

@@ -336,6 +336,21 @@ $tools = Collect-Config 'tools'
 Write-Log "tools: $($tools | jq 'length')"
 
 $hooks = Collect-Config 'hooks'
+if (($toggles | Invoke-Jq -Raw -Filter '.enableDenyProdDeletesHook == true') -eq 'true') {
+    $hasProdDeleteHook = $hooks | Invoke-Jq -Raw -Filter 'any(.[]; (.metadata.name // .name) == "deny-prod-deletes")'
+    if ($hasProdDeleteHook -ne 'true') {
+        $defaultHookPath = Join-Path $PSScriptRoot 'defaults/hooks/deny-prod-deletes.yaml'
+        $defaultHook = & $Python -c 'import json,sys,yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1], encoding=''utf-8''))))' $defaultHookPath
+        if ($LASTEXITCODE -ne 0 -or -not $defaultHook) {
+            throw "Could not read the default production-deletion hook: $defaultHookPath"
+        }
+        $defaultHookJson = Get-AssemblyTempPath
+        Set-Content -LiteralPath $defaultHookJson -Value $defaultHook -NoNewline -Encoding utf8
+        $hooks = $hooks | Invoke-Jq -Compact -Filter '. + [$hook[0]]' -ExtraArgs @('--slurpfile', 'hook', $defaultHookJson)
+        Remove-Item -LiteralPath $defaultHookJson
+        Write-Log 'enableDenyProdDeletesHook is deprecated; added config hook deny-prod-deletes from defaults. Move it to config/hooks.'
+    }
+}
 Write-Log "hooks: $($hooks | jq 'length')"
 
 $rawPrompts    = Collect-Config 'common-prompts'

@@ -1,0 +1,38 @@
+metadata:
+  name: deny-prod-deletes
+spec:
+  eventType: PreToolUse
+  hook:
+    type: command
+    matcher: RunAzCliWriteCommands|RunKubectlWriteCommand|(?:APIM)?RemoveNSGRule.*
+    failMode: block
+    timeout: 10
+    script: |
+      #!/usr/bin/env python3
+      import json
+      import re
+      import sys
+
+      event = json.load(sys.stdin)
+      if not isinstance(event, dict):
+          raise ValueError("Hook event must be an object")
+      tool_name = event["tool_name"]
+      tool_input = event["tool_input"]
+      if not isinstance(tool_name, str) or not tool_name.strip() or not isinstance(tool_input, dict):
+          raise ValueError("Expected a nonempty tool_name and an object tool_input")
+      removal_pattern = r"(?:APIM)?RemoveNSGRule.*"
+      removes_rule = bool(re.fullmatch(removal_pattern, tool_name))
+      is_cli = tool_name in {"RunAzCliWriteCommands", "RunKubectlWriteCommand"}
+      command = tool_input["command"] if is_cli else ""
+      if is_cli and (not isinstance(command, str) or not command.strip()):
+          raise ValueError("tool_input.command must be a nonempty string")
+      if ((removes_rule or re.search(r"\b(delete|remove)\b", command, re.IGNORECASE))
+              and re.search(r"prod|prd", json.dumps(tool_input), re.IGNORECASE)):
+          print(json.dumps({
+              "ok": False,
+              "reason": "Deleting or removing production resources is blocked.",
+              "hookSpecificOutput": {"permissionDecision": "deny"}
+          }))
+      else:
+          print(json.dumps({"ok": True}))
+  enabled: true

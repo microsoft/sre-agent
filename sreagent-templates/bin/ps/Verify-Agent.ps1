@@ -6,6 +6,7 @@
     Queries ARM + data-plane APIs and prints a pass/fail table.
     If -Expected is given, compares counts against the config directory's
     expected-config.json.
+    PreToolUse hook matchers must match at least one enabled tool.
 
 .PARAMETER Subscription
     Azure subscription ID.
@@ -404,6 +405,43 @@ if ($ExpHookNames) {
     Add-Check 'Hook names' $HookNames $ExpHookNames $CollectionNameMode
 } else {
     Add-InfoRow 'Hook names' $HookNames
+}
+
+$PreToolHooks = @((ConvertFrom-Json -InputObject $Hooks -AsHashtable).value |
+    Where-Object { $_.properties.eventType -eq 'PreToolUse' })
+if ($PreToolHooks.Count -gt 0) {
+    $ToolInventory = Invoke-Dp '/api/v2/agent/tools'
+    try {
+        $inventory = ConvertFrom-Json -InputObject $ToolInventory -AsHashtable
+        if ($inventory.data -isnot [array]) { throw 'Expected an Agent tool inventory data array' }
+        foreach ($tool in $inventory.data) {
+            if ($tool.name -isnot [string] -or -not $tool.name -or $tool.enabled -isnot [bool]) {
+                throw 'Expected data[].name and data[].enabled in the Agent tool inventory'
+            }
+        }
+        $enabledTools = @($inventory.data | Where-Object { $_.enabled })
+        foreach ($hook in $PreToolHooks) {
+            $matched = 0
+            try {
+                $matcher = $hook.properties.hook.matcher
+                if ($matcher -isnot [string] -or [string]::IsNullOrWhiteSpace($matcher)) {
+                    throw 'Missing matcher'
+                }
+                if ($matcher -eq '*') {
+                    $matched = $enabledTools.Count
+                } else {
+                    $regex = [regex]::new("^($matcher)$", [System.Text.RegularExpressions.RegexOptions]::None,
+                        [TimeSpan]::FromMilliseconds(100))
+                    $matched = @($enabledTools | Where-Object { $regex.IsMatch($_.name) }).Count
+                }
+                Add-Check "Hook matcher ($($hook.name))" "$matched" '1' 'Minimum'
+            } catch {
+                Add-RequestFailure "Hook matcher ($($hook.name))" $_.Exception.Message
+            }
+        }
+    } catch {
+        Add-RequestFailure 'Hook tool inventory' $_.Exception.Message
+    }
 }
 
 # ─────────────────────────── Common Prompts ───────────────────────────

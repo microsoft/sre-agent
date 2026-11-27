@@ -3,7 +3,7 @@
 // Two input layers:
 //   (1) Toggle params (enable*) + their conditional inputs synthesize one
 //       built-in entry each (e.g. builtInConnectors).
-//   (2) Caller-supplied arrays (connectors, hooks, etc.) — advanced authoring.
+//   (2) Caller-supplied arrays (connectors, etc.) — advanced authoring.
 // The two layers are concat-merged before the resource loop, so a customer
 // can flip a toggle, fill in two strings, and skip array authoring entirely.
 //
@@ -20,6 +20,7 @@ param skills array = []
 param scheduledTasks array = []
 param incidentFilters array = []
 param connectors array = []
+@description('Deprecated compatibility parameter. Entries are returned, not deployed; apply hooks through the data plane.')
 param hooks array = []
 param commonPrompts array = []
 param pluginConfigs array = []
@@ -33,6 +34,7 @@ param lawResourceId string = ''
 param enableAzureMonitorConnector bool = false
 param azureMonitorLookbackDays int = 7
 param enableDailyHealthCheckTask bool = false
+@description('Deprecated. The assembler converts it to the deny-prod-deletes data-plane hook; apply-extras deploys it. Direct Bicep deployment alone does not install hooks.')
 param enableDenyProdDeletesHook bool = false
 param enableSafetyRulesPrompt bool = false
 
@@ -100,22 +102,6 @@ var builtInScheduledTasks = enableDailyHealthCheckTask ? [
   }
 ] : []
 
-var builtInHooks = enableDenyProdDeletesHook ? [
-  {
-    metadata: { name: 'deny-prod-deletes' }
-    spec: {
-      eventType: 'PreToolUse'
-      hookType: 'Prompt'
-      matcher: { toolPattern: '^(delete_|remove_).*' }
-      permissionDecision: 'deny'
-      hookBody: {
-        prompt: 'If the tool targets a production resource (name contains "prod" or "prd"), deny. Otherwise allow.'
-      }
-      enabled: true
-    }
-  }
-] : []
-
 var builtInCommonPrompts = enableSafetyRulesPrompt ? [
   {
     metadata: { name: 'safety-rules' }
@@ -129,7 +115,6 @@ var builtInCommonPrompts = enableSafetyRulesPrompt ? [
 
 var allConnectors      = concat(builtInConnectors,     connectors)
 var allScheduledTasks  = concat(builtInScheduledTasks, scheduledTasks)
-var allHooks           = concat(builtInHooks,          hooks)
 var allCommonPrompts   = concat(builtInCommonPrompts,  commonPrompts)
 
 // ─────────── Resource loops ───────────
@@ -153,5 +138,6 @@ resource connectorRes 'Microsoft.App/agents/connectors@2025-05-01-preview' = [fo
   properties: c.properties
 }]
 
-output pendingHooks         array = allHooks
+@description('Deprecated compatibility output. Returned entries are not deployed hooks.')
+output pendingHooks array = hooks
 output pendingPluginConfigs array = pluginConfigs
